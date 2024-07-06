@@ -11,7 +11,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
-	public static readonly viewType = "vscodeSidebar.openview"
+	public static readonly viewType = "claude-dev.SidebarProvider"
 
 	private _view?: vscode.WebviewView
 
@@ -86,7 +86,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             <meta name="theme-color" content="#000000">
             <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
-            <title>Hello World</title>
+            <title>Claude Dev</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -15,40 +15,34 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "custom-activitybar",
-          "title": "VSCode Extension",
-          "icon": "assets/logo_bito.svg"
+          "id": "claude-dev-ActivityBar",
+          "title": "Claude Dev",
+          "icon": "assets/icon.png"
         }
       ]
     },
     "views": {
-      "custom-activitybar": [
+      "claude-dev-ActivityBar": [
         {
           "type": "webview",
-          "id": "vscodeSidebar.openview",
-          "name": "View",
-          "contextualTitle": "View"
+          "id": "claude-dev.SidebarProvider",
+          "name": ""
         }
       ]
     },
     "commands": [
       {
-        "command": "vscodeSidebar.openview",
-        "title": "Sidebar View"
-      },
-      {
-        "command": "vscodeSidebar.menu.view",
-        "category": "vscode-extension-sidebar-html",
-        "title": "Sample WebView in VS Code Sidebar",
+        "command": "claude-dev.menuButtonTapped",
+        "title": "Text that will show when hovered",
         "icon": "$(clear-all)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "vscodeSidebar.menu.view",
+          "command": "claude-dev.menuButtonTapped",
           "group": "navigation",
-          "when": "view == vscodeSidebar.openview"
+          "when": "view == claude-dev.SidebarProvider"
         }
       ]
     }
