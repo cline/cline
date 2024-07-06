@@ -16,6 +16,9 @@ function handleHowdyClick() {
     text: "Hey there partner! 🤠",
   });
 }
+
+https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/webview/main.ts
+
   */
 
 

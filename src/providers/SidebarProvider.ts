@@ -3,6 +3,13 @@ import { getNonce } from "../utilities/getNonce"
 //import * as weather from "weather-js"
 import * as vscode from "vscode"
 
+/*
+https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
+
+https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
+*/
+
+
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "vscodeSidebar.openview"
 
@@ -23,56 +30,84 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			localResourceRoots: [this._extensionUri],
 		}
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
+
+		// Sets up an event listener to listen for messages passed from the webview view context
+		// and executes code based on the message that is recieved
+		this._setWebviewMessageListener(webviewView.webview)
 	}
 
+	/**
+	 * Defines and returns the HTML that should be rendered within the webview panel.
+	 *
+	 * @remarks This is also the place where references to the React webview build files
+	 * are created and inserted into the webview HTML.
+	 *
+	 * @param webview A reference to the extension webview
+	 * @param extensionUri The URI of the directory containing the extension
+	 * @returns A template string literal containing the HTML that should be
+	 * rendered within the webview panel
+	 */
 	private getHtmlContent(webview: vscode.Webview): string {
 		// Get the local path to main script run in the webview,
 		// then convert it to a uri we can use in the webview.
-		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
-		const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
+		// The CSS file from the React build output
+		const stylesUri = getUri(webview, this._extensionUri, ["webview-ui", "build", "static", "css", "main.css"])
+		// The JS file from the React build output
+		const scriptUri = getUri(webview, this._extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
 
-		// Same for stylesheet
-		const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
+		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
+
+		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
+		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
+
+		// // Same for stylesheet
+		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
 
 		// Use a nonce to only allow a specific script to be run.
 		const nonce = getNonce()
 
-		return `<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
+		return /*html*/ `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+            <meta name="theme-color" content="#000000">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+            <link rel="stylesheet" type="text/css" href="${stylesUri}">
+            <title>Hello World</title>
+          </head>
+          <body>
+            <noscript>You need to enable JavaScript to run this app.</noscript>
+            <div id="root"></div>
+            <script nonce="${nonce}" src="${scriptUri}"></script>
+          </body>
+        </html>
+      `
+	}
 
-        
+	/**
+	 * Sets up an event listener to listen for messages passed from the webview context and
+	 * executes code based on the message that is recieved.
+	 *
+	 * @param webview A reference to the extension webview
+	 * @param context A reference to the extension context
+	 */
+	private _setWebviewMessageListener(webview: vscode.Webview) {
+		webview.onDidReceiveMessage((message: any) => {
+			const command = message.command
+			const text = message.text
 
-				<link href="${styleResetUri}" rel="stylesheet">
-				<link href="${styleVSCodeUri}" rel="stylesheet">
-				
-        <link href="${stylesheetUri}" rel="stylesheet">
-				
-			</head>
-
-			<body>
-			<section class="wrapper">
-      <div class="container">
-            <div class="content">
-                <h2 class="subtitle">Subscribe today</h2>
-                <input type="text" class="mail" placeholder="Your email address" name="mail" required>
-                
-                <button class="add-color-button">Subscribe</button>
-                
-                <p class="text">We won’t send you spam.</p>
-                <p class="text">Unsubscribe at any time.</p>
-                
-            </div>
-      </div>
-			</section>
-			<!--<script nonce="${nonce}" src="${scriptUri}"></script>-->
-      </body>
-
-			</html>`
+			switch (command) {
+				case "hello":
+					// Code that should run in response to the hello message command
+					vscode.window.showInformationMessage(text)
+					return
+				// Add more switch case statements here as more webview message commands
+				// are created within the webview context (i.e. inside media/main.js)
+			}
+		})
 	}
 }
