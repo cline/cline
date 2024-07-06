@@ -1,0 +1,45 @@
+h1 {
+	font-size: 1.5em;
+}
+
+#search-container {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+}
+
+#location {
+	width: 100%;
+	margin-top: 0.5rem;
+}
+
+#unit {
+	min-width: 30px;
+	width: 100%;
+	margin-top: 0.5rem;
+}
+
+#check-weather-button {
+	margin-top: 0.5rem;
+}
+
+#results-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-around;
+	background-color: var(--vscode-input-background);
+	padding: 1rem;
+	margin: 1rem 0;
+	border-radius: 2px;
+}
+
+#icon {
+	font-size: 3em;
+	padding: 0;
+	margin: 0;
+}
+
+.hidden {
+	display: none;
+}
