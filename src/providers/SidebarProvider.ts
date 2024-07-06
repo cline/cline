@@ -56,6 +56,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// The JS file from the React build output
 		const scriptUri = getUri(webview, this._extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
 
+		// The codicon font from the React build output
+		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
+		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
+		// don't forget to add font-src ${webview.cspSource};
+		const codiconsUri = getUri(webview, this._extensionUri, ["node_modules", "@vscode", "codicons", "dist", "codicon.css"])
+
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
 		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
@@ -84,8 +90,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
+			<link href="${codiconsUri}" rel="stylesheet" />
             <title>Claude Dev</title>
           </head>
           <body>

@@ -1,3 +1,38 @@
+
+# Icon library
+This repo uses https://github.com/microsoft/vscode-codicons
+https://microsoft.github.io/vscode-codicons/dist/codicon.html
+
+
+# Styling VSCode Webview UI Toolkit Components
+
+## Understanding Styling Constraints
+
+When working with the VSCode Webview UI Toolkit, it's important to understand the styling constraints imposed by the underlying architecture. The toolkit uses Microsoft's FAST framework, which utilizes Shadow DOM for component encapsulation. This approach ensures consistency with VSCode's design language but introduces some limitations in custom styling.
+
+### Key Points:
+
+- **Shadow DOM Encapsulation**: The toolkit components use Shadow DOM, which encapsulates the internal structure of components. This means that traditional CSS selectors cannot directly target elements within the component.
+
+- **Wrapper vs. Shadow Element**: When you apply styles to a toolkit component, you're typically styling the wrapper element, not the shadow element inside. This can lead to unexpected results if you're trying to modify the internal appearance of a component.
+
+- **Use Props for Behavior Modification**: Instead of relying on custom styles, you should primarily use the props provided by the toolkit components to modify their behavior and appearance. This ensures consistency with VSCode's design language and prevents potential conflicts.
+
+- **Limited Direct Styling**: While it's possible to style some internal elements using the `::part()` pseudo-element selector, this approach is not officially supported or documented by the toolkit. Using it may lead to inconsistencies with VSCode's native UI.
+
+## Best Practices
+
+1. **Stick to Provided Props**: Whenever possible, use the props and attributes provided by the toolkit components to customize their appearance and behavior.
+
+2. **Avoid Custom Styles**: Refrain from applying custom styles that significantly alter the appearance of toolkit components. This helps maintain consistency with VSCode's native UI.
+
+3. **Use Wrapper Styles Carefully**: If you need to apply styles, focus on the wrapper element (e.g., positioning, margins) rather than trying to modify the internal shadow elements.
+
+### Sources
+- https://github.com/microsoft/vscode-webview-ui-toolkit/issues/376#issuecomment-1191881962
+- https://github.com/microsoft/vscode-webview-ui-toolkit/issues/550#issuecomment-2148407785
+
+
 # claude-dev README
 
 This is the README for your extension "claude-dev". After writing up a brief description, we recommend including the following sections.
