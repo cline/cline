@@ -75,7 +75,6 @@
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@types/vscode": "^1.82.0",
-    "@types/vscode-webview": "^1.57.5",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",
     "@vscode/test-cli": "^0.0.9",
@@ -84,8 +83,5 @@
     "eslint": "^8.57.0",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "@vscode/webview-ui-toolkit": "^1.4.0"
   }
 }

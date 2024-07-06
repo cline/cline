@@ -69,3 +69,90 @@ You can author your README using Visual Studio Code. Here are some useful editor
 * [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
 **Enjoy!**
+
+# React + Create React App + Webview UI Toolkit webview extension
+
+https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/frameworks/hello-world-react-cra
+
+# Extension commands
+
+A quick run down of some of the important commands that can be run when at the root of the project.
+
+```
+npm run install:all      Install package dependencies for both the extension and React webview source code.
+npm run start:webview    Runs the React webview source code in development mode. Open http://localhost:3000 to view it in the browser.
+npm run build:webview    Build React webview source code. Must be executed before compiling or running the extension.
+npm run compile          Compile VS Code extension
+```
+
+# Extension development cycle
+
+The intended development cycle of this React-based webview extension is slightly different than that of other VS Code extensions.
+
+Due to the fact that the `webview-ui` directory holds a self-contained React application we get to take advantage of some of the perks that that enables. In particular,
+
+- UI development and iteration cycles can happen much more quickly by using Create React App (CRA)
+- Dependency management and project configuration is hugely simplified
+
+## UI development cycle
+
+Since we can take advantage of the much faster CRA dev server, it is encouraged to begin developing webview UI by running the `npm run start:webview` command and then editing the code in the `webview-ui/src` directory.
+
+_Tip: Open the command palette and run the `Simple Browser` command and fill in `http://localhost:3000/` when prompted. This will open a simple browser environment right inside VS Code._
+
+### Message passing
+If you need to implement message passing between the webview context and extension context via the VS Code API, a helpful utility is provided in the `webview-ui/src/utilities/vscode.ts` file.
+
+This file contains a utility wrapper around the `acquireVsCodeApi()` function, which enables message passing and state management between the webview and extension contexts.
+
+This utility also enables webview code to be run in the CRA dev server by using native web browser features that mock the functionality enabled by acquireVsCodeApi. This means you can keep building your webview UI with the CRA dev server even when using the VS Code API.
+
+### Move to traditional extension development
+Once you're ready to start building other parts of your extension, simply shift to a development model where you run the `npm run build:webview` command as you make changes, press `F5` to compile your extension and open a new Extension Development Host window. Inside the host window, open the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac) and type `Hello World (React + CRA): Show`.
+
+## Dependency management and project configuration
+
+As mentioned above, the `webview-ui` directory holds a self-contained and isolated React application meaning you can (for the most part) treat the development of your webview UI in the same way you would treat the development of a regular React application.
+
+To install webview-specific dependencies simply navigate (i.e. `cd`) into the `webview-ui` directory and install any packages you need or set up any React specific configurations you want.
+
+# Extension structure
+
+This section provides a quick introduction into how this sample extension is organized and structured.
+
+The two most important directories to take note of are the following:
+
+- `src`: Contains all of the extension source code
+- `webview-ui`: Contains all of the webview UI source code
+
+## `src` directory
+
+The `src` directory contains all of the extension-related source code and can be thought of as containing the "backend" code/logic for the entire extension. Inside of this directory you'll find the:
+
+- `panels` directory
+- `utilities` directory
+- `extension.ts` file
+
+The `panels` directory contains all of the webview-related code that will be executed within the extension context. It can be thought of as the place where all of the "backend" code for each webview panel is contained.
+
+This directory will typically contain individual TypeScript or JavaScript files that contain a class which manages the state and behavior of a given webview panel. Each class is usually in charge of:
+
+- Creating and rendering the webview panel
+- Properly cleaning up and disposing of webview resources when the panel is closed
+- Setting message listeners so data can be passed between the webview and extension
+- Setting the initial HTML markdown of the webview panel
+- Other custom logic and behavior related to webview panel management
+
+As the name might suggest, the `utilties` directory contains all of the extension utility functions that make setting up and managing an extension easier. In this case, it contains `getUri.ts` which contains a helper function which will get the webview URI of a given file or resource.
+
+Finally, `extension.ts` is where all the logic for activating and deactiving the extension usually live. This is also the place where extension commands are registered.
+
+## `webview-ui` directory
+
+The `webview-ui` directory contains all of the React-based webview source code and can be thought of as containing the "frontend" code/logic for the extension webview.
+
+This directory is special because it contains a full-blown React application which was created using the TypeScript [Create React App](https://create-react-app.dev/) template. As a result, `webview-ui` contains its own `package.json`, `node_modules`, `tsconfig.json`, and so on––separate from the `hello-world` extension in the root directory.
+
+This strays a bit from other extension structures, in that you'll usually find the extension and webview dependencies, configurations, and source code more closely integrated or combined with each other.
+
+However, in this case, there are some unique benefits and reasons for why this sample extension does not follow those patterns such as easier management of conflicting dependencies and configurations, as well as the ability to use the CRA dev server, which drastically improves the speed of developing your webview UI, versus recompiling your extension code every time you make a change to the webview.

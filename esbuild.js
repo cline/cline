@@ -44,25 +44,13 @@ const extensionConfig = {
 	external: ["vscode"],
 }
 
-const webviewConfig = {
-	...baseConfig,
-	target: "es2020",
-	format: "esm",
-	entryPoints: ["src/webview/main.ts"],
-	outfile: "dist/webview.js",
-}
-
 async function main() {
 	const extensionCtx = await esbuild.context(extensionConfig)
-	const webviewCtx = await esbuild.context(webviewConfig)
 	if (watch) {
 		await extensionCtx.watch()
-		await webviewCtx.watch()
 	} else {
 		await extensionCtx.rebuild()
 		await extensionCtx.dispose()
-		await webviewCtx.rebuild()
-		await webviewCtx.dispose()
 	}
 }
 
