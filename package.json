@@ -4,7 +4,7 @@
   "description": "Autonomous junior engineer",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.91.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Other"
@@ -34,7 +34,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.91.0",
+    "@types/vscode": "^1.82.0",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
