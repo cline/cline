@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react"
-import { VSCodeButton, VSCodeTextArea, VSCodeDivider, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "../utilities/vscode"
-import DynamicTextArea from "react-textarea-autosize"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { KeyboardEvent, useEffect, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { vscode } from "../utilities/vscode"
 
 interface Message {
 	id: string
@@ -48,9 +48,7 @@ const ChatSidebar = () => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
 		}
-	}, [])
 
-	useEffect(() => {
 		window.addEventListener("message", (e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
 			if (message.type === "text") {
@@ -67,7 +65,7 @@ const ChatSidebar = () => {
 	return (
 		<div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
 			<div style={{ flexGrow: 1, overflowY: "scroll", scrollbarWidth: "none" }}>
-				{messages.map((message, index) => (
+				{messages.map((message) => (
 					<div
 						key={message.id}
 						style={{
