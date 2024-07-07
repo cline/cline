@@ -1,7 +1,6 @@
-import React from "react"
+import React, { useState } from "react"
 import logo from "./logo.svg"
 import "./App.css"
-
 
 import { vscode } from "./utilities/vscode"
 import {
@@ -26,8 +25,12 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import ChatSidebar from "./components/ChatSidebar"
+import Demo from "./components/Demo"
+import SettingsView from "./components/SettingsView"
 
 const App: React.FC = () => {
+	const [showSettings, setShowSettings] = useState(true)
+
 	const handleHowdyClick = () => {
 		vscode.postMessage({
 			command: "hello",
@@ -35,12 +38,7 @@ const App: React.FC = () => {
 		})
 	}
 
-	return (
-		// REMOVE COLOR
-		<main style={{backgroundColor: '#232526'}}>
-			<ChatSidebar />
-		</main>
-	)
+	return <>{showSettings ? <SettingsView /> : <ChatSidebar />}</>
 }
 
 export default App

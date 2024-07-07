@@ -14,6 +14,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
+    "react-textarea-autosize": "^8.5.3",
     "rewire": "^7.0.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react"
 import { VSCodeButton, VSCodeTextArea, VSCodeDivider, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "../utilities/vscode"
-import ResizingTextArea from "./ResizingTextArea"
+import DynamicTextArea from "react-textarea-autosize"
 
 interface Message {
 	id: number
@@ -13,9 +13,12 @@ const ChatSidebar = () => {
 	const [messages, setMessages] = useState<Message[]>([])
 	const [inputValue, setInputValue] = useState("")
 	const messagesEndRef = useRef<HTMLDivElement>(null)
+	const textAreaRef = useRef<HTMLTextAreaElement>(null)
+	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
 
 	const scrollToBottom = () => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: 'nearest', inline: 'start' })
 	}
 
 	useEffect(scrollToBottom, [messages])
@@ -29,10 +32,6 @@ const ChatSidebar = () => {
 			}
 			setMessages([...messages, newMessage])
 			setInputValue("")
-			// if (textAreaRef.current) {
-			// 	textAreaRef.current.style.height = "auto"
-			// }
-
 			// Here you would typically send the message to your extension's backend
 			vscode.postMessage({
 				command: "sendMessage",
@@ -40,14 +39,25 @@ const ChatSidebar = () => {
 			})
 		}
 	}
+	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+		if (event.key === "Enter" && !event.shiftKey) {
+			event.preventDefault()
+			handleSendMessage()
+		}
+	}
+
+	useEffect(() => {
+		if (textAreaRef.current && !textAreaHeight) {
+			setTextAreaHeight(textAreaRef.current.offsetHeight)
+		}
+	}, [])
 
 	return (
-		<div className="chat-sidebar" style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-			<div className="message-list" style={{ flexGrow: 1, overflowY: "auto", padding: "10px" }}>
+		<div style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: "gray", overflow: "hidden" }}>
+			<div style={{ flexGrow: 1, overflowY: "scroll", scrollbarWidth: "none" }}>
 				{messages.map((message) => (
 					<div
 						key={message.id}
-						className={`message ${message.sender}`}
 						style={{
 							marginBottom: "10px",
 							padding: "8px",
@@ -57,35 +67,54 @@ const ChatSidebar = () => {
 									? "var(--vscode-editor-background)"
 									: "var(--vscode-sideBar-background)",
 						}}>
-						{message.text}
+						<span style={{ whiteSpace: "pre-line", overflowWrap: "break-word" }}>{message.text}</span>
 					</div>
 				))}
-				<div ref={messagesEndRef} />
+				<div style={{ float:"left", clear: "both" }} ref={messagesEndRef} />
 			</div>
-			<VSCodeDivider />
-			<div className="input-area" style={{ padding: 20 }}>
-				<ResizingTextArea
+			<div style={{ position: "relative", paddingTop: "16px", paddingBottom: "16px" }}>
+				<DynamicTextArea
+					ref={textAreaRef}
 					value={inputValue}
-					onChange={setInputValue}
+					onChange={(e) => setInputValue(e.target.value)}
+					onKeyDown={handleKeyDown}
+					onHeightChange={() => scrollToBottom()}
 					placeholder="Type a message..."
-					style={{ marginBottom: "10px", width: "100%" }}
+					maxRows={10}
+					style={{
+						width: "100%",
+						boxSizing: "border-box",
+						backgroundColor: "var(--vscode-input-background, #3c3c3c)",
+						color: "var(--vscode-input-foreground, #cccccc)",
+						border: "1px solid var(--vscode-input-border, #3c3c3c)",
+						borderRadius: "2px",
+						fontFamily:
+							"var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif)",
+						fontSize: "var(--vscode-editor-font-size, 13px)",
+						lineHeight: "var(--vscode-editor-line-height, 1.5)",
+						resize: "none",
+						overflow: "hidden",
+						paddingTop: "8px",
+						paddingBottom: "8px",
+						paddingLeft: "8px",
+						paddingRight: "40px", // Make room for button
+					}}
 				/>
-				<VSCodeButton onClick={handleSendMessage}>Send</VSCodeButton>
-				<VSCodeTextField>
-					<section slot="end" style={{ display: "flex", alignItems: "center" }}>
-						<VSCodeButton appearance="icon" aria-label="Match Case">
-							<span className="codicon codicon-case-sensitive"></span>
+				{textAreaHeight && (
+					<div
+						style={{
+							position: "absolute",
+							right: "12px",
+							height: `${textAreaHeight}px`,
+							bottom: "18px",
+							display: "flex",
+							alignItems: "center",
+						}}>
+						<VSCodeButton appearance="icon" aria-label="Send Message" onClick={handleSendMessage}>
+							<span className="codicon codicon-send"></span>
 						</VSCodeButton>
-						<VSCodeButton appearance="icon" aria-label="Match Whole Word">
-							<span className="codicon codicon-whole-word"></span>
-						</VSCodeButton>
-						<VSCodeButton appearance="icon" aria-label="Use Regular Expression">
-							<span className="codicon codicon-regex"></span>
-						</VSCodeButton>
-					</section>
-				</VSCodeTextField>
-				<span slot="end" className="codicon codicon-chevron-right"></span>
-				<VSCodeButton onClick={handleSendMessage}>Send</VSCodeButton>
+					</div>
+				)}
 			</div>
 		</div>
 	)

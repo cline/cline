@@ -32,15 +32,25 @@
     },
     "commands": [
       {
-        "command": "claude-dev.menuButtonTapped",
-        "title": "Text that will show when hovered",
-        "icon": "$(clear-all)"
+        "command": "claude-dev.plusButtonTapped",
+        "title": "New Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claude-dev.settingsButtonTapped",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "claude-dev.menuButtonTapped",
+          "command": "claude-dev.plusButtonTapped",
+          "group": "navigation",
+          "when": "view == claude-dev.SidebarProvider"
+        },
+        {
+          "command": "claude-dev.settingsButtonTapped",
           "group": "navigation",
           "when": "view == claude-dev.SidebarProvider"
         }

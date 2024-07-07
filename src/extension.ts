@@ -34,8 +34,15 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.menuButtonTapped", () => {
-			const message = "claude-dev.menuButtonTapped!"
+		vscode.commands.registerCommand("claude-dev.plusButtonTapped", () => {
+			const message = "claude-dev.plusButtonTapped!"
+			vscode.window.showInformationMessage(message)
+		})
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
+			const message = "claude-dev.settingsButtonTapped!"
 			vscode.window.showInformationMessage(message)
 		})
 	)
