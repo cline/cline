@@ -10,7 +10,7 @@ interface Message {
 	sender: "user" | "assistant"
 }
 
-const ChatSidebar = () => {
+const ChatView = () => {
 	const [messages, setMessages] = useState<Message[]>([])
 	const [inputValue, setInputValue] = useState("")
 	const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -130,4 +130,4 @@ const ChatSidebar = () => {
 	)
 }
 
-export default ChatSidebar
+export default ChatView

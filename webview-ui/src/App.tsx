@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import "./App.css"
 
-import ChatSidebar from "./components/ChatSidebar"
+import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
@@ -64,7 +64,7 @@ const App: React.FC = () => {
 					onDone={() => setShowSettings(false)}
 				/>
 			) : (
-				<ChatSidebar />
+				<ChatView />
 			)}
 		</>
 	)
