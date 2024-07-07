@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// })
 	// context.subscriptions.push(disposable)
 
-	const provider = new SidebarProvider(context.extensionUri)
+	const provider = new SidebarProvider(context)
 
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider))
 

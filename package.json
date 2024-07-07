@@ -17,7 +17,7 @@
         {
           "id": "claude-dev-ActivityBar",
           "title": "Claude Dev",
-          "icon": "assets/icon.png"
+          "icon": "$(robot)"
         }
       ]
     },

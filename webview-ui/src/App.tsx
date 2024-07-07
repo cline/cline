@@ -4,27 +4,70 @@ import "./App.css"
 import ChatSidebar from "./components/ChatSidebar"
 import SettingsView from "./components/SettingsView"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import WelcomeView from "./components/WelcomeView"
+import { vscode } from "./utilities/vscode"
+
+/*
+The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
+
+The best way to solve this is to make your webview stateless. Use message passing to save off the webview's state and then restore the state when the webview becomes visible again.
+
+
+*/
 
 const App: React.FC = () => {
 	const [showSettings, setShowSettings] = useState(false)
+	const [showWelcome, setShowWelcome] = useState<boolean>(false)
+	const [apiKey, setApiKey] = useState<string>("")
+	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 
 	useEffect(() => {
+		vscode.postMessage({ type: "webviewDidLaunch" })
 		window.addEventListener("message", (e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
-			if (message.type === "action") {
-				switch (message.action!) {
-					case "settingsButtonTapped":
-						setShowSettings(true)
-						break
-					case "plusButtonTapped":
-						setShowSettings(false)
-						break
-				}
+			// switch message.type
+			switch (message.type) {
+				case "webviewState":
+					const shouldShowWelcome = !message.webviewState!.didOpenOnce || !message.webviewState!.apiKey
+					setShowWelcome(shouldShowWelcome)
+					setApiKey(message.webviewState!.apiKey || "")
+					setMaxRequestsPerTask(
+						message.webviewState!.maxRequestsPerTask !== undefined
+							? message.webviewState!.maxRequestsPerTask.toString()
+							: ""
+					)
+					break
+				case "action":
+					switch (message.action!) {
+						case "settingsButtonTapped":
+							setShowSettings(true)
+							break
+						case "plusButtonTapped":
+							setShowSettings(false)
+							break
+					}
+					break
 			}
 		})
 	}, [])
 
-	return <>{showSettings ? <SettingsView /> : <ChatSidebar />}</>
+	return (
+		<>
+			{showWelcome ? (
+				<WelcomeView apiKey={apiKey} setApiKey={setApiKey} />
+			) : showSettings ? (
+				<SettingsView
+					apiKey={apiKey}
+					setApiKey={setApiKey}
+					maxRequestsPerTask={maxRequestsPerTask}
+					setMaxRequestsPerTask={setMaxRequestsPerTask}
+					onDone={() => setShowSettings(false)}
+				/>
+			) : (
+				<ChatSidebar />
+			)}
+		</>
+	)
 }
 
 export default App

@@ -11,13 +11,15 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
+type ExtensionSecretKey = "apiKey"
+type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.SidebarProvider"
 
 	private _view?: vscode.WebviewView
 
-	constructor(private readonly _extensionUri: vscode.Uri) {}
+	constructor(private readonly context: vscode.ExtensionContext) {}
 
 	resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -29,7 +31,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
-			localResourceRoots: [this._extensionUri],
+			localResourceRoots: [this.context.extensionUri],
 		}
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
 
@@ -59,15 +61,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// then convert it to a uri we can use in the webview.
 
 		// The CSS file from the React build output
-		const stylesUri = getUri(webview, this._extensionUri, ["webview-ui", "build", "static", "css", "main.css"])
+		const stylesUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"build",
+			"static",
+			"css",
+			"main.css",
+		])
 		// The JS file from the React build output
-		const scriptUri = getUri(webview, this._extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
+		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
 		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
 		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUri = getUri(webview, this._extensionUri, ["node_modules", "@vscode", "codicons", "dist", "codicon.css"])
+		const codiconsUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"@vscode",
+			"codicons",
+			"dist",
+			"codicon.css",
+		])
 
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
@@ -78,7 +92,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
 
 		// Use a nonce to only allow a specific script to be run.
-        /*
+		/*
         content security policy of your webview to only allow scripts that have a specific nonce
         create a content security policy meta tag so that only loading scripts with a nonce is allowed
         As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
@@ -119,20 +133,73 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	 * @param context A reference to the extension context
 	 */
 	private _setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage((message: WebviewMessage) => {
+		webview.onDidReceiveMessage(async (message: WebviewMessage) => {
 			switch (message.type) {
+				case "webviewDidLaunch":
+					await this.updateGlobalState("didOpenOnce", true)
+					await this.postWebviewState()
+					break
 				case "text":
 					// Code that should run in response to the hello message command
 					vscode.window.showInformationMessage(message.text!)
 
 					// Send a message to our webview.
-      				// You can send any JSON serializable data.
-					// Could also do this in extension .ts 
+					// You can send any JSON serializable data.
+					// Could also do this in extension .ts
 					this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-					return
+					break
+				case "apiKey":
+					await this.storeSecret("apiKey", message.text!)
+					await this.postWebviewState()
+					break
+				case "maxRequestsPerTask":
+					let result: number | undefined = undefined
+					if (message.text && message.text.trim()) {
+						const num = Number(message.text)
+						if (!isNaN(num)) {
+							result = num
+						}
+					}
+					await this.updateGlobalState("maxRequestsPerTask", result)
+					await this.postWebviewState()
+					break
 				// Add more switch case statements here as more webview message commands
 				// are created within the webview context (i.e. inside media/main.js)
 			}
 		})
+	}
+
+	private async postWebviewState() {
+		const [didOpenOnce, apiKey, maxRequestsPerTask] = await Promise.all([
+			this.getGlobalState("didOpenOnce") as Promise<boolean | undefined>,
+			this.getSecret("apiKey") as Promise<string | undefined>,
+			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
+		])
+		this.postMessageToWebview({
+			type: "webviewState",
+			webviewState: { didOpenOnce: !!didOpenOnce, apiKey: apiKey, maxRequestsPerTask: maxRequestsPerTask },
+		})
+	}
+
+	/*
+	Storage
+	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
+	https://www.eliostruyf.com/devhack-code-extension-storage-options/
+	*/
+
+	private async updateGlobalState(key: ExtensionGlobalStateKey, value: any) {
+		await this.context.globalState.update(key, value)
+	}
+
+	private async getGlobalState(key: ExtensionGlobalStateKey) {
+		return await this.context.globalState.get(key)
+	}
+
+	private async storeSecret(key: ExtensionSecretKey, value: any) {
+		await this.context.secrets.store(key, value)
+	}
+
+	private async getSecret(key: ExtensionSecretKey) {
+		return await this.context.secrets.get(key)
 	}
 }

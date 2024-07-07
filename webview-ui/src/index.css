@@ -15,3 +15,7 @@ body {
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
 }
+
+vscode-button::part(control):focus {
+	outline: none;
+}
