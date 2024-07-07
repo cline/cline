@@ -62,6 +62,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 	useEffect(() => {
 		validateApiKey(apiKey)
 		validateMaxRequests(maxRequestsPerTask)
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return (

@@ -60,6 +60,7 @@ const ChatView = () => {
 				setMessages(currentMessages => [...currentMessages, newMessage])
 			}
 		})
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return (
