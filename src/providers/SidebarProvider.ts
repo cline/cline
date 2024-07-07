@@ -2,6 +2,8 @@ import { getUri } from "../utilities/getUri"
 import { getNonce } from "../utilities/getNonce"
 //import * as weather from "weather-js"
 import * as vscode from "vscode"
+import { ExtensionMessage } from "../shared/ExtensionMessage"
+import { WebviewMessage } from "../shared/WebviewMessage"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -34,6 +36,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is recieved
 		this._setWebviewMessageListener(webviewView.webview)
+	}
+
+	// Send any JSON serializable data to the react app
+	postMessageToWebview(message: ExtensionMessage) {
+		this._view?.webview.postMessage(message)
 	}
 
 	/**
@@ -112,14 +119,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	 * @param context A reference to the extension context
 	 */
 	private _setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage((message: any) => {
-			const command = message.command
-			const text = message.text
-
-			switch (command) {
-				case "hello":
+		webview.onDidReceiveMessage((message: WebviewMessage) => {
+			switch (message.type) {
+				case "text":
 					// Code that should run in response to the hello message command
-					vscode.window.showInformationMessage(text)
+					vscode.window.showInformationMessage(message.text!)
+
+					// Send a message to our webview.
+      				// You can send any JSON serializable data.
+					// Could also do this in extension .ts 
+					this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 					return
 				// Add more switch case statements here as more webview message commands
 				// are created within the webview context (i.e. inside media/main.js)

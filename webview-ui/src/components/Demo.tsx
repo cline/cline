@@ -1,34 +1,33 @@
 
-import { vscode } from "../utilities/vscode"
 import {
-	VSCodeBadge,
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeDataGrid,
-	VSCodeDataGridCell,
-	VSCodeDataGridRow,
-	VSCodeDivider,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-	VSCodeProgressRing,
-	VSCodeRadio,
-	VSCodeRadioGroup,
-	VSCodeTag,
-	VSCodeTextArea,
-	VSCodeTextField,
+    VSCodeBadge,
+    VSCodeButton,
+    VSCodeCheckbox,
+    VSCodeDataGrid,
+    VSCodeDataGridCell,
+    VSCodeDataGridRow,
+    VSCodeDivider,
+    VSCodeDropdown,
+    VSCodeLink,
+    VSCodeOption,
+    VSCodePanels,
+    VSCodePanelTab,
+    VSCodePanelView,
+    VSCodeProgressRing,
+    VSCodeRadio,
+    VSCodeRadioGroup,
+    VSCodeTag,
+    VSCodeTextArea,
+    VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 
 function Demo() {
-	function handleHowdyClick() {
-		vscode.postMessage({
-			command: "hello",
-			text: "Hey there partner! 🤠",
-		})
-	}
+	// function handleHowdyClick() {
+	// 	vscode.postMessage({
+	// 		command: "hello",
+	// 		text: "Hey there partner! 🤠",
+	// 	})
+	// }
 
 	const rowData = [
 		{
@@ -54,7 +53,7 @@ function Demo() {
 	return (
 		<main>
 			<h1>Hello World!</h1>
-			<VSCodeButton onClick={handleHowdyClick}>Howdy!</VSCodeButton>
+			<VSCodeButton>Howdy!</VSCodeButton>
 
 			<div className="grid gap-3 p-2 place-items-start">
 				<VSCodeDataGrid>

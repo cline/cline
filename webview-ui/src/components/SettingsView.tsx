@@ -61,13 +61,13 @@ const SettingsView = () => {
 					color: "var(--vscode-descriptionForeground)",
 					fontSize: "12px",
 					lineHeight: "1.5",
-                    fontStyle: "italic"
+					fontStyle: "italic",
 				}}>
 				<p>Made possible by the latest breakthroughs in Claude 3.5 Sonnet's agentic coding capabilities.</p>
 				<p>
-					This project was submitted to Anthropic's "Build with Claude June 2024 contest".
+					This project was submitted to Anthropic's<br/>"Build with Claude June 2024 contest"
 					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">
-						github.com/saoudrizwan/claude-dev
+						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
 				</p>
 			</div>

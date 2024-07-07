@@ -37,6 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", () => {
 			const message = "claude-dev.plusButtonTapped!"
 			vscode.window.showInformationMessage(message)
+			provider.postMessageToWebview({ type: "action", action: "plusButtonTapped"})
 		})
 	)
 
@@ -44,6 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
 			const message = "claude-dev.settingsButtonTapped!"
 			vscode.window.showInformationMessage(message)
+			provider.postMessageToWebview({ type: "action", action: "settingsButtonTapped"})
 		})
 	)
 

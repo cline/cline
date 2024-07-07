@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useCallback, KeyboardEvent } from "
 import { VSCodeButton, VSCodeTextArea, VSCodeDivider, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "../utilities/vscode"
 import DynamicTextArea from "react-textarea-autosize"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 interface Message {
-	id: number
+	id: string
 	text: string
 	sender: "user" | "assistant"
 }
@@ -26,17 +27,14 @@ const ChatSidebar = () => {
 	const handleSendMessage = () => {
 		if (inputValue.trim()) {
 			const newMessage: Message = {
-				id: Date.now(),
+				id: `${Date.now()}-user`,
 				text: inputValue.trim(),
 				sender: "user",
 			}
-			setMessages([...messages, newMessage])
+			setMessages(currentMessages => [...currentMessages, newMessage])
 			setInputValue("")
 			// Here you would typically send the message to your extension's backend
-			vscode.postMessage({
-				command: "sendMessage",
-				text: newMessage.text,
-			})
+			vscode.postMessage({ type: "text", text: newMessage.text})
 		}
 	}
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -52,10 +50,24 @@ const ChatSidebar = () => {
 		}
 	}, [])
 
+	useEffect(() => {
+		window.addEventListener("message", (e: MessageEvent) => {
+			const message: ExtensionMessage = e.data
+			if (message.type === "text") {
+				const newMessage: Message = {
+					id: `${Date.now()}-assistant`,
+					text: message.text!.trim(),
+					sender: "assistant",
+				}
+				setMessages(currentMessages => [...currentMessages, newMessage])
+			}
+		})
+	}, [])
+
 	return (
-		<div style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: "gray", overflow: "hidden" }}>
+		<div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
 			<div style={{ flexGrow: 1, overflowY: "scroll", scrollbarWidth: "none" }}>
-				{messages.map((message) => (
+				{messages.map((message, index) => (
 					<div
 						key={message.id}
 						style={{
