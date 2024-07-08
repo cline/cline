@@ -34,10 +34,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.plusButtonTapped", () => {
+		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
 			const message = "claude-dev.plusButtonTapped!"
-			vscode.window.showInformationMessage(message)
-			provider.postMessageToWebview({ type: "action", action: "plusButtonTapped"})
+			//vscode.window.showInformationMessage(message)
+			await provider.resetTask()
+			await provider.postStateToWebview()
+			await provider.postMessageToWebview({ type: "action", action: "plusButtonTapped"})
 		})
 	)
 

@@ -168,10 +168,6 @@ export class ClaudeDev {
 		this.client = new Anthropic({ apiKey })
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 
-        // conversationHistory (for API) and claudeMessages (for webview) need to be in sync
-        // if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
-        this.providerRef.deref()?.setClaudeMessages([])
-
         this.startTask(task)
 	}
 
@@ -206,6 +202,11 @@ export class ClaudeDev {
 	}
 
 	private async startTask(task: string): Promise<void> {
+		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
+        // if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
+		await this.providerRef.deref()?.setClaudeMessages([])
+		await this.providerRef.deref()?.postStateToWebview()
+		
 		// Get all relevant context for the task
 		const filesInCurrentDir = await this.listFiles()
 

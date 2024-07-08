@@ -13,7 +13,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type ExtensionSecretKey = "apiKey"
 type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
-type ExtensionWorkspaceStateKey = "claudeMessages" | "apiConversationHistory"
+type ExtensionWorkspaceStateKey = "claudeMessages"
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.SidebarProvider"
@@ -40,6 +40,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is recieved
 		this.setWebviewMessageListener(webviewView.webview)
+
+		// if the extension is starting a new session, clear previous task state
+		this.resetTask()
 	}
 
 	async tryToInitClaudeDevWithTask(task: string) {
@@ -199,6 +202,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			state: { didOpenOnce: !!didOpenOnce, apiKey, maxRequestsPerTask, claudeMessages },
 		})
 	}
+
+	async resetTask() {
+		this.claudeDev = undefined
+		await this.setClaudeMessages([])
+	}
 	
 	// client messages
 
@@ -220,21 +228,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 	// api conversation history
 
-	async getApiConversationHistory(): Promise<ClaudeMessage[]> {
-		const messages = (await this.getWorkspaceState("apiConversationHistory")) as ClaudeMessage[]
-		return messages || []
-	}
+	// async getApiConversationHistory(): Promise<ClaudeMessage[]> {
+	// 	const messages = (await this.getWorkspaceState("apiConversationHistory")) as ClaudeMessage[]
+	// 	return messages || []
+	// }
 
-	async setApiConversationHistory(messages: ClaudeMessage[] | undefined) {
-		await this.updateWorkspaceState("apiConversationHistory", messages)
-	}
+	// async setApiConversationHistory(messages: ClaudeMessage[] | undefined) {
+	// 	await this.updateWorkspaceState("apiConversationHistory", messages)
+	// }
 
-	async addMessageToApiConversationHistory(message: ClaudeMessage): Promise<ClaudeMessage[]> {
-		const messages = await this.getClaudeMessages()
-		messages.push(message)
-		await this.setClaudeMessages(messages)
-		return messages
-	}
+	// async addMessageToApiConversationHistory(message: ClaudeMessage): Promise<ClaudeMessage[]> {
+	// 	const messages = await this.getClaudeMessages()
+	// 	messages.push(message)
+	// 	await this.setClaudeMessages(messages)
+	// 	return messages
+	// }
 
 	/*
 	Storage
