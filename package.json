@@ -76,6 +76,7 @@
     "test:webview": "cd webview-ui && npm run test"
   },
   "devDependencies": {
+    "@types/diff": "^5.2.1",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@types/vscode": "^1.82.0",
@@ -89,6 +90,13 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@vscode/codicons": "^0.0.36"
+    "@anthropic-ai/sdk": "^0.24.3",
+    "@vscode/codicons": "^0.0.36",
+    "default-shell": "^2.2.0",
+    "diff": "^5.2.0",
+    "execa": "^9.3.0",
+    "glob": "^10.4.3",
+    "os-name": "^6.0.0",
+    "serialize-error": "^11.0.3"
   }
 }
