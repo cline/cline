@@ -27,13 +27,13 @@ const App: React.FC = () => {
 			const message: ExtensionMessage = e.data
 			// switch message.type
 			switch (message.type) {
-				case "webviewState":
-					const shouldShowWelcome = !message.webviewState!.didOpenOnce || !message.webviewState!.apiKey
+				case "state":
+					const shouldShowWelcome = !message.state!.didOpenOnce || !message.state!.apiKey
 					setShowWelcome(shouldShowWelcome)
-					setApiKey(message.webviewState!.apiKey || "")
+					setApiKey(message.state!.apiKey || "")
 					setMaxRequestsPerTask(
-						message.webviewState!.maxRequestsPerTask !== undefined
-							? message.webviewState!.maxRequestsPerTask.toString()
+						message.state!.maxRequestsPerTask !== undefined
+							? message.state!.maxRequestsPerTask.toString()
 							: ""
 					)
 					break

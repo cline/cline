@@ -137,7 +137,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			switch (message.type) {
 				case "webviewDidLaunch":
 					await this.updateGlobalState("didOpenOnce", true)
-					await this.postWebviewState()
+					await this.postStateToWebview()
 					break
 				case "text":
 					// Code that should run in response to the hello message command
@@ -150,7 +150,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					break
 				case "apiKey":
 					await this.storeSecret("apiKey", message.text!)
-					await this.postWebviewState()
+					await this.postStateToWebview()
 					break
 				case "maxRequestsPerTask":
 					let result: number | undefined = undefined
@@ -161,7 +161,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 						}
 					}
 					await this.updateGlobalState("maxRequestsPerTask", result)
-					await this.postWebviewState()
+					await this.postStateToWebview()
 					break
 				// Add more switch case statements here as more webview message commands
 				// are created within the webview context (i.e. inside media/main.js)
@@ -169,15 +169,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		})
 	}
 
-	private async postWebviewState() {
+	private async postStateToWebview() {
 		const [didOpenOnce, apiKey, maxRequestsPerTask] = await Promise.all([
 			this.getGlobalState("didOpenOnce") as Promise<boolean | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 		])
 		this.postMessageToWebview({
-			type: "webviewState",
-			webviewState: { didOpenOnce: !!didOpenOnce, apiKey: apiKey, maxRequestsPerTask: maxRequestsPerTask },
+			type: "state",
+			state: { didOpenOnce: !!didOpenOnce, apiKey: apiKey, maxRequestsPerTask: maxRequestsPerTask },
 		})
 	}
 

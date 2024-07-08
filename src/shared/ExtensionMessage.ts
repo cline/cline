@@ -2,8 +2,8 @@
 
 // webview will hold state
 export interface ExtensionMessage {
-    type: "text" | "action" | "webviewState"
+    type: "text" | "action" | "state"
     text?: string
     action?: "plusButtonTapped" | "settingsButtonTapped"
-    webviewState?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number }
+    state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number }
 }
