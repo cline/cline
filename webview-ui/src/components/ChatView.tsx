@@ -1,42 +1,75 @@
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useEffect, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { vscode } from "../utilities/vscode"
+import { ClaudeAskResponse } from "@shared/WebviewMessage"
 
-interface Message {
-	id: string
-	text: string
-	sender: "user" | "assistant"
+interface ChatViewProps {
+	messages: ClaudeMessage[]
 }
-
-const ChatView = () => {
-	const [messages, setMessages] = useState<Message[]>([])
+// maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
+const ChatView = ({ messages}: ChatViewProps) => {
 	const [inputValue, setInputValue] = useState("")
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
+	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
+
+	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
 	const scrollToBottom = () => {
 		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: 'nearest', inline: 'start' })
 	}
 
-	useEffect(scrollToBottom, [messages])
+	useEffect(() => {
+		scrollToBottom()
+		// if last message is an ask, show user ask UI
+
+		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost. 
+		// basically as long as a task is active, the conversation history will be persisted
+
+		const lastMessage = messages.at(-1)
+		if (lastMessage) {
+			if (lastMessage.type === "ask") {
+				setClaudeAsk(lastMessage.ask)
+				//setTextAreaDisabled(false) // should enable for certain asks
+			} else {
+				setClaudeAsk(undefined)
+				//setTextAreaDisabled(true)
+			}
+		}
+	}, [messages])
+
 
 	const handleSendMessage = () => {
-		if (inputValue.trim()) {
-			const newMessage: Message = {
-				id: `${Date.now()}-user`,
-				text: inputValue.trim(),
-				sender: "user",
-			}
-			setMessages(currentMessages => [...currentMessages, newMessage])
+		const text = inputValue.trim()
+		if (text) {
 			setInputValue("")
-			// Here you would typically send the message to your extension's backend
-			vscode.postMessage({ type: "text", text: newMessage.text})
+			if (messages.length === 0) {
+				
+			vscode.postMessage({ type: "newTask", text })
+			} else if (claudeAsk) {
+				switch (claudeAsk) {
+					case "followup":
+						vscode.postMessage({ type: "askResponse", askResponse: "textResponse", text })
+						break
+					// case "completion_result":
+					// 	vscode.postMessage({ type: "askResponse", text })
+					// 	break
+					default:
+						// for now we'll type the askResponses
+						vscode.postMessage({ type: "askResponse", askResponse: text as ClaudeAskResponse })
+						break
+				}
+			}
 		}
 	}
+
+	// handle ask buttons
+	// be sure to setInputValue("")
+
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault()
@@ -48,33 +81,21 @@ const ChatView = () => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
 		}
-
-		window.addEventListener("message", (e: MessageEvent) => {
-			const message: ExtensionMessage = e.data
-			if (message.type === "text") {
-				const newMessage: Message = {
-					id: `${Date.now()}-assistant`,
-					text: message.text!.trim(),
-					sender: "assistant",
-				}
-				setMessages(currentMessages => [...currentMessages, newMessage])
-			}
-		})
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
 			<div style={{ flexGrow: 1, overflowY: "scroll", scrollbarWidth: "none" }}>
-				{messages.map((message) => (
+				{messages.map((message, index) => (
 					<div
-						key={message.id}
+						key={index}
 						style={{
 							marginBottom: "10px",
 							padding: "8px",
 							borderRadius: "4px",
 							backgroundColor:
-								message.sender === "user"
+							message.type === "ask"
 									? "var(--vscode-editor-background)"
 									: "var(--vscode-sideBar-background)",
 						}}>
@@ -87,6 +108,7 @@ const ChatView = () => {
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
+					disabled={textAreaDisabled}
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
 					onHeightChange={() => scrollToBottom()}

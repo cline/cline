@@ -1,8 +1,9 @@
 import { Uri, Webview } from "vscode"
 //import * as weather from "weather-js"
 import * as vscode from "vscode"
-import { ExtensionMessage } from "../shared/ExtensionMessage"
+import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
+import { ClaudeDev } from "../ClaudeDev"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -12,11 +13,13 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type ExtensionSecretKey = "apiKey"
 type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
+type ExtensionWorkspaceStateKey = "claudeMessages" | "apiConversationHistory"
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.SidebarProvider"
 
-	private _view?: vscode.WebviewView
+	private view?: vscode.WebviewView
+	private claudeDev?: ClaudeDev
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -25,7 +28,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		context: vscode.WebviewViewResolveContext<unknown>,
 		token: vscode.CancellationToken
 	): void | Thenable<void> {
-		this._view = webviewView
+		this.view = webviewView
 
 		webviewView.webview.options = {
 			// Allow scripts in the webview
@@ -36,12 +39,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is recieved
-		this._setWebviewMessageListener(webviewView.webview)
+		this.setWebviewMessageListener(webviewView.webview)
+	}
+
+	async tryToInitClaudeDevWithTask(task: string) {
+		const [apiKey, maxRequestsPerTask] = await Promise.all([
+			this.getSecret("apiKey") as Promise<string | undefined>,
+			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
+		])
+		if (this.view && apiKey) {
+			this.claudeDev = new ClaudeDev(this, task, apiKey, maxRequestsPerTask)
+		}
 	}
 
 	// Send any JSON serializable data to the react app
-	postMessageToWebview(message: ExtensionMessage) {
-		this._view?.webview.postMessage(message)
+	async postMessageToWebview(message: ExtensionMessage) {
+		await this.view?.webview.postMessage(message)
 	}
 
 	/**
@@ -131,24 +144,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	 * @param webview A reference to the extension webview
 	 * @param context A reference to the extension context
 	 */
-	private _setWebviewMessageListener(webview: vscode.Webview) {
+	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(async (message: WebviewMessage) => {
 			switch (message.type) {
 				case "webviewDidLaunch":
 					await this.updateGlobalState("didOpenOnce", true)
 					await this.postStateToWebview()
 					break
-				case "text":
+				case "newTask":
 					// Code that should run in response to the hello message command
-					vscode.window.showInformationMessage(message.text!)
+					//vscode.window.showInformationMessage(message.text!)
 
 					// Send a message to our webview.
 					// You can send any JSON serializable data.
 					// Could also do this in extension .ts
-					this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
+					//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
+					// initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
+					await this.tryToInitClaudeDevWithTask(message.text!)
 					break
 				case "apiKey":
 					await this.storeSecret("apiKey", message.text!)
+					this.claudeDev?.updateApiKey(message.text!)
 					await this.postStateToWebview()
 					break
 				case "maxRequestsPerTask":
@@ -160,24 +176,64 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 						}
 					}
 					await this.updateGlobalState("maxRequestsPerTask", result)
+					this.claudeDev?.updateMaxRequestsPerTask(result)
 					await this.postStateToWebview()
 					break
+				case "askResponse":
+					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
 				// Add more switch case statements here as more webview message commands
 				// are created within the webview context (i.e. inside media/main.js)
 			}
 		})
 	}
 
-	private async postStateToWebview() {
-		const [didOpenOnce, apiKey, maxRequestsPerTask] = await Promise.all([
+	async postStateToWebview() {
+		const [didOpenOnce, apiKey, maxRequestsPerTask, claudeMessages] = await Promise.all([
 			this.getGlobalState("didOpenOnce") as Promise<boolean | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
+			this.getClaudeMessages(),
 		])
 		this.postMessageToWebview({
 			type: "state",
-			state: { didOpenOnce: !!didOpenOnce, apiKey: apiKey, maxRequestsPerTask: maxRequestsPerTask },
+			state: { didOpenOnce: !!didOpenOnce, apiKey, maxRequestsPerTask, claudeMessages },
 		})
+	}
+	
+	// client messages
+
+	async getClaudeMessages(): Promise<ClaudeMessage[]> {
+		const messages = (await this.getWorkspaceState("claudeMessages")) as ClaudeMessage[]
+		return messages || []
+	}
+
+	async setClaudeMessages(messages: ClaudeMessage[] | undefined) {
+		await this.updateWorkspaceState("claudeMessages", messages)
+	}
+
+	async addClaudeMessage(message: ClaudeMessage): Promise<ClaudeMessage[]> {
+		const messages = await this.getClaudeMessages()
+		messages.push(message)
+		await this.setClaudeMessages(messages)
+		return messages
+	}
+
+	// api conversation history
+
+	async getApiConversationHistory(): Promise<ClaudeMessage[]> {
+		const messages = (await this.getWorkspaceState("apiConversationHistory")) as ClaudeMessage[]
+		return messages || []
+	}
+
+	async setApiConversationHistory(messages: ClaudeMessage[] | undefined) {
+		await this.updateWorkspaceState("apiConversationHistory", messages)
+	}
+
+	async addMessageToApiConversationHistory(message: ClaudeMessage): Promise<ClaudeMessage[]> {
+		const messages = await this.getClaudeMessages()
+		messages.push(message)
+		await this.setClaudeMessages(messages)
+		return messages
 	}
 
 	/*
@@ -186,6 +242,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
+	// global
+
 	private async updateGlobalState(key: ExtensionGlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
@@ -193,6 +251,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	private async getGlobalState(key: ExtensionGlobalStateKey) {
 		return await this.context.globalState.get(key)
 	}
+
+	// workspace
+
+	private async updateWorkspaceState(key: ExtensionWorkspaceStateKey, value: any) {
+		await this.context.workspaceState.update(key, value)
+	}
+
+	private async getWorkspaceState(key: ExtensionWorkspaceStateKey) {
+		return await this.context.workspaceState.get(key)
+	}
+
+	// secrets
 
 	private async storeSecret(key: ExtensionSecretKey, value: any) {
 		await this.context.secrets.store(key, value)

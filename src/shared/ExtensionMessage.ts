@@ -2,8 +2,18 @@
 
 // webview will hold state
 export interface ExtensionMessage {
-    type: "text" | "action" | "state"
+    type: "action" | "state"
     text?: string
     action?: "plusButtonTapped" | "settingsButtonTapped"
-    state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number }
+    state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number, claudeMessages: ClaudeMessage[] }
 }
+
+export interface ClaudeMessage {
+    type: "ask" | "say"
+    ask?: ClaudeAsk
+    say?: ClaudeSay
+    text?: string
+}
+
+export type ClaudeAsk = "request_limit_reached" | "followup" | "command" | "completion_result"
+export type ClaudeSay = "error" | "api_cost" | "text" | "tool" | "command_output" | "task_completed"

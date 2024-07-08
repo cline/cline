@@ -1,5 +1,7 @@
 export interface WebviewMessage {
-    type: "text" | "action" | "apiKey" | "maxRequestsPerTask" | "webviewDidLaunch"
+    type: "apiKey" | "maxRequestsPerTask" | "webviewDidLaunch" | "newTask" | "askResponse"
     text?: string
-    action?: "newTaskButtonTapped" | "yesButtonTapped" | "noButtonTapped" | "executeButtonTapped"
+    askResponse?: ClaudeAskResponse
 }
+
+export type ClaudeAskResponse = "newTaskButtonTapped" | "yesButtonTapped" | "noButtonTapped" | "textResponse"

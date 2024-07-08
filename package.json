@@ -97,6 +97,7 @@
     "execa": "^9.3.0",
     "glob": "^10.4.3",
     "os-name": "^6.0.0",
+    "p-wait-for": "^5.0.2",
     "serialize-error": "^11.0.3"
   }
 }

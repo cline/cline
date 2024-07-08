@@ -9,6 +9,12 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { Tool, ToolName } from "./shared/Tool"
+import { ClaudeAsk, ClaudeSay, ExtensionMessage } from "./shared/ExtensionMessage"
+import * as vscode from "vscode"
+import pWaitFor from 'p-wait-for'
+import { ClaudeAskResponse } from "./shared/WebviewMessage"
+import { SidebarProvider } from "./providers/SidebarProvider"
+import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 
 const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -153,32 +159,53 @@ export class ClaudeDev {
 	private conversationHistory: Anthropic.MessageParam[] = []
 	private maxRequestsPerTask: number
 	private requestCount = 0
+    private askResponse?: ClaudeAskResponse
+    private askResponseText?: string
+    private providerRef: WeakRef<SidebarProvider>
 
-	constructor(apiKey: string, maxRequestsPerTask?: number) {
+	constructor(provider: SidebarProvider, task: string, apiKey: string, maxRequestsPerTask?: number) {
+        this.providerRef = new WeakRef(provider)
 		this.client = new Anthropic({ apiKey })
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
+
+        // conversationHistory (for API) and claudeMessages (for webview) need to be in sync
+        // if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
+        this.providerRef.deref()?.setClaudeMessages([])
+
+        this.startTask(task)
 	}
 
     updateApiKey(apiKey: string) {
         this.client = new Anthropic({ apiKey })
     }
 
-    updateMaxRequestsPerTask(maxRequestsPerTask: number) {
-        this.maxRequestsPerTask = maxRequestsPerTask
+    updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
+        this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
     }
 
-	async ask(type: "request_limit_reached" | "followup" | "command" | "completion_result", question: string): Promise<string> {
-		return ""
+    async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string) {
+        this.askResponse = askResponse
+        this.askResponseText = text
+    }
+
+	async ask(type: ClaudeAsk, question: string): Promise<{response: ClaudeAskResponse, text?: string}> {
+        this.askResponse = undefined
+        this.askResponseText = undefined
+        await this.providerRef.deref()?.addClaudeMessage({ type: "ask", ask: type, text: question })
+        await this.providerRef.deref()?.postStateToWebview()
+        await pWaitFor(() => this.askResponse !== undefined, { interval: 100 })
+        const result = { response: this.askResponse!, text: this.askResponseText }
+        this.askResponse = undefined
+        this.askResponseText = undefined
+        return result
 	}
 
-	async say(type: "error" | "api_cost" | "text" | "tool" | "command_output" | "completed", question: string): Promise<undefined> {
-		// send message asyncronously
-		return
+	async say(type: ClaudeSay, question: string): Promise<undefined> {
+		await this.providerRef.deref()?.addClaudeMessage({ type: "say", say: type, text: question })
+        await this.providerRef.deref()?.postStateToWebview()
 	}
 
-	async startNewTask(task: string): Promise<void> {
-		this.conversationHistory = []
-		this.requestCount = 0
+	private async startTask(task: string): Promise<void> {
 		// Get all relevant context for the task
 		const filesInCurrentDir = await this.listFiles()
 
@@ -209,7 +236,7 @@ ${filesInCurrentDir}`
 
 			const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didCompleteTask) {
-				this.say("completed", `Task completed. Total API usage cost: ${totalCost}`)
+				this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
 				this.say(
@@ -319,8 +346,9 @@ ${filesInCurrentDir}`
 				mark: true, // Append a / on any directories matched
 			}
 			// * globs all files in one dir, ** globs files in nested directories
-			const entries = await glob("**", options)
-			return entries.slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
+			//const entries = await glob("**", options)
+			// FIXME: instead of using glob to read all files, we will use vscode api to get workspace files list. (otherwise this prompts user to give permissions to read files if e.g. it was opened at root directory)
+			return ["index.ts"].slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
 		} catch (error) {
             const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
             this.say("error", errorString)
@@ -329,8 +357,8 @@ ${filesInCurrentDir}`
 	}
 
 	async executeCommand(command: string): Promise<string> {
-        const answer = await this.ask("command", `Claude wants to execute the following command:\n${command}\nDo you approve? (yes/no):`)
-        if (answer.toLowerCase() !== "yes") {
+        const { response } = await this.ask("command", `Claude wants to execute the following command:\n${command}\nDo you approve?`)
+        if (response === "noButtonTapped") {
             return "Command execution was not approved by the user."
         }
 		try {
@@ -353,17 +381,17 @@ ${filesInCurrentDir}`
 	}
 
 	async askFollowupQuestion(question: string): Promise<string> {
-		const answer = await this.ask("followup", question)
-		return `User's response:\n\"${answer}\"`
+		const { text } = await this.ask("followup", question)
+		return `User's response:\n\"${text}\"`
 	}
 
 	async attemptCompletion(result: string): Promise<string> {
-		const feedback = await this.ask("completion_result", result)
+		const { response, text } = await this.ask("completion_result", result)
 		// Are you satisfied with the result(yes/if no then provide feedback):
-		if (feedback.toLowerCase() === "yes") {
+		if (response === "yesButtonTapped") {
 			return ""
 		}
-		return `The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${feedback}\"`
+		return `The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`
 	}
 
 	async recursivelyMakeClaudeRequests(
@@ -376,12 +404,12 @@ ${filesInCurrentDir}`
 	): Promise<ClaudeRequestResult> {
 		this.conversationHistory.push({ role: "user", content: userContent })
 		if (this.requestCount >= this.maxRequestsPerTask) {
-			const answer = await this.ask(
+			const { response } = await this.ask(
 				"request_limit_reached",
-				`\nClaude has exceeded ${this.maxRequestsPerTask} requests for this task! Would you like to reset the count and proceed? (yes/no):`
+				`\nClaude has exceeded ${this.maxRequestsPerTask} requests for this task! Would you like to reset the count and proceed?:`
 			)
 
-			if (answer.toLowerCase() === "yes") {
+			if (response === "yesButtonTapped") {
 				this.requestCount = 0
 			} else {
 				this.conversationHistory.push({

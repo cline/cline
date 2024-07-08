@@ -3,7 +3,7 @@ import "./App.css"
 
 import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utilities/vscode"
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [apiKey, setApiKey] = useState<string>("")
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
+	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
@@ -36,6 +37,7 @@ const App: React.FC = () => {
 							? message.state!.maxRequestsPerTask.toString()
 							: ""
 					)
+					setClaudeMessages(message.state!.claudeMessages)
 					break
 				case "action":
 					switch (message.action!) {
@@ -64,7 +66,7 @@ const App: React.FC = () => {
 					onDone={() => setShowSettings(false)}
 				/>
 			) : (
-				<ChatView />
+				<ChatView messages={claudeMessages} />
 			)}
 		</>
 	)
