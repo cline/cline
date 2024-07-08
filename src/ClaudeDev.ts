@@ -10,7 +10,7 @@ import { serializeError } from "serialize-error"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { Tool, ToolName } from "./shared/Tool"
 
-const SYSTEM_PROMPT = `You are Claude Dev, an exceptional software developer with vast knowledge across multiple programming languages, frameworks, and best practices.
+const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
  
