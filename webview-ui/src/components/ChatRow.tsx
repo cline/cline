@@ -81,13 +81,14 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, cost }) => {
 										<VSCodeProgressRing />
 									)}
 									{cost && <VSCodeTag>{cost}</VSCodeTag>}
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Toggle Details"
+										onClick={() => setIsExpanded(!isExpanded)}>
+										<span
+											className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+									</VSCodeButton>
 								</div>
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Toggle Details"
-									onClick={() => setIsExpanded(!isExpanded)}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</VSCodeButton>
 							</div>
 						)
 					case "api_req_finished":
