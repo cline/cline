@@ -222,6 +222,8 @@ Current Working Directory: ${process.cwd()}
 ## Files in Current Directory
 ${filesInCurrentDir}`
 
+		await this.say("text", userPrompt)
+
 		let totalInputTokens = 0
 		let totalOutputTokens = 0
 
@@ -317,6 +319,14 @@ ${filesInCurrentDir}`
 	}
 
 	async listFiles(dirPath: string = "."): Promise<string> {
+		// If the extension is run without a workspace open, we are in the root directory and don't want to list all files since it would prompt for permission to access everything
+		const cwd = process.cwd();
+		const root = process.platform === 'win32' ? path.parse(cwd).root : '/';
+		const isRoot = cwd === root
+		if (isRoot) {
+			return cwd
+		}
+
 		try {
 			const dirsToIgnore = [
 				"node_modules",
@@ -347,9 +357,9 @@ ${filesInCurrentDir}`
 				mark: true, // Append a / on any directories matched
 			}
 			// * globs all files in one dir, ** globs files in nested directories
-			//const entries = await glob("**", options)
+			const entries = await glob("**", options)
 			// FIXME: instead of using glob to read all files, we will use vscode api to get workspace files list. (otherwise this prompts user to give permissions to read files if e.g. it was opened at root directory)
-			return ["index.ts"].slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
+			return entries.slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
 		} catch (error) {
             const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
             this.say("error", errorString)
@@ -359,7 +369,7 @@ ${filesInCurrentDir}`
 
 	async executeCommand(command: string): Promise<string> {
         const { response } = await this.ask("command", `Claude wants to execute the following command:\n${command}\nDo you approve?`)
-        if (response === "noButtonTapped") {
+        if (response !== "yesButtonTapped") {
             return "Command execution was not approved by the user."
         }
 		try {
