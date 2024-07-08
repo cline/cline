@@ -11,7 +11,7 @@ import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAsk, ClaudeSay, ExtensionMessage } from "./shared/ExtensionMessage"
 import * as vscode from "vscode"
-import pWaitFor from 'p-wait-for'
+import pWaitFor from "p-wait-for"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { SidebarProvider } from "./providers/SidebarProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
@@ -159,54 +159,54 @@ export class ClaudeDev {
 	private conversationHistory: Anthropic.MessageParam[] = []
 	private maxRequestsPerTask: number
 	private requestCount = 0
-    private askResponse?: ClaudeAskResponse
-    private askResponseText?: string
-    private providerRef: WeakRef<SidebarProvider>
+	private askResponse?: ClaudeAskResponse
+	private askResponseText?: string
+	private providerRef: WeakRef<SidebarProvider>
 
 	constructor(provider: SidebarProvider, task: string, apiKey: string, maxRequestsPerTask?: number) {
-        this.providerRef = new WeakRef(provider)
+		this.providerRef = new WeakRef(provider)
 		this.client = new Anthropic({ apiKey })
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 
-        this.startTask(task)
+		this.startTask(task)
 	}
 
-    updateApiKey(apiKey: string) {
-        this.client = new Anthropic({ apiKey })
-    }
-
-    updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
-        this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
-    }
-
-    async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string) {
-        this.askResponse = askResponse
-        this.askResponseText = text
-    }
-
-	async ask(type: ClaudeAsk, question: string): Promise<{response: ClaudeAskResponse, text?: string}> {
-        this.askResponse = undefined
-        this.askResponseText = undefined
-        await this.providerRef.deref()?.addClaudeMessage({ type: "ask", ask: type, text: question })
-        await this.providerRef.deref()?.postStateToWebview()
-        await pWaitFor(() => this.askResponse !== undefined, { interval: 100 })
-        const result = { response: this.askResponse!, text: this.askResponseText }
-        this.askResponse = undefined
-        this.askResponseText = undefined
-        return result
+	updateApiKey(apiKey: string) {
+		this.client = new Anthropic({ apiKey })
 	}
 
-	async say(type: ClaudeSay, question: string): Promise<undefined> {
-		await this.providerRef.deref()?.addClaudeMessage({ type: "say", say: type, text: question })
-        await this.providerRef.deref()?.postStateToWebview()
+	updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
+		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
+	}
+
+	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string) {
+		this.askResponse = askResponse
+		this.askResponseText = text
+	}
+
+	async ask(type: ClaudeAsk, question: string): Promise<{ response: ClaudeAskResponse; text?: string }> {
+		this.askResponse = undefined
+		this.askResponseText = undefined
+		await this.providerRef.deref()?.addClaudeMessage({ ts: Date.now(), type: "ask", ask: type, text: question })
+		await this.providerRef.deref()?.postStateToWebview()
+		await pWaitFor(() => this.askResponse !== undefined, { interval: 100 })
+		const result = { response: this.askResponse!, text: this.askResponseText }
+		this.askResponse = undefined
+		this.askResponseText = undefined
+		return result
+	}
+
+	async say(type: ClaudeSay, text: string): Promise<undefined> {
+		await this.providerRef.deref()?.addClaudeMessage({ ts: Date.now(), type: "say", say: type, text: text })
+		await this.providerRef.deref()?.postStateToWebview()
 	}
 
 	private async startTask(task: string): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
-        // if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
+		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
 		await this.providerRef.deref()?.setClaudeMessages([])
 		await this.providerRef.deref()?.postStateToWebview()
-		
+
 		// Get all relevant context for the task
 		const filesInCurrentDir = await this.listFiles()
 
@@ -237,9 +237,9 @@ ${filesInCurrentDir}`
 			//  The way this agentic loop works is that claude will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
 			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Claude is prompted to finish the task as efficiently as he can.
 
-			const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
+			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didCompleteTask) {
-				this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
 				this.say(
@@ -272,13 +272,13 @@ ${filesInCurrentDir}`
 	}
 
 	// Calculates cost of a Claude 3.5 Sonnet API request
-	calculateApiCost(inputTokens: number, outputTokens: number): string {
+	calculateApiCost(inputTokens: number, outputTokens: number): number {
 		const INPUT_COST_PER_MILLION = 3.0 // $3 per million input tokens
 		const OUTPUT_COST_PER_MILLION = 15.0 // $15 per million output tokens
 		const inputCost = (inputTokens / 1_000_000) * INPUT_COST_PER_MILLION
 		const outputCost = (outputTokens / 1_000_000) * OUTPUT_COST_PER_MILLION
 		const totalCost = inputCost + outputCost
-		return `$${totalCost.toFixed(4)}`
+		return totalCost
 	}
 
 	async writeToFile(filePath: string, newContent: string): Promise<string> {
@@ -303,7 +303,7 @@ ${filesInCurrentDir}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
-            this.say("error", errorString)
+			this.say("error", errorString)
 			return errorString
 		}
 	}
@@ -312,16 +312,16 @@ ${filesInCurrentDir}`
 		try {
 			return await fs.readFile(filePath, "utf-8")
 		} catch (error) {
-            const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
-            this.say("error", errorString)
+			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
+			this.say("error", errorString)
 			return errorString
 		}
 	}
 
 	async listFiles(dirPath: string = "."): Promise<string> {
 		// If the extension is run without a workspace open, we are in the root directory and don't want to list all files since it would prompt for permission to access everything
-		const cwd = process.cwd();
-		const root = process.platform === 'win32' ? path.parse(cwd).root : '/';
+		const cwd = process.cwd()
+		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
 		const isRoot = cwd === root
 		if (isRoot) {
 			return cwd
@@ -361,17 +361,20 @@ ${filesInCurrentDir}`
 			// FIXME: instead of using glob to read all files, we will use vscode api to get workspace files list. (otherwise this prompts user to give permissions to read files if e.g. it was opened at root directory)
 			return entries.slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
 		} catch (error) {
-            const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
-            this.say("error", errorString)
+			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
+			this.say("error", errorString)
 			return errorString
 		}
 	}
 
 	async executeCommand(command: string): Promise<string> {
-        const { response } = await this.ask("command", `Claude wants to execute the following command:\n${command}\nDo you approve?`)
-        if (response !== "yesButtonTapped") {
-            return "Command execution was not approved by the user."
-        }
+		const { response } = await this.ask(
+			"command",
+			`Claude wants to execute the following command:\n${command}\nDo you approve?`
+		)
+		if (response !== "yesButtonTapped") {
+			return "Command execution was not approved by the user."
+		}
 		try {
 			let result = ""
 			// execa by default tries to convery bash into javascript
@@ -385,8 +388,8 @@ ${filesInCurrentDir}`
 		} catch (e) {
 			const error = e as any
 			let errorMessage = error.message || JSON.stringify(serializeError(error))
-            const errorString = `Error executing command:\n${errorMessage}`
-            this.say("error", errorString)
+			const errorString = `Error executing command:\n${errorMessage}`
+			this.say("error", errorString)
 			return errorString
 		}
 	}
@@ -437,6 +440,7 @@ ${filesInCurrentDir}`
 		}
 
 		try {
+			await this.say("api_req_started", JSON.stringify(userContent))
 			const response = await this.client.messages.create({
 				model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
 				max_tokens: 4096,
@@ -450,7 +454,7 @@ ${filesInCurrentDir}`
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
 			let inputTokens = response.usage.input_tokens
 			let outputTokens = response.usage.output_tokens
-			await this.say("api_cost", `API request cost: ${this.calculateApiCost(inputTokens, outputTokens)}`)
+			await this.say("api_req_finished", this.calculateApiCost(inputTokens, outputTokens).toString())
 
 			// A response always returns text content blocks (it's just that before we were iterating over the completion_attempt response before we could append text response, resulting in bug)
 			for (const contentBlock of response.content) {

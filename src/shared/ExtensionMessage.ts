@@ -9,6 +9,7 @@ export interface ExtensionMessage {
 }
 
 export interface ClaudeMessage {
+    ts: number
     type: "ask" | "say"
     ask?: ClaudeAsk
     say?: ClaudeSay
@@ -16,4 +17,4 @@ export interface ClaudeMessage {
 }
 
 export type ClaudeAsk = "request_limit_reached" | "followup" | "command" | "completion_result"
-export type ClaudeSay = "error" | "api_cost" | "text" | "tool" | "command_output" | "task_completed"
+export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "tool" | "command_output"
