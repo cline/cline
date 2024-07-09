@@ -128,7 +128,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				overflow: "hidden",
 			}}>
 			<TaskHeader
-				taskText="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+				taskText={task?.text || ""}
 				tokensIn={1000}
 				tokensOut={1500}
 				totalCost={0.0025}
@@ -145,7 +145,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				<div style={{ float: "left", clear: "both" }} ref={messagesEndRef} />
 			</div>
 			{(primaryButtonText || secondaryButtonText) && (
-				<div style={{ display: "flex", padding: "8px 12px 0px 12px" }}>
+				<div style={{ display: "flex", padding: "10px 15px 0px 15px" }}>
 					{primaryButtonText && (
 						<VSCodeButton
 							appearance="primary"
@@ -167,7 +167,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 					)}
 				</div>
 			)}
-			<div style={{ padding: "8px 12px" }}>
+			<div style={{ padding: "10px 15px" }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
@@ -198,7 +198,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 							position: "absolute",
 							right: "18px",
 							height: `${textAreaHeight}px`,
-							bottom: "10px",
+							bottom: "12px",
 							display: "flex",
 							alignItems: "center",
 						}}>

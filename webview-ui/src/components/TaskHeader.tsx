@@ -15,7 +15,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 	return (
 		<div
 			style={{
-				padding: "12px",
+				padding: "15px 15px 10px 15px",
 			}}>
 			<div
 				style={{

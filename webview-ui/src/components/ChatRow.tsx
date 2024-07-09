@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { ClaudeMessage, ClaudeAsk, ClaudeSay } from "@shared/ExtensionMessage"
-import { VSCodeButton, VSCodeProgressRing, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeProgressRing, VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -10,29 +10,71 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 
-	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, string | null] => {
+	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, JSX.Element | null] => {
+		const normalColor = "var(--vscode-foreground)"
+		const errorColor = "var(--vscode-errorForeground)"
+		const successColor = "var(--vscode-testing-iconPassed)"
+
 		switch (type) {
 			case "request_limit_reached":
 				return [
-					<span className="codicon codicon-error" style={{ color: "var(--vscode-errorForeground)" }}></span>,
-					"Max Requests Reached",
+					<span
+						className="codicon codicon-error"
+						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Max Requests Reached</span>,
 				]
 			case "error":
 				return [
-					<span className="codicon codicon-error" style={{ color: "var(--vscode-errorForeground)" }}></span>,
-					"Error",
+					<span
+						className="codicon codicon-error"
+						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Error</span>,
 				]
 			case "command":
-				return [<span className="codicon codicon-terminal"></span>, "Command"]
+				return [
+					<span
+						className="codicon codicon-terminal"
+						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Command</span>,
+				]
 			case "completion_result":
 				return [
 					<span
 						className="codicon codicon-check"
-						style={{ color: "var(--vscode-testing-iconPassed)" }}></span>,
-					"Task Completed",
+						style={{ color: successColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
 			case "tool":
-				return [<span className="codicon codicon-tools"></span>, "Tool"]
+				return [
+					<span
+						className="codicon codicon-tools"
+						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Tool</span>,
+				]
+			case "api_req_started":
+				return [
+					cost ? (
+						<span
+							className="codicon codicon-check"
+							style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+					) : (
+						<div
+							style={{
+								width: "16px",
+								height: "16px",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+							}}>
+							<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
+								<VSCodeProgressRing />
+							</div>
+						</div>
+					),
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						{cost ? "API Request Complete" : "Making API Request..."}
+					</span>,
+				]
 			default:
 				return [null, null]
 		}
@@ -44,85 +86,73 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 		const headerStyle: React.CSSProperties = {
 			display: "flex",
 			alignItems: "center",
-			justifyContent: "left",
 			gap: "10px",
 			marginBottom: "10px",
 		}
 
 		const contentStyle: React.CSSProperties = {
-			marginLeft: "20px",
+			margin: 0,
 		}
 
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "task":
-						return (
-							<div
-								style={{
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									padding: "10px",
-									borderLeft: "5px solid var(--vscode-textBlockQuote-border)",
-								}}>
-								<h3 style={headerStyle}>Task</h3>
-								<p style={contentStyle}>{message.text}</p>
-							</div>
-						)
 					case "api_req_started":
 						return (
-							<div>
-								<div style={headerStyle}>
-									<span>Made API request...</span>
-									{cost ? (
-										<span
-											className="codicon codicon-check"
-											style={{ color: "var(--vscode-testing-iconPassed)" }}></span>
-									) : (
-										<VSCodeProgressRing />
-									)}
-									{cost && <VSCodeTag>{cost}</VSCodeTag>}
-									<VSCodeButton
-										appearance="icon"
-										aria-label="Toggle Details"
-										onClick={() => setIsExpanded(!isExpanded)}>
-										<span
-											className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-									</VSCodeButton>
+							<div style={{ ...headerStyle, marginBottom: 0, justifyContent: "space-between" }}>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									{icon}
+									{title}
+									{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
 								</div>
+								<VSCodeButton
+									appearance="icon"
+									aria-label="Toggle Details"
+									onClick={() => setIsExpanded(!isExpanded)}>
+									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+								</VSCodeButton>
 							</div>
 						)
 					case "api_req_finished":
 						return null // Hide this message type
 					case "tool":
-					case "error":
 					case "text":
-					case "command_output":
 						return (
 							<>
 								{title && (
 									<div style={headerStyle}>
 										{icon}
-										<h4>{title}</h4>
+										{title}
 									</div>
 								)}
-								<pre style={contentStyle}>
-									<code>{message.text}</code>
-								</pre>
+								<p style={contentStyle}>{message.text}</p>
+							</>
+						)
+					case "error":
+						return (
+							<>
+								{title && (
+									<div style={headerStyle}>
+										{icon}
+										{title}
+									</div>
+								)}
+								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
+									{message.text}
+								</p>
 							</>
 						)
 					case "completion_result":
 						return (
-							<div
-								style={{
-									borderLeft: "5px solid var(--vscode-testing-iconPassed)",
-									paddingLeft: "10px",
-								}}>
+							<>
 								<div style={headerStyle}>
 									{icon}
-									<h4 style={{ color: "var(--vscode-testing-iconPassed)" }}>{title}</h4>
+									{title}
 								</div>
-								<p style={contentStyle}>{message.text}</p>
-							</div>
+								<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
+									{message.text}
+								</p>
+							</>
 						)
 					default:
 						return (
@@ -130,7 +160,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 								{title && (
 									<div style={headerStyle}>
 										{icon}
-										<h4>{title}</h4>
+										{title}
 									</div>
 								)}
 								<p style={contentStyle}>{message.text}</p>
@@ -144,7 +174,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							<>
 								<div style={headerStyle}>
 									{icon}
-									<h4>{title}</h4>
+									{title}
 								</div>
 								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
 									Your task has reached the maximum request limit (maxRequestsPerTask, you can change
@@ -157,11 +187,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							<>
 								<div style={headerStyle}>
 									{icon}
-									<h4>{title}</h4>
+									{title}
 								</div>
 								<div style={contentStyle}>
 									<p>Claude would like to run this command. Do you allow this?</p>
-									<pre>
+									<pre style={contentStyle}>
 										<code>{message.text}</code>
 									</pre>
 								</div>
@@ -170,16 +200,14 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					case "completion_result":
 						if (message.text) {
 							return (
-								<div
-									style={{
-										borderLeft: "5px solid var(--vscode-testing-iconPassed)",
-										paddingLeft: "10px",
-									}}>
+								<div>
 									<div style={headerStyle}>
 										{icon}
-										<h4 style={{ color: "var(--vscode-testing-iconPassed)" }}>{title}</h4>
+										{title}
 									</div>
-									<p style={contentStyle}>{message.text}</p>
+									<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
+										{message.text}
+									</p>
 								</div>
 							)
 						} else {
@@ -191,7 +219,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 								{title && (
 									<div style={headerStyle}>
 										{icon}
-										<h4>{title}</h4>
+										{title}
 									</div>
 								)}
 								<p style={contentStyle}>{message.text}</p>
@@ -208,7 +236,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 	return (
 		<div
 			style={{
-				padding: "10px",
+				padding: "10px 5px 10px 20px",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
