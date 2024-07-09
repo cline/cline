@@ -33,7 +33,11 @@ const ChatView = ({ messages }: ChatViewProps) => {
 
 	const scrollToBottom = (instant: boolean = false) => {
 		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
-		(messagesEndRef.current as any)?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "nearest", inline: "start" })
+		;(messagesEndRef.current as any)?.scrollIntoView({
+			behavior: instant ? "instant" : "smooth",
+			block: "nearest",
+			inline: "start",
+		})
 	}
 
 	const handlePrimaryButtonClick = () => {
@@ -49,8 +53,19 @@ const ChatView = ({ messages }: ChatViewProps) => {
 		setSecondaryButtonText(undefined)
 	}
 
+	// scroll to bottom when new message is added
+	const visibleMessages = useMemo(
+		() =>
+			modifiedMessages.filter(
+				(message) => !(message.type === "ask" && message.ask === "completion_result" && message.text === "")
+			),
+		[modifiedMessages]
+	)
 	useEffect(() => {
 		scrollToBottom()
+	}, [visibleMessages.length])
+
+	useEffect(() => {
 		// if last message is an ask, show user ask UI
 
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
@@ -110,6 +125,10 @@ const ChatView = ({ messages }: ChatViewProps) => {
 		}
 	}
 
+	const handleTaskCloseButtonClick = () => {
+		vscode.postMessage({ type: "abortTask" })
+	}
+
 	useEffect(() => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
@@ -158,6 +177,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				tokensIn={apiMetrics.totalTokensIn}
 				tokensOut={apiMetrics.totalTokensOut}
 				totalCost={apiMetrics.totalCost}
+				onClose={handleTaskCloseButtonClick}
 			/>
 			<div
 				className="scrollable"

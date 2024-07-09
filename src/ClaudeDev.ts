@@ -9,7 +9,7 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { Tool, ToolName } from "./shared/Tool"
-import { ClaudeAsk, ClaudeSay, ExtensionMessage } from "./shared/ExtensionMessage"
+import { ClaudeAsk, ClaudeSay, ClaudeSayTool, ExtensionMessage } from "./shared/ExtensionMessage"
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
@@ -214,7 +214,7 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 
 		// Get all relevant context for the task
-		const filesInCurrentDir = await this.listFiles(".")
+		const filesInCurrentDir = await this.listFiles(".", false)
 
 		// This first message kicks off a task, it is not included in every subsequent message. This is a good place to give all the relevant context to a task, instead of having Claude request for it using tools.
 		let userPrompt = `# Task
@@ -235,7 +235,7 @@ ${filesInCurrentDir}`
 ${activeEditorContents}`
 		}
 
-		await this.say("text", userPrompt)
+		await this.say("text", task)
 
 		let totalInputTokens = 0
 		let totalOutputTokens = 0
@@ -255,10 +255,10 @@ ${activeEditorContents}`
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
-				this.say(
-					"tool",
-					"Claude responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
-				)
+				// this.say(
+				// 	"tool",
+				// 	"Claude responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
+				// )
 				userPrompt =
 					"Ask yourself if you have completed the user's task. If you have, use the attempt_completion tool, otherwise proceed to the next step. (This is an automated message, so do not respond to it conversationally. Just proceed with the task.)"
 			}
@@ -305,38 +305,46 @@ ${activeEditorContents}`
 				const diffResult = diff.createPatch(filePath, originalContent, newContent)
 				if (diffResult) {
 					await fs.writeFile(filePath, newContent)
+					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath, diff: diffResult } as ClaudeSayTool))
 					return `Changes applied to ${filePath}:\n${diffResult}`
 				} else {
+					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath } as ClaudeSayTool))
 					return `Tool succeeded, however there were no changes detected to ${filePath}`
 				}
 			} else {
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
+				this.say("tool", JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool))
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", errorString)
+			this.say("error", JSON.stringify(serializeError(error)))
 			return errorString
 		}
 	}
 
 	async readFile(filePath: string): Promise<string> {
 		try {
-			return await fs.readFile(filePath, "utf-8")
+			const content = await fs.readFile(filePath, "utf-8")
+			this.say("tool", JSON.stringify({ tool: "readFile", path: filePath } as ClaudeSayTool))
+			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", errorString)
+			this.say("error", JSON.stringify(serializeError(error)))
 			return errorString
 		}
 	}
 
-	async listFiles(dirPath: string): Promise<string> {
+	async listFiles(dirPath: string, shouldLog: boolean = true): Promise<string> {
 		// If the extension is run without a workspace open, we are in the root directory and don't want to list all files since it would prompt for permission to access everything
 		const cwd = process.cwd()
 		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
 		const isRoot = cwd === root
 		if (isRoot) {
+			if (shouldLog) {
+				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath } as ClaudeSayTool))
+			}
 			return "Currently in the root directory. Cannot list all files."
 		}
 
@@ -348,19 +356,19 @@ ${activeEditorContents}`
 			}
 			// * globs all files in one dir, ** globs files in nested directories
 			const entries = await glob("*", options)
+			if (shouldLog) {
+				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath } as ClaudeSayTool))
+			}
 			return entries.slice(0, 500).join("\n") // truncate to 500 entries
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
-			this.say("error", errorString)
+			this.say("error", JSON.stringify(serializeError(error)))
 			return errorString
 		}
 	}
 
 	async executeCommand(command: string): Promise<string> {
-		const { response } = await this.ask(
-			"command",
-			`Claude wants to execute the following command:\n${command}\nDo you approve?`
-		)
+		const { response } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
 			return "Command execution was not approved by the user."
 		}
@@ -378,7 +386,7 @@ ${activeEditorContents}`
 			const error = e as any
 			let errorMessage = error.message || JSON.stringify(serializeError(error))
 			const errorString = `Error executing command:\n${errorMessage}`
-			this.say("error", errorString)
+			this.say("error", errorMessage)
 			return errorString
 		}
 	}
@@ -414,7 +422,7 @@ ${activeEditorContents}`
 		if (this.requestCount >= this.maxRequestsPerTask) {
 			const { response } = await this.ask(
 				"request_limit_reached",
-				`\nClaude has exceeded ${this.maxRequestsPerTask} requests for this task! Would you like to reset the count and proceed?:`
+				`Claude Dev has reached the maximum number of requests for this task. Would you like to reset the count and allow him to proceed?`
 			)
 
 			if (response === "yesButtonTapped") {
@@ -434,7 +442,7 @@ ${activeEditorContents}`
 		}
 
 		try {
-			await this.say("api_req_started", JSON.stringify(userContent))
+			await this.say("api_req_started", JSON.stringify({ request: userContent }))
 			const response = await this.client.messages.create({
 				model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
 				max_tokens: 4096,
@@ -448,7 +456,7 @@ ${activeEditorContents}`
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
 			let inputTokens = response.usage.input_tokens
 			let outputTokens = response.usage.output_tokens
-			await this.say("api_req_finished", this.calculateApiCost(inputTokens, outputTokens).toString())
+			await this.say("api_req_finished", JSON.stringify({ tokensIn: inputTokens, tokensOut: outputTokens, cost: this.calculateApiCost(inputTokens, outputTokens) }))
 
 			// A response always returns text content blocks (it's just that before we were iterating over the completion_attempt response before we could append text response, resulting in bug)
 			for (const contentBlock of response.content) {
@@ -470,10 +478,10 @@ ${activeEditorContents}`
 						attemptCompletionBlock = contentBlock
 					} else {
 						const result = await this.executeTool(toolName, toolInput)
-						this.say(
-							"tool",
-							`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}\nTool Result: ${result}`
-						)
+						// this.say(
+						// 	"tool",
+						// 	`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}\nTool Result: ${result}`
+						// )
 						toolResults.push({ type: "tool_result", tool_use_id: toolUseId, content: result })
 					}
 				}
@@ -483,7 +491,7 @@ ${activeEditorContents}`
 				this.conversationHistory.push({ role: "assistant", content: assistantResponses })
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				this.say("error", "Error: No assistant responses found in API response!")
+				this.say("error", "Unexpected Error: No assistant messages were found in the API response")
 				this.conversationHistory.push({
 					role: "assistant",
 					content: [{ type: "text", text: "Failure: I did not have a response to provide." }],
@@ -499,12 +507,12 @@ ${activeEditorContents}`
 					attemptCompletionBlock.name as ToolName,
 					attemptCompletionBlock.input
 				)
-				this.say(
-					"tool",
-					`\nattempt_completion Tool Used: ${attemptCompletionBlock.name}\nTool Input: ${JSON.stringify(
-						attemptCompletionBlock.input
-					)}\nTool Result: ${result}`
-				)
+				// this.say(
+				// 	"tool",
+				// 	`\nattempt_completion Tool Used: ${attemptCompletionBlock.name}\nTool Input: ${JSON.stringify(
+				// 		attemptCompletionBlock.input
+				// 	)}\nTool Result: ${result}`
+				// )
 				if (result === "") {
 					didCompleteTask = true
 					result = "The user is satisfied with the result."
@@ -539,7 +547,7 @@ ${activeEditorContents}`
 			return { didCompleteTask, inputTokens, outputTokens }
 		} catch (error) {
 			// only called if the API request fails (executeTool errors are returned back to claude)
-			this.say("error", `Error calling Claude API: ${JSON.stringify(serializeError(error))}`)
+			this.say("error", JSON.stringify(serializeError(error)))
 			return { didCompleteTask: true, inputTokens: 0, outputTokens: 0 }
 		}
 	}

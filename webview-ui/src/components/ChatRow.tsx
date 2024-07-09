@@ -1,6 +1,7 @@
 import React, { useState } from "react"
-import { ClaudeMessage, ClaudeAsk, ClaudeSay } from "@shared/ExtensionMessage"
+import { ClaudeMessage, ClaudeAsk, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeProgressRing, VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
+import { COMMAND_OUTPUT_STRING } from "../utilities/combineCommandSequences"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -92,6 +93,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 
 		const contentStyle: React.CSSProperties = {
 			margin: 0,
+			whiteSpace: "pre-line",
 		}
 
 		switch (message.type) {
@@ -116,18 +118,58 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					case "api_req_finished":
 						return null // Hide this message type
 					case "tool":
+						//const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+						const tool: ClaudeSayTool = {
+							tool: "editedExistingFile",
+							path: "/path/to/file",
+						}
+						switch (tool.tool) {
+							case "editedExistingFile":
+								return (
+									<>
+										<div style={headerStyle}>
+											{icon}
+											Edited File
+										</div>
+										<p>Path: {tool.path!}</p>
+										<p>{tool.diff!}</p>
+									</>
+								)
+							case "newFileCreated":
+								return (
+									<>
+										<div style={headerStyle}>
+											{icon}
+											Created New File
+										</div>
+										<p>Path: {tool.path!}</p>
+										<p>{tool.content!}</p>
+									</>
+								)
+							case "readFile":
+								return (
+									<>
+										<div style={headerStyle}>
+											{icon}
+											Read File
+										</div>
+										<p>Path: {tool.path!}</p>
+									</>
+								)
+							case "listFiles":
+								return (
+									<>
+										<div style={headerStyle}>
+											{icon}
+											Viewed Directory
+										</div>
+										<p>Path: {tool.path!}</p>
+									</>
+								)
+						}
+						break
 					case "text":
-						return (
-							<>
-								{title && (
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<p style={contentStyle}>{message.text}</p>
-							</>
-						)
+						return <p style={contentStyle}>{message.text}</p>
 					case "error":
 						return (
 							<>
@@ -167,6 +209,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							</>
 						)
 				}
+				break
 			case "ask":
 				switch (message.ask) {
 					case "request_limit_reached":
@@ -177,12 +220,23 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									{title}
 								</div>
 								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-									Your task has reached the maximum request limit (maxRequestsPerTask, you can change
-									this in settings). Do you want to keep going or start a new task?
+									{message.text}
 								</p>
 							</>
 						)
 					case "command":
+						const splitMessage = (text: string) => {
+							const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+							if (outputIndex === -1) {
+								return { command: text, output: "" }
+							}
+							return {
+								command: text.slice(0, outputIndex).trim(),
+								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
+							}
+						}
+
+						const { command, output } = splitMessage(message.text || "")
 						return (
 							<>
 								<div style={headerStyle}>
@@ -190,10 +244,16 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									{title}
 								</div>
 								<div style={contentStyle}>
-									<p>Claude would like to run this command. Do you allow this?</p>
-									<pre style={contentStyle}>
-										<code>{message.text}</code>
-									</pre>
+									<p style={contentStyle}>Claude Dev wants to execute the following command:</p>
+									<p style={contentStyle}>{command}</p>
+									{output && (
+										<>
+											<p style={{ ...contentStyle, fontWeight: "bold" }}>
+												{COMMAND_OUTPUT_STRING}
+											</p>
+											<p style={contentStyle}>{output}</p>
+										</>
+									)}
 								</div>
 							</>
 						)
@@ -240,9 +300,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
-				<pre style={{ marginTop: "10px" }}>
-					<code>{message.text}</code>
-				</pre>
+				<p style={{ marginTop: "10px" }}>{JSON.stringify(JSON.parse(message.text || "{}").request)}</p>
 			)}
 		</div>
 	)

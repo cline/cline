@@ -1,5 +1,5 @@
 export interface WebviewMessage {
-    type: "apiKey" | "maxRequestsPerTask" | "webviewDidLaunch" | "newTask" | "askResponse"
+    type: "apiKey" | "maxRequestsPerTask" | "webviewDidLaunch" | "newTask" | "askResponse" | "abortTask"
     text?: string
     askResponse?: ClaudeAskResponse
 }

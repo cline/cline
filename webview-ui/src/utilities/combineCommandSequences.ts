@@ -27,6 +27,7 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "ask" && messages[i].ask === "command") {
 			let combinedText = messages[i].text || ""
+			let didAddOutput = false
 			let j = i + 1
 
 			while (j < messages.length) {
@@ -35,6 +36,11 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 					break
 				}
 				if (messages[j].type === "say" && messages[j].say === "command_output") {
+					if (!didAddOutput) {
+						// Add a newline before the first output
+						combinedText += `\n${COMMAND_OUTPUT_STRING}`
+						didAddOutput = true
+					}
 					combinedText += "\n" + (messages[j].text || "")
 				}
 				j++
@@ -60,3 +66,4 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 			return msg
 		})
 }
+export const COMMAND_OUTPUT_STRING = "Output:"
