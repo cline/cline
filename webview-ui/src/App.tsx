@@ -24,7 +24,8 @@ const App: React.FC = () => {
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
-		window.addEventListener("message", (e: MessageEvent) => {
+
+		const handleMessage = (e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
 			// switch message.type
 			switch (message.type) {
@@ -50,7 +51,13 @@ const App: React.FC = () => {
 					}
 					break
 			}
-		})
+		}
+
+		window.addEventListener("message", handleMessage)
+
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
 	}, [])
 
 	// dummy data for messages
@@ -136,6 +143,78 @@ const App: React.FC = () => {
 			ts: generateRandomTimestamp(baseDate, 29),
 		},
 		{ type: "say", say: "text", text: "Final message", ts: generateRandomTimestamp(baseDate, 30) },
+		{
+			type: "say",
+			say: "text",
+			text: "Starting API requests",
+			ts: Date.now(),
+		},
+		{
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({
+				request: "GET /api/data1",
+			}),
+			ts: Date.now() + 1000,
+		},
+		{
+			type: "say",
+			say: "api_req_finished",
+			text: JSON.stringify({
+				tokensIn: 10,
+				tokensOut: 20,
+				cost: 0.002,
+			}),
+			ts: Date.now() + 2000,
+		},
+		{
+			type: "say",
+			say: "text",
+			text: "Processing data...",
+			ts: Date.now() + 3000,
+		},
+		{
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({
+				request: "POST /api/update1",
+			}),
+			ts: Date.now() + 4000,
+		},
+		{
+			type: "say",
+			say: "api_req_finished",
+			text: JSON.stringify({
+				tokensIn: 15,
+				tokensOut: 25,
+				cost: 0.003,
+			}),
+			ts: Date.now() + 5000,
+		},
+		{
+			type: "say",
+			say: "text",
+			text: "More processing...",
+			ts: Date.now() + 6000,
+		},
+		{
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({
+				request: "GET /api/data2",
+			}),
+			ts: Date.now() + 7000,
+		},
+		{
+			type: "say",
+			say: "api_req_finished",
+			text: JSON.stringify({
+				tokensIn: 5,
+				tokensOut: 15,
+				cost: 0.001,
+			}),
+			ts: Date.now() + 8000,
+		},
 	]
 
 	return (

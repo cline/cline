@@ -8,6 +8,7 @@ import ChatRow from "./ChatRow"
 import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { combineApiRequests } from "../utilities/combineApiRequests"
 import TaskHeader from "./TaskHeader"
+import { getApiMetrics } from "../utilities/getApiMetrics"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
@@ -16,6 +17,8 @@ interface ChatViewProps {
 const ChatView = ({ messages }: ChatViewProps) => {
 	const task = messages.shift()
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages)), [messages])
+	// has to be after api_req_finished are all reduced into api_req_started messages
+	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
 	const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -110,7 +113,30 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	useEffect(() => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
-			textAreaRef.current.focus()
+			//textAreaRef.current.focus()
+		}
+
+		const handleMessage = (e: MessageEvent) => {
+			const message: ExtensionMessage = e.data
+			switch (message.type) {
+				case "action":
+					switch (message.action!) {
+						case "didBecomeVisible":
+							textAreaRef.current?.focus()
+							break
+					}
+					break
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+
+		const timer = setTimeout(() => {
+			textAreaRef.current?.focus()
+		}, 20)
+		return () => {
+			clearTimeout(timer)
+			window.removeEventListener("message", handleMessage)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
@@ -129,9 +155,9 @@ const ChatView = ({ messages }: ChatViewProps) => {
 			}}>
 			<TaskHeader
 				taskText={task?.text || ""}
-				tokensIn={1000}
-				tokensOut={1500}
-				totalCost={0.0025}
+				tokensIn={apiMetrics.totalTokensIn}
+				tokensOut={apiMetrics.totalTokensOut}
+				totalCost={apiMetrics.totalCost}
 			/>
 			<div
 				className="scrollable"
@@ -177,6 +203,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 					onHeightChange={() => scrollToBottom(true)}
 					placeholder="Type a message..."
 					maxRows={10}
+					autoFocus={true}
 					style={{
 						width: "100%",
 						boxSizing: "border-box",

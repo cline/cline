@@ -4,7 +4,7 @@
 export interface ExtensionMessage {
     type: "action" | "state"
     text?: string
-    action?: "plusButtonTapped" | "settingsButtonTapped"
+    action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
     state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number, claudeMessages: ClaudeMessage[] }
 }
 
