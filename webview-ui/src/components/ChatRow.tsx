@@ -244,7 +244,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									{title}
 								</div>
 								<div style={contentStyle}>
-									<p style={contentStyle}>Claude Dev wants to execute the following command:</p>
+									<p style={contentStyle}>Claude Dev wants to execute the following terminal command. Would you like to proceed?</p>
 									<p style={contentStyle}>{command}</p>
 									{output && (
 										<>

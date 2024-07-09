@@ -196,7 +196,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 				case "askResponse":
 					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
 					break
-				case "abortTask":
+				case "clearTask":
 					await this.clearTask()
 					await this.postStateToWebview()
 					break

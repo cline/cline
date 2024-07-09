@@ -26,6 +26,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 
+	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
@@ -38,19 +39,6 @@ const ChatView = ({ messages }: ChatViewProps) => {
 			block: "nearest",
 			inline: "start",
 		})
-	}
-
-	const handlePrimaryButtonClick = () => {
-		//vscode.postMessage({ type: "askResponse", askResponse: "primaryButton" })
-		setPrimaryButtonText(undefined)
-		setSecondaryButtonText(undefined)
-	}
-
-	// New function to handle secondary button click
-	const handleSecondaryButtonClick = () => {
-		//vscode.postMessage({ type: "askResponse", askResponse: "secondaryButton" })
-		setPrimaryButtonText(undefined)
-		setSecondaryButtonText(undefined)
 	}
 
 	// scroll to bottom when new message is added
@@ -73,50 +61,125 @@ const ChatView = ({ messages }: ChatViewProps) => {
 
 		const lastMessage = messages.at(-1)
 		if (lastMessage) {
-			if (lastMessage.type === "ask") {
-				//setTextAreaDisabled(false) // should enable for certain asks
-				setClaudeAsk(lastMessage.ask)
-				// Set button texts based on the ask
-				// setPrimaryButtonText(lastMessage.ask === "command" ? "Yes" : "Continue")
-				// setSecondaryButtonText(lastMessage.ask === "yesno" ? "No" : undefined)
-				setPrimaryButtonText("Yes")
-				setSecondaryButtonText("No")
-			} else {
-				//setTextAreaDisabled(true)
-				setClaudeAsk(undefined)
-				// setPrimaryButtonText(undefined)
-				// setSecondaryButtonText(undefined)
-				setPrimaryButtonText("Yes")
-				setSecondaryButtonText("No")
+			switch (lastMessage.type) {
+				case "ask":
+					switch (lastMessage.ask) {
+						case "request_limit_reached":
+							setTextAreaDisabled(true)
+							setClaudeAsk("request_limit_reached")
+							setPrimaryButtonText("Proceed")
+							setSecondaryButtonText("Start New Task")
+							break
+						case "followup":
+							setTextAreaDisabled(false)
+							setClaudeAsk("followup")
+							setPrimaryButtonText(undefined)
+							setSecondaryButtonText(undefined)
+							break
+						case "command":
+							setTextAreaDisabled(true)
+							setClaudeAsk("command")
+							setPrimaryButtonText("Yes")
+							setSecondaryButtonText("No")
+							break
+						case "completion_result":
+							// extension waiting for feedback. but we can just present a new task button
+							setTextAreaDisabled(false)
+							setClaudeAsk("completion_result")
+							setPrimaryButtonText("Start New Task")
+							setSecondaryButtonText(undefined)
+							break
+					}
+					break
+				case "say":
+					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
+					switch (lastMessage.say) {
+						case "task":
+							break
+						case "error":
+							break
+						case "api_req_started":
+							break
+						case "api_req_finished":
+							break
+						case "text":
+							break
+						case "tool":
+							break
+						case "command_output":
+							break
+						case "completion_result":
+							break
+					}
+					break
 			}
+		} else {
+			// No messages, so user has to submit a task
+			setTextAreaDisabled(false)
+			setClaudeAsk(undefined)
+			setPrimaryButtonText(undefined)
+			setSecondaryButtonText(undefined)
 		}
 	}, [messages])
 
 	const handleSendMessage = () => {
 		const text = inputValue.trim()
 		if (text) {
-			setInputValue("")
 			if (messages.length === 0) {
 				vscode.postMessage({ type: "newTask", text })
 			} else if (claudeAsk) {
 				switch (claudeAsk) {
 					case "followup":
+					case "completion_result": // if this happens then the user has feedback for the completion result
 						vscode.postMessage({ type: "askResponse", askResponse: "textResponse", text })
 						break
-					// case "completion_result":
-					// 	vscode.postMessage({ type: "askResponse", text })
-					// 	break
-					default:
-						// for now we'll type the askResponses
-						vscode.postMessage({ type: "askResponse", askResponse: text as ClaudeAskResponse })
-						break
+					// there is no other case that a textfield should be enabled
 				}
 			}
+			setInputValue("")
+			setTextAreaDisabled(true)
+			setClaudeAsk(undefined)
+			setPrimaryButtonText(undefined)
+			setSecondaryButtonText(undefined)
 		}
 	}
 
-	// handle ask buttons
-	// be sure to setInputValue("")
+	/*
+	This logic depends on the useEffect[messages] above to set claudeAsk, after which buttons are shown and we then send an askResponse to the extension.
+	*/
+	const handlePrimaryButtonClick = () => {
+		switch (claudeAsk) {
+			case "request_limit_reached":
+				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
+				break
+			case "command":
+				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
+				break
+			case "completion_result":
+				// extension waiting for feedback. but we can just present a new task button
+				startNewTask()
+				break
+		}
+		setTextAreaDisabled(true)
+		setClaudeAsk(undefined)
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+	}
+
+	const handleSecondaryButtonClick = () => {
+		switch (claudeAsk) {
+			case "request_limit_reached":
+				startNewTask()
+				break
+			case "command":
+				vscode.postMessage({ type: "askResponse", askResponse: "noButtonTapped" })
+				break
+		}
+		setTextAreaDisabled(true)
+		setClaudeAsk(undefined)
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === "Enter" && !event.shiftKey) {
@@ -126,7 +189,11 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	}
 
 	const handleTaskCloseButtonClick = () => {
-		vscode.postMessage({ type: "abortTask" })
+		startNewTask()
+	}
+
+	const startNewTask = () => {
+		vscode.postMessage({ type: "clearTask" })
 	}
 
 	useEffect(() => {
@@ -172,13 +239,15 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
-			<TaskHeader
-				taskText={task?.text || ""}
-				tokensIn={apiMetrics.totalTokensIn}
-				tokensOut={apiMetrics.totalTokensOut}
-				totalCost={apiMetrics.totalCost}
-				onClose={handleTaskCloseButtonClick}
-			/>
+			{task && (
+				<TaskHeader
+					taskText={task.text || ""}
+					tokensIn={apiMetrics.totalTokensIn}
+					tokensOut={apiMetrics.totalTokensOut}
+					totalCost={apiMetrics.totalCost}
+					onClose={handleTaskCloseButtonClick}
+				/>
+			)}
 			<div
 				className="scrollable"
 				style={{
@@ -249,7 +318,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 							display: "flex",
 							alignItems: "center",
 						}}>
-						<VSCodeButton appearance="icon" aria-label="Send Message" onClick={handleSendMessage}>
+						<VSCodeButton disabled={textAreaDisabled} appearance="icon" aria-label="Send Message" onClick={handleSendMessage}>
 							<span className="codicon codicon-send"></span>
 						</VSCodeButton>
 					</div>
