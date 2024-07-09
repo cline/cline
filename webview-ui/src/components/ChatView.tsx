@@ -14,7 +14,6 @@ interface ChatViewProps {
 }
 // maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
 const ChatView = ({ messages }: ChatViewProps) => {
-	
 	const task = messages.shift()
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages)), [messages])
 
@@ -26,9 +25,25 @@ const ChatView = ({ messages }: ChatViewProps) => {
 
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
+	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
+	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+
 	const scrollToBottom = (instant: boolean = false) => {
 		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
 		(messagesEndRef.current as any)?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "nearest", inline: "start" })
+	}
+
+	const handlePrimaryButtonClick = () => {
+		//vscode.postMessage({ type: "askResponse", askResponse: "primaryButton" })
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
+	}
+
+	// New function to handle secondary button click
+	const handleSecondaryButtonClick = () => {
+		//vscode.postMessage({ type: "askResponse", askResponse: "secondaryButton" })
+		setPrimaryButtonText(undefined)
+		setSecondaryButtonText(undefined)
 	}
 
 	useEffect(() => {
@@ -41,11 +56,20 @@ const ChatView = ({ messages }: ChatViewProps) => {
 		const lastMessage = messages.at(-1)
 		if (lastMessage) {
 			if (lastMessage.type === "ask") {
-				setClaudeAsk(lastMessage.ask)
 				//setTextAreaDisabled(false) // should enable for certain asks
+				setClaudeAsk(lastMessage.ask)
+				// Set button texts based on the ask
+				// setPrimaryButtonText(lastMessage.ask === "command" ? "Yes" : "Continue")
+				// setSecondaryButtonText(lastMessage.ask === "yesno" ? "No" : undefined)
+				setPrimaryButtonText("Yes")
+				setSecondaryButtonText("No")
 			} else {
-				setClaudeAsk(undefined)
 				//setTextAreaDisabled(true)
+				setClaudeAsk(undefined)
+				// setPrimaryButtonText(undefined)
+				// setSecondaryButtonText(undefined)
+				setPrimaryButtonText("Yes")
+				setSecondaryButtonText("No")
 			}
 		}
 	}, [messages])
@@ -86,6 +110,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	useEffect(() => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
+			textAreaRef.current.focus()
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
@@ -93,7 +118,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	return (
 		<div
 			style={{
-				position: 'fixed',
+				position: "fixed",
 				top: 0,
 				left: 0,
 				right: 0,
@@ -109,7 +134,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				totalCost={0.0025}
 			/>
 			<div
-			className="scrollable"
+				className="scrollable"
 				style={{
 					flexGrow: 1,
 					overflowY: "auto",
@@ -119,7 +144,30 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				))}
 				<div style={{ float: "left", clear: "both" }} ref={messagesEndRef} />
 			</div>
-			<div style={{ padding: "16px" }}>
+			{(primaryButtonText || secondaryButtonText) && (
+				<div style={{ display: "flex", padding: "8px 12px 0px 12px" }}>
+					{primaryButtonText && (
+						<VSCodeButton
+							appearance="primary"
+							style={{
+								flex: secondaryButtonText ? 1 : 2,
+								marginRight: secondaryButtonText ? "6px" : "0",
+							}}
+							onClick={handlePrimaryButtonClick}>
+							{primaryButtonText}
+						</VSCodeButton>
+					)}
+					{secondaryButtonText && (
+						<VSCodeButton
+							appearance="secondary"
+							style={{ flex: 1, marginLeft: "6px" }}
+							onClick={handleSecondaryButtonClick}>
+							{secondaryButtonText}
+						</VSCodeButton>
+					)}
+				</div>
+			)}
+			<div style={{ padding: "8px 12px" }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
@@ -150,7 +198,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 							position: "absolute",
 							right: "18px",
 							height: `${textAreaHeight}px`,
-							bottom: "18px",
+							bottom: "10px",
 							display: "flex",
 							alignItems: "center",
 						}}>
