@@ -4,11 +4,11 @@ import { VSCodeButton, VSCodeProgressRing, VSCodeTag } from "@vscode/webview-ui-
 
 interface ChatRowProps {
 	message: ClaudeMessage
-	cost?: string
 }
 
-const ChatRow: React.FC<ChatRowProps> = ({ message, cost }) => {
+const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
+	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 
 	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, string | null] => {
 		switch (type) {
@@ -209,11 +209,6 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, cost }) => {
 		<div
 			style={{
 				padding: "10px",
-				borderBottom: "1px solid var(--vscode-panel-border)",
-				backgroundColor:
-					message.say === "task"
-						? "var(--vscode-textBlockQuote-background)"
-						: "var(--vscode-editor-background)",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (

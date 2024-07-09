@@ -7,82 +7,15 @@ import { ClaudeAskResponse } from "@shared/WebviewMessage"
 import ChatRow from "./ChatRow"
 import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { combineApiRequests } from "../utilities/combineApiRequests"
+import TaskHeader from "./TaskHeader"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
 }
 // maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
-const ChatView = ({}: ChatViewProps) => {
-	// dummy data for messages
-	const generateRandomTimestamp = (baseDate: Date, rangeInDays: number): number => {
-		const rangeInMs = rangeInDays * 24 * 60 * 60 * 1000 // convert days to milliseconds
-		const randomOffset = Math.floor(Math.random() * rangeInMs * 2) - rangeInMs // rangeInMs * 2 to have offset in both directions
-		return baseDate.getTime() + randomOffset
-	}
-
-	const baseDate = new Date("2024-07-08T00:00:00Z")
-
-	const messages: ClaudeMessage[] = [
-		{ type: "say", say: "task", text: "Starting task", ts: generateRandomTimestamp(baseDate, 1) },
-		{
-			type: "ask",
-			ask: "request_limit_reached",
-			text: "Request limit reached",
-			ts: generateRandomTimestamp(baseDate, 2),
-		},
-		{ type: "ask", ask: "followup", text: "Any additional questions?", ts: generateRandomTimestamp(baseDate, 3) },
-		{ type: "say", say: "error", text: "An error occurred", ts: generateRandomTimestamp(baseDate, 4) },
-
-		{ type: "say", say: "text", text: "Some general text", ts: generateRandomTimestamp(baseDate, 7) },
-		{ type: "say", say: "tool", text: "Using a tool", ts: generateRandomTimestamp(baseDate, 8) },
-
-		// First command sequence
-		{ type: "ask", ask: "command", text: "ls -l", ts: generateRandomTimestamp(baseDate, 9) },
-		{ type: "say", say: "command_output", text: "file1.txt", ts: generateRandomTimestamp(baseDate, 10) },
-		{ type: "say", say: "api_req_started", text: JSON.stringify({ request: "GET /api/data" }), ts: generateRandomTimestamp(baseDate, 5) },
-		{ type: "say", say: "command_output", text: "file2.txt", ts: generateRandomTimestamp(baseDate, 11) },
-		{ type: "say", say: "command_output", text: "directory1", ts: generateRandomTimestamp(baseDate, 12) },
-
-		{ type: "say", say: "text", text: "Interrupting text", ts: generateRandomTimestamp(baseDate, 13) },
-		{ type: "say", say: "api_req_finished", text: JSON.stringify({ cost: "GET /api/data" }), ts: generateRandomTimestamp(baseDate, 6) },
-		// Second command sequence
-		{ type: "ask", ask: "command", text: "pwd", ts: generateRandomTimestamp(baseDate, 14) },
-		{ type: "say", say: "command_output", text: "/home/user", ts: generateRandomTimestamp(baseDate, 15) },
-
-		{ type: "ask", ask: "completion_result", text: "Task completed", ts: generateRandomTimestamp(baseDate, 16) },
-
-		// Third command sequence (no output)
-		{ type: "ask", ask: "command", text: "echo Hello", ts: generateRandomTimestamp(baseDate, 17) },
-
-		// Testing combineApiRequests
-		{ type: "say", say: "text", text: "Final message", ts: generateRandomTimestamp(baseDate, 18) },
-		{ type: "ask", ask: "command", text: "ls -l", ts: generateRandomTimestamp(baseDate, 19) },
-		{ type: "say", say: "command_output", text: "file1.txt", ts: generateRandomTimestamp(baseDate, 20) },
-		{
-			type: "say",
-			say: "api_req_started",
-			text: JSON.stringify({ request: "GET /api/data" }),
-			ts: generateRandomTimestamp(baseDate, 23),
-		},
-		{ type: "say", say: "command_output", text: "file2.txt", ts: generateRandomTimestamp(baseDate, 24) },
-		{ type: "say", say: "text", text: "Some random text", ts: generateRandomTimestamp(baseDate, 25) },
-		{
-			type: "say",
-			say: "api_req_finished",
-			text: JSON.stringify({ cost: 0.005 }),
-			ts: generateRandomTimestamp(baseDate, 26),
-		},
-		{ type: "ask", ask: "command", text: "pwd", ts: generateRandomTimestamp(baseDate, 27) },
-		{ type: "say", say: "command_output", text: "/home/user", ts: generateRandomTimestamp(baseDate, 28) },
-		{
-			type: "say",
-			say: "api_req_started",
-			text: JSON.stringify({ request: "POST /api/update" }),
-			ts: generateRandomTimestamp(baseDate, 29),
-		},
-		{ type: "say", say: "text", text: "Final message", ts: generateRandomTimestamp(baseDate, 30) },
-	]
-
+const ChatView = ({ messages }: ChatViewProps) => {
+	
+	const task = messages.shift()
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages)), [messages])
 
 	const [inputValue, setInputValue] = useState("")
@@ -93,9 +26,9 @@ const ChatView = ({}: ChatViewProps) => {
 
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
-	const scrollToBottom = () => {
+	const scrollToBottom = (instant: boolean = false) => {
 		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" })
+		(messagesEndRef.current as any)?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "nearest", inline: "start" })
 	}
 
 	useEffect(() => {
@@ -160,52 +93,62 @@ const ChatView = ({}: ChatViewProps) => {
 	return (
 		<div
 			style={{
+				position: 'fixed',
+				top: 0,
+				left: 0,
+				right: 0,
+				bottom: 0,
 				display: "flex",
 				flexDirection: "column",
-				height: "100vh",
 				overflow: "hidden",
-				backgroundColor: "gray",
 			}}>
-			<div style={{ flexGrow: 1, overflowY: "scroll", scrollbarWidth: "none" }}>
-				{modifiedMessages.map((message) => (
-					<ChatRow message={message} />
+			<TaskHeader
+				taskText="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+				tokensIn={1000}
+				tokensOut={1500}
+				totalCost={0.0025}
+			/>
+			<div
+			className="scrollable"
+				style={{
+					flexGrow: 1,
+					overflowY: "auto",
+				}}>
+				{modifiedMessages.map((message, index) => (
+					<ChatRow key={index} message={message} />
 				))}
 				<div style={{ float: "left", clear: "both" }} ref={messagesEndRef} />
 			</div>
-			<div style={{ position: "relative", paddingTop: "16px", paddingBottom: "16px" }}>
+			<div style={{ padding: "16px" }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
 					disabled={textAreaDisabled}
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
-					onHeightChange={() => scrollToBottom()}
+					onHeightChange={() => scrollToBottom(true)}
 					placeholder="Type a message..."
 					maxRows={10}
 					style={{
 						width: "100%",
 						boxSizing: "border-box",
-						backgroundColor: "var(--vscode-input-background, #3c3c3c)",
-						color: "var(--vscode-input-foreground, #cccccc)",
-						border: "1px solid var(--vscode-input-border, #3c3c3c)",
+						backgroundColor: "var(--vscode-input-background)",
+						color: "var(--vscode-input-foreground)",
+						border: "1px solid var(--vscode-input-border)",
 						borderRadius: "2px",
-						fontFamily:
-							"var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif)",
-						fontSize: "var(--vscode-editor-font-size, 13px)",
-						lineHeight: "var(--vscode-editor-line-height, 1.5)",
+						fontFamily: "var(--vscode-font-family)",
+						fontSize: "var(--vscode-editor-font-size)",
+						lineHeight: "var(--vscode-editor-line-height)",
 						resize: "none",
 						overflow: "hidden",
-						paddingTop: "8px",
-						paddingBottom: "8px",
-						paddingLeft: "8px",
-						paddingRight: "40px", // Make room for button
+						padding: "8px 40px 8px 8px",
 					}}
 				/>
 				{textAreaHeight && (
 					<div
 						style={{
 							position: "absolute",
-							right: "12px",
+							right: "18px",
 							height: `${textAreaHeight}px`,
 							bottom: "18px",
 							display: "flex",
