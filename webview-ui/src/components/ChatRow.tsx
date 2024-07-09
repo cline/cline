@@ -110,6 +110,20 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, cost }) => {
 								</pre>
 							</>
 						)
+					case "completion_result":
+						return (
+							<div
+								style={{
+									borderLeft: "5px solid var(--vscode-testing-iconPassed)",
+									paddingLeft: "10px",
+								}}>
+								<div style={headerStyle}>
+									{icon}
+									<h4 style={{ color: "var(--vscode-testing-iconPassed)" }}>{title}</h4>
+								</div>
+								<p style={contentStyle}>{message.text}</p>
+							</div>
+						)
 					default:
 						return (
 							<>
@@ -154,19 +168,23 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, cost }) => {
 							</>
 						)
 					case "completion_result":
-						return (
-							<div
-								style={{
-									borderLeft: "5px solid var(--vscode-testing-iconPassed)",
-									paddingLeft: "10px",
-								}}>
-								<div style={headerStyle}>
-									{icon}
-									<h4 style={{ color: "var(--vscode-testing-iconPassed)" }}>{title}</h4>
+						if (message.text) {
+							return (
+								<div
+									style={{
+										borderLeft: "5px solid var(--vscode-testing-iconPassed)",
+										paddingLeft: "10px",
+									}}>
+									<div style={headerStyle}>
+										{icon}
+										<h4 style={{ color: "var(--vscode-testing-iconPassed)" }}>{title}</h4>
+									</div>
+									<p style={contentStyle}>{message.text}</p>
 								</div>
-								<p style={contentStyle}>{message.text}</p>
-							</div>
-						)
+							)
+						} else {
+							return null // Don't render anything when we get a completion_result ask without text
+						}
 					default:
 						return (
 							<>

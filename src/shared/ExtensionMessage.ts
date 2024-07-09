@@ -17,4 +17,4 @@ export interface ClaudeMessage {
 }
 
 export type ClaudeAsk = "request_limit_reached" | "followup" | "command" | "completion_result"
-export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "tool" | "command_output"
+export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "tool" | "command_output" | "completion_result"

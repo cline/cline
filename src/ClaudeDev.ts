@@ -25,19 +25,19 @@ CAPABILITIES
 - You can read and analyze code in various programming languages, and can write clean, efficient, and well-documented code.
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
 - You have access to tools that let you execute CLI commands on the user's computer, list files in a directory, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
-    - For example, when asked to make edits or improvements you might use the read_file tool to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+    - For example, when asked to make edits or improvements you might use the list_files and read_file tools to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run.
 
 ====
 
 RULES
 
-- When editing files, always provide the full content of the file, even if you're only changing a small part. The system will automatically generate and apply the appropriate diff.
-- Always read a file before editing it if you are missing content. This will help you understand the context and make more informed changes.
+- Always read a file before editing it if you are missing content. This will help you understand the context and make informed changes.
+- When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the System Information context provided by the user to understand their environment and tailor your commands to ensure they are compatible with the user's system.
 - When using the execute_command tool, avoid running servers or executing commands that don't terminate on their own (e.g. Flask web servers, continuous scripts). If a task requires such a process or server, explain in your task completion result why you can't execute it directly and provide clear instructions on how the user can run it themselves.
-- When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created.
-- You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool to read multiple files at once. This will help you accomplish the user's task more efficiently.
+- When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
+- You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
@@ -55,20 +55,21 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
 2. Work through these goals sequentially, utilizing available tools as necessary. Each goal should correspond to a distinct step in your problem-solving process.
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, think about which of the provided tools is the relevant tool to answer the user's request. Second, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool call. BUT, if one of the values for a required parameter is missing, DO NOT invoke the function (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
-5. When you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
+4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run \`open -a "Google Chrome" index.html\` to show the website you've built. Avoid commands that run indefinitely (like servers). Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.
+5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
 `
 
 const tools: Tool[] = [
 	{
 		name: "execute_command",
 		description:
-			"Execute a CLI command. Use this when you need to perform system operations or run specific commands.",
+			"Execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Do not run servers or commands that don't terminate on their own. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run.",
 		input_schema: {
 			type: "object",
 			properties: {
 				command: {
 					type: "string",
-					description: "The CLI command to execute",
+					description: "The CLI command to execute. This should be a valid command-line instruction for the current operating system. For example, 'ls -l' on Unix-like systems or 'dir' on Windows. Ensure the command is properly formatted and does not contain any harmful instructions. Avoid commands that run indefinitely (like servers) that don't terminate on their own.",
 				},
 			},
 			required: ["command"],
@@ -76,28 +77,29 @@ const tools: Tool[] = [
 	},
 	{
 		name: "list_files",
-		description: "Recursively lists the relative paths of all files in a given directory and its subdirectories.",
+		description: "List all files and directories at the top level of the specified directory. Use this to understand the contents and structure of a directory by examining file names and extensions. This information can guide decision-making on which files to process or which subdirectories to explore further. To investigate subdirectories, call this tool again with the path of the subdirectory.",
 		input_schema: {
 			type: "object",
 			properties: {
 				path: {
 					type: "string",
 					description:
-						"The directory path to start listing files from. If not provided, defaults to the current directory ('.')",
+						"The path of the directory to list contents for. Do not use absolute paths or attempt to access directories outside of the current working directory.",
 				},
 			},
+			required: ["path"],
 		},
 	},
 	{
 		name: "read_file",
 		description:
-			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file.",
+			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Be aware that this tool may not be suitable for very large files or binary files, as it returns the raw content as a string.",
 		input_schema: {
 			type: "object",
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to read",
+					description: "The path of the file to read. Do not use absolute paths or attempt to access files outside of the current working directory.",
 				},
 			},
 			required: ["path"],
@@ -112,7 +114,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to write to",
+					description: "The path of the file to write to. Do not use absolute paths or attempt to write to files outside of the current working directory.",
 				},
 				content: {
 					type: "string",
@@ -125,13 +127,13 @@ const tools: Tool[] = [
 	{
 		name: "ask_followup_question",
 		description:
-			"Ask the user a question to help you complete your task. Use this when you need more information to proceed.",
+			"Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.",
 		input_schema: {
 			type: "object",
 			properties: {
 				question: {
 					type: "string",
-					description: "The question to ask the user",
+					description: "The question to ask the user. This should be a clear, specific question that addresses the information you need.",
 				},
 			},
 			required: ["question"],
@@ -144,9 +146,13 @@ const tools: Tool[] = [
 		input_schema: {
 			type: "object",
 			properties: {
+				command: {
+					type: "string",
+					description: "The CLI command to execute to show a live demo of the result to the user. For example, use 'open -a \"Google Chrome\" index.html' to display a created website. Avoid commands that run indefinitely (like servers) that don't terminate on their own. Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.",
+				},
 				result: {
 					type: "string",
-					description: "The result of the task",
+					description: "The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.",
 				},
 			},
 			required: ["result"],
@@ -208,7 +214,7 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 
 		// Get all relevant context for the task
-		const filesInCurrentDir = await this.listFiles()
+		const filesInCurrentDir = await this.listFiles(".")
 
 		// This first message kicks off a task, it is not included in every subsequent message. This is a good place to give all the relevant context to a task, instead of having Claude request for it using tools.
 		let userPrompt = `# Task
@@ -221,6 +227,13 @@ Default Shell: ${defaultShell}
 Current Working Directory: ${process.cwd()}
 ## Files in Current Directory
 ${filesInCurrentDir}`
+		
+		const activeEditorContents = vscode.window.activeTextEditor?.document.getText()
+		if (activeEditorContents) {
+			userPrompt += `
+## vscode.window.activeTextEditor.document
+${activeEditorContents}`
+		}
 
 		await this.say("text", userPrompt)
 
@@ -259,13 +272,13 @@ ${filesInCurrentDir}`
 			case "read_file":
 				return this.readFile(toolInput.path)
 			case "list_files":
-				return this.listFiles(toolInput.path || ".")
+				return this.listFiles(toolInput.path)
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
 			case "ask_followup_question":
 				return this.askFollowupQuestion(toolInput.question)
 			case "attempt_completion":
-				return this.attemptCompletion(toolInput.result)
+				return this.attemptCompletion(toolInput.result, toolInput.command)
 			default:
 				return `Unknown tool: ${toolName}`
 		}
@@ -318,48 +331,24 @@ ${filesInCurrentDir}`
 		}
 	}
 
-	async listFiles(dirPath: string = "."): Promise<string> {
+	async listFiles(dirPath: string): Promise<string> {
 		// If the extension is run without a workspace open, we are in the root directory and don't want to list all files since it would prompt for permission to access everything
 		const cwd = process.cwd()
 		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
 		const isRoot = cwd === root
 		if (isRoot) {
-			return cwd
+			return "Currently in the root directory. Cannot list all files."
 		}
 
 		try {
-			const dirsToIgnore = [
-				"node_modules",
-				"build",
-				"coverage",
-				"public",
-				"__pycache__",
-				"env",
-				"venv",
-				"target",
-				"bin",
-				"dist",
-				"out",
-				"bundle",
-				"vendor",
-				"tmp",
-				"temp",
-				"packages",
-				"_build",
-				"deps",
-				"Pods",
-				"migrations",
-			]
 			const options = {
 				cwd: dirPath,
-				ignore: dirsToIgnore.map((dir) => `**/${dir}/**`),
-				dot: false, // Allow patterns to match files/directories that start with '.', even if the pattern does not start with '.'
+				dot: true, // Allow patterns to match files/directories that start with '.', even if the pattern does not start with '.'
 				mark: true, // Append a / on any directories matched
 			}
 			// * globs all files in one dir, ** globs files in nested directories
-			const entries = await glob("**", options)
-			// FIXME: instead of using glob to read all files, we will use vscode api to get workspace files list. (otherwise this prompts user to give permissions to read files if e.g. it was opened at root directory)
-			return entries.slice(1, 501).join("\n") // truncate to 500 entries (removes first entry which is the directory itself)
+			const entries = await glob("*", options)
+			return entries.slice(0, 500).join("\n") // truncate to 500 entries
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
 			this.say("error", errorString)
@@ -399,9 +388,14 @@ ${filesInCurrentDir}`
 		return `User's response:\n\"${text}\"`
 	}
 
-	async attemptCompletion(result: string): Promise<string> {
-		const { response, text } = await this.ask("completion_result", result)
-		// Are you satisfied with the result(yes/if no then provide feedback):
+	async attemptCompletion(result: string, command?: string): Promise<string> {
+		let resultToSend = result
+		if (command) {
+			await this.say("completion_result", resultToSend)
+			await this.executeCommand(command)
+			resultToSend = ""
+		}
+		const { response, text } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
 		if (response === "yesButtonTapped") {
 			return ""
 		}
