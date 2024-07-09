@@ -37,7 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
 			const message = "claude-dev.plusButtonTapped!"
 			//vscode.window.showInformationMessage(message)
-			await provider.resetTask()
+			await provider.clearTask()
 			await provider.postStateToWebview()
 			await provider.postMessageToWebview({ type: "action", action: "plusButtonTapped"})
 		})

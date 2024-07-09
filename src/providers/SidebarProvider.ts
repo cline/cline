@@ -53,7 +53,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		})
 
 		// if the extension is starting a new session, clear previous task state
-		this.resetTask()
+		this.clearTask()
 	}
 
 	async tryToInitClaudeDevWithTask(task: string) {
@@ -197,7 +197,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
 					break
 				case "abortTask":
-					await this.resetTask()
+					await this.clearTask()
 					await this.postStateToWebview()
 					break
 				// Add more switch case statements here as more webview message commands
@@ -219,7 +219,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		})
 	}
 
-	async resetTask() {
+	async clearTask() {
 		this.claudeDev = undefined
 		await this.setClaudeMessages([])
 	}
