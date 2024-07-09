@@ -46,7 +46,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		webviewView.onDidChangeVisibility((e: any) => {
 			if (e.visible) {
 				// Your view is visible
-				this.postMessageToWebview({ type: "action", action: "didBecomeVisible"})
+				this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
 			} else {
 				// Your view is hidden
 			}
@@ -195,6 +195,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					break
 				case "askResponse":
 					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
+					break
+				case "abortTask":
+					await this.resetTask()
+					await this.postStateToWebview()
+					break
 				// Add more switch case statements here as more webview message commands
 				// are created within the webview context (i.e. inside media/main.js)
 			}
@@ -218,7 +223,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		this.claudeDev = undefined
 		await this.setClaudeMessages([])
 	}
-	
+
 	// client messages
 
 	async getClaudeMessages(): Promise<ClaudeMessage[]> {
