@@ -38,7 +38,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		const options = {
 			containerId: "chat-view-container",
 			duration: instant ? 0 : 500,
-			smooth: instant ? false : 'easeOutQuint',
+			smooth: instant ? false : "easeOutQuint",
 		}
 		scroll.scrollToBottom(options)
 	}
@@ -336,7 +336,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 					)}
 				</div>
 			)}
-			<div style={{ padding: "10px 15px", opacity: textAreaDisabled ? 0.7 : 1 }}>
+			<div style={{ padding: "10px 15px", opacity: textAreaDisabled ? 0.7 : 1, position: "relative" }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
@@ -362,25 +362,23 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 						padding: "8px 36px 8px 8px",
 					}}
 				/>
-				{textAreaHeight && (
-					<div
-						style={{
-							position: "absolute",
-							right: "20px",
-							height: `${textAreaHeight}px`,
-							bottom: "12px",
-							display: "flex",
-							alignItems: "center",
-						}}>
-						<VSCodeButton
-							disabled={textAreaDisabled}
-							appearance="icon"
-							aria-label="Send Message"
-							onClick={handleSendMessage}>
-							<span className="codicon codicon-send"></span>
-						</VSCodeButton>
-					</div>
-				)}
+				<div
+					style={{
+						position: "absolute",
+						right: "20px",
+						top: "0px",
+						bottom: "1.5px",
+						display: "flex",
+						alignItems: "center",
+					}}>
+					<VSCodeButton
+						disabled={textAreaDisabled}
+						appearance="icon"
+						aria-label="Send Message"
+						onClick={handleSendMessage}>
+						<span className="codicon codicon-send"></span>
+					</VSCodeButton>
+				</div>
 			</div>
 		</div>
 	)
