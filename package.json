@@ -21,8 +21,7 @@
     "Claude",
     "agentic",
     "productivity",
-    "automation",
-    "autonomous"
+    "automation"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
