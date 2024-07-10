@@ -15,6 +15,7 @@ import pWaitFor from "p-wait-for"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { SidebarProvider } from "./providers/SidebarProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
+import os from "os"
 
 const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -246,8 +247,8 @@ Current Working Directory: ${process.cwd()}
 		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
 		const isRoot = cwd === root
 		if (isRoot) {
-			userPrompt += `WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory, so you would need to use a command like \`echo $HOME\` to find a path you can work with (e.g. the user\'s Desktop directory). If you cannot accomplish your task in the root directory, you need to tell the user to open this extension in another directory (since you are a script being run in a VS Code extension).
-`
+			const homeDir = os.homedir()
+			userPrompt += `WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory. If you use tools or commands that require a path, make sure to use a path within the home directory or another directory where you have read and write permissions.\nUser's Home Directory: ${homeDir}`
 		} else {
 			const filesInCurrentDir = await this.listFiles(".", false)
 			userPrompt += `

@@ -6,6 +6,11 @@
   "engines": {
     "vscode": "^1.82.0"
   },
+  "publisher": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saoudrizwan/claude-dev"
+  },
   "categories": [
     "Other"
   ],
