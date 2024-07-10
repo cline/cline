@@ -17,7 +17,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export function activate(context: vscode.ExtensionContext) {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "claude-dev" is now active!')
+	//console.log('Congratulations, your extension "claude-dev" is now active!')
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
-			const message = "claude-dev.plusButtonTapped!"
+			//const message = "claude-dev.plusButtonTapped!"
 			//vscode.window.showInformationMessage(message)
 			await provider.clearTask()
 			await provider.postStateToWebview()
@@ -45,8 +45,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
-			const message = "claude-dev.settingsButtonTapped!"
-			vscode.window.showInformationMessage(message)
+			//const message = "claude-dev.settingsButtonTapped!"
+			//vscode.window.showInformationMessage(message)
 			provider.postMessageToWebview({ type: "action", action: "settingsButtonTapped"})
 		})
 	)

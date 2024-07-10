@@ -148,10 +148,9 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					textAlign: "center",
 					color: "var(--vscode-descriptionForeground)",
 					fontSize: "12px",
-					lineHeight: "1.5",
+					lineHeight: "1.2",
 					fontStyle: "italic",
 				}}>
-				<p>Made possible by the latest breakthroughs in Claude 3.5 Sonnet's agentic coding capabilities.</p>
 				<p>
 					This project was made for Anthropic's "Build with Claude June 2024 contest"
 					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">

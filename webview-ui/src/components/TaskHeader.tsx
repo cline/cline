@@ -40,7 +40,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
-				<div style={{ fontSize: "var(--vscode-font-size)", lineHeight: "1.5" }}>
+				<div style={{ fontSize: "var(--vscode-font-size)" }}>
 					<TextTruncate
 						line={isExpanded ? 0 : 3}
 						element="span"
