@@ -228,20 +228,33 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.setClaudeMessages([])
 		await this.providerRef.deref()?.postStateToWebview()
 
-		// Get all relevant context for the task
-		const filesInCurrentDir = await this.listFiles(".", false)
-
 		// This first message kicks off a task, it is not included in every subsequent message. This is a good place to give all the relevant context to a task, instead of having Claude request for it using tools.
 		let userPrompt = `# Task
 \"${task}\"
+
 ====
+
 # Auto-generated Context (may or may not be relevant to the task)
+
 ## System Information
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
 Current Working Directory: ${process.cwd()}
+`
+		// If the extension is run without a workspace open, we could be in the root directory which has limited access
+		const cwd = process.cwd()
+		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
+		const isRoot = cwd === root
+		if (isRoot) {
+			userPrompt += `WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory, so you would need to use a command like \`echo $HOME\` to find a path you can work with (e.g. the user\'s Desktop directory). If you cannot accomplish your task in the root directory, you need to tell the user to open this extension in another directory (since you are a script being run in a VS Code extension).
+`
+		} else {
+			const filesInCurrentDir = await this.listFiles(".", false)
+			userPrompt += `
 ## Files in Current Directory
-${filesInCurrentDir}`
+${filesInCurrentDir}
+`
+		}
 
 		// we want to use visibleTextEditors and not activeTextEditor since we are a sidebar extension and take focus away from the text editor
 		const openDocuments = vscode.window.visibleTextEditors
@@ -363,7 +376,11 @@ ${openDocuments}`
 				} else {
 					this.say(
 						"tool",
-						JSON.stringify({ tool: "editedExistingFile", path: filePath, content: "No changes." } as ClaudeSayTool)
+						JSON.stringify({
+							tool: "editedExistingFile",
+							path: filePath,
+							content: "No changes.",
+						} as ClaudeSayTool)
 					)
 					return `Tool succeeded, however there were no changes detected to ${filePath}`
 				}
@@ -396,15 +413,14 @@ ${openDocuments}`
 	}
 
 	async listFiles(dirPath: string, shouldLog: boolean = true): Promise<string> {
-		// If the extension is run without a workspace open, we are in the root directory and don't want to list all files since it would prompt for permission to access everything
-		const cwd = process.cwd()
-		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
-		const isRoot = cwd === root
+		const absolutePath = path.resolve(dirPath)
+		const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
+		const isRoot = absolutePath === root
 		if (isRoot) {
 			if (shouldLog) {
-				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: "/" } as ClaudeSayTool))
+				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool))
 			}
-			return 'WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory, so you would need to use a command like `echo $HOME` to find a path you can work with (e.g. the user\'s Desktop directory). If you cannot accomplish your task in the root directory, you need to tell the user to open this extension in another directory (since you are a script being run in a VS Code extension).'
+			return root
 		}
 
 		try {
