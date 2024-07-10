@@ -1,195 +1,75 @@
+# Claude Dev VSCode Extension
 
-# Icon library
-This repo uses https://github.com/microsoft/vscode-codicons
-https://microsoft.github.io/vscode-codicons/dist/codicon.html
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him read & write files, create entire projects from scratch, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support.
 
-# vscode-webview-ui-toolkit
-- vscode-webview-ui-toolkit on inputs: "input components like VSCodeTextField or VSCodeTextArea follow the native browser change and input event model. This means the onChange event is fired when focus is blurred away from the input element and onInput is fired on every keystroke." ... "if you would like to update the value of a text field on every keystroke, the onInput should be used instead of onChange."
+This project was developed for the [Build with Claude June 2024](https://docs.anthropic.com/en/build-with-claude-contest/overview) contest by Anthropic. 
 
-## Styling VSCode Webview UI Toolkit Components
+## How it works
 
-### Understanding Styling Constraints
+### Tools
 
-When working with the VSCode Webview UI Toolkit, it's important to understand the styling constraints imposed by the underlying architecture. The toolkit uses Microsoft's FAST framework, which utilizes Shadow DOM for component encapsulation. This approach ensures consistency with VSCode's design language but introduces some limitations in custom styling.
+Claude Dev has access to the following tools:
 
-#### Key Points:
+1. **execute_command**: Execute CLI commands on the system.
+2. **list_files**: List all files and directories at the top level of the specified directory.
+3. **read_file**: Read the contents of a file at the specified path.
+4. **write_to_file**: Write content to a file at the specified path.
+5. **ask_followup_question**: Ask the user a question to gather additional information needed to complete a task.
+6. **attempt_completion**: Present the result to the user after completing a task.
 
-- **Shadow DOM Encapsulation**: The toolkit components use Shadow DOM, which encapsulates the internal structure of components. This means that traditional CSS selectors cannot directly target elements within the component.
+## Screenshots
 
-- **Wrapper vs. Shadow Element**: When you apply styles to a toolkit component, you're typically styling the wrapper element, not the shadow element inside. This can lead to unexpected results if you're trying to modify the internal appearance of a component.
+### 1. Give Claude Dev any task!
 
-- **Use Props for Behavior Modification**: Instead of relying on custom styles, you should primarily use the props provided by the toolkit components to modify their behavior and appearance. This ensures consistency with VSCode's design language and prevents potential conflicts.
+First, I asked Claude Dev to make me a game with loose requirements. He used chain-of-thought `<thinking>` tags to determine what steps he needed to take to accomplish the task.
 
-- **Limited Direct Styling**: While it's possible to style some internal elements using the `::part()` pseudo-element selector, this approach is not officially supported or documented by the toolkit. Using it may lead to inconsistencies with VSCode's native UI.
+![Initial Request](https://private-user-images.githubusercontent.com/7799382/347282604-bde1f334-37f7-470a-a717-0b85ee3ca7d9.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjA1OTM5NDYsIm5iZiI6MTcyMDU5MzY0NiwicGF0aCI6Ii83Nzk5MzgyLzM0NzI4MjYwNC1iZGUxZjMzNC0zN2Y3LTQ3MGEtYTcxNy0wYjg1ZWUzY2E3ZDkucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDcxMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDA3MTBUMDY0MDQ2WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9NGY3ZTdjOWUwYjRhNzA0YjIwMjk5NTkzOGNiOTQxMzBhZDk1ZmViOWM2NDBhZWM2ODUwNmY4NDhmMmNiYmY0ZCZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.4KHcNzrRBeUF_xn8HTyrAtOxVPllGKmGQPewW255tso)
 
-### Best Practices
+### 2. Powerful tools to accomplish anything
 
-1. **Stick to Provided Props**: Whenever possible, use the props and attributes provided by the toolkit components to customize their appearance and behavior.
+He used the tools built into the extension, such as creating new files, to build the entire project from scratch.
 
-2. **Avoid Custom Styles**: Refrain from applying custom styles that significantly alter the appearance of toolkit components. This helps maintain consistency with VSCode's native UI.
+![Building the Project](https://private-user-images.githubusercontent.com/7799382/347283817-7868672c-0985-4554-828c-e1d31623f49b.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjA1OTM2MDYsIm5iZiI6MTcyMDU5MzMwNiwicGF0aCI6Ii83Nzk5MzgyLzM0NzI4MzgxNy03ODY4NjcyYy0wOTg1LTQ1NTQtODI4Yy1lMWQzMTYyM2Y0OWIucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDcxMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDA3MTBUMDYzNTA2WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9ODQ0MGY5YzI2YmFjZjNhM2U0NWM5MGY5NmNjOTQ3MDljZTUyMjczYmRiMGY2MDI4MzhmZWRiZWU5YTc0ZWJjMSZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.cJh44AG3-vImUk6d9Yjl9jSLqS7pjw_x6Hq3FUkLoAQ)
 
-3. **Use Wrapper Styles Carefully**: If you need to apply styles, focus on the wrapper element (e.g., positioning, margins) rather than trying to modify the internal shadow elements.
+### 3. Run the project with a click of a button
 
-#### Sources
-- https://github.com/microsoft/vscode-webview-ui-toolkit/issues/376#issuecomment-1191881962
-- https://github.com/microsoft/vscode-webview-ui-toolkit/issues/550#issuecomment-2148407785
+Claude Dev even offered to run a command that would open it in Chrome for me.
 
+![Command Execution](https://private-user-images.githubusercontent.com/7799382/347284221-cb4801ab-d849-4427-a8c9-f28c392fa1aa.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjA1OTM2NzEsIm5iZiI6MTcyMDU5MzM3MSwicGF0aCI6Ii83Nzk5MzgyLzM0NzI4NDIyMS1jYjQ4MDFhYi1kODQ5LTQ0MjctYThjOS1mMjhjMzkyZmExYWEucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDcxMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDA3MTBUMDYzNjExWiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9NWQ0MDljMGUzNjdmZDM3OWZhMmMwN2JlODUxZjEzNWNiMDYxM2RkZjA4OTQ5ZGRhNmExM2FmOGI1Y2M5MDNkMCZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.XP9vl4aoOrYdOxUwmnW6jeweBwSDgMTpM7gnvUws5Mk)
 
-# claude-dev README
+### 4. Finished Product
 
-This is the README for your extension "claude-dev". After writing up a brief description, we recommend including the following sections.
+Finished product. Thanks, Claude Dev!
 
-## Features
+![Finished Product](https://private-user-images.githubusercontent.com/7799382/347285749-d875a99c-7830-4792-9e09-31046829e0ef.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjA1OTM5NDUsIm5iZiI6MTcyMDU5MzY0NSwicGF0aCI6Ii83Nzk5MzgyLzM0NzI4NTc0OS1kODc1YTk5Yy03ODMwLTQ3OTItOWUwOS0zMTA0NjgyOWUwZWYucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDcxMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDA3MTBUMDY0MDQ1WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9Njc2YWUyYzk4YmM1ZDRjODIyZTk1OGQyOGE2MWIyZDYyYjAxMTc1NjY2MTA3MzQ0MmRiNWI1YzZmNzBkNTE2NCZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.afw1MDwliIqXaJBjDog6_sAtt3BPpMsiuzMOZ6XEzdA)
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## Installation
 
-For example if there is an image subfolder under your extension project workspace:
+To install Claude-Dev, follow these steps:
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/claude-dev.git
+    ```
+2. Open the project in VSCode:
+    ```bash
+    code claude-dev
+    ```
+3. Install the necessary dependencies:
+    ```bash
+    npm run install:all
+    ```
+4. Launch the extension:
+    - Press `F5` to open a new VSCode window with the extension loaded.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Contribution
 
-## Requirements
+Feel free to contribute to this project by submitting issues and pull requests. Contributions are welcome and appreciated!
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## License
 
-## Extension Settings
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Acknowledgments
 
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
-
-# React + Create React App + Webview UI Toolkit webview extension
-
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/frameworks/hello-world-react-cra
-
-# Extension commands
-
-A quick run down of some of the important commands that can be run when at the root of the project.
-
-```
-npm run install:all      Install package dependencies for both the extension and React webview source code.
-npm run start:webview    Runs the React webview source code in development mode. Open http://localhost:3000 to view it in the browser.
-npm run build:webview    Build React webview source code. Must be executed before compiling or running the extension.
-npm run compile          Compile VS Code extension
-```
-
-# Extension development cycle
-
-The intended development cycle of this React-based webview extension is slightly different than that of other VS Code extensions.
-
-Due to the fact that the `webview-ui` directory holds a self-contained React application we get to take advantage of some of the perks that that enables. In particular,
-
-- UI development and iteration cycles can happen much more quickly by using Create React App (CRA)
-- Dependency management and project configuration is hugely simplified
-
-## UI development cycle
-
-Since we can take advantage of the much faster CRA dev server, it is encouraged to begin developing webview UI by running the `npm run start:webview` command and then editing the code in the `webview-ui/src` directory.
-
-_Tip: Open the command palette and run the `Simple Browser` command and fill in `http://localhost:3000/` when prompted. This will open a simple browser environment right inside VS Code._
-
-### Message passing
-If you need to implement message passing between the webview context and extension context via the VS Code API, a helpful utility is provided in the `webview-ui/src/utilities/vscode.ts` file.
-
-This file contains a utility wrapper around the `acquireVsCodeApi()` function, which enables message passing and state management between the webview and extension contexts.
-
-This utility also enables webview code to be run in the CRA dev server by using native web browser features that mock the functionality enabled by acquireVsCodeApi. This means you can keep building your webview UI with the CRA dev server even when using the VS Code API.
-
-### Move to traditional extension development
-Once you're ready to start building other parts of your extension, simply shift to a development model where you run the `npm run build:webview` command as you make changes, press `F5` to compile your extension and open a new Extension Development Host window. Inside the host window, open the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac) and type `Hello World (React + CRA): Show`.
-
-## Dependency management and project configuration
-
-As mentioned above, the `webview-ui` directory holds a self-contained and isolated React application meaning you can (for the most part) treat the development of your webview UI in the same way you would treat the development of a regular React application.
-
-To install webview-specific dependencies simply navigate (i.e. `cd`) into the `webview-ui` directory and install any packages you need or set up any React specific configurations you want.
-
-# Extension structure
-
-This section provides a quick introduction into how this sample extension is organized and structured.
-
-The two most important directories to take note of are the following:
-
-- `src`: Contains all of the extension source code
-- `webview-ui`: Contains all of the webview UI source code
-
-## `src` directory
-
-The `src` directory contains all of the extension-related source code and can be thought of as containing the "backend" code/logic for the entire extension. Inside of this directory you'll find the:
-
-- `panels` directory
-- `utilities` directory
-- `extension.ts` file
-
-The `panels` directory contains all of the webview-related code that will be executed within the extension context. It can be thought of as the place where all of the "backend" code for each webview panel is contained.
-
-This directory will typically contain individual TypeScript or JavaScript files that contain a class which manages the state and behavior of a given webview panel. Each class is usually in charge of:
-
-- Creating and rendering the webview panel
-- Properly cleaning up and disposing of webview resources when the panel is closed
-- Setting message listeners so data can be passed between the webview and extension
-- Setting the initial HTML markdown of the webview panel
-- Other custom logic and behavior related to webview panel management
-
-As the name might suggest, the `utilties` directory contains all of the extension utility functions that make setting up and managing an extension easier. In this case, it contains `getUri.ts` which contains a helper function which will get the webview URI of a given file or resource.
-
-Finally, `extension.ts` is where all the logic for activating and deactiving the extension usually live. This is also the place where extension commands are registered.
-
-## `webview-ui` directory
-
-The `webview-ui` directory contains all of the React-based webview source code and can be thought of as containing the "frontend" code/logic for the extension webview.
-
-This directory is special because it contains a full-blown React application which was created using the TypeScript [Create React App](https://create-react-app.dev/) template. As a result, `webview-ui` contains its own `package.json`, `node_modules`, `tsconfig.json`, and so on––separate from the `hello-world` extension in the root directory.
-
-This strays a bit from other extension structures, in that you'll usually find the extension and webview dependencies, configurations, and source code more closely integrated or combined with each other.
-
-However, in this case, there are some unique benefits and reasons for why this sample extension does not follow those patterns such as easier management of conflicting dependencies and configurations, as well as the ability to use the CRA dev server, which drastically improves the speed of developing your webview UI, versus recompiling your extension code every time you make a change to the webview.
+Special thanks to Anthropic for hosting the "Build with Claude June 2024" contest and providing the API that powers this extension.
