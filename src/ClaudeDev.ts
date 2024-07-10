@@ -200,7 +200,9 @@ export class ClaudeDev {
 
 	async ask(type: ClaudeAsk, question: string): Promise<{ response: ClaudeAskResponse; text?: string }> {
 		// If this ClaudeDev instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of ClaudeDev now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set claudeDev = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
-		if (this.abort) { throw new Error("ClaudeDev instance aborted") }
+		if (this.abort) {
+			throw new Error("ClaudeDev instance aborted")
+		}
 		this.askResponse = undefined
 		this.askResponseText = undefined
 		await this.providerRef.deref()?.addClaudeMessage({ ts: Date.now(), type: "ask", ask: type, text: question })
@@ -213,7 +215,9 @@ export class ClaudeDev {
 	}
 
 	async say(type: ClaudeSay, text: string): Promise<undefined> {
-		if (this.abort) { throw new Error("ClaudeDev instance aborted") }
+		if (this.abort) {
+			throw new Error("ClaudeDev instance aborted")
+		}
 		await this.providerRef.deref()?.addClaudeMessage({ ts: Date.now(), type: "say", say: type, text: text })
 		await this.providerRef.deref()?.postStateToWebview()
 	}
@@ -239,11 +243,19 @@ Current Working Directory: ${process.cwd()}
 ## Files in Current Directory
 ${filesInCurrentDir}`
 
-		const activeEditorContents = vscode.window.activeTextEditor?.document.getText()
-		if (activeEditorContents) {
+		// we want to use visibleTextEditors and not activeTextEditor since we are a sidebar extension and take focus away from the text editor
+		const openDocuments = vscode.window.visibleTextEditors
+			.map(
+				(editor) => `
+Path: ${editor.document.uri}
+Contents:
+${editor.document.getText()}}`
+			)
+			.join("\n")
+		if (openDocuments) {
 			userPrompt += `
-## vscode.window.activeTextEditor.document
-${activeEditorContents}`
+## Files that user has open in VS Code
+${openDocuments}`
 		}
 
 		await this.say("text", task)
@@ -349,7 +361,10 @@ ${activeEditorContents}`
 
 					return `Changes applied to ${filePath}:\n${diffResult}`
 				} else {
-					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath, content: " " } as ClaudeSayTool))
+					this.say(
+						"tool",
+						JSON.stringify({ tool: "editedExistingFile", path: filePath, content: "No changes." } as ClaudeSayTool)
+					)
 					return `Tool succeeded, however there were no changes detected to ${filePath}`
 				}
 			} else {
@@ -389,7 +404,7 @@ ${activeEditorContents}`
 			if (shouldLog) {
 				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: "/" } as ClaudeSayTool))
 			}
-			return "WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory, so you would need to use a command like \`echo $HOME\` to find a path you can work with (e.g. the user's Desktop directory). If you cannot accomplish your task in the root directory, you need to tell the user to \"open this extension in a workspace or another directory\" (since you are a script being run in a VS Code extension)."
+			return 'WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory, so you would need to use a command like `echo $HOME` to find a path you can work with (e.g. the user\'s Desktop directory). If you cannot accomplish your task in the root directory, you need to tell the user to open this extension in another directory (since you are a script being run in a VS Code extension).'
 		}
 
 		try {
@@ -407,7 +422,12 @@ ${activeEditorContents}`
 			return result
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
-			this.say("error", `Error listing files and directories:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+			this.say(
+				"error",
+				`Error listing files and directories:\n${
+					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				}`
+			)
 			return errorString
 		}
 	}
@@ -463,7 +483,9 @@ ${activeEditorContents}`
 			| Anthropic.ToolResultBlockParam
 		>
 	): Promise<ClaudeRequestResult> {
-		if (this.abort) { throw new Error("ClaudeDev instance aborted") }
+		if (this.abort) {
+			throw new Error("ClaudeDev instance aborted")
+		}
 
 		this.conversationHistory.push({ role: "user", content: userContent })
 		if (this.requestCount >= this.maxRequestsPerTask) {
@@ -490,14 +512,19 @@ ${activeEditorContents}`
 
 		try {
 			// what the user sees in the webview
-			await this.say("api_req_started", JSON.stringify({ request: {
-				model: "claude-3-5-sonnet-20240620",
-				max_tokens: 4096,
-				system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-				messages: [{ "conversation_history": "..." }, { role: "user", content: userContent }],
-				tools: "(see tools in src/ClaudeDev.ts)",
-				tool_choice: { type: "auto" },
-			}}))
+			await this.say(
+				"api_req_started",
+				JSON.stringify({
+					request: {
+						model: "claude-3-5-sonnet-20240620",
+						max_tokens: 4096,
+						system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/src/ClaudeDev.ts)",
+						messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+						tools: "(see tools in https://github.com/saoudrizwan/claude-dev/src/ClaudeDev.ts)",
+						tool_choice: { type: "auto" },
+					},
+				})
+			)
 
 			const response = await this.client.messages.create({
 				model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
