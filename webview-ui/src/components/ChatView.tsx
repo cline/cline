@@ -255,6 +255,17 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isHidden])
 
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			if (!textAreaDisabled) {
+				textAreaRef.current?.focus()
+			}
+		}, 50)
+		return () => {
+			clearTimeout(timer)
+		}
+	}, [textAreaDisabled])
+
 	return (
 		<div
 			style={{
