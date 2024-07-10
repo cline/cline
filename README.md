@@ -62,7 +62,7 @@ Claude Dev even offered to run a command that would open it in Chrome for me.
 
 From idea to functional website in seconds. Thanks, Claude Dev!
 
-![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/30774572-abe2-43b3-8bc5-917e115b4def)
+![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/b3a4c801-e8d6-4e20-96c4-2c7094a20664)
 
 ## Installation
 

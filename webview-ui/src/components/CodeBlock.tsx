@@ -109,6 +109,7 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 							overflow: "hidden",
 							textOverflow: "ellipsis",
 							marginRight: "8px",
+							fontSize: "11px",
 							// trick to get ellipsis at beginning of string
 							direction: "rtl",
 							textAlign: "left",
