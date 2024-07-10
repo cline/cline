@@ -12,6 +12,8 @@ Claude Dev bridges the gap between complex python scripting and simple chat webs
 - View the JSON of API requests when they are made and track individal API request costs
 - When a task is completed, Claude Dev determines if he can present the result to you with a CLI command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
+Download the VSCode extension here: [https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)
+
 This project was developed for Anthropic's [Build with Claude June 2024](https://docs.anthropic.com/en/build-with-claude-contest/overview) contest.
 
 ## How it works
@@ -42,13 +44,13 @@ Claude always asks for your permission first before any tools are executed or in
 
 First, I asked Claude Dev to make me a game with loose requirements. He used chain-of-thought `<thinking>` tags to determine what steps he needed to take to accomplish the task.
 
-![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/9301195d-3861-46d0-81e9-ce65148476a2)
+![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/d04f5d54-4a20-456a-9928-cec2999ed717)
 
 ### 2. Powerful tools to accomplish anything
 
-He used the tools built into the extension, such as creating new files, to build an entire website from scratch.
+Then he iteratively used the tools built into the extension, such as creating new files, to build an entire website from scratch.
 
-![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/d022f8f4-e857-4373-8f76-d009a0602647)
+![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/195b8e3e-0a35-4778-91a7-4e1e342a685b)
 
 ### 3. Run the project with a click of a button
 
@@ -58,7 +60,7 @@ Claude Dev even offered to run a command that would open it in Chrome for me.
 
 ### 4. Finished Product
 
-Finished product. Thanks, Claude Dev!
+From idea to functional website in seconds. Thanks, Claude Dev!
 
 ![image](https://github.com/saoudrizwan/claude-dev/assets/7799382/30774572-abe2-43b3-8bc5-917e115b4def)
 
@@ -68,7 +70,7 @@ To install Claude Dev, follow these steps:
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/claude-dev.git
+    git clone https://github.com/saoudrizwan/claude-dev.git
     ```
 2. Open the project in VSCode:
     ```bash
@@ -78,7 +80,7 @@ To install Claude Dev, follow these steps:
     ```bash
     npm run install:all
     ```
-4. Launch the extension:
+5. Launch the extension:
     - Press `F5` to open a new VSCode window with the extension loaded.
 
 ## Contribution
