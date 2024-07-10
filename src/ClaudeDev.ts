@@ -340,58 +340,52 @@ ${openDocuments}`
 			if (fileExists) {
 				const originalContent = await fs.readFile(filePath, "utf-8")
 				const diffResult = diff.createPatch(filePath, originalContent, newContent)
-				if (diffResult) {
-					await fs.writeFile(filePath, newContent)
+				// Create diff for DiffCodeView.tsx
+				const completeDiffStringRaw = diff.diffLines(originalContent, newContent)
+				const completeDiffStringConverted = completeDiffStringRaw
+					.map((part, index) => {
+						const prefix = part.added ? "+ " : part.removed ? "- " : "  "
+						return part.value
+							.split("\n")
+							.map((line, lineIndex) => {
+								// avoid adding an extra empty line at the very end of the diff output
+								if (
+									line === "" &&
+									index === completeDiffStringRaw.length - 1 &&
+									lineIndex === part.value.split("\n").length - 1
+								) {
+									return null
+								}
+								return prefix + line + "\n"
+							})
+							.join("")
+					})
+					.join("")
 
-					// Create diff for DiffCodeView.tsx
-					const diffStringRaw = diff.diffLines(originalContent, newContent)
-					const diffStringConverted = diffStringRaw
-						.map((part, index) => {
-							const prefix = part.added ? "+ " : part.removed ? "- " : "  "
-							return part.value
-								.split("\n")
-								.map((line, lineIndex) => {
-									// avoid adding an extra empty line at the very end of the diff output
-									if (
-										line === "" &&
-										index === diffStringRaw.length - 1 &&
-										lineIndex === part.value.split("\n").length - 1
-									) {
-										return null
-									}
-									return prefix + line + "\n"
-								})
-								.join("")
-						})
-						.join("")
-					this.say(
-						"tool",
-						JSON.stringify({
-							tool: "editedExistingFile",
-							path: filePath,
-							diff: diffStringConverted,
-						} as ClaudeSayTool)
-					)
-
-					return `Changes applied to ${filePath}:\n${diffResult}`
-				} else {
-					this.say(
-						"tool",
-						JSON.stringify({
-							tool: "editedExistingFile",
-							path: filePath,
-							content: "No changes.",
-						} as ClaudeSayTool)
-					)
-					return `Tool succeeded, however there were no changes detected to ${filePath}`
+				const { response } = await this.ask(
+					"tool",
+					JSON.stringify({
+						tool: "editedExistingFile",
+						path: filePath,
+						diff: completeDiffStringConverted,
+					} as ClaudeSayTool)
+				)
+				if (response !== "yesButtonTapped") {
+					return "This operation was not approved by the user."
 				}
-			} else {
-				await fs.mkdir(path.dirname(filePath), { recursive: true })
+
 				await fs.writeFile(filePath, newContent)
-				this.say(
+				return `Changes applied to ${filePath}:\n${diffResult}`
+			} else {
+				const { response } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
 				)
+				if (response !== "yesButtonTapped") {
+					return "This operation was not approved by the user."
+				}
+				await fs.mkdir(path.dirname(filePath), { recursive: true })
+				await fs.writeFile(filePath, newContent)
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
@@ -404,7 +398,13 @@ ${openDocuments}`
 	async readFile(filePath: string): Promise<string> {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
-			this.say("tool", JSON.stringify({ tool: "readFile", path: filePath, content } as ClaudeSayTool))
+			const { response } = await this.ask(
+				"tool",
+				JSON.stringify({ tool: "readFile", path: filePath, content } as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				return "This operation was not approved by the user."
+			}
 			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
@@ -419,7 +419,13 @@ ${openDocuments}`
 		const isRoot = absolutePath === root
 		if (isRoot) {
 			if (shouldLog) {
-				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool))
+				const { response } = await this.ask(
+					"tool",
+					JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool)
+				)
+				if (response !== "yesButtonTapped") {
+					return "This operation was not approved by the user."
+				}
 			}
 			return root
 		}
@@ -434,7 +440,13 @@ ${openDocuments}`
 			const entries = await glob("*", options)
 			const result = entries.slice(0, 500).join("\n") // truncate to 500 entries
 			if (shouldLog) {
-				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool))
+				const { response } = await this.ask(
+					"tool",
+					JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool)
+				)
+				if (response !== "yesButtonTapped") {
+					return "This operation was not approved by the user."
+				}
 			}
 			return result
 		} catch (error) {

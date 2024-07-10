@@ -39,7 +39,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					<span
 						className="codicon codicon-terminal"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Command</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Claude wants to execute this command:</span>,
 				]
 			case "completion_result":
 				return [
@@ -113,57 +113,6 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 						)
 					case "api_req_finished":
 						return null // Hide this message type
-					case "tool":
-						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
-						const toolIcon = (name: string) => (
-							<span
-								className={`codicon codicon-${name}`}
-								style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
-						)
-
-						switch (tool.tool) {
-							case "editedExistingFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("edit")}
-											Edited file...
-										</div>
-										<CodeBlock diff={tool.diff!} path={tool.path!} />
-									</>
-								)
-							case "newFileCreated":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("new-file")}
-											Created new file...
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
-									</>
-								)
-							case "readFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("file-code")}
-											Read file...
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
-									</>
-								)
-							case "listFiles":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("folder-opened")}
-											Viewed contents of directory...
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
-									</>
-								)
-						}
-						break
 					case "text":
 						return <p style={contentStyle}>{message.text}</p>
 					case "error":
@@ -205,9 +154,59 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							</>
 						)
 				}
-				break
 			case "ask":
 				switch (message.ask) {
+					case "tool":
+						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+						const toolIcon = (name: string) => (
+							<span
+								className={`codicon codicon-${name}`}
+								style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+						)
+
+						switch (tool.tool) {
+							case "editedExistingFile":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("edit")}
+											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
+										</div>
+										<CodeBlock diff={tool.diff!} path={tool.path!} />
+									</>
+								)
+							case "newFileCreated":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("new-file")}
+											<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
+										</div>
+										<CodeBlock code={tool.content!} path={tool.path!} />
+									</>
+								)
+							case "readFile":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("file-code")}
+											<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
+										</div>
+										<CodeBlock code={tool.content!} path={tool.path!} />
+									</>
+								)
+							case "listFiles":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("folder-opened")}
+											<span style={{ fontWeight: "bold" }}>Claude wants to view this directory:</span>
+										</div>
+										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
+									</>
+								)
+						}
+						break
 					case "request_limit_reached":
 						return (
 							<>
@@ -240,11 +239,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									{title}
 								</div>
 								<div style={contentStyle}>
-									<p style={contentStyle}>
-										Claude Dev wants to execute the following terminal command. Would you like to
-										proceed?
-									</p>
-									<div style={{ marginTop: "10px" }}>
+									<div>
 										<CodeBlock code={command} language="shell-session" />
 									</div>
 
