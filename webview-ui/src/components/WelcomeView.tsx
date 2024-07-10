@@ -30,7 +30,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 		vscode.postMessage({ type: "apiKey", text: apiKey })
 	}
 
-    useEffect(() => {
+	useEffect(() => {
 		validateApiKey(apiKey)
 	}, [])
 
@@ -43,17 +43,6 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 				information about your project, read & write code, and execute terminal commands (with your permission,
 				of course).
 			</p>
-
-			<h3>Here are some cool things I can do:</h3>
-			<ul>
-				<li>Create new projects from scratch based on your requirements</li>
-				<li>Debug and fix code issues in your existing projects</li>
-				<li>Refactor and optimize your codebase</li>
-				<li>Analyze your system's performance and suggest improvements</li>
-				<li>Generate documentation for your code</li>
-				<li>Set up and configure development environments</li>
-				<li>Perform code reviews and suggest best practices</li>
-			</ul>
 
 			<h3>To get started, this extension needs an Anthropic API key:</h3>
 			<ol>
