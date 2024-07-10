@@ -99,7 +99,9 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 						justifyContent: "space-between",
 						alignItems: "center",
 						padding: "6px 10px",
-					}}>
+						cursor: "pointer",
+					}}
+					onClick={() => setIsExpanded(!isExpanded)}>
 					<span
 						style={{
 							color: "var(--vscode-descriptionForeground)",

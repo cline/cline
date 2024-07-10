@@ -65,16 +65,20 @@ const App: React.FC = () => {
 		<>
 			{showWelcome ? (
 				<WelcomeView apiKey={apiKey} setApiKey={setApiKey} />
-			) : showSettings ? (
-				<SettingsView
-					apiKey={apiKey}
-					setApiKey={setApiKey}
-					maxRequestsPerTask={maxRequestsPerTask}
-					setMaxRequestsPerTask={setMaxRequestsPerTask}
-					onDone={() => setShowSettings(false)}
-				/>
 			) : (
-				<ChatView messages={claudeMessages} />
+				<>
+					{showSettings && (
+						<SettingsView
+							apiKey={apiKey}
+							setApiKey={setApiKey}
+							maxRequestsPerTask={maxRequestsPerTask}
+							setMaxRequestsPerTask={setMaxRequestsPerTask}
+							onDone={() => setShowSettings(false)}
+						/>
+					)}
+					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+					<ChatView messages={claudeMessages} isHidden={showSettings} />
+				</>
 			)}
 		</>
 	)
