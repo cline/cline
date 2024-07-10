@@ -78,7 +78,10 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
     */
 	const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
 
-	const inferredLanguage = useMemo(() => language ?? (path ? getLanguageFromPath(path) : undefined), [path, language])
+	const inferredLanguage = useMemo(
+		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
+		[path, language, code]
+	)
 
 	console.log(inferredLanguage)
 
@@ -86,7 +89,7 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 		<div
 			style={{
 				borderRadius: "3px",
-                marginRight: "2px",
+				marginRight: "2px",
 				backgroundColor: backgroundColor,
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 			}}>
@@ -126,29 +129,15 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 					}}>
 					<SyntaxHighlighter
 						wrapLines={false}
-						language={inferredLanguage}
+						language={diff ? "diff" : inferredLanguage} // "diff" automatically colors changed lines in green/red
 						style={oneDark}
 						customStyle={{
 							margin: 0,
 							padding: "6px 10px",
 							borderRadius: 0,
-                            fontSize: 'var(--vscode-editor-font-size)',
-                            lineHeight: 'var(--vscode-editor-line-height)'
-						}}
-						lineProps={
-							diff != null
-								? (lineNumber) => {
-										const line = diff?.split("\n")?.[lineNumber - 1]
-										let style: React.CSSProperties = { display: "block", width: "100%" }
-										if (line && line[0] === "+") {
-											style.backgroundColor = "var(--vscode-diffEditor-insertedTextBackground)"
-										} else if (line && line[0] === "-") {
-											style.backgroundColor = "var(--vscode-diffEditor-removedTextBackground)"
-										}
-										return { style }
-								  }
-								: undefined
-						}>
+							fontSize: "var(--vscode-editor-font-size)",
+							lineHeight: "var(--vscode-editor-line-height)",
+						}}>
 						{code ?? diff ?? ""}
 					</SyntaxHighlighter>
 				</div>
