@@ -89,7 +89,6 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 		<div
 			style={{
 				borderRadius: "3px",
-				marginRight: "2px",
 				backgroundColor: backgroundColor,
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 			}}>

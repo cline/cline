@@ -9,19 +9,20 @@ import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { combineApiRequests } from "../utilities/combineApiRequests"
 import TaskHeader from "./TaskHeader"
 import { getApiMetrics } from "../utilities/getApiMetrics"
+import { animateScroll as scroll } from "react-scroll"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
 }
 // maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
 const ChatView = ({ messages }: ChatViewProps) => {
-	const task = messages.shift()
-	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages)), [messages])
+	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
+	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
+	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
-	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
@@ -33,12 +34,12 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 
 	const scrollToBottom = (instant: boolean = false) => {
-		// https://stackoverflow.com/questions/11039885/scrollintoview-causing-the-whole-page-to-move
-		;(messagesEndRef.current as any)?.scrollIntoView({
-			behavior: instant ? "instant" : "smooth",
-			block: "nearest",
-			inline: "start",
-		})
+		const options = {
+			containerId: "chat-view-container",
+			duration: instant ? 0 : 500,
+			smooth: !instant,
+		}
+		scroll.scrollToBottom(options)
 	}
 
 	// scroll to bottom when new message is added
@@ -50,8 +51,13 @@ const ChatView = ({ messages }: ChatViewProps) => {
 		[modifiedMessages]
 	)
 	useEffect(() => {
-		scrollToBottom()
-	}, [visibleMessages.length])
+		const timer = setTimeout(() => {
+			scrollToBottom()
+		}, 0)
+		return () => {
+			clearTimeout(timer)
+		}
+	}, [visibleMessages])
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -114,13 +120,23 @@ const ChatView = ({ messages }: ChatViewProps) => {
 					break
 			}
 		} else {
+			// this would get called after sending the first message, so we have to watch messages.length instead
 			// No messages, so user has to submit a task
+			// setTextAreaDisabled(false)
+			// setClaudeAsk(undefined)
+			// setPrimaryButtonText(undefined)
+			// setSecondaryButtonText(undefined)
+		}
+	}, [messages])
+
+	useEffect(() => {
+		if (messages.length === 0) {
 			setTextAreaDisabled(false)
 			setClaudeAsk(undefined)
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		}
-	}, [messages])
+	}, [messages.length])
 
 	const handleSendMessage = () => {
 		const text = inputValue.trim()
@@ -249,6 +265,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				/>
 			)}
 			<div
+				id="chat-view-container"
 				className="scrollable"
 				style={{
 					flexGrow: 1,
@@ -257,7 +274,6 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				{modifiedMessages.map((message, index) => (
 					<ChatRow key={index} message={message} />
 				))}
-				<div style={{ float: "left", clear: "both" }} ref={messagesEndRef} />
 			</div>
 			{(primaryButtonText || secondaryButtonText) && (
 				<div style={{ display: "flex", padding: "10px 15px 0px 15px" }}>
@@ -282,7 +298,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 					)}
 				</div>
 			)}
-			<div style={{ padding: "10px 15px" }}>
+			<div style={{ padding: "10px 15px", opacity: textAreaDisabled ? 0.7 : 1 }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
@@ -305,20 +321,24 @@ const ChatView = ({ messages }: ChatViewProps) => {
 						lineHeight: "var(--vscode-editor-line-height)",
 						resize: "none",
 						overflow: "hidden",
-						padding: "8px 40px 8px 8px",
+						padding: "8px 36px 8px 8px",
 					}}
 				/>
 				{textAreaHeight && (
 					<div
 						style={{
 							position: "absolute",
-							right: "18px",
+							right: "20px",
 							height: `${textAreaHeight}px`,
 							bottom: "12px",
 							display: "flex",
 							alignItems: "center",
 						}}>
-						<VSCodeButton disabled={textAreaDisabled} appearance="icon" aria-label="Send Message" onClick={handleSendMessage}>
+						<VSCodeButton
+							disabled={textAreaDisabled}
+							appearance="icon"
+							aria-label="Send Message"
+							onClick={handleSendMessage}>
 							<span className="codicon codicon-send"></span>
 						</VSCodeButton>
 					</div>

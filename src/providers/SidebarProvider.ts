@@ -220,7 +220,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	}
 
 	async clearTask() {
-		this.claudeDev = undefined
+		if (this.claudeDev) {
+			this.claudeDev.abort = true // will stop any agentically running promises
+			this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
+		}
 		await this.setClaudeMessages([])
 	}
 

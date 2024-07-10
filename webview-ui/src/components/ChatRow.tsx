@@ -256,7 +256,6 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 											<CodeBlock
 												code={output}
 												language="shell-session"
-												path="src/components/WelcomeView.tsx/src/components/WelcomeView.tsx"
 											/>
 										</>
 									)}
@@ -295,19 +294,24 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 		}
 	}
 
+	// we need to return null here instead of in getContent since that way would result in padding being applied
 	if (message.say === "api_req_finished") {
+		return null // Don't render anything for this message type
+	}
+
+	if (message.type === "ask" && message.ask === "completion_result" && message.text === "") {
 		return null // Don't render anything for this message type
 	}
 
 	return (
 		<div
 			style={{
-				padding: "10px 5px 10px 20px",
+				padding: "10px 20px 10px 20px",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
 				<div style={{ marginTop: "10px" }}>
-					<CodeBlock code={JSON.stringify(JSON.parse(message.text || "{}").request)} language="json" />
+					<CodeBlock code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)} language="json" />
 				</div>
 			)}
 		</div>

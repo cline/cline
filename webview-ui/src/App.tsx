@@ -6,7 +6,7 @@ import SettingsView from "./components/SettingsView"
 import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utilities/vscode"
-import { mockMessages } from "./utilities/mockMessages"
+//import { mockMessages } from "./utilities/mockMessages"
 
 /*
 The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
@@ -74,7 +74,7 @@ const App: React.FC = () => {
 					onDone={() => setShowSettings(false)}
 				/>
 			) : (
-				<ChatView messages={mockMessages} />
+				<ChatView messages={claudeMessages} />
 			)}
 		</>
 	)
