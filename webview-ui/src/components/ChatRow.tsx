@@ -39,7 +39,9 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					<span
 						className="codicon codicon-terminal"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Claude wants to execute this command:</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						Claude wants to execute this command:
+					</span>,
 				]
 			case "completion_result":
 				return [
@@ -115,6 +117,18 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 						return null // Hide this message type
 					case "text":
 						return <p style={contentStyle}>{message.text}</p>
+					case "user_feedback":
+						return (
+							<div
+								style={{
+									backgroundColor: "var(--vscode-badge-background)",
+									color: "var(--vscode-badge-foreground)",
+									borderRadius: "3px",
+									padding: "8px",
+								}}>
+								<span>{message.text}</span>
+							</div>
+						)
 					case "error":
 						return (
 							<>
@@ -180,7 +194,9 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									<>
 										<div style={headerStyle}>
 											{toolIcon("new-file")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
+											<span style={{ fontWeight: "bold" }}>
+												Claude wants to create a new file:
+											</span>
 										</div>
 										<CodeBlock code={tool.content!} path={tool.path!} />
 									</>
@@ -200,7 +216,9 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									<>
 										<div style={headerStyle}>
 											{toolIcon("folder-opened")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to view this directory:</span>
+											<span style={{ fontWeight: "bold" }}>
+												Claude wants to view this directory:
+											</span>
 										</div>
 										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
 									</>
@@ -248,10 +266,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 											<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
 												{COMMAND_OUTPUT_STRING}
 											</p>
-											<CodeBlock
-												code={output}
-												language="shell-session"
-											/>
+											<CodeBlock code={output} language="shell-session" />
 										</>
 									)}
 								</div>
@@ -306,7 +321,10 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
 				<div style={{ marginTop: "10px" }}>
-					<CodeBlock code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)} language="json" />
+					<CodeBlock
+						code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)}
+						language="json"
+					/>
 				</div>
 			)}
 		</div>

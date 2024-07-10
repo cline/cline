@@ -104,7 +104,7 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 					onClick={() => setIsExpanded(!isExpanded)}>
 					<span
 						style={{
-							color: "var(--vscode-descriptionForeground)",
+							color: "#BABCC3",
 							whiteSpace: "nowrap",
 							overflow: "hidden",
 							textOverflow: "ellipsis",

@@ -487,6 +487,7 @@ ${openDocuments}`
 
 	async askFollowupQuestion(question: string): Promise<string> {
 		const { text } = await this.ask("followup", question)
+		await this.say("user_feedback", text ?? "")
 		return `User's response:\n\"${text}\"`
 	}
 
@@ -501,6 +502,7 @@ ${openDocuments}`
 		if (response === "yesButtonTapped") {
 			return ""
 		}
+		await this.say("user_feedback", text ?? "")
 		return `The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`
 	}
 
