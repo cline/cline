@@ -1,7 +1,8 @@
-import React, { useState } from "react"
-import SyntaxHighlighter from "react-syntax-highlighter"
+import React, { useMemo, useState } from "react"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { getLanguageFromPath } from "../utilities/getLanguageFromPath"
 /*
 const vscodeSyntaxStyle: React.CSSProperties = {
 	backgroundColor: "var(--vscode-editor-background)",
@@ -68,10 +69,24 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 
 	const backgroundColor = oneDark['pre[class*="language-"]'].background as string
 
+	/*
+    We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
+
+    ^: Anchors the match to the start of the string.
+    [^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
+    The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
+    */
+	const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+
+	const inferredLanguage = useMemo(() => language ?? (path ? getLanguageFromPath(path) : undefined), [path, language])
+
+	console.log(inferredLanguage)
+
 	return (
 		<div
 			style={{
 				borderRadius: "3px",
+                marginRight: "2px",
 				backgroundColor: backgroundColor,
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 			}}>
@@ -94,7 +109,7 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 							direction: "rtl",
 							textAlign: "left",
 						}}>
-						{path}
+						{removeLeadingNonAlphanumeric(path) + "\u200E"}
 					</span>
 					<VSCodeButton appearance="icon" aria-label="Toggle Code" onClick={() => setIsExpanded(!isExpanded)}>
 						<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
@@ -111,12 +126,14 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 					}}>
 					<SyntaxHighlighter
 						wrapLines={false}
-						language={language}
+						language={inferredLanguage}
 						style={oneDark}
 						customStyle={{
 							margin: 0,
 							padding: "6px 10px",
 							borderRadius: 0,
+                            fontSize: 'var(--vscode-editor-font-size)',
+                            lineHeight: 'var(--vscode-editor-line-height)'
 						}}
 						lineProps={
 							diff != null

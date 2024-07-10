@@ -114,11 +114,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					case "api_req_finished":
 						return null // Hide this message type
 					case "tool":
-						//const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
-						const tool: ClaudeSayTool = {
-							tool: "editedExistingFile",
-							path: "/path/to/file",
-						}
+						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
 						const toolIcon = (name: string) => (
 							<span
 								className={`codicon codicon-${name}`}

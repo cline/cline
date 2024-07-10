@@ -345,7 +345,7 @@ ${activeEditorContents}`
 
 					return `Changes applied to ${filePath}:\n${diffResult}`
 				} else {
-					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath } as ClaudeSayTool))
+					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath, content: " " } as ClaudeSayTool))
 					return `Tool succeeded, however there were no changes detected to ${filePath}`
 				}
 			} else {
