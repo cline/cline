@@ -33,6 +33,8 @@ CAPABILITIES
 
 RULES
 
+- Pay close attention to the the Preferred Working Directory when considering file system actions. If not otherwise specified, assume the user's task should be completed within this directory.
+- You cannot \`cd\` into a directory to complete a task. You are stuck operating from the Current Working Directory, so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
 - Always read a file before editing it if you are missing content. This will help you understand the context and make informed changes.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the System Information context provided by the user to understand their environment and tailor your commands to ensure they are compatible with the user's system.
@@ -223,6 +225,14 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
+	getPreferredWorkingDirectory(): string {
+		const workspaceDirectory = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+		if (workspaceDirectory) {
+			return `Currently Opened Directory in VS Code: ${workspaceDirectory}`
+		}
+		return `Desktop Directory: ${path.join(os.homedir(), 'Desktop')}`
+	}
+
 	private async startTask(task: string): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
@@ -241,21 +251,10 @@ export class ClaudeDev {
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
 Current Working Directory: ${process.cwd()}
+
+## Preferred Working Directory
+${this.getPreferredWorkingDirectory()}
 `
-		// If the extension is run without a workspace open, we could be in the root directory which has limited access
-		const cwd = process.cwd()
-		const root = process.platform === "win32" ? path.parse(cwd).root : "/"
-		const isRoot = cwd === root
-		if (isRoot) {
-			const homeDir = os.homedir()
-			userPrompt += `WARNING: You are currently in the root directory! You DO NOT have read or write permissions in this directory. If you use tools or commands that require a path, make sure to use a path within the home directory or another directory where you have read and write permissions.\nUser's Home Directory: ${homeDir}`
-		} else {
-			const filesInCurrentDir = await this.listFiles(".", false)
-			userPrompt += `
-## Files in Current Directory
-${filesInCurrentDir}
-`
-		}
 
 		// we want to use visibleTextEditors and not activeTextEditor since we are a sidebar extension and take focus away from the text editor
 		const openDocuments = vscode.window.visibleTextEditors
@@ -268,7 +267,7 @@ ${editor.document.getText()}}`
 			.join("\n")
 		if (openDocuments) {
 			userPrompt += `
-## Files that user has open in VS Code
+## Files User Has Visible in VS Code
 ${openDocuments}`
 		}
 
