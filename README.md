@@ -11,7 +11,7 @@ Claude Dev uses an agentic loop style implementation with chain-of-thought promp
 
 ### Tools
 
-Claude has access to the following tools:
+Claude Dev has access to the following tools:
 
 1. **execute_command**: Execute CLI commands on the system.
 2. **list_files**: List all files and directories at the top level of the specified directory.

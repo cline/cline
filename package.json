@@ -1,18 +1,28 @@
 {
   "name": "claude-dev",
-  "displayName": "claude-dev",
-  "description": "Autonomous junior engineer",
+  "displayName": "Claude Dev",
+  "description": "Claude Dev goes beyond simple code completion by reading & writing files, creating projects, and executing terminal commands with your permission.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.82.0"
   },
-  "publisher": "",
+  "author": { "name": "Saoud Rizwan" },
+  "license": "MIT",
+  "publisher": "saoudrizwan",
   "repository": {
     "type": "git",
     "url": "https://github.com/saoudrizwan/claude-dev"
   },
   "categories": [
     "AI"
+  ],
+  "keywords": [
+    "AI",
+    "Claude",
+    "agentic",
+    "productivity",
+    "automation",
+    "autonomous"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
