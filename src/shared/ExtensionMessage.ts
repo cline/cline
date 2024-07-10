@@ -17,7 +17,7 @@ export interface ClaudeMessage {
 }
 
 export type ClaudeAsk = "request_limit_reached" | "followup" | "command" | "completion_result" | "tool"
-export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "command_output" | "completion_result"
+export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "command_output" | "completion_result" | "user_feedback"
 
 export interface ClaudeSayTool {
     tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles"

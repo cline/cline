@@ -38,7 +38,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		const options = {
 			containerId: "chat-view-container",
 			duration: instant ? 0 : 500,
-			smooth: !instant,
+			smooth: instant ? false : 'easeOutQuint',
 		}
 		scroll.scrollToBottom(options)
 	}
