@@ -12,7 +12,7 @@
     "url": "https://github.com/saoudrizwan/claude-dev"
   },
   "categories": [
-    "Other"
+    "AI"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
