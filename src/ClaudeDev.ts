@@ -33,8 +33,8 @@ CAPABILITIES
 
 RULES
 
-- Pay close attention to the the Preferred Working Directory when considering file system actions. If not otherwise specified, assume the user's task should be completed within this directory.
-- You cannot \`cd\` into a directory to complete a task. You are stuck operating from the Current Working Directory, so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
+- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop')}
+- Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
 - Always read a file before editing it if you are missing content. This will help you understand the context and make informed changes.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the System Information context provided by the user to understand their environment and tailor your commands to ensure they are compatible with the user's system.
@@ -60,6 +60,13 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, think about which of the provided tools is the relevant tool to answer the user's request. Second, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool call. BUT, if one of the values for a required parameter is missing, DO NOT invoke the function (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run \`open -a "Google Chrome" index.html\` to show the website you've built. Avoid commands that run indefinitely (like servers). Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
+
+====
+
+SYSTEM INFORMATION
+
+Operating System: ${osName()}
+Default Shell: ${defaultShell}
 `
 
 const tools: Tool[] = [
@@ -89,7 +96,7 @@ const tools: Tool[] = [
 				path: {
 					type: "string",
 					description:
-						"The path of the directory to list contents for. Do not use absolute paths or attempt to access directories outside of the current working directory.",
+						"The path of the directory to list contents for.",
 				},
 			},
 			required: ["path"],
@@ -105,7 +112,7 @@ const tools: Tool[] = [
 				path: {
 					type: "string",
 					description:
-						"The path of the file to read. Do not use absolute paths or attempt to access files outside of the current working directory.",
+						"The path of the file to read.",
 				},
 			},
 			required: ["path"],
@@ -121,7 +128,7 @@ const tools: Tool[] = [
 				path: {
 					type: "string",
 					description:
-						"The path of the file to write to. Do not use absolute paths or attempt to write to files outside of the current working directory.",
+						"The path of the file to write to.",
 				},
 				content: {
 					type: "string",
@@ -225,51 +232,17 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
-	getPreferredWorkingDirectory(): string {
-		const workspaceDirectory = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		if (workspaceDirectory) {
-			return `Currently Opened Directory in VS Code: ${workspaceDirectory}`
-		}
-		return `Desktop Directory: ${path.join(os.homedir(), 'Desktop')}`
-	}
-
 	private async startTask(task: string): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
 		await this.providerRef.deref()?.setClaudeMessages([])
 		await this.providerRef.deref()?.postStateToWebview()
 
-		// This first message kicks off a task, it is not included in every subsequent message. This is a good place to give all the relevant context to a task, instead of having Claude request for it using tools.
-		let userPrompt = `# Task
-\"${task}\"
+		// This first message kicks off a task, it is not included in every subsequent message.
+		let userPrompt = `Task: \"${task}\"`
 
-====
-
-# Auto-generated Context (may or may not be relevant to the task)
-
-## System Information
-Operating System: ${osName()}
-Default Shell: ${defaultShell}
-Current Working Directory: ${process.cwd()}
-
-## Preferred Working Directory
-${this.getPreferredWorkingDirectory()}
-`
-
-		// we want to use visibleTextEditors and not activeTextEditor since we are a sidebar extension and take focus away from the text editor
-		const openDocuments = vscode.window.visibleTextEditors
-			.map(
-				(editor) => `
-Path: ${editor.document.uri}
-Contents:
-${editor.document.getText()}}`
-			)
-			.join("\n")
-		if (openDocuments) {
-			userPrompt += `
-## Files User Has Visible in VS Code
-${openDocuments}`
-		}
+		// TODO: create tools that let Claude interact with VSCode (e.g. open a file, list open files, etc.)
+		//const openFiles = vscode.window.visibleTextEditors?.map((editor) => editor.document.uri.fsPath).join("\n")
 
 		await this.say("text", task)
 
