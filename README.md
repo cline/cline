@@ -6,9 +6,12 @@ This project was developed for the [Build with Claude June 2024](https://docs.an
 
 ## How it works
 
+Claude Dev uses an agentic loop style implementation using chain-of-thought prompting and access to powerful tools that give him the ability to accomplish nearly everything. From building softwware projects to running system operations, Claude Dev is only limited by your imagination.
+
+
 ### Tools
 
-Claude Dev has access to the following tools:
+Claude has access to the following tools:
 
 1. **execute_command**: Execute CLI commands on the system.
 2. **list_files**: List all files and directories at the top level of the specified directory.
@@ -16,6 +19,12 @@ Claude Dev has access to the following tools:
 4. **write_to_file**: Write content to a file at the specified path.
 5. **ask_followup_question**: Ask the user a question to gather additional information needed to complete a task.
 6. **attempt_completion**: Present the result to the user after completing a task.
+
+### Only With Your Permission
+
+Claude always asks for your permission first before any tools are executed or information is sent back to the API. This puts you in control of this agentic loop, every step of the way.
+
+![Asks_for_approval](https://private-user-images.githubusercontent.com/7799382/347307158-a40a941a-8881-425a-a318-f9ff1636595d.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjA1OTc1NTAsIm5iZiI6MTcyMDU5NzI1MCwicGF0aCI6Ii83Nzk5MzgyLzM0NzMwNzE1OC1hNDBhOTQxYS04ODgxLTQyNWEtYTMxOC1mOWZmMTYzNjU5NWQucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDcxMCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDA3MTBUMDc0MDUwWiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9ZGVmYzUzNzZmMzI0OGE0NjIyYzA3OGZlNDgyMjdkMDA3NjI0YTEzYjc4MjAwZDU4MjU3N2YyNDNkZDlmNzYzYSZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.CKPPQAhYK-DJB_XXGTuLtel4q0F0XAiCWpk88wPZGIs)
 
 ## Screenshots
 

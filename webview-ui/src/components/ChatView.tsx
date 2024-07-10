@@ -82,11 +82,17 @@ const ChatView = ({ messages }: ChatViewProps) => {
 							setPrimaryButtonText(undefined)
 							setSecondaryButtonText(undefined)
 							break
+						case "tool":
+							setTextAreaDisabled(true)
+							setClaudeAsk("tool")
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Cancel")
+							break
 						case "command":
 							setTextAreaDisabled(true)
 							setClaudeAsk("command")
-							setPrimaryButtonText("Yes")
-							setSecondaryButtonText("No")
+							setPrimaryButtonText("Run Command")
+							setSecondaryButtonText("Cancel")
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
@@ -109,8 +115,6 @@ const ChatView = ({ messages }: ChatViewProps) => {
 						case "api_req_finished":
 							break
 						case "text":
-							break
-						case "tool":
 							break
 						case "command_output":
 							break
@@ -166,9 +170,8 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	const handlePrimaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
-				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
-				break
 			case "command":
+			case "tool":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
 			case "completion_result":
@@ -185,6 +188,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
+			case "tool": // TODO: for now when a user cancels, it starts a new task. But we could easily just respond to the API with a "This operation failed" and let it try again.
 				startNewTask()
 				break
 			case "command":
@@ -267,7 +271,7 @@ const ChatView = ({ messages }: ChatViewProps) => {
 				<div style={{ padding: "0 25px" }}>
 					<h2>What can I do for you?</h2>
 					<p>
-						{/*prettier-ignore*/}
+						{/* prettier-ignore */}
 						Thanks to <VSCodeLink href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf" style={{ display: "inline" }}>Claude 3.5 Sonnet's agentic coding capabilities</VSCodeLink>, I can handle complex software development tasks step-by-step. With tools that let me read & write files, create entire projects from scratch, and execute terminal commands (after you grant permission), I can assist you in ways that go beyond simple code completion or tech support.
 					</p>
 				</div>

@@ -29,8 +29,8 @@ export const mockMessages: ClaudeMessage[] = [
 	},
 	{
 		ts: Date.now() - 3200000,
-		type: "say",
-		say: "tool",
+		type: "ask",
+		ask: "tool",
 		text: JSON.stringify({
 			tool: "newFileCreated",
 			path: "/src/components/TodoList.tsx",
@@ -121,8 +121,8 @@ export const mockMessages: ClaudeMessage[] = [
 	},
 	{
 		ts: Date.now() - 2600000,
-		type: "say",
-		say: "tool",
+		type: "ask",
+		ask: "tool",
 		text: JSON.stringify({
 			tool: "editedExistingFile",
 			path: "/src/components/TodoList.tsx",
@@ -238,8 +238,8 @@ export const mockMessages: ClaudeMessage[] = [
 	},
 	{
 		ts: Date.now() - 1700000,
-		type: "say",
-		say: "tool",
+		type: "ask",
+		ask: "tool",
 		text: JSON.stringify({
 			tool: "newFileCreated",
 			path: "/src/app.js",
@@ -313,8 +313,8 @@ export const mockMessages: ClaudeMessage[] = [
 	},
 	{
 		ts: Date.now() - 1000000,
-		type: "say",
-		say: "tool",
+		type: "ask",
+		ask: "tool",
 		text: JSON.stringify({
 			tool: "editedExistingFile",
 			path: "/src/app.js",
