@@ -95,8 +95,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description:
-						"The path of the directory to list contents for.",
+					description: "The path of the directory to list contents for.",
 				},
 			},
 			required: ["path"],
@@ -111,8 +110,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description:
-						"The path of the file to read.",
+					description: "The path of the file to read.",
 				},
 			},
 			required: ["path"],
@@ -127,8 +125,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description:
-						"The path of the file to write to.",
+					description: "The path of the file to write to.",
 				},
 				content: {
 					type: "string",
@@ -317,14 +314,14 @@ export class ClaudeDev {
 				const completeDiffStringConverted = completeDiffStringRaw
 					.map((part, index) => {
 						const prefix = part.added ? "+ " : part.removed ? "- " : "  "
-						return part.value
+						return (part.value ?? [])
 							.split("\n")
 							.map((line, lineIndex) => {
 								// avoid adding an extra empty line at the very end of the diff output
 								if (
 									line === "" &&
 									index === completeDiffStringRaw.length - 1 &&
-									lineIndex === part.value.split("\n").length - 1
+									lineIndex === (part.value ?? []).split("\n").length - 1
 								) {
 									return null
 								}

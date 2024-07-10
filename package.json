@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Claude Dev goes beyond simple code completion by reading & writing files, creating projects, and executing terminal commands with your permission.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.82.0"
   },
