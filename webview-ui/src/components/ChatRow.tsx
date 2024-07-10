@@ -2,6 +2,9 @@ import React, { useState } from "react"
 import { ClaudeMessage, ClaudeAsk, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeProgressRing, VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 import { COMMAND_OUTPUT_STRING } from "../utilities/combineCommandSequences"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { dark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import CodeBlock from "./CodeBlock"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -44,13 +47,6 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 						className="codicon codicon-check"
 						style={{ color: successColor, marginBottom: "-1.5px" }}></span>,
 					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
-				]
-			case "tool":
-				return [
-					<span
-						className="codicon codicon-tools"
-						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Tool</span>,
 				]
 			case "api_req_started":
 				return [
@@ -123,47 +119,51 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							tool: "editedExistingFile",
 							path: "/path/to/file",
 						}
+						const toolIcon = (name: string) => (
+							<span
+								className={`codicon codicon-${name}`}
+								style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+						)
+
 						switch (tool.tool) {
 							case "editedExistingFile":
 								return (
 									<>
 										<div style={headerStyle}>
-											{icon}
-											Edited File
+											{toolIcon("edit")}
+											Edited file...
 										</div>
-										<p>Path: {tool.path!}</p>
-										<p>{tool.diff!}</p>
+										<CodeBlock diff={tool.diff!} path={tool.path!} />
 									</>
 								)
 							case "newFileCreated":
 								return (
 									<>
 										<div style={headerStyle}>
-											{icon}
-											Created New File
+											{toolIcon("new-file")}
+											Created new file...
 										</div>
-										<p>Path: {tool.path!}</p>
-										<p>{tool.content!}</p>
+										<CodeBlock code={tool.content!} path={tool.path!} />
 									</>
 								)
 							case "readFile":
 								return (
 									<>
 										<div style={headerStyle}>
-											{icon}
-											Read File
+											{toolIcon("file-code")}
+											Read file...
 										</div>
-										<p>Path: {tool.path!}</p>
+										<CodeBlock code={tool.content!} path={tool.path!} />
 									</>
 								)
 							case "listFiles":
 								return (
 									<>
 										<div style={headerStyle}>
-											{icon}
-											Viewed Directory
+											{toolIcon("folder-opened")}
+											Viewed contents of directory...
 										</div>
-										<p>Path: {tool.path!}</p>
+										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
 									</>
 								)
 						}
@@ -244,14 +244,24 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									{title}
 								</div>
 								<div style={contentStyle}>
-									<p style={contentStyle}>Claude Dev wants to execute the following terminal command. Would you like to proceed?</p>
-									<p style={contentStyle}>{command}</p>
+									<p style={contentStyle}>
+										Claude Dev wants to execute the following terminal command. Would you like to
+										proceed?
+									</p>
+									<div style={{ marginTop: "10px" }}>
+										<CodeBlock code={command} language="shell-session" />
+									</div>
+
 									{output && (
 										<>
-											<p style={{ ...contentStyle, fontWeight: "bold" }}>
+											<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
 												{COMMAND_OUTPUT_STRING}
 											</p>
-											<p style={contentStyle}>{output}</p>
+											<CodeBlock
+												code={output}
+												language="shell-session"
+												path="src/components/WelcomeView.tsx/src/components/WelcomeView.tsx"
+											/>
 										</>
 									)}
 								</div>
@@ -300,7 +310,9 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
-				<p style={{ marginTop: "10px" }}>{JSON.stringify(JSON.parse(message.text || "{}").request)}</p>
+				<div style={{ marginTop: "10px" }}>
+					<CodeBlock code={JSON.stringify(JSON.parse(message.text || "{}").request)} language="json" />
+				</div>
 			)}
 		</div>
 	)

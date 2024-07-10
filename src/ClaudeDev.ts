@@ -69,7 +69,8 @@ const tools: Tool[] = [
 			properties: {
 				command: {
 					type: "string",
-					description: "The CLI command to execute. This should be a valid command-line instruction for the current operating system. For example, 'ls -l' on Unix-like systems or 'dir' on Windows. Ensure the command is properly formatted and does not contain any harmful instructions. Avoid commands that run indefinitely (like servers) that don't terminate on their own.",
+					description:
+						"The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions. Avoid commands that run indefinitely (like servers) that don't terminate on their own.",
 				},
 			},
 			required: ["command"],
@@ -77,7 +78,8 @@ const tools: Tool[] = [
 	},
 	{
 		name: "list_files",
-		description: "List all files and directories at the top level of the specified directory. Use this to understand the contents and structure of a directory by examining file names and extensions. This information can guide decision-making on which files to process or which subdirectories to explore further. To investigate subdirectories, call this tool again with the path of the subdirectory.",
+		description:
+			"List all files and directories at the top level of the specified directory. Use this to understand the contents and structure of a directory by examining file names and extensions. This information can guide decision-making on which files to process or which subdirectories to explore further. To investigate subdirectories, call this tool again with the path of the subdirectory.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -99,7 +101,8 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to read. Do not use absolute paths or attempt to access files outside of the current working directory.",
+					description:
+						"The path of the file to read. Do not use absolute paths or attempt to access files outside of the current working directory.",
 				},
 			},
 			required: ["path"],
@@ -114,7 +117,8 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to write to. Do not use absolute paths or attempt to write to files outside of the current working directory.",
+					description:
+						"The path of the file to write to. Do not use absolute paths or attempt to write to files outside of the current working directory.",
 				},
 				content: {
 					type: "string",
@@ -133,7 +137,8 @@ const tools: Tool[] = [
 			properties: {
 				question: {
 					type: "string",
-					description: "The question to ask the user. This should be a clear, specific question that addresses the information you need.",
+					description:
+						"The question to ask the user. This should be a clear, specific question that addresses the information you need.",
 				},
 			},
 			required: ["question"],
@@ -148,11 +153,13 @@ const tools: Tool[] = [
 			properties: {
 				command: {
 					type: "string",
-					description: "The CLI command to execute to show a live demo of the result to the user. For example, use 'open -a \"Google Chrome\" index.html' to display a created website. Avoid commands that run indefinitely (like servers) that don't terminate on their own. Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.",
+					description:
+						"The CLI command to execute to show a live demo of the result to the user. For example, use 'open -a \"Google Chrome\" index.html' to display a created website. Avoid commands that run indefinitely (like servers) that don't terminate on their own. Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.",
 				},
 				result: {
 					type: "string",
-					description: "The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.",
+					description:
+						"The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.",
 				},
 			},
 			required: ["result"],
@@ -227,7 +234,7 @@ Default Shell: ${defaultShell}
 Current Working Directory: ${process.cwd()}
 ## Files in Current Directory
 ${filesInCurrentDir}`
-		
+
 		const activeEditorContents = vscode.window.activeTextEditor?.document.getText()
 		if (activeEditorContents) {
 			userPrompt += `
@@ -305,7 +312,37 @@ ${activeEditorContents}`
 				const diffResult = diff.createPatch(filePath, originalContent, newContent)
 				if (diffResult) {
 					await fs.writeFile(filePath, newContent)
-					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath, diff: diffResult } as ClaudeSayTool))
+
+					// Create diff for DiffCodeView.tsx
+					const diffStringRaw = diff.diffLines(originalContent, newContent)
+					const diffStringConverted = diffStringRaw
+						.map((part, index) => {
+							const prefix = part.added ? "+ " : part.removed ? "- " : "  "
+							return part.value
+								.split("\n")
+								.map((line, lineIndex) => {
+									// avoid adding an extra empty line at the very end of the diff output
+									if (
+										line === "" &&
+										index === diffStringRaw.length - 1 &&
+										lineIndex === part.value.split("\n").length - 1
+									) {
+										return null
+									}
+									return prefix + line + "\n"
+								})
+								.join("")
+						})
+						.join("")
+					this.say(
+						"tool",
+						JSON.stringify({
+							tool: "editedExistingFile",
+							path: filePath,
+							diff: diffStringConverted,
+						} as ClaudeSayTool)
+					)
+
 					return `Changes applied to ${filePath}:\n${diffResult}`
 				} else {
 					this.say("tool", JSON.stringify({ tool: "editedExistingFile", path: filePath } as ClaudeSayTool))
@@ -314,12 +351,15 @@ ${activeEditorContents}`
 			} else {
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
-				this.say("tool", JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool))
+				this.say(
+					"tool",
+					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
+				)
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", JSON.stringify(serializeError(error)))
+			this.say("error", `Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 			return errorString
 		}
 	}
@@ -327,11 +367,11 @@ ${activeEditorContents}`
 	async readFile(filePath: string): Promise<string> {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
-			this.say("tool", JSON.stringify({ tool: "readFile", path: filePath } as ClaudeSayTool))
+			this.say("tool", JSON.stringify({ tool: "readFile", path: filePath, content } as ClaudeSayTool))
 			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", JSON.stringify(serializeError(error)))
+			this.say("error", `Error reading file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 			return errorString
 		}
 	}
@@ -343,7 +383,7 @@ ${activeEditorContents}`
 		const isRoot = cwd === root
 		if (isRoot) {
 			if (shouldLog) {
-				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath } as ClaudeSayTool))
+				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: "/" } as ClaudeSayTool))
 			}
 			return "Currently in the root directory. Cannot list all files."
 		}
@@ -356,13 +396,14 @@ ${activeEditorContents}`
 			}
 			// * globs all files in one dir, ** globs files in nested directories
 			const entries = await glob("*", options)
+			const result = entries.slice(0, 500).join("\n") // truncate to 500 entries
 			if (shouldLog) {
-				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath } as ClaudeSayTool))
+				this.say("tool", JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool))
 			}
-			return entries.slice(0, 500).join("\n") // truncate to 500 entries
+			return result
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
-			this.say("error", JSON.stringify(serializeError(error)))
+			this.say("error", `Error listing files and directories:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 			return errorString
 		}
 	}
@@ -384,9 +425,9 @@ ${activeEditorContents}`
 			return `Command executed successfully. Output:\n${result}`
 		} catch (e) {
 			const error = e as any
-			let errorMessage = error.message || JSON.stringify(serializeError(error))
+			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
-			this.say("error", errorMessage)
+			this.say("error", `Error executing command:\n${errorMessage}`) // TODO: in webview show code block for command errors
 			return errorString
 		}
 	}
@@ -456,7 +497,14 @@ ${activeEditorContents}`
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
 			let inputTokens = response.usage.input_tokens
 			let outputTokens = response.usage.output_tokens
-			await this.say("api_req_finished", JSON.stringify({ tokensIn: inputTokens, tokensOut: outputTokens, cost: this.calculateApiCost(inputTokens, outputTokens) }))
+			await this.say(
+				"api_req_finished",
+				JSON.stringify({
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cost: this.calculateApiCost(inputTokens, outputTokens),
+				})
+			)
 
 			// A response always returns text content blocks (it's just that before we were iterating over the completion_attempt response before we could append text response, resulting in bug)
 			for (const contentBlock of response.content) {
@@ -547,7 +595,7 @@ ${activeEditorContents}`
 			return { didCompleteTask, inputTokens, outputTokens }
 		} catch (error) {
 			// only called if the API request fails (executeTool errors are returned back to claude)
-			this.say("error", JSON.stringify(serializeError(error)))
+			this.say("error", `API request failed:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 			return { didCompleteTask: true, inputTokens: 0, outputTokens: 0 }
 		}
 	}
