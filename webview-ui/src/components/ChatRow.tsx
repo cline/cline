@@ -125,6 +125,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									color: "var(--vscode-badge-foreground)",
 									borderRadius: "3px",
 									padding: "8px",
+									whiteSpace: "pre-line",
+									wordWrap: "break-word"
 								}}>
 								<span>{message.text}</span>
 							</div>
