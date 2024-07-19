@@ -35,8 +35,8 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 	}, [])
 
 	return (
-		<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-			<h1 style={{ color: "var(--vscode-foreground)" }}>Hi, I'm Claude Dev</h1>
+		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 15px" }}>
+			<h2>Hi, I'm Claude Dev</h2>
 			<p>
 				I can do all kinds of tasks thanks to the latest breakthroughs in Claude Sonnet 3.5's agentic coding
 				capabilities. I am prompted to think through tasks step-by-step and have access to tools that let me get
@@ -44,8 +44,8 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 				of course).
 			</p>
 
-			<h3>To get started, this extension needs an Anthropic API key:</h3>
-			<ol>
+			<b>To get started, this extension needs an Anthropic API key:</b>
+			<ol style={{ paddingLeft: "15px" }}>
 				<li>
 					Go to{" "}
 					<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
@@ -53,7 +53,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 					</VSCodeLink>
 				</li>
 				<li>You may need to buy some credits (although Anthropic is offering $5 free credit for new users)</li>
-				<li>Click 'Get API Keys' and create a new key for me (you can delete it any time)</li>
+				<li>Click 'Get API Keys' and create a new key (you can delete it any time)</li>
 			</ol>
 
 			<VSCodeDivider />
@@ -61,12 +61,12 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 			<div style={{ marginTop: "20px", display: "flex", alignItems: "center" }}>
 				<VSCodeTextField
 					style={{ flexGrow: 1, marginRight: "10px" }}
-					placeholder="Enter your Anthropic API Key"
+					placeholder="Enter API Key..."
 					value={apiKey}
 					onInput={handleApiKeyChange}
 				/>
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton}>
-					Let's go!
+					Submit
 				</VSCodeButton>
 			</div>
 
