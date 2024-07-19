@@ -1,10 +1,10 @@
 {
   "name": "claude-dev",
   "displayName": "Claude Dev",
-  "description": "Claude Dev goes beyond simple code completion by reading & writing files, creating projects, and executing terminal commands with your permission.",
+  "description": "Autonomous software engineer right in your IDE, capable of reading/writing files, executing commands, and more with your permission every step of the way.",
   "version": "0.0.6",
   "engines": {
-    "vscode": "^1.82.0"
+    "vscode": "^1.84.0"
   },
   "author": { "name": "Saoud Rizwan" },
   "license": "MIT",
