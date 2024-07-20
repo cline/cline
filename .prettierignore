@@ -1,0 +1,4 @@
+dist/
+node_modules
+webview-ui/build/
+CHANGELOG.md
