@@ -33,7 +33,9 @@ CAPABILITIES
 
 RULES
 
-- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop')}
+- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+}
 - Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
 - Always read a file before editing it if you are missing content. This will help you understand the context and make informed changes.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
@@ -58,7 +60,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
 2. Work through these goals sequentially, utilizing available tools as necessary. Each goal should correspond to a distinct step in your problem-solving process.
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, think about which of the provided tools is the relevant tool to answer the user's request. Second, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool call. BUT, if one of the values for a required parameter is missing, DO NOT invoke the function (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
-4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run \`open -a "Google Chrome" index.html\` to show the website you've built. Avoid commands that run indefinitely (like servers). Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.
+4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built. Avoid commands that run indefinitely (like servers). Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
 
 ====
@@ -517,23 +519,30 @@ export class ClaudeDev {
 				JSON.stringify({
 					request: {
 						model: "claude-3-5-sonnet-20240620",
-						max_tokens: 4096,
-						system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/src/ClaudeDev.ts)",
+						max_tokens: 8192,
+						system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
 						messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
-						tools: "(see tools in https://github.com/saoudrizwan/claude-dev/src/ClaudeDev.ts)",
+						tools: "(see tools in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
 						tool_choice: { type: "auto" },
 					},
 				})
 			)
 
-			const response = await this.client.messages.create({
-				model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
-				max_tokens: 4096,
-				system: SYSTEM_PROMPT,
-				messages: this.conversationHistory,
-				tools: tools,
-				tool_choice: { type: "auto" },
-			})
+			const response = await this.client.messages.create(
+				{
+					model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
+					// beta max tokens
+					max_tokens: 8192,
+					system: SYSTEM_PROMPT,
+					messages: this.conversationHistory,
+					tools: tools,
+					tool_choice: { type: "auto" },
+				},
+				{
+					// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
+					headers: { "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15" },
+				}
+			)
 			this.requestCount++
 
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
