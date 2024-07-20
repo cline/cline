@@ -30,6 +30,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
+	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 
@@ -73,24 +74,28 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 						case "request_limit_reached":
 							setTextAreaDisabled(true)
 							setClaudeAsk("request_limit_reached")
+							setEnableButtons(true)
 							setPrimaryButtonText("Proceed")
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
 							setTextAreaDisabled(false)
 							setClaudeAsk("followup")
-							setPrimaryButtonText(undefined)
-							setSecondaryButtonText(undefined)
+							setEnableButtons(false)
+							// setPrimaryButtonText(undefined)
+							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
 							setTextAreaDisabled(true)
 							setClaudeAsk("tool")
+							setEnableButtons(true)
 							setPrimaryButtonText("Approve")
 							setSecondaryButtonText("Cancel")
 							break
 						case "command":
 							setTextAreaDisabled(true)
 							setClaudeAsk("command")
+							setEnableButtons(true)
 							setPrimaryButtonText("Run Command")
 							setSecondaryButtonText("Cancel")
 							break
@@ -98,6 +103,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 							// extension waiting for feedback. but we can just present a new task button
 							setTextAreaDisabled(false)
 							setClaudeAsk("completion_result")
+							setEnableButtons(true)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
 							break
@@ -137,6 +143,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		if (messages.length === 0) {
 			setTextAreaDisabled(false)
 			setClaudeAsk(undefined)
+			setEnableButtons(false)
 			setPrimaryButtonText(undefined)
 			setSecondaryButtonText(undefined)
 		}
@@ -159,8 +166,9 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 			setInputValue("")
 			setTextAreaDisabled(true)
 			setClaudeAsk(undefined)
-			setPrimaryButtonText(undefined)
-			setSecondaryButtonText(undefined)
+			setEnableButtons(false)
+			// setPrimaryButtonText(undefined)
+			// setSecondaryButtonText(undefined)
 		}
 	}
 
@@ -181,8 +189,9 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		}
 		setTextAreaDisabled(true)
 		setClaudeAsk(undefined)
-		setPrimaryButtonText(undefined)
-		setSecondaryButtonText(undefined)
+		setEnableButtons(false)
+		// setPrimaryButtonText(undefined)
+		// setSecondaryButtonText(undefined)
 	}
 
 	const handleSecondaryButtonClick = () => {
@@ -197,8 +206,9 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		}
 		setTextAreaDisabled(true)
 		setClaudeAsk(undefined)
-		setPrimaryButtonText(undefined)
-		setSecondaryButtonText(undefined)
+		setEnableButtons(false)
+		// setPrimaryButtonText(undefined)
+		// setSecondaryButtonText(undefined)
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -313,30 +323,35 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 					<ChatRow key={index} message={message} />
 				))}
 			</div>
-			{(primaryButtonText || secondaryButtonText) && (
-				<div style={{ display: "flex", padding: "10px 15px 0px 15px" }}>
-					{primaryButtonText && (
-						<VSCodeButton
-							appearance="primary"
-							style={{
-								flex: secondaryButtonText ? 1 : 2,
-								marginRight: secondaryButtonText ? "6px" : "0",
-							}}
-							onClick={handlePrimaryButtonClick}>
-							{primaryButtonText}
-						</VSCodeButton>
-					)}
-					{secondaryButtonText && (
-						<VSCodeButton
-							appearance="secondary"
-							style={{ flex: 1, marginLeft: "6px" }}
-							onClick={handleSecondaryButtonClick}>
-							{secondaryButtonText}
-						</VSCodeButton>
-					)}
-				</div>
-			)}
-			<div style={{ padding: "10px 15px", opacity: textAreaDisabled ? 0.7 : 1, position: "relative" }}>
+			<div
+				style={{
+					opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
+					display: "flex",
+					padding: "10px 15px 0px 15px",
+				}}>
+				{primaryButtonText && (
+					<VSCodeButton
+						appearance="primary"
+						disabled={!enableButtons}
+						style={{
+							flex: secondaryButtonText ? 1 : 2,
+							marginRight: secondaryButtonText ? "6px" : "0",
+						}}
+						onClick={handlePrimaryButtonClick}>
+						{primaryButtonText}
+					</VSCodeButton>
+				)}
+				{secondaryButtonText && (
+					<VSCodeButton
+						appearance="secondary"
+						disabled={!enableButtons}
+						style={{ flex: 1, marginLeft: "6px" }}
+						onClick={handleSecondaryButtonClick}>
+						{secondaryButtonText}
+					</VSCodeButton>
+				)}
+			</div>
+			<div style={{ padding: "10px 15px", opacity: textAreaDisabled ? 0.5 : 1, position: "relative" }}>
 				<DynamicTextArea
 					ref={textAreaRef}
 					value={inputValue}
@@ -360,6 +375,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 						resize: "none",
 						overflow: "hidden",
 						padding: "8px 36px 8px 8px",
+						cursor: textAreaDisabled ? "not-allowed" : undefined,
 					}}
 				/>
 				<div
