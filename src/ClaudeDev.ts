@@ -316,14 +316,15 @@ export class ClaudeDev {
 				const completeDiffStringConverted = completeDiffStringRaw
 					.map((part, index) => {
 						const prefix = part.added ? "+ " : part.removed ? "- " : "  "
-						return (part.value ?? [])
+						const value = part.value || ""
+						return value
 							.split("\n")
 							.map((line, lineIndex) => {
 								// avoid adding an extra empty line at the very end of the diff output
 								if (
 									line === "" &&
 									index === completeDiffStringRaw.length - 1 &&
-									lineIndex === (part.value ?? []).split("\n").length - 1
+									lineIndex === value.split("\n").length - 1
 								) {
 									return null
 								}
