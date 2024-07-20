@@ -1,15 +1,14 @@
 import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
-import DynamicTextArea from "react-textarea-autosize"
-import { vscode } from "../utilities/vscode"
-import { ClaudeAskResponse } from "@shared/WebviewMessage"
-import ChatRow from "./ChatRow"
-import { combineCommandSequences } from "../utilities/combineCommandSequences"
-import { combineApiRequests } from "../utilities/combineApiRequests"
-import TaskHeader from "./TaskHeader"
-import { getApiMetrics } from "../utilities/getApiMetrics"
 import { animateScroll as scroll } from "react-scroll"
+import DynamicTextArea from "react-textarea-autosize"
+import { combineApiRequests } from "../utilities/combineApiRequests"
+import { combineCommandSequences } from "../utilities/combineCommandSequences"
+import { getApiMetrics } from "../utilities/getApiMetrics"
+import { vscode } from "../utilities/vscode"
+import ChatRow from "./ChatRow"
+import TaskHeader from "./TaskHeader"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
@@ -218,11 +217,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	}
 
 	useEffect(() => {
-		if (textAreaRef.current && !textAreaHeight) {
-			setTextAreaHeight(textAreaRef.current.offsetHeight)
-			//textAreaRef.current.focus()
-		}
-
 		const handleMessage = (e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
 			switch (message.type) {
@@ -245,8 +239,14 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 			clearTimeout(timer)
 			window.removeEventListener("message", handleMessage)
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
+
+	useEffect(() => {
+		if (textAreaRef.current && !textAreaHeight) {
+			setTextAreaHeight(textAreaRef.current.offsetHeight)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [textAreaRef.current])
 
 	useEffect(() => {
 		if (!isHidden && !textAreaDisabled) {
@@ -353,7 +353,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 						backgroundColor: "var(--vscode-input-background)",
 						color: "var(--vscode-input-foreground)",
 						border: "1px solid var(--vscode-input-border)",
-						borderRadius: "2px",
+						borderRadius: 2,
 						fontFamily: "var(--vscode-font-family)",
 						fontSize: "var(--vscode-editor-font-size)",
 						lineHeight: "var(--vscode-editor-line-height)",
@@ -365,11 +365,10 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 				<div
 					style={{
 						position: "absolute",
-						right: "20px",
-						top: "0px",
-						bottom: "1.5px",
+						right: 20,
 						display: "flex",
 						alignItems: "center",
+						...(!!textAreaHeight ? { height: textAreaHeight, bottom: 12 } : { top: 0, bottom: 1.5 }),
 					}}>
 					<VSCodeButton
 						disabled={textAreaDisabled}
