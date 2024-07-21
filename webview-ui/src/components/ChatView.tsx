@@ -9,13 +9,16 @@ import { getApiMetrics } from "../utilities/getApiMetrics"
 import { vscode } from "../utilities/vscode"
 import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
+import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
+import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
 	isHidden: boolean
+	vscodeThemeName?: string
 }
 // maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
-const ChatView = ({ messages, isHidden }: ChatViewProps) => {
+const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -33,6 +36,16 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+
+	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
+
+	useEffect(() => {
+		if (!vscodeThemeName) return
+		const theme = getSyntaxHighlighterStyleFromTheme(vscodeThemeName)
+		if (theme) {
+			setSyntaxHighlighterStyle(theme)
+		}
+	}, [vscodeThemeName])
 
 	const scrollToBottom = (instant: boolean = false) => {
 		const options = {
@@ -320,7 +333,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 					overflowY: "auto",
 				}}>
 				{modifiedMessages.map((message, index) => (
-					<ChatRow key={index} message={message} />
+					<ChatRow key={index} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
 				))}
 			</div>
 			<div

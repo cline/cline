@@ -2,26 +2,42 @@
 
 // webview will hold state
 export interface ExtensionMessage {
-    type: "action" | "state"
-    text?: string
-    action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
-    state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number, claudeMessages: ClaudeMessage[] }
+	type: "action" | "state"
+	text?: string
+	action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
+	state?: ExtensionState
+}
+
+export interface ExtensionState {
+	didOpenOnce: boolean
+	apiKey?: string
+	maxRequestsPerTask?: number
+	themeName?: string
+	claudeMessages: ClaudeMessage[]
 }
 
 export interface ClaudeMessage {
-    ts: number
-    type: "ask" | "say"
-    ask?: ClaudeAsk
-    say?: ClaudeSay
-    text?: string
+	ts: number
+	type: "ask" | "say"
+	ask?: ClaudeAsk
+	say?: ClaudeSay
+	text?: string
 }
 
 export type ClaudeAsk = "request_limit_reached" | "followup" | "command" | "completion_result" | "tool"
-export type ClaudeSay = "task" | "error" | "api_req_started" | "api_req_finished" | "text" | "command_output" | "completion_result" | "user_feedback"
+export type ClaudeSay =
+	| "task"
+	| "error"
+	| "api_req_started"
+	| "api_req_finished"
+	| "text"
+	| "command_output"
+	| "completion_result"
+	| "user_feedback"
 
 export interface ClaudeSayTool {
-    tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles"
-    path?: string
-    diff?: string
-    content?: string
+	tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles"
+	path?: string
+	diff?: string
+	content?: string
 }
