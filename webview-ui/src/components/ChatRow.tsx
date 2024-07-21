@@ -1,16 +1,16 @@
+import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
+import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
-import { ClaudeMessage, ClaudeAsk, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
-import { VSCodeButton, VSCodeProgressRing, VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 import { COMMAND_OUTPUT_STRING } from "../utilities/combineCommandSequences"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { dark } from "react-syntax-highlighter/dist/esm/styles/prism"
-import CodeBlock from "./CodeBlock"
+import { SyntaxHighlighterStyle } from "../utilities/getSyntaxHighlighterStyleFromTheme"
+import CodeBlock from "./CodeBlock/CodeBlock"
 
 interface ChatRowProps {
 	message: ClaudeMessage
+	syntaxHighlighterStyle: SyntaxHighlighterStyle
 }
 
-const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
+const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 
@@ -126,7 +126,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 									borderRadius: "3px",
 									padding: "8px",
 									whiteSpace: "pre-line",
-									wordWrap: "break-word"
+									wordWrap: "break-word",
 								}}>
 								<span>{message.text}</span>
 							</div>
@@ -188,7 +188,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 											{toolIcon("edit")}
 											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
 										</div>
-										<CodeBlock diff={tool.diff!} path={tool.path!} />
+										<CodeBlock
+											diff={tool.diff!}
+											path={tool.path!}
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+										/>
 									</>
 								)
 							case "newFileCreated":
@@ -200,7 +204,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 												Claude wants to create a new file:
 											</span>
 										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
+										<CodeBlock
+											code={tool.content!}
+											path={tool.path!}
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+										/>
 									</>
 								)
 							case "readFile":
@@ -210,7 +218,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 											{toolIcon("file-code")}
 											<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
 										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
+										<CodeBlock
+											code={tool.content!}
+											path={tool.path!}
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+										/>
 									</>
 								)
 							case "listFiles":
@@ -222,7 +234,12 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 												Claude wants to view this directory:
 											</span>
 										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
+										<CodeBlock
+											code={tool.content!}
+											path={tool.path!}
+											language="shell-session"
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+										/>
 									</>
 								)
 						}
@@ -260,7 +277,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 								</div>
 								<div style={contentStyle}>
 									<div>
-										<CodeBlock code={command} language="shell-session" />
+										<CodeBlock
+											code={command}
+											language="shell-session"
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+										/>
 									</div>
 
 									{output && (
@@ -268,7 +289,11 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 											<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
 												{COMMAND_OUTPUT_STRING}
 											</p>
-											<CodeBlock code={output} language="shell-session" />
+											<CodeBlock
+												code={output}
+												language="shell-session"
+												syntaxHighlighterStyle={syntaxHighlighterStyle}
+											/>
 										</>
 									)}
 								</div>
@@ -318,7 +343,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 	return (
 		<div
 			style={{
-				padding: "10px 20px 10px 20px",
+				padding: "10px 15px 10px 15px",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
@@ -326,6 +351,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 					<CodeBlock
 						code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)}
 						language="json"
+						syntaxHighlighterStyle={syntaxHighlighterStyle}
 					/>
 				</div>
 			)}

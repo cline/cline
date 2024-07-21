@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { getLanguageFromPath } from "../utilities/getLanguageFromPath"
+import { useMemo, useState } from "react"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { getLanguageFromPath } from "../../utilities/getLanguageFromPath"
+import { SyntaxHighlighterStyle } from "../../utilities/getSyntaxHighlighterStyleFromTheme"
+
 /*
 const vscodeSyntaxStyle: React.CSSProperties = {
 	backgroundColor: "var(--vscode-editor-background)",
@@ -62,12 +63,11 @@ interface CodeBlockProps {
 	diff?: string
 	language?: string | undefined
 	path?: string
+	syntaxHighlighterStyle: SyntaxHighlighterStyle
 }
 
-const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
+const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeBlockProps) => {
 	const [isExpanded, setIsExpanded] = useState(false)
-
-	const backgroundColor = oneDark['pre[class*="language-"]'].background as string
 
 	/*
     We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
@@ -83,13 +83,11 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 		[path, language, code]
 	)
 
-	console.log(inferredLanguage)
-
 	return (
 		<div
 			style={{
 				borderRadius: "3px",
-				backgroundColor: backgroundColor,
+				backgroundColor: "var(--vscode-editor-background)",
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 			}}>
 			{path && (
@@ -132,7 +130,16 @@ const CodeBlock = ({ code, diff, language, path }: CodeBlockProps) => {
 					<SyntaxHighlighter
 						wrapLines={false}
 						language={diff ? "diff" : inferredLanguage} // "diff" automatically colors changed lines in green/red
-						style={oneDark}
+						style={{
+							...syntaxHighlighterStyle,
+							// Our syntax highlighter style doesn't always match the vscode theme 1:1, so we'll apply sensible styles here that vscode exposes to us
+							'code[class*="language-"]': {
+								background: "var(--vscode-editor-background)",
+							},
+							'pre[class*="language-"]': {
+								background: "var(--vscode-editor-background)",
+							},
+						}}
 						customStyle={{
 							margin: 0,
 							padding: "6px 10px",

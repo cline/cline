@@ -21,6 +21,7 @@ const App: React.FC = () => {
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [apiKey, setApiKey] = useState<string>("")
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
+	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 
 	useEffect(() => {
@@ -39,6 +40,7 @@ const App: React.FC = () => {
 							? message.state!.maxRequestsPerTask.toString()
 							: ""
 					)
+					setVscodeThemeName(message.state!.themeName)
 					setClaudeMessages(message.state!.claudeMessages)
 					break
 				case "action":
@@ -77,7 +79,7 @@ const App: React.FC = () => {
 						/>
 					)}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView messages={claudeMessages} isHidden={showSettings} />
+					<ChatView messages={claudeMessages} isHidden={showSettings} vscodeThemeName={vscodeThemeName} />
 				</>
 			)}
 		</>

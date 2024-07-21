@@ -52,6 +52,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			}
 		})
 
+		// Listen for when color changes
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration("workbench.colorTheme")) {
+				// Sends latest theme name to webview
+				this.postStateToWebview()
+			}
+		})
+
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
 	}
@@ -215,7 +223,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		])
 		this.postMessageToWebview({
 			type: "state",
-			state: { didOpenOnce: !!didOpenOnce, apiKey, maxRequestsPerTask, claudeMessages },
+			state: {
+				didOpenOnce: !!didOpenOnce,
+				apiKey,
+				maxRequestsPerTask,
+				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
+				claudeMessages,
+			},
 		})
 	}
 
