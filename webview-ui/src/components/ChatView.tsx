@@ -99,18 +99,18 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
-							setTextAreaDisabled(true)
+							setTextAreaDisabled(false)
 							setClaudeAsk("tool")
 							setEnableButtons(true)
 							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Cancel")
+							setSecondaryButtonText("Reject")
 							break
 						case "command":
-							setTextAreaDisabled(true)
+							setTextAreaDisabled(false)
 							setClaudeAsk("command")
 							setEnableButtons(true)
 							setPrimaryButtonText("Run Command")
-							setSecondaryButtonText("Cancel")
+							setSecondaryButtonText("Reject")
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
@@ -170,6 +170,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 			} else if (claudeAsk) {
 				switch (claudeAsk) {
 					case "followup":
+					case "tool":
+					case "command": // user can provide feedback to a tool or command use
 					case "completion_result": // if this happens then the user has feedback for the completion result
 						vscode.postMessage({ type: "askResponse", askResponse: "textResponse", text })
 						break
@@ -210,10 +212,11 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
-			case "tool": // TODO: for now when a user cancels, it starts a new task. But we could easily just respond to the API with a "This operation failed" and let it try again.
 				startNewTask()
 				break
 			case "command":
+			case "tool":
+				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonTapped" })
 				break
 		}
@@ -272,7 +275,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	}, [textAreaRef.current])
 
 	useEffect(() => {
-		if (!isHidden && !textAreaDisabled) {
+		if (!isHidden && !textAreaDisabled && !enableButtons) {
 			textAreaRef.current?.focus()
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,13 +283,14 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			if (!textAreaDisabled) {
+			if (!textAreaDisabled && !enableButtons) {
 				textAreaRef.current?.focus()
 			}
 		}, 50)
 		return () => {
 			clearTimeout(timer)
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [textAreaDisabled])
 
 	return (

@@ -334,7 +334,7 @@ export class ClaudeDev {
 					})
 					.join("")
 
-				const { response } = await this.ask(
+				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
@@ -343,18 +343,26 @@ export class ClaudeDev {
 					} as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
-					return "This operation was not approved by the user."
+					if (response === "textResponse" && text) {
+						await this.say("user_feedback", text)
+						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					}
+					return "The user denied this operation."
 				}
 
 				await fs.writeFile(filePath, newContent)
 				return `Changes applied to ${filePath}:\n${diffResult}`
 			} else {
-				const { response } = await this.ask(
+				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
-					return "This operation was not approved by the user."
+					if (response === "textResponse" && text) {
+						await this.say("user_feedback", text)
+						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					}
+					return "The user denied this operation."
 				}
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
@@ -370,12 +378,16 @@ export class ClaudeDev {
 	async readFile(filePath: string): Promise<string> {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
-			const { response } = await this.ask(
+			const { response, text } = await this.ask(
 				"tool",
 				JSON.stringify({ tool: "readFile", path: filePath, content } as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
-				return "This operation was not approved by the user."
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				}
+				return "The user denied this operation."
 			}
 			return content
 		} catch (error) {
@@ -391,12 +403,16 @@ export class ClaudeDev {
 		const isRoot = absolutePath === root
 		if (isRoot) {
 			if (shouldLog) {
-				const { response } = await this.ask(
+				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
-					return "This operation was not approved by the user."
+					if (response === "textResponse" && text) {
+						await this.say("user_feedback", text)
+						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					}
+					return "The user denied this operation."
 				}
 			}
 			return root
@@ -412,12 +428,16 @@ export class ClaudeDev {
 			const entries = await glob("*", options)
 			const result = entries.slice(0, 500).join("\n") // truncate to 500 entries
 			if (shouldLog) {
-				const { response } = await this.ask(
+				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
-					return "This operation was not approved by the user."
+					if (response === "textResponse" && text) {
+						await this.say("user_feedback", text)
+						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					}
+					return "The user denied this operation."
 				}
 			}
 			return result
@@ -434,9 +454,13 @@ export class ClaudeDev {
 	}
 
 	async executeCommand(command: string): Promise<string> {
-		const { response } = await this.ask("command", command)
+		const { response, text } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
-			return "Command execution was not approved by the user."
+			if (response === "textResponse" && text) {
+				await this.say("user_feedback", text)
+				return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+			}
+			return "The user denied this operation."
 		}
 		try {
 			let result = ""
