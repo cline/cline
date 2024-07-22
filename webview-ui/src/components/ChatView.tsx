@@ -330,7 +330,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 				className="scrollable"
 				style={{
 					flexGrow: 1,
-					overflowY: "auto",
+					overflowY: "scroll",
+					padding: "0 6px 0 15px",
 				}}>
 				{modifiedMessages.map((message, index) => (
 					<ChatRow key={index} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
