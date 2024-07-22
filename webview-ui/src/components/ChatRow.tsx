@@ -343,7 +343,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 	return (
 		<div
 			style={{
-				padding: "10px 15px 10px 15px",
+				padding: "10px 0px 10px 0px",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (

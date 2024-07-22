@@ -146,6 +146,7 @@ const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeB
 							borderRadius: 0,
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
+							fontFamily: "var(--vscode-editor-font-family)",
 						}}>
 						{code ?? diff ?? ""}
 					</SyntaxHighlighter>
