@@ -41,15 +41,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// and executes code based on the message that is recieved
 		this.setWebviewMessageListener(webviewView.webview)
 
+		// Logs show up in bottom panel > Debug Console
+		//console.log("registering listener")
+
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		webviewView.onDidChangeVisibility((e: any) => {
-			if (e && e.visible) {
-				// Your view is visible
-				this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-			} else {
-				// Your view is hidden
-			}
+			// we don't get any event back (so can't do e.visible), but this function does get called when the view changes visibility
+			this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
 		})
 
 		// Listen for when color changes
