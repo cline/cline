@@ -1,6 +1,6 @@
 import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { animateScroll as scroll } from "react-scroll"
 import DynamicTextArea from "react-textarea-autosize"
 import { combineApiRequests } from "../utilities/combineApiRequests"
@@ -11,6 +11,7 @@ import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
 import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
+import { useEvent } from "react-use"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
@@ -242,28 +243,33 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 		vscode.postMessage({ type: "clearTask" })
 	}
 
-	useEffect(() => {
-		const handleMessage = (e: MessageEvent) => {
+	const handleMessage = useCallback(
+		(e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
 			switch (message.type) {
 				case "action":
 					switch (message.action!) {
 						case "didBecomeVisible":
-							textAreaRef.current?.focus()
+							if (!isHidden && !textAreaDisabled && !enableButtons) {
+								textAreaRef.current?.focus()
+							}
 							break
 					}
 					break
 			}
-		}
+			// textAreaRef.current is not explicitly required here since react gaurantees that ref will be stable across re-renders, and we're not using its value but its reference.
+		},
+		[isHidden, textAreaDisabled, enableButtons]
+	)
 
-		window.addEventListener("message", handleMessage)
+	useEvent("message", handleMessage)
 
+	useEffect(() => {
 		const timer = setTimeout(() => {
 			textAreaRef.current?.focus()
 		}, 20)
 		return () => {
 			clearTimeout(timer)
-			window.removeEventListener("message", handleMessage)
 		}
 	}, [])
 
@@ -271,27 +277,18 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [textAreaRef.current])
-
-	useEffect(() => {
-		if (!isHidden && !textAreaDisabled && !enableButtons) {
-			textAreaRef.current?.focus()
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isHidden])
+	}, [textAreaHeight])
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			if (!textAreaDisabled && !enableButtons) {
+			if (!isHidden && !textAreaDisabled && !enableButtons) {
 				textAreaRef.current?.focus()
 			}
 		}, 50)
 		return () => {
 			clearTimeout(timer)
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [textAreaDisabled])
+	}, [isHidden, textAreaDisabled, enableButtons])
 
 	return (
 		<div
@@ -312,6 +309,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					tokensOut={apiMetrics.totalTokensOut}
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
+					isHidden={isHidden}
 				/>
 			) : (
 				<div style={{ padding: "0 25px" }}>

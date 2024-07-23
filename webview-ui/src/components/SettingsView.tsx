@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react"
-import { VSCodeTextField, VSCodeDivider, VSCodeLink, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import React, { useState } from "react"
+import { useMount } from "react-use"
 import { vscode } from "../utilities/vscode"
 
 type SettingsViewProps = {
@@ -47,8 +48,8 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 				setMaxRequestsErrorMessage(undefined)
 			}
 		} else {
-            setMaxRequestsErrorMessage(undefined)
-        }
+			setMaxRequestsErrorMessage(undefined)
+		}
 	}
 
 	const handleSubmit = () => {
@@ -59,11 +60,20 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 	}
 
 	// validate as soon as the component is mounted
+	/*
+	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
+	
 	useEffect(() => {
+		// uses someVar and anotherVar
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [someVar])
+
+	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
+	*/
+	useMount(() => {
 		validateApiKey(apiKey)
 		validateMaxRequests(maxRequestsPerTask)
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+	})
 
 	return (
 		<div style={{ margin: "0 auto", paddingTop: "10px" }}>
@@ -153,7 +163,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 				}}>
 				<p>
 					This project was made for Anthropic's "Build with Claude June 2024 contest"
-					<br/>
+					<br />
 					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
