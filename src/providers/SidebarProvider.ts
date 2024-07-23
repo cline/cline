@@ -44,7 +44,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		webviewView.onDidChangeVisibility((e: any) => {
-			if (e.visible) {
+			if (e && e.visible) {
 				// Your view is visible
 				this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
 			} else {
