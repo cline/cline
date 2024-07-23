@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
 import { ClaudeDev } from "../ClaudeDev"
+import { WebviewPanel, WebviewView } from "vscode"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -18,15 +19,16 @@ type ExtensionWorkspaceStateKey = "claudeMessages"
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.SidebarProvider"
 
-	private view?: vscode.WebviewView
+	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
+	private claudeMessagesCache: ClaudeMessage[] = []
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
 	resolveWebviewView(
-		webviewView: vscode.WebviewView,
-		context: vscode.WebviewViewResolveContext<unknown>,
-		token: vscode.CancellationToken
+		webviewView: vscode.WebviewView | vscode.WebviewPanel
+		//context: vscode.WebviewViewResolveContext<unknown>,
+		//token: vscode.CancellationToken
 	): void | Thenable<void> {
 		this.view = webviewView
 
@@ -46,10 +48,20 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
-		webviewView.onDidChangeVisibility((e: any) => {
-			// we don't get any event back (so can't do e.visible), but this function does get called when the view changes visibility
-			this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-		})
+		if ("onDidChangeViewState" in webviewView) {
+			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
+			webviewView.onDidChangeViewState(() => {
+				if (this.view?.visible) {
+					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+				}
+			})
+		} else if ("onDidChangeVisibility" in webviewView) {
+			webviewView.onDidChangeVisibility(() => {
+				if (this.view?.visible) {
+					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+				}
+			})
+		}
 
 		// Listen for when color changes
 		vscode.workspace.onDidChangeConfiguration((e) => {
@@ -61,6 +73,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
+
+		// Clear previous version's (0.0.6) claudeMessage cache. Now that we use retainContextWhenHidden, we don't need to cache them in user's state and can just store locally in this instance.
+		this.updateWorkspaceState("claudeMessages", undefined)
 	}
 
 	async tryToInitClaudeDevWithTask(task: string) {
@@ -243,13 +258,33 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 	// client messages
 
+	/*
+	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's workspace state. Instead, we can just use this provider instance to keep track of the messages. However in the future when we implement Task history
+	we will need to store the messages and conversation history in the workspace state.
+
+	- We have to be careful of what state is shared between SidebarProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
+	- For the interim we'll use a local variable to cache the claude messages that lives as long as the SidebarProvider (so a property of this class), but in the future we'll implement a more robust solution that uses workspace state so that the user can look at task history and pick up on old conversations.
+
+	In the future we'll cache these messages in the workspace state alongside the conversation history in order to reduce memory footprint in long conversations.
+	*/
+
+	// We need to use a unique identifier for each SidebarProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+	// private startTsIdentifier = Date.now()
+
+	// getClaudeMessagesWorkspaceStateKey() {
+	// 	return `claudeMessages-${this.startTsIdentifier}`
+	// }
+
 	async getClaudeMessages(): Promise<ClaudeMessage[]> {
-		const messages = (await this.getWorkspaceState("claudeMessages")) as ClaudeMessage[]
-		return messages || []
+		// const messages = (await this.getWorkspaceState(this.getClaudeMessagesWorkspaceStateKey())) as ClaudeMessage[]
+		// return messages || []
+		return this.claudeMessagesCache
 	}
 
 	async setClaudeMessages(messages: ClaudeMessage[] | undefined) {
-		await this.updateWorkspaceState("claudeMessages", messages)
+		//await this.updateWorkspaceState(this.getClaudeMessagesWorkspaceStateKey(), messages)
+		this.claudeMessagesCache = messages || []
 	}
 
 	async addClaudeMessage(message: ClaudeMessage): Promise<ClaudeMessage[]> {
@@ -301,6 +336,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 	private async getWorkspaceState(key: ExtensionWorkspaceStateKey) {
 		return await this.context.workspaceState.get(key)
+	}
+
+	private async clearAllWorkspaceState() {
+		this.context.workspaceState.keys().forEach((key) => {
+			this.context.workspaceState.update(key, undefined)
+		})
 	}
 
 	// secrets
