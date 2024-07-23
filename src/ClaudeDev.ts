@@ -249,7 +249,7 @@ export class ClaudeDev {
 		let totalOutputTokens = 0
 
 		while (this.requestCount < this.maxRequestsPerTask) {
-			const { didCompleteTask, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
+			const { didEndLoop, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
 				{ type: "text", text: userPrompt },
 			])
 			totalInputTokens += inputTokens
@@ -259,7 +259,7 @@ export class ClaudeDev {
 			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Claude is prompted to finish the task as efficiently as he can.
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
-			if (didCompleteTask) {
+			if (didEndLoop) {
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
@@ -533,7 +533,7 @@ export class ClaudeDev {
 						},
 					],
 				})
-				return { didCompleteTask: true, inputTokens: 0, outputTokens: 0 }
+				return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
 			}
 		}
 
@@ -622,7 +622,7 @@ export class ClaudeDev {
 				})
 			}
 
-			let didCompleteTask = false
+			let didEndLoop = false
 
 			// attempt_completion is always done last, since there might have been other tools that needed to be called first before the job is finished
 			// it's important to note that claude will order the tools logically in most cases, so we don't have to think about which tools make sense calling before others
@@ -638,14 +638,14 @@ export class ClaudeDev {
 				// 	)}\nTool Result: ${result}`
 				// )
 				if (result === "") {
-					didCompleteTask = true
+					didEndLoop = true
 					result = "The user is satisfied with the result."
 				}
 				toolResults.push({ type: "tool_result", tool_use_id: attemptCompletionBlock.id, content: result })
 			}
 
 			if (toolResults.length > 0) {
-				if (didCompleteTask) {
+				if (didEndLoop) {
 					this.conversationHistory.push({ role: "user", content: toolResults })
 					this.conversationHistory.push({
 						role: "assistant",
@@ -658,21 +658,21 @@ export class ClaudeDev {
 					})
 				} else {
 					const {
-						didCompleteTask: recDidCompleteTask,
+						didEndLoop: recDidEndLoop,
 						inputTokens: recInputTokens,
 						outputTokens: recOutputTokens,
 					} = await this.recursivelyMakeClaudeRequests(toolResults)
-					didCompleteTask = recDidCompleteTask
+					didEndLoop = recDidEndLoop
 					inputTokens += recInputTokens
 					outputTokens += recOutputTokens
 				}
 			}
 
-			return { didCompleteTask, inputTokens, outputTokens }
+			return { didEndLoop, inputTokens, outputTokens }
 		} catch (error) {
 			// only called if the API request fails (executeTool errors are returned back to claude)
 			this.say("error", `API request failed:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
-			return { didCompleteTask: true, inputTokens: 0, outputTokens: 0 }
+			return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
 		}
 	}
 }

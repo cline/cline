@@ -205,6 +205,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
 					break
 				case "clearTask":
+					// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
 					await this.clearTask()
 					await this.postStateToWebview()
 					break

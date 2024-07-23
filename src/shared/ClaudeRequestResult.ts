@@ -1,5 +1,5 @@
 export interface ClaudeRequestResult {
-	didCompleteTask: boolean
+	didEndLoop: boolean
 	inputTokens: number
 	outputTokens: number
 }
