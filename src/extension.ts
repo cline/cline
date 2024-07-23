@@ -29,10 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// })
 	// context.subscriptions.push(disposable)
 
-	const provider = new SidebarProvider(context)
+	const sidebarProvider = new SidebarProvider(context)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider, {
+		vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		})
 	)
@@ -41,9 +41,32 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
 			//const message = "claude-dev.plusButtonTapped!"
 			//vscode.window.showInformationMessage(message)
-			await provider.clearTask()
-			await provider.postStateToWebview()
-			await provider.postMessageToWebview({ type: "action", action: "plusButtonTapped" })
+			await sidebarProvider.clearTask()
+			await sidebarProvider.postStateToWebview()
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "plusButtonTapped" })
+		})
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("claude-dev.popoutButtonTapped", async () => {
+			// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
+			// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
+			const editorProvider = new SidebarProvider(context)
+			const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
+			const panel = vscode.window.createWebviewPanel(
+				SidebarProvider.viewType,
+				"Claude Dev",
+				column || vscode.ViewColumn.One,
+				{
+					enableScripts: true,
+					retainContextWhenHidden: true,
+					localResourceRoots: [context.extensionUri],
+				}
+			)
+			// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
+			panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "icon.png")
+
+			editorProvider.resolveWebviewView(panel)
 		})
 	)
 
@@ -51,7 +74,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
 			//const message = "claude-dev.settingsButtonTapped!"
 			//vscode.window.showInformationMessage(message)
-			provider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
 		})
 	)
 }

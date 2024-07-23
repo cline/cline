@@ -491,6 +491,7 @@ export class ClaudeDev {
 		let resultToSend = result
 		if (command) {
 			await this.say("completion_result", resultToSend)
+			// TODO: currently we don't handle if this command fails, it could be useful to let claude know and retry
 			await this.executeCommand(command)
 			resultToSend = ""
 		}

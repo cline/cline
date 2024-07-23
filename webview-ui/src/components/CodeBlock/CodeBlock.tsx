@@ -89,6 +89,7 @@ const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeB
 				borderRadius: "3px",
 				backgroundColor: "var(--vscode-editor-background)",
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
+				border: "1px solid var(--vscode-sideBar-border)",
 			}}>
 			{path && (
 				<div

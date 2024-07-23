@@ -96,7 +96,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					style={{ width: "100%" }}
 					placeholder="Enter your Anthropic API Key"
 					onInput={handleApiKeyChange}>
-					Anthropic API Key
+					<span style={{ fontWeight: "500" }}>Anthropic API Key</span>
 				</VSCodeTextField>
 				{apiKeyErrorMessage && (
 					<p
@@ -127,7 +127,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					style={{ width: "100%" }}
 					placeholder="20"
 					onInput={handleMaxRequestsChange}>
-					Maximum # Requests Per Task
+					<span style={{ fontWeight: "500" }}>Maximum # Requests Per Task</span>
 				</VSCodeTextField>
 				{maxRequestsErrorMessage && (
 					<p

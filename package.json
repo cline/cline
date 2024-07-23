@@ -52,6 +52,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "claude-dev.popoutButtonTapped",
+        "title": "Open in Editor",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "claude-dev.settingsButtonTapped",
         "title": "Settings",
         "icon": "$(settings-gear)"
@@ -61,6 +66,11 @@
       "view/title": [
         {
           "command": "claude-dev.plusButtonTapped",
+          "group": "navigation",
+          "when": "view == claude-dev.SidebarProvider"
+        },
+        {
+          "command": "claude-dev.popoutButtonTapped",
           "group": "navigation",
           "when": "view == claude-dev.SidebarProvider"
         },
