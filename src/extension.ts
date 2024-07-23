@@ -31,7 +31,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const provider = new SidebarProvider(context)
 
-	context.subscriptions.push(vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider))
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, provider, {
+			webviewOptions: { retainContextWhenHidden: true },
+		})
+	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
@@ -39,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 			//vscode.window.showInformationMessage(message)
 			await provider.clearTask()
 			await provider.postStateToWebview()
-			await provider.postMessageToWebview({ type: "action", action: "plusButtonTapped"})
+			await provider.postMessageToWebview({ type: "action", action: "plusButtonTapped" })
 		})
 	)
 
@@ -47,10 +51,9 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
 			//const message = "claude-dev.settingsButtonTapped!"
 			//vscode.window.showInformationMessage(message)
-			provider.postMessageToWebview({ type: "action", action: "settingsButtonTapped"})
+			provider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
 		})
 	)
-
 }
 
 // This method is called when your extension is deactivated

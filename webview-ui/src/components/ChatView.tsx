@@ -3,7 +3,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
-import { useEvent } from "react-use"
+import { useEvent, useMount } from "react-use"
 import { combineApiRequests } from "../utilities/combineApiRequests"
 import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { getApiMetrics } from "../utilities/getApiMetrics"
@@ -264,14 +264,10 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 
 	useEvent("message", handleMessage)
 
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			textAreaRef.current?.focus()
-		}, 20)
-		return () => {
-			clearTimeout(timer)
-		}
-	}, [])
+	useMount(() => {
+		// NOTE: the vscode window needs to be focused for this to work
+		textAreaRef.current?.focus()
+	})
 
 	useEffect(() => {
 		if (textAreaRef.current && !textAreaHeight) {
