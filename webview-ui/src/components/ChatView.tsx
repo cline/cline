@@ -1,17 +1,16 @@
 import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { animateScroll as scroll } from "react-scroll"
+import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
+import { useEvent } from "react-use"
 import { combineApiRequests } from "../utilities/combineApiRequests"
 import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { getApiMetrics } from "../utilities/getApiMetrics"
+import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utilities/vscode"
 import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
-import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
-import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
-import { useEvent } from "react-use"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
@@ -40,6 +39,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 
 	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
 
+	const chatContainerRef = useRef<HTMLDivElement>(null)
+
 	useEffect(() => {
 		if (!vscodeThemeName) return
 		const theme = getSyntaxHighlighterStyleFromTheme(vscodeThemeName)
@@ -49,12 +50,13 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	}, [vscodeThemeName])
 
 	const scrollToBottom = (instant: boolean = false) => {
-		const options = {
-			containerId: "chat-view-container",
-			duration: instant ? 0 : 500,
-			smooth: instant ? false : "easeOutQuint",
+		if (chatContainerRef.current) {
+			const scrollOptions: ScrollToOptions = {
+				top: chatContainerRef.current.scrollHeight,
+				behavior: instant ? "auto" : "smooth",
+			}
+			chatContainerRef.current.scrollTo(scrollOptions)
 		}
-		scroll.scrollToBottom(options)
 	}
 
 	// scroll to bottom when new message is added
@@ -69,9 +71,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 		const timer = setTimeout(() => {
 			scrollToBottom()
 		}, 0)
-		return () => {
-			clearTimeout(timer)
-		}
+		return () => clearTimeout(timer)
 	}, [visibleMessages])
 
 	useEffect(() => {
@@ -328,7 +328,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 				</div>
 			)}
 			<div
-				id="chat-view-container"
+				ref={chatContainerRef}
 				className="scrollable"
 				style={{
 					flexGrow: 1,
