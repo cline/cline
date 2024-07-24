@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode"
-import { SidebarProvider } from "./providers/SidebarProvider"
+import { ClaudeDevProvider } from "./providers/SidebarProvider"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -29,10 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// })
 	// context.subscriptions.push(disposable)
 
-	const sidebarProvider = new SidebarProvider(context)
+	const sidebarProvider = new ClaudeDevProvider(context)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(SidebarProvider.viewType, sidebarProvider, {
+		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.viewType, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		})
 	)
@@ -51,10 +51,10 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("claude-dev.popoutButtonTapped", async () => {
 			// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 			// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-			const editorProvider = new SidebarProvider(context)
+			const tabProvider = new ClaudeDevProvider(context)
 			const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 			const panel = vscode.window.createWebviewPanel(
-				SidebarProvider.viewType,
+				ClaudeDevProvider.viewType,
 				"Claude Dev",
 				column || vscode.ViewColumn.One,
 				{
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 			panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "icon.png")
 
-			editorProvider.resolveWebviewView(panel)
+			tabProvider.resolveWebviewView(panel)
 		})
 	)
 
