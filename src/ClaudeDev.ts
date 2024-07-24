@@ -178,7 +178,6 @@ const tools: Tool[] = [
 
 export class ClaudeDev {
 	private client: Anthropic
-	private conversationHistory: Anthropic.MessageParam[] = []
 	private maxRequestsPerTask: number
 	private requestCount = 0
 	private askResponse?: ClaudeAskResponse
@@ -234,7 +233,7 @@ export class ClaudeDev {
 	private async startTask(task: string): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
-		await this.providerRef.deref()?.setClaudeMessages([])
+		await this.providerRef.deref()?.setClaudeMessages(undefined)
 		await this.providerRef.deref()?.postStateToWebview()
 
 		// This first message kicks off a task, it is not included in every subsequent message.
@@ -515,7 +514,7 @@ export class ClaudeDev {
 			throw new Error("ClaudeDev instance aborted")
 		}
 
-		this.conversationHistory.push({ role: "user", content: userContent })
+		await this.providerRef.deref()?.addMessageToApiConversationHistory({ role: "user", content: userContent })
 		if (this.requestCount >= this.maxRequestsPerTask) {
 			const { response } = await this.ask(
 				"request_limit_reached",
@@ -525,7 +524,7 @@ export class ClaudeDev {
 			if (response === "yesButtonTapped") {
 				this.requestCount = 0
 			} else {
-				this.conversationHistory.push({
+				await this.providerRef.deref()?.addMessageToApiConversationHistory({
 					role: "assistant",
 					content: [
 						{
@@ -560,7 +559,7 @@ export class ClaudeDev {
 					// beta max tokens
 					max_tokens: 8192,
 					system: SYSTEM_PROMPT,
-					messages: this.conversationHistory,
+					messages: (await this.providerRef.deref()?.getApiConversationHistory()) || [],
 					tools: tools,
 					tool_choice: { type: "auto" },
 				},
@@ -613,11 +612,13 @@ export class ClaudeDev {
 			}
 
 			if (assistantResponses.length > 0) {
-				this.conversationHistory.push({ role: "assistant", content: assistantResponses })
+				await this.providerRef
+					.deref()
+					?.addMessageToApiConversationHistory({ role: "assistant", content: assistantResponses })
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				this.say("error", "Unexpected Error: No assistant messages were found in the API response")
-				this.conversationHistory.push({
+				await this.providerRef.deref()?.addMessageToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: "Failure: I did not have a response to provide." }],
 				})
@@ -647,8 +648,10 @@ export class ClaudeDev {
 
 			if (toolResults.length > 0) {
 				if (didEndLoop) {
-					this.conversationHistory.push({ role: "user", content: toolResults })
-					this.conversationHistory.push({
+					await this.providerRef
+						.deref()
+						?.addMessageToApiConversationHistory({ role: "user", content: toolResults })
+					await this.providerRef.deref()?.addMessageToApiConversationHistory({
 						role: "assistant",
 						content: [
 							{
