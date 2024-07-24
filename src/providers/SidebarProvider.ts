@@ -15,8 +15,8 @@ type ExtensionSecretKey = "apiKey"
 type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
 type ExtensionWorkspaceStateKey = "claudeMessages"
 
-export class SidebarProvider implements vscode.WebviewViewProvider {
-	public static readonly viewType = "claude-dev.SidebarProvider"
+export class ClaudeDevProvider implements vscode.WebviewViewProvider {
+	public static readonly viewType = "claude-dev.ClaudeDevProvider"
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
@@ -310,14 +310,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's workspace state. Instead, we can just use this provider instance to keep track of the messages. However in the future when we implement Task history
 	we will need to store the messages and conversation history in the workspace state.
 
-	- We have to be careful of what state is shared between SidebarProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- We have to be careful of what state is shared between ClaudeDevProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
-	- For the interim we'll use a local variable to cache the claude messages that lives as long as the SidebarProvider (so a property of this class), but in the future we'll implement a more robust solution that uses workspace state so that the user can look at task history and pick up on old conversations.
+	- For the interim we'll use a local variable to cache the claude messages that lives as long as the ClaudeDevProvider (so a property of this class), but in the future we'll implement a more robust solution that uses workspace state so that the user can look at task history and pick up on old conversations.
 
 	In the future we'll cache these messages in the workspace state alongside the conversation history in order to reduce memory footprint in long conversations.
 	*/
 
-	// We need to use a unique identifier for each SidebarProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+	// We need to use a unique identifier for each ClaudeDevProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 	// private startTsIdentifier = Date.now()
 
 	// getClaudeMessagesWorkspaceStateKey() {

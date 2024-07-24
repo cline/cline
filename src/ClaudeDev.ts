@@ -9,11 +9,11 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { Tool, ToolName } from "./shared/Tool"
-import { ClaudeAsk, ClaudeSay, ClaudeSayTool, ExtensionMessage } from "./shared/ExtensionMessage"
+import { ClaudeAsk, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import { SidebarProvider } from "./providers/SidebarProvider"
+import { ClaudeDevProvider } from "./providers/SidebarProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import os from "os"
 
@@ -183,10 +183,10 @@ export class ClaudeDev {
 	private requestCount = 0
 	private askResponse?: ClaudeAskResponse
 	private askResponseText?: string
-	private providerRef: WeakRef<SidebarProvider>
+	private providerRef: WeakRef<ClaudeDevProvider>
 	abort: boolean = false
 
-	constructor(provider: SidebarProvider, task: string, apiKey: string, maxRequestsPerTask?: number) {
+	constructor(provider: ClaudeDevProvider, task: string, apiKey: string, maxRequestsPerTask?: number) {
 		this.providerRef = new WeakRef(provider)
 		this.client = new Anthropic({ apiKey })
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK

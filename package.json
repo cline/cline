@@ -40,7 +40,7 @@
       "claude-dev-ActivityBar": [
         {
           "type": "webview",
-          "id": "claude-dev.SidebarProvider",
+          "id": "claude-dev.ClaudeDevProvider",
           "name": ""
         }
       ]
@@ -67,17 +67,17 @@
         {
           "command": "claude-dev.plusButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.SidebarProvider"
+          "when": "view == claude-dev.ClaudeDevProvider"
         },
         {
           "command": "claude-dev.popoutButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.SidebarProvider"
+          "when": "view == claude-dev.ClaudeDevProvider"
         },
         {
           "command": "claude-dev.settingsButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.SidebarProvider"
+          "when": "view == claude-dev.ClaudeDevProvider"
         }
       ]
     }
