@@ -1,10 +1,9 @@
 import { Uri, Webview } from "vscode"
 //import * as weather from "weather-js"
 import * as vscode from "vscode"
+import { ClaudeDev } from "../ClaudeDev"
 import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
-import { ClaudeDev } from "../ClaudeDev"
-import { WebviewPanel, WebviewView } from "vscode"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -18,16 +17,38 @@ type ExtensionWorkspaceStateKey = "claudeMessages"
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.SidebarProvider"
-
+	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private claudeMessagesCache: ClaudeMessage[] = []
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
+	/*
+	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
+	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
+	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
+	*/
+	async dispose() {
+		console.log("Disposing provider...")
+		await this.clearTask() // clears claudeDev and claudeMesssagesCache
+		console.log("Cleared task")
+		if (this.view && "dispose" in this.view) {
+			this.view.dispose()
+			console.log("Disposed webview")
+		}
+		while (this.disposables.length) {
+			const x = this.disposables.pop()
+			if (x) {
+				x.dispose()
+			}
+		}
+		console.log("Disposed disposables")
+	}
+
 	resolveWebviewView(
 		webviewView: vscode.WebviewView | vscode.WebviewPanel
-		//context: vscode.WebviewViewResolveContext<unknown>,
+		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
 		//token: vscode.CancellationToken
 	): void | Thenable<void> {
 		this.view = webviewView
@@ -50,26 +71,50 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
-			webviewView.onDidChangeViewState(() => {
-				if (this.view?.visible) {
-					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-				}
-			})
+			// panel
+			webviewView.onDidChangeViewState(
+				() => {
+					if (this.view?.visible) {
+						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+					}
+				},
+				null,
+				this.disposables
+			)
 		} else if ("onDidChangeVisibility" in webviewView) {
-			webviewView.onDidChangeVisibility(() => {
-				if (this.view?.visible) {
-					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-				}
-			})
+			// sidebar
+			webviewView.onDidChangeVisibility(
+				() => {
+					if (this.view?.visible) {
+						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+					}
+				},
+				null,
+				this.disposables
+			)
 		}
 
+		// Listen for when the view is disposed
+		// This happens when the user closes the view or when the view is closed programmatically
+		webviewView.onDidDispose(
+			async () => {
+				await this.dispose()
+			},
+			null,
+			this.disposables
+		)
+
 		// Listen for when color changes
-		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration("workbench.colorTheme")) {
-				// Sends latest theme name to webview
-				this.postStateToWebview()
-			}
-		})
+		vscode.workspace.onDidChangeConfiguration(
+			(e) => {
+				if (e.affectsConfiguration("workbench.colorTheme")) {
+					// Sends latest theme name to webview
+					this.postStateToWebview()
+				}
+			},
+			null,
+			this.disposables
+		)
 
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
@@ -178,55 +223,58 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	 * executes code based on the message that is recieved.
 	 *
 	 * @param webview A reference to the extension webview
-	 * @param context A reference to the extension context
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage(async (message: WebviewMessage) => {
-			switch (message.type) {
-				case "webviewDidLaunch":
-					await this.updateGlobalState("didOpenOnce", true)
-					await this.postStateToWebview()
-					break
-				case "newTask":
-					// Code that should run in response to the hello message command
-					//vscode.window.showInformationMessage(message.text!)
+		webview.onDidReceiveMessage(
+			async (message: WebviewMessage) => {
+				switch (message.type) {
+					case "webviewDidLaunch":
+						await this.updateGlobalState("didOpenOnce", true)
+						await this.postStateToWebview()
+						break
+					case "newTask":
+						// Code that should run in response to the hello message command
+						//vscode.window.showInformationMessage(message.text!)
 
-					// Send a message to our webview.
-					// You can send any JSON serializable data.
-					// Could also do this in extension .ts
-					//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-					// initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-					await this.tryToInitClaudeDevWithTask(message.text!)
-					break
-				case "apiKey":
-					await this.storeSecret("apiKey", message.text!)
-					this.claudeDev?.updateApiKey(message.text!)
-					await this.postStateToWebview()
-					break
-				case "maxRequestsPerTask":
-					let result: number | undefined = undefined
-					if (message.text && message.text.trim()) {
-						const num = Number(message.text)
-						if (!isNaN(num)) {
-							result = num
+						// Send a message to our webview.
+						// You can send any JSON serializable data.
+						// Could also do this in extension .ts
+						//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
+						// initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
+						await this.tryToInitClaudeDevWithTask(message.text!)
+						break
+					case "apiKey":
+						await this.storeSecret("apiKey", message.text!)
+						this.claudeDev?.updateApiKey(message.text!)
+						await this.postStateToWebview()
+						break
+					case "maxRequestsPerTask":
+						let result: number | undefined = undefined
+						if (message.text && message.text.trim()) {
+							const num = Number(message.text)
+							if (!isNaN(num)) {
+								result = num
+							}
 						}
-					}
-					await this.updateGlobalState("maxRequestsPerTask", result)
-					this.claudeDev?.updateMaxRequestsPerTask(result)
-					await this.postStateToWebview()
-					break
-				case "askResponse":
-					this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
-					break
-				case "clearTask":
-					// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
-					await this.clearTask()
-					await this.postStateToWebview()
-					break
-				// Add more switch case statements here as more webview message commands
-				// are created within the webview context (i.e. inside media/main.js)
-			}
-		})
+						await this.updateGlobalState("maxRequestsPerTask", result)
+						this.claudeDev?.updateMaxRequestsPerTask(result)
+						await this.postStateToWebview()
+						break
+					case "askResponse":
+						this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text)
+						break
+					case "clearTask":
+						// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
+						await this.clearTask()
+						await this.postStateToWebview()
+						break
+					// Add more switch case statements here as more webview message commands
+					// are created within the webview context (i.e. inside media/main.js)
+				}
+			},
+			null,
+			this.disposables
+		)
 	}
 
 	async postStateToWebview() {
