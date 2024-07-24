@@ -13,7 +13,7 @@ import { ClaudeAsk, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import { ClaudeDevProvider } from "./providers/SidebarProvider"
+import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import os from "os"
 
