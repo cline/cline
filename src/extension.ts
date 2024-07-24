@@ -47,28 +47,25 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	)
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.popoutButtonTapped", async () => {
-			// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
-			// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-			const tabProvider = new ClaudeDevProvider(context)
-			const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-			const panel = vscode.window.createWebviewPanel(
-				ClaudeDevProvider.viewType,
-				"Claude Dev",
-				column || vscode.ViewColumn.One,
-				{
-					enableScripts: true,
-					retainContextWhenHidden: true,
-					localResourceRoots: [context.extensionUri],
-				}
-			)
-			// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
-			panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "icon.png")
-
-			tabProvider.resolveWebviewView(panel)
+	const openClaudeDevInNewTab = async () => {
+		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
+		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
+		const tabProvider = new ClaudeDevProvider(context)
+		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
+		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+		const targetCol = Math.max(lastCol + 1, 1)
+		const panel = vscode.window.createWebviewPanel(ClaudeDevProvider.viewType, "Claude Dev", targetCol, {
+			enableScripts: true,
+			retainContextWhenHidden: true,
+			localResourceRoots: [context.extensionUri],
 		})
-	)
+		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
+		panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "icon.png")
+		tabProvider.resolveWebviewView(panel)
+	}
+
+	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.popoutButtonTapped", openClaudeDevInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.openInNewTab", openClaudeDevInNewTab))
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {

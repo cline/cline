@@ -41,7 +41,7 @@
         {
           "type": "webview",
           "id": "claude-dev.ClaudeDevProvider",
-          "name": ""
+          "name": "Claude Dev"
         }
       ]
     },
@@ -60,7 +60,12 @@
         "command": "claude-dev.settingsButtonTapped",
         "title": "Settings",
         "icon": "$(settings-gear)"
-      }
+      },
+      {
+				"command": "claude-dev.openInNewTab",
+				"title": "Open In New Tab",
+				"category": "Claude Dev"
+			}
     ],
     "menus": {
       "view/title": [
