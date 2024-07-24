@@ -310,11 +310,11 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					// TODO: we can use isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
 					const lastMessage = modifiedMessages.at(-1)
 					if (lastMessage && shouldShowChatRow(lastMessage)) {
-						return "smooth"
+						return "smooth" // NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
 					}
 					return false
 				}}
-				increaseViewportBy={{ top: 0, bottom: Infinity }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added
+				increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 				data={modifiedMessages}
 				itemContent={(index, message) => (
 					<ChatRow key={message.ts} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
