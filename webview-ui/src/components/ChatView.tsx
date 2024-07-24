@@ -9,8 +9,9 @@ import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { getApiMetrics } from "../utilities/getApiMetrics"
 import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utilities/vscode"
-import ChatRow from "./ChatRow"
+import ChatRow, { shouldShowChatRow } from "./ChatRow"
 import TaskHeader from "./TaskHeader"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
@@ -39,7 +40,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 
 	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
 
-	const chatContainerRef = useRef<HTMLDivElement>(null)
+	const virtuosoRef = useRef<VirtuosoHandle>(null)
 
 	useEffect(() => {
 		if (!vscodeThemeName) return
@@ -48,31 +49,6 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 			setSyntaxHighlighterStyle(theme)
 		}
 	}, [vscodeThemeName])
-
-	const scrollToBottom = (instant: boolean = false) => {
-		if (chatContainerRef.current) {
-			const scrollOptions: ScrollToOptions = {
-				top: chatContainerRef.current.scrollHeight,
-				behavior: instant ? "auto" : "smooth",
-			}
-			chatContainerRef.current.scrollTo(scrollOptions)
-		}
-	}
-
-	// scroll to bottom when new message is added
-	const visibleMessages = useMemo(
-		() =>
-			modifiedMessages.filter(
-				(message) => !(message.type === "ask" && message.ask === "completion_result" && message.text === "")
-			),
-		[modifiedMessages]
-	)
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			scrollToBottom()
-		}, 0)
-		return () => clearTimeout(timer)
-	}, [visibleMessages])
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -323,18 +299,27 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					</p>
 				</div>
 			)}
-			<div
-				ref={chatContainerRef}
+			<Virtuoso
+				ref={virtuosoRef}
 				className="scrollable"
 				style={{
 					flexGrow: 1,
-					overflowY: "scroll",
-					padding: "0 6px 0 15px",
-				}}>
-				{modifiedMessages.map((message, index) => (
-					<ChatRow key={index} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
-				))}
-			</div>
+					overflowY: "scroll", // always show scrollbar
+				}}
+				followOutput={(isAtBottom) => {
+					// TODO: we can use isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
+					const lastMessage = modifiedMessages.at(-1)
+					if (lastMessage && shouldShowChatRow(lastMessage)) {
+						return "smooth"
+					}
+					return false
+				}}
+				increaseViewportBy={{ top: 0, bottom: Infinity }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added
+				data={modifiedMessages}
+				itemContent={(index, message) => (
+					<ChatRow key={message.ts} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
+				)}
+			/>
 			<div
 				style={{
 					opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
@@ -370,7 +355,9 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					disabled={textAreaDisabled}
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
-					onHeightChange={() => scrollToBottom(true)}
+					onHeightChange={() =>
+						virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
+					}
 					placeholder={task ? "Type a message..." : "Type your task here..."}
 					maxRows={10}
 					autoFocus={true}

@@ -114,7 +114,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 							</div>
 						)
 					case "api_req_finished":
-						return null // Hide this message type
+						return null // we should never see this message type
 					case "text":
 						return <p style={contentStyle}>{message.text}</p>
 					case "user_feedback":
@@ -332,18 +332,14 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 	}
 
 	// we need to return null here instead of in getContent since that way would result in padding being applied
-	if (message.say === "api_req_finished") {
-		return null // Don't render anything for this message type
-	}
-
-	if (message.type === "ask" && message.ask === "completion_result" && message.text === "") {
+	if (!shouldShowChatRow(message)) {
 		return null // Don't render anything for this message type
 	}
 
 	return (
 		<div
 			style={{
-				padding: "10px 0px 10px 0px",
+				padding: "10px 6px 10px 15px",
 			}}>
 			{renderContent()}
 			{isExpanded && message.say === "api_req_started" && (
@@ -357,6 +353,20 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 			)}
 		</div>
 	)
+}
+
+export const shouldShowChatRow = (message: ClaudeMessage) => {
+	// combineApiRequests removes this from modifiedMessages anyways
+	if (message.say === "api_req_finished") {
+		return false
+	}
+
+	// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if Claude wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
+	if (message.type === "ask" && message.ask === "completion_result" && message.text === "") {
+		return false
+	}
+
+	return true
 }
 
 export default ChatRow
