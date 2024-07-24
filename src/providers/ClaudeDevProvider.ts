@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { ClaudeDev } from "../ClaudeDev"
 import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
+import { Anthropic } from "@anthropic-ai/sdk"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -11,16 +12,12 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type ExtensionSecretKey = "apiKey"
-type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
-type ExtensionWorkspaceStateKey = "claudeMessages"
-
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = "claude-dev.ClaudeDevProvider"
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
+	private providerInstanceIdentifier = Date.now()
 	private claudeDev?: ClaudeDev
-	private claudeMessagesCache: ClaudeMessage[] = []
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -31,7 +28,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	*/
 	async dispose() {
 		console.log("Disposing provider...")
-		await this.clearTask() // clears claudeDev and claudeMesssagesCache
+		await this.clearTask() // clears claudeDev, api conversation history, and webview claude messages
 		console.log("Cleared task")
 		if (this.view && "dispose" in this.view) {
 			this.view.dispose()
@@ -119,11 +116,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
 
-		// Clear previous version's (0.0.6) claudeMessage cache. Now that we use retainContextWhenHidden, we don't need to cache them in user's state and can just store locally in this instance.
+		// Clear previous version's (0.0.6) claudeMessage cache from workspace state. We now store in global state with a unique identifier for each provider instance. We need to store globally rather than per workspace to eventually implement task history
 		this.updateWorkspaceState("claudeMessages", undefined)
 	}
 
 	async tryToInitClaudeDevWithTask(task: string) {
+		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const [apiKey, maxRequestsPerTask] = await Promise.all([
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
@@ -301,38 +299,42 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.claudeDev.abort = true // will stop any agentically running promises
 			this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
 		}
-		await this.setClaudeMessages([])
+		await this.setApiConversationHistory(undefined)
+		await this.setClaudeMessages(undefined)
 	}
 
-	// client messages
+	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
 
 	/*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's workspace state. Instead, we can just use this provider instance to keep track of the messages. However in the future when we implement Task history
-	we will need to store the messages and conversation history in the workspace state.
+	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we do to reduce memory footprint in long conversations.
 
 	- We have to be careful of what state is shared between ClaudeDevProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
-	- For the interim we'll use a local variable to cache the claude messages that lives as long as the ClaudeDevProvider (so a property of this class), but in the future we'll implement a more robust solution that uses workspace state so that the user can look at task history and pick up on old conversations.
 
-	In the future we'll cache these messages in the workspace state alongside the conversation history in order to reduce memory footprint in long conversations.
+	We need to use a unique identifier for each ClaudeDevProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+
+	For now since we don't need to store task history, we'll just use an identifier unique to this provider instance (since there can be several provider instances open at once).
+	However in the future when we implement task history, we'll need to use a unique identifier for each task. As well as manage a data structure that keeps track of task history with their associated identifiers and the task message itself, to present in a 'Task History' view.
+	Task history is a significant undertaking as it would require refactoring how we wait for ask responses--it would need to be a hidden claudeMessage, so that user's can resume tasks that ended with an ask.
 	*/
 
-	// We need to use a unique identifier for each ClaudeDevProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
-	// private startTsIdentifier = Date.now()
+	getClaudeMessagesStateKey() {
+		return `claudeMessages-${this.providerInstanceIdentifier}`
+	}
 
-	// getClaudeMessagesWorkspaceStateKey() {
-	// 	return `claudeMessages-${this.startTsIdentifier}`
-	// }
+	getApiConversationHistoryStateKey() {
+		return `apiConversationHistory-${this.providerInstanceIdentifier}`
+	}
+
+	// claude messages to present in the webview
 
 	async getClaudeMessages(): Promise<ClaudeMessage[]> {
-		// const messages = (await this.getWorkspaceState(this.getClaudeMessagesWorkspaceStateKey())) as ClaudeMessage[]
-		// return messages || []
-		return this.claudeMessagesCache
+		const messages = (await this.getGlobalState(this.getClaudeMessagesStateKey())) as ClaudeMessage[]
+		return messages || []
 	}
 
 	async setClaudeMessages(messages: ClaudeMessage[] | undefined) {
-		//await this.updateWorkspaceState(this.getClaudeMessagesWorkspaceStateKey(), messages)
-		this.claudeMessagesCache = messages || []
+		await this.updateGlobalState(this.getClaudeMessagesStateKey(), messages)
 	}
 
 	async addClaudeMessage(message: ClaudeMessage): Promise<ClaudeMessage[]> {
@@ -342,23 +344,25 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		return messages
 	}
 
-	// api conversation history
+	// conversation history to send in API requests
 
-	// async getApiConversationHistory(): Promise<ClaudeMessage[]> {
-	// 	const messages = (await this.getWorkspaceState("apiConversationHistory")) as ClaudeMessage[]
-	// 	return messages || []
-	// }
+	async getApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+		const history = (await this.getGlobalState(
+			this.getApiConversationHistoryStateKey()
+		)) as Anthropic.MessageParam[]
+		return history || []
+	}
 
-	// async setApiConversationHistory(messages: ClaudeMessage[] | undefined) {
-	// 	await this.updateWorkspaceState("apiConversationHistory", messages)
-	// }
+	async setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
+		await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
+	}
 
-	// async addMessageToApiConversationHistory(message: ClaudeMessage): Promise<ClaudeMessage[]> {
-	// 	const messages = await this.getClaudeMessages()
-	// 	messages.push(message)
-	// 	await this.setClaudeMessages(messages)
-	// 	return messages
-	// }
+	async addMessageToApiConversationHistory(message: Anthropic.MessageParam): Promise<Anthropic.MessageParam[]> {
+		const history = await this.getApiConversationHistory()
+		history.push(message)
+		await this.setApiConversationHistory(history)
+		return history
+	}
 
 	/*
 	Storage
@@ -368,21 +372,21 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	// global
 
-	private async updateGlobalState(key: ExtensionGlobalStateKey, value: any) {
+	private async updateGlobalState(key: string, value: any) {
 		await this.context.globalState.update(key, value)
 	}
 
-	private async getGlobalState(key: ExtensionGlobalStateKey) {
+	private async getGlobalState(key: string) {
 		return await this.context.globalState.get(key)
 	}
 
 	// workspace
 
-	private async updateWorkspaceState(key: ExtensionWorkspaceStateKey, value: any) {
+	private async updateWorkspaceState(key: string, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}
 
-	private async getWorkspaceState(key: ExtensionWorkspaceStateKey) {
+	private async getWorkspaceState(key: string) {
 		return await this.context.workspaceState.get(key)
 	}
 
@@ -394,11 +398,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	// secrets
 
-	private async storeSecret(key: ExtensionSecretKey, value: any) {
+	private async storeSecret(key: string, value: any) {
 		await this.context.secrets.store(key, value)
 	}
 
-	private async getSecret(key: ExtensionSecretKey) {
+	private async getSecret(key: string) {
 		return await this.context.secrets.get(key)
 	}
 }
