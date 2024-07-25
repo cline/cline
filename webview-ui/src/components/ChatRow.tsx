@@ -1,17 +1,27 @@
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
 import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
-import React, { useState } from "react"
+import React from "react"
 import { COMMAND_OUTPUT_STRING } from "../utilities/combineCommandSequences"
 import { SyntaxHighlighterStyle } from "../utilities/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock/CodeBlock"
+import Markdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 
 interface ChatRowProps {
 	message: ClaudeMessage
 	syntaxHighlighterStyle: SyntaxHighlighterStyle
+	isExpanded: boolean
+	onToggleExpand: () => void
+	apiRequestFailedMessage?: string
 }
 
-const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) => {
-	const [isExpanded, setIsExpanded] = useState(false)
+const ChatRow: React.FC<ChatRowProps> = ({
+	message,
+	syntaxHighlighterStyle,
+	isExpanded,
+	onToggleExpand,
+	apiRequestFailedMessage,
+}) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 
 	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, JSX.Element | null] => {
@@ -56,6 +66,10 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 						<span
 							className="codicon codicon-check"
 							style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+					) : apiRequestFailedMessage ? (
+						<span
+							className="codicon codicon-error"
+							style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
 					) : (
 						<div
 							style={{
@@ -70,13 +84,71 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 							</div>
 						</div>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{cost ? "API Request Complete" : "Making API Request..."}
-					</span>,
+					cost ? (
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Complete</span>
+					) : apiRequestFailedMessage ? (
+						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+					) : (
+						<span style={{ color: normalColor, fontWeight: "bold" }}>Making API Request...</span>
+					),
 				]
 			default:
 				return [null, null]
 		}
+	}
+
+	const convertToMarkdown = (markdown: string = "") => {
+		// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
+		return (
+			<Markdown
+				children={markdown}
+				components={{
+					p(props) {
+						const { style, ...rest } = props
+						return <p style={{ ...style, margin: 0, marginTop: 0, marginBottom: 0 }} {...rest} />
+					},
+					//p: "span",
+					// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
+					code(props) {
+						const { children, className, node, ...rest } = props
+						const match = /language-(\w+)/.exec(className || "")
+						return match ? (
+							<SyntaxHighlighter
+								{...(rest as any)} // will be passed down to pre
+								PreTag="div"
+								children={String(children).replace(/\n$/, "")}
+								language={match[1]}
+								style={{
+									...syntaxHighlighterStyle,
+									'code[class*="language-"]': {
+										background: "var(--vscode-editor-background)",
+									},
+									'pre[class*="language-"]': {
+										background: "var(--vscode-editor-background)",
+									},
+								}}
+								customStyle={{
+									overflowX: "auto",
+									overflowY: "hidden",
+									maxWidth: "100%",
+									margin: 0,
+									padding: "10px",
+									borderRadius: 3,
+									border: "1px solid var(--vscode-sideBar-border)",
+									fontSize: "var(--vscode-editor-font-size)",
+									lineHeight: "var(--vscode-editor-line-height)",
+									fontFamily: "var(--vscode-editor-font-family)",
+								}}
+							/>
+						) : (
+							<code {...rest} className={className}>
+								{children}
+							</code>
+						)
+					},
+				}}
+			/>
+		)
 	}
 
 	const renderContent = () => {
@@ -89,7 +161,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 			marginBottom: "10px",
 		}
 
-		const contentStyle: React.CSSProperties = {
+		const pStyle: React.CSSProperties = {
 			margin: 0,
 			whiteSpace: "pre-line",
 		}
@@ -99,24 +171,37 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 				switch (message.say) {
 					case "api_req_started":
 						return (
-							<div style={{ ...headerStyle, marginBottom: 0, justifyContent: "space-between" }}>
-								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-									{icon}
-									{title}
-									{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
+							<>
+								<div
+									style={{
+										...headerStyle,
+										marginBottom: cost == null && apiRequestFailedMessage ? 10 : 0,
+										justifyContent: "space-between",
+									}}>
+									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+										{icon}
+										{title}
+										{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
+									</div>
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Toggle Details"
+										onClick={onToggleExpand}>
+										<span
+											className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+									</VSCodeButton>
 								</div>
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Toggle Details"
-									onClick={() => setIsExpanded(!isExpanded)}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</VSCodeButton>
-							</div>
+								{cost == null && apiRequestFailedMessage && (
+									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
+										{apiRequestFailedMessage}
+									</p>
+								)}
+							</>
 						)
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "text":
-						return <p style={contentStyle}>{message.text}</p>
+						return <div>{convertToMarkdown(message.text)}</div>
 					case "user_feedback":
 						return (
 							<div
@@ -140,9 +225,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 										{title}
 									</div>
 								)}
-								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-									{message.text}
-								</p>
+								<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 							</>
 						)
 					case "completion_result":
@@ -152,9 +235,9 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 									{icon}
 									{title}
 								</div>
-								<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
-									{message.text}
-								</p>
+								<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+									{convertToMarkdown(message.text)}
+								</div>
 							</>
 						)
 					default:
@@ -166,7 +249,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 										{title}
 									</div>
 								)}
-								<p style={contentStyle}>{message.text}</p>
+								<div>{convertToMarkdown(message.text)}</div>
 							</>
 						)
 				}
@@ -192,6 +275,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 											diff={tool.diff!}
 											path={tool.path!}
 											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
 										/>
 									</>
 								)
@@ -208,6 +293,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 											code={tool.content!}
 											path={tool.path!}
 											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
 										/>
 									</>
 								)
@@ -222,6 +309,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 											code={tool.content!}
 											path={tool.path!}
 											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
 										/>
 									</>
 								)
@@ -239,6 +328,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 											path={tool.path!}
 											language="shell-session"
 											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
 										/>
 									</>
 								)
@@ -251,9 +342,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 									{icon}
 									{title}
 								</div>
-								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-									{message.text}
-								</p>
+								<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 							</>
 						)
 					case "command":
@@ -275,24 +364,28 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 									{icon}
 									{title}
 								</div>
-								<div style={contentStyle}>
+								<div>
 									<div>
 										<CodeBlock
 											code={command}
 											language="shell-session"
 											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
 										/>
 									</div>
 
 									{output && (
 										<>
-											<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
+											<p style={{ ...pStyle, margin: "10px 0 10px 0" }}>
 												{COMMAND_OUTPUT_STRING}
 											</p>
 											<CodeBlock
 												code={output}
 												language="shell-session"
 												syntaxHighlighterStyle={syntaxHighlighterStyle}
+												isExpanded={isExpanded}
+												onToggleExpand={onToggleExpand}
 											/>
 										</>
 									)}
@@ -307,15 +400,15 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 										{icon}
 										{title}
 									</div>
-									<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
-										{message.text}
-									</p>
+									<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+										{convertToMarkdown(message.text)}
+									</div>
 								</div>
 							)
 						} else {
 							return null // Don't render anything when we get a completion_result ask without text
 						}
-					default:
+					case "followup":
 						return (
 							<>
 								{title && (
@@ -324,17 +417,14 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 										{title}
 									</div>
 								)}
-								<p style={contentStyle}>{message.text}</p>
+								<div>{convertToMarkdown(message.text)}</div>
 							</>
 						)
 				}
 		}
 	}
 
-	// we need to return null here instead of in getContent since that way would result in padding being applied
-	if (!shouldShowChatRow(message)) {
-		return null // Don't render anything for this message type
-	}
+	// NOTE: we cannot return null as virtuoso does not support it, so we must use a separate visibleMessages array to filter out messages that should not be rendered
 
 	return (
 		<div
@@ -348,25 +438,13 @@ const ChatRow: React.FC<ChatRowProps> = ({ message, syntaxHighlighterStyle }) =>
 						code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)}
 						language="json"
 						syntaxHighlighterStyle={syntaxHighlighterStyle}
+						isExpanded={true}
+						onToggleExpand={onToggleExpand}
 					/>
 				</div>
 			)}
 		</div>
 	)
-}
-
-export const shouldShowChatRow = (message: ClaudeMessage) => {
-	// combineApiRequests removes this from modifiedMessages anyways
-	if (message.say === "api_req_finished") {
-		return false
-	}
-
-	// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if Claude wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
-	if (message.type === "ask" && message.ask === "completion_result" && message.text === "") {
-		return false
-	}
-
-	return true
 }
 
 export default ChatRow

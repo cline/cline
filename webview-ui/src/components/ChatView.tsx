@@ -9,7 +9,7 @@ import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { getApiMetrics } from "../utilities/getApiMetrics"
 import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utilities/vscode"
-import ChatRow, { shouldShowChatRow } from "./ChatRow"
+import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 
@@ -42,6 +42,15 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 
+	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
+
+	const toggleRowExpansion = (ts: number) => {
+		setExpandedRows((prev) => ({
+			...prev,
+			[ts]: !prev[ts],
+		}))
+	}
+
 	useEffect(() => {
 		if (!vscodeThemeName) return
 		const theme = getSyntaxHighlighterStyleFromTheme(vscodeThemeName)
@@ -66,6 +75,13 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 							setClaudeAsk("request_limit_reached")
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed")
+							setSecondaryButtonText("Start New Task")
+							break
+						case "api_req_failed":
+							setTextAreaDisabled(true)
+							setClaudeAsk("api_req_failed")
+							setEnableButtons(true)
+							setPrimaryButtonText("Retry")
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
@@ -170,6 +186,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	const handlePrimaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
+			case "api_req_failed":
 			case "command":
 			case "tool":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
@@ -189,6 +206,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
+			case "api_req_failed":
 				startNewTask()
 				break
 			case "command":
@@ -262,6 +280,41 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 		}
 	}, [isHidden, textAreaDisabled, enableButtons])
 
+	const visibleMessages = useMemo(() => {
+		return modifiedMessages.filter((message) => {
+			switch (message.ask) {
+				case "completion_result":
+					// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if Claude wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
+					if (message.text === "") {
+						return false
+					}
+					break
+				case "api_req_failed": // this message is used to update the latest api_req_started that the request failed
+					return false
+			}
+			switch (message.say) {
+				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
+				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
+					return false
+			}
+			return true
+		})
+	}, [modifiedMessages])
+
+	useEffect(() => {
+		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
+		const timer = setTimeout(() => {
+			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
+			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
+			virtuosoRef.current?.scrollToIndex({
+				index: "LAST",
+				behavior: "smooth",
+			})
+		}, 50)
+
+		return () => clearTimeout(timer)
+	}, [visibleMessages])
+
 	return (
 		<div
 			style={{
@@ -306,18 +359,28 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					flexGrow: 1,
 					overflowY: "scroll", // always show scrollbar
 				}}
-				followOutput={(isAtBottom) => {
-					// TODO: we can use isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
-					const lastMessage = modifiedMessages.at(-1)
-					if (lastMessage && shouldShowChatRow(lastMessage)) {
-						return "smooth" // NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-					}
-					return false
-				}}
+				// followOutput={(isAtBottom) => {
+				// 	const lastMessage = modifiedMessages.at(-1)
+				// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
+				// 		return "smooth"
+				// 	}
+				// 	return false
+				// }}
 				increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-				data={modifiedMessages}
+				data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 				itemContent={(index, message) => (
-					<ChatRow key={message.ts} message={message} syntaxHighlighterStyle={syntaxHighlighterStyle} />
+					<ChatRow
+						key={message.ts}
+						message={message}
+						syntaxHighlighterStyle={syntaxHighlighterStyle}
+						isExpanded={expandedRows[message.ts] || false}
+						onToggleExpand={() => toggleRowExpansion(message.ts)}
+						apiRequestFailedMessage={
+							index === visibleMessages.length - 1 && modifiedMessages.at(-1)?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
+								? modifiedMessages.at(-1)?.text
+								: undefined
+						}
+					/>
 				)}
 			/>
 			<div

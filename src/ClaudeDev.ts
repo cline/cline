@@ -50,6 +50,7 @@ RULES
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
 - NEVER end completion_attempt with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user. 
 - NEVER start your responses with affirmations like "Certaintly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
+- Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 
 ====
 
@@ -222,7 +223,7 @@ export class ClaudeDev {
 		return result
 	}
 
-	async say(type: ClaudeSay, text: string): Promise<undefined> {
+	async say(type: ClaudeSay, text?: string): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
@@ -502,6 +503,38 @@ export class ClaudeDev {
 		return `The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`
 	}
 
+	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {
+		try {
+			const response = await this.client.messages.create(
+				{
+					model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
+					// beta max tokens
+					max_tokens: 8192,
+					system: SYSTEM_PROMPT,
+					messages: (await this.providerRef.deref()?.getApiConversationHistory()) || [],
+					tools: tools,
+					tool_choice: { type: "auto" },
+				},
+				{
+					// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
+					headers: { "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15" },
+				}
+			)
+			return response
+		} catch (error) {
+			const { response } = await this.ask(
+				"api_req_failed",
+				error.message ?? JSON.stringify(serializeError(error), null, 2)
+			)
+			if (response !== "yesButtonTapped") {
+				// this will never happen since if noButtonTapped, we will clear current task, aborting this instance
+				throw new Error("API request failed")
+			}
+			await this.say("api_req_retried")
+			return this.attemptApiRequest()
+		}
+	}
+
 	async recursivelyMakeClaudeRequests(
 		userContent: Array<
 			| Anthropic.TextBlockParam
@@ -537,37 +570,22 @@ export class ClaudeDev {
 			}
 		}
 
-		try {
-			// what the user sees in the webview
-			await this.say(
-				"api_req_started",
-				JSON.stringify({
-					request: {
-						model: "claude-3-5-sonnet-20240620",
-						max_tokens: 8192,
-						system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
-						messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
-						tools: "(see tools in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
-						tool_choice: { type: "auto" },
-					},
-				})
-			)
-
-			const response = await this.client.messages.create(
-				{
-					model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
-					// beta max tokens
+		// what the user sees in the webview
+		await this.say(
+			"api_req_started",
+			JSON.stringify({
+				request: {
+					model: "claude-3-5-sonnet-20240620",
 					max_tokens: 8192,
-					system: SYSTEM_PROMPT,
-					messages: (await this.providerRef.deref()?.getApiConversationHistory()) || [],
-					tools: tools,
+					system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
+					messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+					tools: "(see tools in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
 					tool_choice: { type: "auto" },
 				},
-				{
-					// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
-					headers: { "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15" },
-				}
-			)
+			})
+		)
+		try {
+			const response = await this.attemptApiRequest()
 			this.requestCount++
 
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
@@ -674,8 +692,7 @@ export class ClaudeDev {
 
 			return { didEndLoop, inputTokens, outputTokens }
 		} catch (error) {
-			// only called if the API request fails (executeTool errors are returned back to claude)
-			this.say("error", `API request failed:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonTapped, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
 		}
 	}
