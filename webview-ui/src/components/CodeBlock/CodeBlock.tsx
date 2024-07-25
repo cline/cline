@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { getLanguageFromPath } from "../../utilities/getLanguageFromPath"
 import { SyntaxHighlighterStyle } from "../../utilities/getSyntaxHighlighterStyleFromTheme"
@@ -64,11 +64,19 @@ interface CodeBlockProps {
 	language?: string | undefined
 	path?: string
 	syntaxHighlighterStyle: SyntaxHighlighterStyle
+	isExpanded: boolean
+	onToggleExpand: () => void
 }
 
-const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeBlockProps) => {
-	const [isExpanded, setIsExpanded] = useState(false)
-
+const CodeBlock = ({
+	code,
+	diff,
+	language,
+	path,
+	syntaxHighlighterStyle,
+	isExpanded,
+	onToggleExpand,
+}: CodeBlockProps) => {
 	/*
     We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
 
@@ -100,7 +108,7 @@ const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeB
 						padding: "6px 10px",
 						cursor: "pointer",
 					}}
-					onClick={() => setIsExpanded(!isExpanded)}>
+					onClick={onToggleExpand}>
 					<span
 						style={{
 							color: "#BABCC3",
@@ -115,14 +123,14 @@ const CodeBlock = ({ code, diff, language, path, syntaxHighlighterStyle }: CodeB
 						}}>
 						{removeLeadingNonAlphanumeric(path) + "\u200E"}
 					</span>
-					<VSCodeButton appearance="icon" aria-label="Toggle Code" onClick={() => setIsExpanded(!isExpanded)}>
+					<VSCodeButton appearance="icon" aria-label="Toggle Code">
 						<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 					</VSCodeButton>
 				</div>
 			)}
 			{(!path || isExpanded) && (
 				<div
-					className="code-block-scrollable"
+					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{
 						overflowX: "auto",
 						overflowY: "hidden",

@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
-import { useMount } from "react-use"
+import { useEffectOnce } from "react-use"
 import { vscode } from "../utilities/vscode"
 
 type SettingsViewProps = {
@@ -70,9 +70,13 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
-	useMount(() => {
-		validateApiKey(apiKey)
-		validateMaxRequests(maxRequestsPerTask)
+	useEffectOnce(() => {
+		const timeoutId = setTimeout(() => {
+			validateApiKey(apiKey)
+			validateMaxRequests(maxRequestsPerTask)
+		}, 1000)
+
+		return () => clearTimeout(timeoutId)
 	})
 
 	return (
