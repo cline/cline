@@ -36,3 +36,81 @@
 		transform: rotate(360deg);
 	}
 }
+
+.header-buttons {
+	display: flex;
+	justify-content: flex-end;
+	padding: 5px;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-editorGroup-border);
+}
+
+.header-buttons button {
+	padding: 5px;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	cursor: pointer;
+	font-size: 16px;
+	margin-left: 5px;
+}
+
+.header-buttons button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.task-history-view {
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorGroup-border);
+	border-radius: 4px;
+	padding: 15px;
+	margin-top: 10px;
+}
+
+.task-history-view h2 {
+	margin-top: 0;
+	color: var(--vscode-foreground);
+}
+
+.task-history-view ul {
+	list-style-type: none;
+	padding: 0;
+}
+
+.task-history-view li {
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorGroup-border);
+	border-radius: 3px;
+	margin-bottom: 10px;
+	padding: 10px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.task-history-view li:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.task-history-view li span {
+	font-size: 0.8em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.task-history-view li p {
+	margin: 5px 0 0;
+	color: var(--vscode-foreground);
+}
+
+.task-history-view button {
+	margin-top: 10px;
+	padding: 5px 10px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.task-history-view button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}

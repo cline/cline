@@ -47,6 +47,7 @@
     ]
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@types/react-scroll": "^1.8.10",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/react-text-truncate": "^0.14.4",

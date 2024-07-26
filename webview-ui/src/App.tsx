@@ -5,30 +5,31 @@ import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
 import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
+import TaskHistoryView from "./components/TaskHistoryView"
 import { vscode } from "./utilities/vscode"
-//import { mockMessages } from "./utilities/mockMessages"
 
-/*
-The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
-
-The best way to solve this is to make your webview stateless. Use message passing to save off the webview's state and then restore the state when the webview becomes visible again.
-
-
-*/
+interface TaskHistoryItem {
+	id: string;
+	description: string;
+	timestamp: number;
+	messages?: ClaudeMessage[];
+}
 
 const App: React.FC = () => {
 	const [showSettings, setShowSettings] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
+	const [showTaskHistory, setShowTaskHistory] = useState<boolean>(false)
 	const [apiKey, setApiKey] = useState<string>("")
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
+	const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
 		const handleMessage = (e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
-			// switch message.type
+			console.log("Received message in App.tsx:", message)
 			switch (message.type) {
 				case "state":
 					const shouldShowWelcome = !message.state!.didOpenOnce || !message.state!.apiKey
@@ -45,11 +46,33 @@ const App: React.FC = () => {
 					switch (message.action!) {
 						case "settingsButtonTapped":
 							setShowSettings(true)
+							setShowTaskHistory(false)
 							break
 						case "plusButtonTapped":
 							setShowSettings(false)
+							setShowTaskHistory(false)
+							break
+						case "viewTaskHistory":
+							setShowTaskHistory(true)
+							setShowSettings(false)
 							break
 					}
+					break
+				case "taskHistory":
+					console.log("Received task history:", message.taskHistory)
+					if (Array.isArray(message.taskHistory)) {
+						setTaskHistory(message.taskHistory.map((task: any) => ({
+							id: task.id,
+							description: task.description,
+							timestamp: task.timestamp,
+							messages: Array.isArray(task.messages) ? task.messages as ClaudeMessage[] : []
+						})))
+					}
+					break
+				case "loadedTaskHistory":
+					console.log("Received loaded task history:", message.messages)
+					setClaudeMessages(message.messages as ClaudeMessage[] || [])
+					setShowTaskHistory(false)
 					break
 			}
 		}
@@ -60,6 +83,11 @@ const App: React.FC = () => {
 			window.removeEventListener("message", handleMessage)
 		}
 	}, [])
+
+	const handleMessagesUpdate = (newMessages: ClaudeMessage[]) => {
+		console.log("Updating messages in App.tsx:", newMessages)
+		setClaudeMessages(newMessages)
+	}
 
 	return (
 		<>
@@ -76,8 +104,23 @@ const App: React.FC = () => {
 							onDone={() => setShowSettings(false)}
 						/>
 					)}
-					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView messages={claudeMessages} isHidden={showSettings} />
+					{showTaskHistory && (
+						<TaskHistoryView
+							tasks={taskHistory}
+							onSelectTask={(task) => {
+								console.log("Selected task:", task)
+								vscode.postMessage({ type: "loadTask", taskId: task.id })
+							}}
+							onClearHistory={() => {
+								vscode.postMessage({ type: "clearTaskHistory" })
+							}}
+						/>
+					)}
+					<ChatView
+						messages={claudeMessages}
+						isHidden={showSettings || showTaskHistory}
+						onMessagesUpdate={handleMessagesUpdate}
+					/>
 				</>
 			)}
 		</>

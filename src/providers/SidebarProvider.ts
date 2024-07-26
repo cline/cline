@@ -1,15 +1,9 @@
 import { Uri, Webview } from "vscode"
-//import * as weather from "weather-js"
 import * as vscode from "vscode"
-import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
+import { ClaudeMessage, ExtensionMessage, Task as ExtensionTask } from "../shared/ExtensionMessage"
+import { TaskHistoryManager, Message, Task } from "../TaskHistoryManager"
 import { WebviewMessage } from "../shared/WebviewMessage"
 import { ClaudeDev } from "../ClaudeDev"
-
-/*
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
-
-https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
-*/
 
 type ExtensionSecretKey = "apiKey"
 type ExtensionGlobalStateKey = "didOpenOnce" | "maxRequestsPerTask"
@@ -20,8 +14,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 	private view?: vscode.WebviewView
 	private claudeDev?: ClaudeDev
+	private taskHistoryManager: TaskHistoryManager
+	private currentTask?: string
 
-	constructor(private readonly context: vscode.ExtensionContext) {}
+	constructor(public readonly context: vscode.ExtensionContext) {
+		this.taskHistoryManager = new TaskHistoryManager(context);
+	}
 
 	resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -31,28 +29,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		this.view = webviewView
 
 		webviewView.webview.options = {
-			// Allow scripts in the webview
 			enableScripts: true,
 			localResourceRoots: [this.context.extensionUri],
 		}
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
 
-		// Sets up an event listener to listen for messages passed from the webview view context
-		// and executes code based on the message that is recieved
 		this.setWebviewMessageListener(webviewView.webview)
 
-		// Listen for when the panel becomes visible
-		// https://github.com/microsoft/vscode-discussions/discussions/840
 		webviewView.onDidChangeVisibility((e: any) => {
 			if (e.visible) {
-				// Your view is visible
 				this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-			} else {
-				// Your view is hidden
 			}
 		})
 
-		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
 	}
 
@@ -63,30 +52,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		])
 		if (this.view && apiKey) {
 			this.claudeDev = new ClaudeDev(this, task, apiKey, maxRequestsPerTask)
+			this.currentTask = task
 		}
 	}
 
-	// Send any JSON serializable data to the react app
 	async postMessageToWebview(message: ExtensionMessage) {
+		console.log("Posting message to webview:", JSON.stringify(message, null, 2))
 		await this.view?.webview.postMessage(message)
 	}
 
-	/**
-	 * Defines and returns the HTML that should be rendered within the webview panel.
-	 *
-	 * @remarks This is also the place where references to the React webview build files
-	 * are created and inserted into the webview HTML.
-	 *
-	 * @param webview A reference to the extension webview
-	 * @param extensionUri The URI of the directory containing the extension
-	 * @returns A template string literal containing the HTML that should be
-	 * rendered within the webview panel
-	 */
 	private getHtmlContent(webview: vscode.Webview): string {
-		// Get the local path to main script run in the webview,
-		// then convert it to a uri we can use in the webview.
-
-		// The CSS file from the React build output
 		const stylesUri = getUri(webview, this.context.extensionUri, [
 			"webview-ui",
 			"build",
@@ -94,13 +69,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			"css",
 			"main.css",
 		])
-		// The JS file from the React build output
 		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
-
-		// The codicon font from the React build output
-		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
-		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
-		// don't forget to add font-src ${webview.cspSource};
 		const codiconsUri = getUri(webview, this.context.extensionUri, [
 			"node_modules",
 			"@vscode",
@@ -109,27 +78,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
-		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
-
-		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
-
-		// // Same for stylesheet
-		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
-
-		// Use a nonce to only allow a specific script to be run.
-		/*
-        content security policy of your webview to only allow scripts that have a specific nonce
-        create a content security policy meta tag so that only loading scripts with a nonce is allowed
-        As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
-
-
-        in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
-        */
 		const nonce = getNonce()
 
-		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
 		return /*html*/ `
         <!DOCTYPE html>
         <html lang="en">
@@ -151,30 +101,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       `
 	}
 
-	/**
-	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is recieved.
-	 *
-	 * @param webview A reference to the extension webview
-	 * @param context A reference to the extension context
-	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(async (message: WebviewMessage) => {
+			console.log("Received message from webview:", JSON.stringify(message, null, 2))
 			switch (message.type) {
 				case "webviewDidLaunch":
 					await this.updateGlobalState("didOpenOnce", true)
 					await this.postStateToWebview()
+					await this.postTaskHistoryToWebview()
 					break
 				case "newTask":
-					// Code that should run in response to the hello message command
-					//vscode.window.showInformationMessage(message.text!)
-
-					// Send a message to our webview.
-					// You can send any JSON serializable data.
-					// Could also do this in extension .ts
-					//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-					// initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
 					await this.tryToInitClaudeDevWithTask(message.text!)
+					this.taskHistoryManager.addTask(message.text!, [])
+					await this.postTaskHistoryToWebview()
+					break
+				case "loadTask":
+					if ('taskId' in message && message.taskId) {
+						await this.loadTaskFromHistory(message.taskId)
+					}
 					break
 				case "apiKey":
 					await this.storeSecret("apiKey", message.text!)
@@ -200,8 +144,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					await this.clearTask()
 					await this.postStateToWebview()
 					break
-				// Add more switch case statements here as more webview message commands
-				// are created within the webview context (i.e. inside media/main.js)
 			}
 		})
 	}
@@ -219,23 +161,65 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		})
 	}
 
+	async postTaskHistoryToWebview() {
+		const tasks = this.taskHistoryManager.getTasks()
+		console.log("Posting task history to webview:", JSON.stringify(tasks, null, 2))
+		this.postMessageToWebview({
+			type: "taskHistory",
+			taskHistory: tasks.map(task => ({
+				id: task.id,
+				description: task.description,
+				timestamp: task.timestamp,
+				messages: task.messages
+			})),
+		})
+	}
+
 	async clearTask() {
 		if (this.claudeDev) {
-			this.claudeDev.abort = true // will stop any agentically running promises
-			this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
+			this.claudeDev.abort = true
+			this.claudeDev = undefined
 		}
+		this.currentTask = undefined
 		await this.setClaudeMessages([])
 	}
 
-	// client messages
+	async loadTaskFromHistory(taskId: string) {
+		console.log("Loading task from history. TaskId:", taskId)
+		const task = this.taskHistoryManager.getTaskById(taskId)
+		console.log("Task found:", JSON.stringify(task, null, 2))
+		if (task) {
+			await this.clearTask()
+			this.currentTask = task.description
+			console.log("Loading messages from history:", JSON.stringify(task.messages, null, 2))
+			await this.setClaudeMessages(task.messages)
+			await this.postStateToWebview()
+			// Send a separate message to the webview to ensure it updates the UI
+			this.postMessageToWebview({
+				type: "loadedTaskHistory",
+				messages: task.messages
+			})
+		} else {
+			console.error("Task not found for id:", taskId)
+		}
+	}
 
 	async getClaudeMessages(): Promise<ClaudeMessage[]> {
 		const messages = (await this.getWorkspaceState("claudeMessages")) as ClaudeMessage[]
+		console.log("Getting Claude messages:", JSON.stringify(messages, null, 2))
 		return messages || []
 	}
 
 	async setClaudeMessages(messages: ClaudeMessage[] | undefined) {
+		console.log("Setting Claude messages:", JSON.stringify(messages, null, 2))
 		await this.updateWorkspaceState("claudeMessages", messages)
+		if (this.currentTask) {
+			const currentTask = this.taskHistoryManager.getTasks().find(task => task.description === this.currentTask)
+			if (currentTask) {
+				this.taskHistoryManager.updateTaskMessages(currentTask.id, messages || [])
+			}
+		}
+		await this.postTaskHistoryToWebview()
 	}
 
 	async addClaudeMessage(message: ClaudeMessage): Promise<ClaudeMessage[]> {
@@ -245,32 +229,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		return messages
 	}
 
-	// api conversation history
-
-	// async getApiConversationHistory(): Promise<ClaudeMessage[]> {
-	// 	const messages = (await this.getWorkspaceState("apiConversationHistory")) as ClaudeMessage[]
-	// 	return messages || []
-	// }
-
-	// async setApiConversationHistory(messages: ClaudeMessage[] | undefined) {
-	// 	await this.updateWorkspaceState("apiConversationHistory", messages)
-	// }
-
-	// async addMessageToApiConversationHistory(message: ClaudeMessage): Promise<ClaudeMessage[]> {
-	// 	const messages = await this.getClaudeMessages()
-	// 	messages.push(message)
-	// 	await this.setClaudeMessages(messages)
-	// 	return messages
-	// }
-
-	/*
-	Storage
-	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
-	https://www.eliostruyf.com/devhack-code-extension-storage-options/
-	*/
-
-	// global
-
 	private async updateGlobalState(key: ExtensionGlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
@@ -279,8 +237,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		return await this.context.globalState.get(key)
 	}
 
-	// workspace
-
 	private async updateWorkspaceState(key: ExtensionWorkspaceStateKey, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}
@@ -288,8 +244,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	private async getWorkspaceState(key: ExtensionWorkspaceStateKey) {
 		return await this.context.workspaceState.get(key)
 	}
-
-	// secrets
 
 	private async storeSecret(key: ExtensionSecretKey, value: any) {
 		await this.context.secrets.store(key, value)
@@ -300,14 +254,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	}
 }
 
-/**
- * A helper function that returns a unique alphanumeric identifier called a nonce.
- *
- * @remarks This function is primarily used to help enforce content security
- * policies for resources/scripts being executed in a webview context.
- *
- * @returns A nonce
- */
 export function getNonce() {
 	let text = ""
 	const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -317,17 +263,6 @@ export function getNonce() {
 	return text
 }
 
-/**
- * A helper function which will get the webview URI of a given file or resource.
- *
- * @remarks This URI can be used within a webview's HTML as a link to the
- * given file/resource.
- *
- * @param webview A reference to the extension webview
- * @param extensionUri The URI of the directory containing the extension
- * @param pathList An array of strings representing the path to a file/resource
- * @returns A URI pointing to the file/resource
- */
 export function getUri(webview: Webview, extensionUri: Uri, pathList: string[]) {
 	return webview.asWebviewUri(Uri.joinPath(extensionUri, ...pathList))
 }

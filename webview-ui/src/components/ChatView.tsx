@@ -3,7 +3,6 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { vscode } from "../utilities/vscode"
-import { ClaudeAskResponse } from "@shared/WebviewMessage"
 import ChatRow from "./ChatRow"
 import { combineCommandSequences } from "../utilities/combineCommandSequences"
 import { combineApiRequests } from "../utilities/combineApiRequests"
@@ -14,13 +13,21 @@ import { animateScroll as scroll } from "react-scroll"
 interface ChatViewProps {
 	messages: ClaudeMessage[]
 	isHidden: boolean
+	onMessagesUpdate: (messages: ClaudeMessage[]) => void
 }
-// maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
-const ChatView = ({ messages, isHidden }: ChatViewProps) => {
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
-	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
-	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
-	// has to be after api_req_finished are all reduced into api_req_started messages
+
+const ChatView: React.FC<ChatViewProps> = ({ messages, isHidden, onMessagesUpdate }) => {
+	const task = messages.length > 0 ? messages[0] : undefined
+	const modifiedMessages = useMemo(() => {
+		const processedMessages = combineApiRequests(combineCommandSequences(messages.slice(1)))
+		return processedMessages.map(message => ({
+			...message,
+			type: message.type || (message.say ? 'say' : 'ask'),
+			say: message.say,
+			ask: message.ask
+		}))
+	}, [messages])
+	
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
@@ -28,7 +35,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 
-	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
 
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
@@ -43,7 +49,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		scroll.scrollToBottom(options)
 	}
 
-	// scroll to bottom when new message is added
 	const visibleMessages = useMemo(
 		() =>
 			modifiedMessages.filter(
@@ -51,6 +56,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 			),
 		[modifiedMessages]
 	)
+
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			scrollToBottom()
@@ -61,11 +67,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	}, [visibleMessages])
 
 	useEffect(() => {
-		// if last message is an ask, show user ask UI
-
-		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
-		// basically as long as a task is active, the conversation history will be persisted
-
 		const lastMessage = messages.at(-1)
 		if (lastMessage) {
 			switch (lastMessage.type) {
@@ -96,7 +97,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 							setSecondaryButtonText("Cancel")
 							break
 						case "completion_result":
-							// extension waiting for feedback. but we can just present a new task button
 							setTextAreaDisabled(false)
 							setClaudeAsk("completion_result")
 							setPrimaryButtonText("Start New Task")
@@ -105,32 +105,18 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 					}
 					break
 				case "say":
-					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
 						case "task":
-							break
 						case "error":
-							break
 						case "api_req_started":
-							break
 						case "api_req_finished":
-							break
 						case "text":
-							break
 						case "command_output":
-							break
 						case "completion_result":
 							break
 					}
 					break
 			}
-		} else {
-			// this would get called after sending the first message, so we have to watch messages.length instead
-			// No messages, so user has to submit a task
-			// setTextAreaDisabled(false)
-			// setClaudeAsk(undefined)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
 		}
 	}, [messages])
 
@@ -151,10 +137,9 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 			} else if (claudeAsk) {
 				switch (claudeAsk) {
 					case "followup":
-					case "completion_result": // if this happens then the user has feedback for the completion result
+					case "completion_result":
 						vscode.postMessage({ type: "askResponse", askResponse: "textResponse", text })
 						break
-					// there is no other case that a textfield should be enabled
 				}
 			}
 			setInputValue("")
@@ -165,9 +150,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 		}
 	}
 
-	/*
-	This logic depends on the useEffect[messages] above to set claudeAsk, after which buttons are shown and we then send an askResponse to the extension.
-	*/
 	const handlePrimaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
@@ -176,7 +158,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
 			case "completion_result":
-				// extension waiting for feedback. but we can just present a new task button
 				startNewTask()
 				break
 		}
@@ -189,7 +170,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "request_limit_reached":
-			case "tool": // TODO: for now when a user cancels, it starts a new task. But we could easily just respond to the API with a "This operation failed" and let it try again.
+			case "tool":
 				startNewTask()
 				break
 			case "command":
@@ -220,7 +201,6 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 	useEffect(() => {
 		if (textAreaRef.current && !textAreaHeight) {
 			setTextAreaHeight(textAreaRef.current.offsetHeight)
-			//textAreaRef.current.focus()
 		}
 
 		const handleMessage = (e: MessageEvent) => {
@@ -245,15 +225,13 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 			clearTimeout(timer)
 			window.removeEventListener("message", handleMessage)
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+	}, [textAreaHeight])
 
 	useEffect(() => {
 		if (!isHidden && !textAreaDisabled) {
 			textAreaRef.current?.focus()
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isHidden])
+	}, [isHidden, textAreaDisabled])
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -309,7 +287,7 @@ const ChatView = ({ messages, isHidden }: ChatViewProps) => {
 					flexGrow: 1,
 					overflowY: "auto",
 				}}>
-				{modifiedMessages.map((message, index) => (
+				{visibleMessages.map((message, index) => (
 					<ChatRow key={index} message={message} />
 				))}
 			</div>

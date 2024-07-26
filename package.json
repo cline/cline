@@ -51,6 +51,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "claude-dev.showTaskHistory",
+        "title": "History",
+        "icon": "$(menu)"
+      },
+      {
         "command": "claude-dev.settingsButtonTapped",
         "title": "Settings",
         "icon": "$(settings-gear)"
@@ -60,6 +65,11 @@
       "view/title": [
         {
           "command": "claude-dev.plusButtonTapped",
+          "group": "navigation",
+          "when": "view == claude-dev.SidebarProvider"
+        },
+        {
+          "command": "claude-dev.showTaskHistory",
           "group": "navigation",
           "when": "view == claude-dev.SidebarProvider"
         },

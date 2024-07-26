@@ -1,80 +1,73 @@
-import React, { useState, useEffect } from "react"
-import { VSCodeButton, VSCodeTextField, VSCodeLink, VSCodeDivider } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "../utilities/vscode"
+import React, { useState, useEffect, useCallback } from 'react';
+import { VSCodeButton, VSCodeTextField, VSCodeProgressRing } from '@vscode/webview-ui-toolkit/react';
+import { vscode } from '../utilities/vscode';
 
 interface WelcomeViewProps {
-	apiKey: string
-	setApiKey: React.Dispatch<React.SetStateAction<string>>
+  apiKey: string;
+  setApiKey: (key: string) => void;
 }
 
 const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
-	const [apiKeyErrorMessage, setApiKeyErrorMessage] = useState<string | undefined>(undefined)
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-	const disableLetsGoButton = apiKeyErrorMessage != null
+  const handleApiKeyChange = useCallback((event: Event) => {
+    const target = event.target as HTMLInputElement;
+    setApiKey(target.value);
+  }, [setApiKey]);
 
-	const handleApiKeyChange = (event: any) => {
-		const input = event.target.value
-		setApiKey(input)
-		validateApiKey(input)
-	}
+  const handleSubmit = useCallback(async () => {
+    setIsValidating(true);
+    setValidationError(null);
 
-	const validateApiKey = (value: string) => {
-		if (value.trim() === "") {
-			setApiKeyErrorMessage("API Key cannot be empty")
-		} else {
-			setApiKeyErrorMessage(undefined)
-		}
-	}
+    try {
+      // Simulate API key validation (replace with actual validation logic)
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-	const handleSubmit = () => {
-		vscode.postMessage({ type: "apiKey", text: apiKey })
-	}
+      if (apiKey.length < 10) {
+        throw new Error('Invalid API key');
+      }
 
-	useEffect(() => {
-		validateApiKey(apiKey)
-	}, [])
+      vscode.postMessage({ type: 'apiKey', text: apiKey });
+    } catch (error) {
+      setValidationError((error as Error).message);
+    } finally {
+      setIsValidating(false);
+    }
+  }, [apiKey]);
 
-	return (
-		<div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-			<h1 style={{ color: "var(--vscode-foreground)" }}>Hi, I'm Claude Dev</h1>
-			<p>
-				I can do all kinds of tasks thanks to the latest breakthroughs in Claude Sonnet 3.5's agentic coding
-				capabilities. I am prompted to think through tasks step-by-step and have access to tools that let me get
-				information about your project, read & write code, and execute terminal commands (with your permission,
-				of course).
-			</p>
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && apiKey) {
+        handleSubmit();
+      }
+    };
 
-			<h3>To get started, this extension needs an Anthropic API key:</h3>
-			<ol>
-				<li>
-					Go to{" "}
-					<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
-						https://console.anthropic.com/
-					</VSCodeLink>
-				</li>
-				<li>You may need to buy some credits (although Anthropic is offering $5 free credit for new users)</li>
-				<li>Click 'Get API Keys' and create a new key for me (you can delete it any time)</li>
-			</ol>
+    document.addEventListener('keydown', handleKeyDown);
 
-			<VSCodeDivider />
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [apiKey, handleSubmit]);
 
-			<div style={{ marginTop: "20px", display: "flex", alignItems: "center" }}>
-				<VSCodeTextField
-					style={{ flexGrow: 1, marginRight: "10px" }}
-					placeholder="Enter your Anthropic API Key"
-					value={apiKey}
-					onInput={handleApiKeyChange}
-				/>
-				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton}>
-					Let's go!
-				</VSCodeButton>
-			</div>
+  return (
+    <div className="welcome-view">
+      <h1>Welcome to Claude Dev</h1>
+      <p>To get started, please enter your Anthropic API key:</p>
+      <VSCodeTextField
+        value={apiKey}
+        onChange={handleApiKeyChange as any}
+        placeholder="Enter your API key"
+      />
+      {validationError && <p className="error-message">{validationError}</p>}
+      <VSCodeButton
+        onClick={handleSubmit}
+        disabled={!apiKey || isValidating}
+      >
+        {isValidating ? <VSCodeProgressRing /> : 'Submit'}
+      </VSCodeButton>
+    </div>
+  );
+};
 
-			<p style={{ fontSize: "12px", marginTop: "10px", color: "var(--vscode-descriptionForeground)" }}>
-				Your API key is stored securely on your computer and used only for interacting with the Anthropic API.
-			</p>
-		</div>
-	)
-}
-
-export default WelcomeView
+export default WelcomeView;

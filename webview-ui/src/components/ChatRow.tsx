@@ -80,7 +80,8 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 	}
 
 	const renderContent = () => {
-		const [icon, title] = getIconAndTitle(message.type === "ask" ? message.ask : message.say)
+		const messageType = message.type === "ask" ? message.ask : message.say
+		const [icon, title] = getIconAndTitle(messageType)
 
 		const headerStyle: React.CSSProperties = {
 			display: "flex",
@@ -94,215 +95,173 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 			whiteSpace: "pre-line",
 		}
 
-		switch (message.type) {
-			case "say":
-				switch (message.say) {
-					case "api_req_started":
-						return (
-							<div style={{ ...headerStyle, marginBottom: 0, justifyContent: "space-between" }}>
-								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-									{icon}
-									{title}
-									{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
-								</div>
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Toggle Details"
-									onClick={() => setIsExpanded(!isExpanded)}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</VSCodeButton>
+		// Helper function to render default content
+		const renderDefaultContent = () => (
+			<>
+				{title && (
+					<div style={headerStyle}>
+						{icon}
+						{title}
+					</div>
+				)}
+				<p style={contentStyle}>{message.text}</p>
+			</>
+		)
+
+		switch (messageType) {
+			case "api_req_started":
+				return (
+					<div style={{ ...headerStyle, marginBottom: 0, justifyContent: "space-between" }}>
+						<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+							{icon}
+							{title}
+							{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
+						</div>
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Toggle Details"
+							onClick={() => setIsExpanded(!isExpanded)}>
+							<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+						</VSCodeButton>
+					</div>
+				)
+			case "api_req_finished":
+				return null // Hide this message type
+			case "text":
+				return <p style={contentStyle}>{message.text}</p>
+			case "user_feedback":
+				return (
+					<div
+						style={{
+							backgroundColor: "var(--vscode-badge-background)",
+							color: "var(--vscode-badge-foreground)",
+							borderRadius: "3px",
+							padding: "8px",
+							whiteSpace: "pre-line",
+							wordWrap: "break-word"
+						}}>
+						<span>{message.text}</span>
+					</div>
+				)
+			case "error":
+				return (
+					<>
+						{title && (
+							<div style={headerStyle}>
+								{icon}
+								{title}
 							</div>
-						)
-					case "api_req_finished":
-						return null // Hide this message type
-					case "text":
-						return <p style={contentStyle}>{message.text}</p>
-					case "user_feedback":
-						return (
-							<div
-								style={{
-									backgroundColor: "var(--vscode-badge-background)",
-									color: "var(--vscode-badge-foreground)",
-									borderRadius: "3px",
-									padding: "8px",
-									whiteSpace: "pre-line",
-									wordWrap: "break-word"
-								}}>
-								<span>{message.text}</span>
-							</div>
-						)
-					case "error":
-						return (
-							<>
-								{title && (
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-									{message.text}
-								</p>
-							</>
-						)
-					case "completion_result":
+						)}
+						<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
+							{message.text}
+						</p>
+					</>
+				)
+			case "completion_result":
+				return (
+					<>
+						<div style={headerStyle}>
+							{icon}
+							{title}
+						</div>
+						<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
+							{message.text}
+						</p>
+					</>
+				)
+			case "tool":
+				const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+				const toolIcon = (name: string) => (
+					<span
+						className={`codicon codicon-${name}`}
+						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+				)
+
+				switch (tool.tool) {
+					case "editedExistingFile":
 						return (
 							<>
 								<div style={headerStyle}>
-									{icon}
-									{title}
+									{toolIcon("edit")}
+									<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
 								</div>
-								<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
-									{message.text}
-								</p>
+								<CodeBlock diff={tool.diff!} path={tool.path!} />
+							</>
+						)
+					case "newFileCreated":
+						return (
+							<>
+								<div style={headerStyle}>
+									{toolIcon("new-file")}
+									<span style={{ fontWeight: "bold" }}>
+										Claude wants to create a new file:
+									</span>
+								</div>
+								<CodeBlock code={tool.content!} path={tool.path!} />
+							</>
+						)
+					case "readFile":
+						return (
+							<>
+								<div style={headerStyle}>
+									{toolIcon("file-code")}
+									<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
+								</div>
+								<CodeBlock code={tool.content!} path={tool.path!} />
+							</>
+						)
+					case "listFiles":
+						return (
+							<>
+								<div style={headerStyle}>
+									{toolIcon("folder-opened")}
+									<span style={{ fontWeight: "bold" }}>
+										Claude wants to view this directory:
+									</span>
+								</div>
+								<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
 							</>
 						)
 					default:
-						return (
-							<>
-								{title && (
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<p style={contentStyle}>{message.text}</p>
-							</>
-						)
+						return renderDefaultContent()
 				}
-			case "ask":
-				switch (message.ask) {
-					case "tool":
-						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
-						const toolIcon = (name: string) => (
-							<span
-								className={`codicon codicon-${name}`}
-								style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
-						)
+			case "command":
+				const splitMessage = (text: string) => {
+					const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+					if (outputIndex === -1) {
+						return { command: text, output: "" }
+					}
+					return {
+						command: text.slice(0, outputIndex).trim(),
+						output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
+					}
+				}
 
-						switch (tool.tool) {
-							case "editedExistingFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("edit")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
-										</div>
-										<CodeBlock diff={tool.diff!} path={tool.path!} />
-									</>
-								)
-							case "newFileCreated":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("new-file")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to create a new file:
-											</span>
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
-									</>
-								)
-							case "readFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("file-code")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} />
-									</>
-								)
-							case "listFiles":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("folder-opened")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to view this directory:
-											</span>
-										</div>
-										<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
-									</>
-								)
-						}
-						break
-					case "request_limit_reached":
-						return (
-							<>
-								<div style={headerStyle}>
-									{icon}
-									{title}
-								</div>
-								<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-									{message.text}
-								</p>
-							</>
-						)
-					case "command":
-						const splitMessage = (text: string) => {
-							const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-							if (outputIndex === -1) {
-								return { command: text, output: "" }
-							}
-							return {
-								command: text.slice(0, outputIndex).trim(),
-								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
-							}
-						}
+				const { command, output } = splitMessage(message.text || "")
+				return (
+					<>
+						<div style={headerStyle}>
+							{icon}
+							{title}
+						</div>
+						<div style={contentStyle}>
+							<div>
+								<CodeBlock code={command} language="shell-session" />
+							</div>
 
-						const { command, output } = splitMessage(message.text || "")
-						return (
-							<>
-								<div style={headerStyle}>
-									{icon}
-									{title}
-								</div>
-								<div style={contentStyle}>
-									<div>
-										<CodeBlock code={command} language="shell-session" />
-									</div>
-
-									{output && (
-										<>
-											<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
-												{COMMAND_OUTPUT_STRING}
-											</p>
-											<CodeBlock code={output} language="shell-session" />
-										</>
-									)}
-								</div>
-							</>
-						)
-					case "completion_result":
-						if (message.text) {
-							return (
-								<div>
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-									<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
-										{message.text}
+							{output && (
+								<>
+									<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
+										{COMMAND_OUTPUT_STRING}
 									</p>
-								</div>
-							)
-						} else {
-							return null // Don't render anything when we get a completion_result ask without text
-						}
-					default:
-						return (
-							<>
-								{title && (
-									<div style={headerStyle}>
-										{icon}
-										{title}
-									</div>
-								)}
-								<p style={contentStyle}>{message.text}</p>
-							</>
-						)
-				}
+									<CodeBlock code={output} language="shell-session" />
+								</>
+							)}
+						</div>
+					</>
+				)
+			default:
+				return renderDefaultContent()
 		}
 	}
 

@@ -1,11 +1,12 @@
-// type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonTapped' or 'settingsButtonTapped' or 'hello'
-
-// webview will hold state
 export interface ExtensionMessage {
-    type: "action" | "state"
+    type: "action" | "state" | "taskHistory" | "error" | "loadedTaskHistory"
     text?: string
-    action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
+    action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible" | "viewTaskHistory" | "taskHistoryCleared" | "newTaskCreated"
     state?: { didOpenOnce: boolean, apiKey?: string, maxRequestsPerTask?: number, claudeMessages: ClaudeMessage[] }
+    taskHistory?: Task[]
+    message?: string
+    task?: string
+    messages?: ClaudeMessage[]
 }
 
 export interface ClaudeMessage {
@@ -24,4 +25,15 @@ export interface ClaudeSayTool {
     path?: string
     diff?: string
     content?: string
+}
+
+export interface Task {
+    id: string
+    description: string
+    timestamp: number
+}
+
+export interface ClaudeAskResponse {
+    response: string
+    type: ClaudeAsk
 }
