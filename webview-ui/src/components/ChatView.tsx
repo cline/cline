@@ -12,14 +12,17 @@ import { vscode } from "../utilities/vscode"
 import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
+import Announcement from "./Announcement"
 
 interface ChatViewProps {
 	messages: ClaudeMessage[]
 	isHidden: boolean
 	vscodeThemeName?: string
+	showAnnouncement: boolean
+	hideAnnouncement: () => void
 }
 // maybe instead of storing state in App, just make chatview  always show so dont conditionally load/unload? need to make sure messages are persisted (i remember seeing something about how webviews can be frozen in docs)
-const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
+const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideAnnouncement }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -337,20 +340,24 @@ const ChatView = ({ messages, isHidden, vscodeThemeName }: ChatViewProps) => {
 					isHidden={isHidden}
 				/>
 			) : (
-				<div style={{ padding: "0 25px" }}>
-					<h2>What can I do for you?</h2>
-					<p>
-						Thanks to{" "}
-						<VSCodeLink
-							href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
-							style={{ display: "inline" }}>
-							Claude 3.5 Sonnet's agentic coding capabilities,
-						</VSCodeLink>{" "}
-						I can handle complex software development tasks step-by-step. With tools that let me read &
-						write files, create entire projects from scratch, and execute terminal commands (after you grant
-						permission), I can assist you in ways that go beyond simple code completion or tech support.
-					</p>
-				</div>
+				<>
+					{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} />}
+					<div style={{ padding: "0 20px" }}>
+						<h2>What can I do for you?</h2>
+						<p>
+							Thanks to{" "}
+							<VSCodeLink
+								href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
+								style={{ display: "inline" }}>
+								Claude 3.5 Sonnet's agentic coding capabilities,
+							</VSCodeLink>{" "}
+							I can handle complex software development tasks step-by-step. With tools that let me read &
+							write files, create entire projects from scratch, and execute terminal commands (after you
+							grant permission), I can assist you in ways that go beyond simple code completion or tech
+							support.
+						</p>
+					</div>
+				</>
 			)}
 			<Virtuoso
 				ref={virtuosoRef}

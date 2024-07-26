@@ -97,7 +97,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 		}
 	}
 
-	const convertToMarkdown = (markdown: string = "") => {
+	const renderMarkdown = (markdown: string = "") => {
 		// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
 		return (
 			<Markdown
@@ -107,7 +107,14 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						const { style, ...rest } = props
 						return <p style={{ ...style, margin: 0, marginTop: 0, marginBottom: 0 }} {...rest} />
 					},
-					//p: "span",
+					ol(props) {
+						const { style, ...rest } = props
+						return <ol style={{ ...style, padding: "0 0 0 20px", margin: "10px 0" }} {...rest} />
+					},
+					ul(props) {
+						const { style, ...rest } = props
+						return <ul style={{ ...style, padding: "0 0 0 20px", margin: "10px 0" }} {...rest} />
+					},
 					// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
 					code(props) {
 						const { children, className, node, ...rest } = props
@@ -205,7 +212,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "text":
-						return <div>{convertToMarkdown(message.text)}</div>
+						return <div>{renderMarkdown(message.text)}</div>
 					case "user_feedback":
 						return (
 							<div
@@ -240,7 +247,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									{title}
 								</div>
 								<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
-									{convertToMarkdown(message.text)}
+									{renderMarkdown(message.text)}
 								</div>
 							</>
 						)
@@ -253,7 +260,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										{title}
 									</div>
 								)}
-								<div>{convertToMarkdown(message.text)}</div>
+								<div>{renderMarkdown(message.text)}</div>
 							</>
 						)
 				}
@@ -405,7 +412,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										{title}
 									</div>
 									<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
-										{convertToMarkdown(message.text)}
+										{renderMarkdown(message.text)}
 									</div>
 								</div>
 							)
@@ -421,7 +428,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										{title}
 									</div>
 								)}
-								<div>{convertToMarkdown(message.text)}</div>
+								<div>{renderMarkdown(message.text)}</div>
 							</>
 						)
 				}

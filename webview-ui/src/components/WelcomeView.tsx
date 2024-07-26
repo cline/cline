@@ -12,12 +12,6 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 
 	const disableLetsGoButton = apiKeyErrorMessage != null
 
-	const handleApiKeyChange = (event: any) => {
-		const input = event.target.value
-		setApiKey(input)
-		validateApiKey(input)
-	}
-
 	const validateApiKey = (value: string) => {
 		if (value.trim() === "") {
 			setApiKeyErrorMessage("API Key cannot be empty")
@@ -32,10 +26,10 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 
 	useEffect(() => {
 		validateApiKey(apiKey)
-	}, [])
+	}, [apiKey])
 
 	return (
-		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 15px" }}>
+		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 20px" }}>
 			<h2>Hi, I'm Claude Dev</h2>
 			<p>
 				I can do all kinds of tasks thanks to the latest breakthroughs in Claude Sonnet 3.5's agentic coding
@@ -48,8 +42,8 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 			<ol style={{ paddingLeft: "15px" }}>
 				<li>
 					Go to{" "}
-					<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
-						https://console.anthropic.com/
+					<VSCodeLink href="https://console.anthropic.com" style={{ display: "inline" }}>
+						https://console.anthropic.com
 					</VSCodeLink>
 				</li>
 				<li>You may need to buy some credits (although Anthropic is offering $5 free credit for new users)</li>
@@ -63,7 +57,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 					style={{ flexGrow: 1, marginRight: "10px" }}
 					placeholder="Enter API Key..."
 					value={apiKey}
-					onInput={handleApiKeyChange}
+					onInput={(e: any) => setApiKey(e.target.value)}
 				/>
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton}>
 					Submit
