@@ -9,11 +9,11 @@ export interface ExtensionMessage {
 }
 
 export interface ExtensionState {
-	didOpenOnce: boolean
 	apiKey?: string
 	maxRequestsPerTask?: number
 	themeName?: string
 	claudeMessages: ClaudeMessage[]
+	shouldShowAnnouncement: boolean
 }
 
 export interface ClaudeMessage {

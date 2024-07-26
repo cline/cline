@@ -18,6 +18,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private providerInstanceIdentifier = Date.now()
 	private claudeDev?: ClaudeDev
+	private latestAnnouncementId = "jul-25-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -227,7 +228,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
-						await this.updateGlobalState("didOpenOnce", true)
 						await this.postStateToWebview()
 						break
 					case "newTask":
@@ -266,6 +266,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.clearTask()
 						await this.postStateToWebview()
 						break
+					case "didShowAnnouncement":
+						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
+						await this.postStateToWebview()
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -276,20 +280,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async postStateToWebview() {
-		const [didOpenOnce, apiKey, maxRequestsPerTask, claudeMessages] = await Promise.all([
-			this.getGlobalState("didOpenOnce") as Promise<boolean | undefined>,
+		const [apiKey, maxRequestsPerTask, claudeMessages, lastShownAnnouncementId] = await Promise.all([
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getClaudeMessages(),
+			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 		])
 		this.postMessageToWebview({
 			type: "state",
 			state: {
-				didOpenOnce: !!didOpenOnce,
 				apiKey,
 				maxRequestsPerTask,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 				claudeMessages,
+				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			},
 		})
 	}

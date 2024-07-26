@@ -16,12 +16,14 @@ The best way to solve this is to make your webview stateless. Use message passin
 */
 
 const App: React.FC = () => {
+	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [apiKey, setApiKey] = useState<string>("")
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
+	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
@@ -31,14 +33,19 @@ const App: React.FC = () => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
 			case "state":
-				const shouldShowWelcome = !message.state!.didOpenOnce || !message.state!.apiKey
-				setShowWelcome(shouldShowWelcome)
+				setShowWelcome(!message.state!.apiKey)
 				setApiKey(message.state!.apiKey || "")
 				setMaxRequestsPerTask(
 					message.state!.maxRequestsPerTask !== undefined ? message.state!.maxRequestsPerTask.toString() : ""
 				)
 				setVscodeThemeName(message.state!.themeName)
 				setClaudeMessages(message.state!.claudeMessages)
+				// don't update showAnnouncement to false if shouldShowAnnouncement is false
+				if (message.state!.shouldShowAnnouncement) {
+					setShowAnnouncement(true)
+					vscode.postMessage({ type: "didShowAnnouncement" })
+				}
+				setDidHydrateState(true)
 				break
 			case "action":
 				switch (message.action!) {
@@ -56,6 +63,10 @@ const App: React.FC = () => {
 
 	useEvent("message", handleMessage)
 
+	if (!didHydrateState) {
+		return null
+	}
+
 	return (
 		<>
 			{showWelcome ? (
@@ -72,7 +83,13 @@ const App: React.FC = () => {
 						/>
 					)}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView messages={claudeMessages} isHidden={showSettings} vscodeThemeName={vscodeThemeName} />
+					<ChatView
+						messages={claudeMessages}
+						isHidden={showSettings}
+						vscodeThemeName={vscodeThemeName}
+						showAnnouncement={showAnnouncement}
+						hideAnnouncement={() => setShowAnnouncement(false)}
+					/>
 				</>
 			)}
 		</>
