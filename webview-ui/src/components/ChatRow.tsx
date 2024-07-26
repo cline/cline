@@ -175,6 +175,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 		const pStyle: React.CSSProperties = {
 			margin: 0,
 			whiteSpace: "pre-line",
+			wordBreak: "break-word",
 		}
 
 		switch (message.type) {
