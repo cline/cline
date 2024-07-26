@@ -1,4 +1,3 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { getLanguageFromPath } from "../../utilities/getLanguageFromPath"
@@ -97,11 +96,12 @@ const CodeBlock = ({
 				borderRadius: "3px",
 				backgroundColor: "var(--vscode-editor-background)",
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
-				border: "1px solid var(--vscode-sideBar-border)",
+				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
 			{path && (
 				<div
 					style={{
+						color: "var(--vscode-descriptionForeground)",
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
@@ -111,7 +111,6 @@ const CodeBlock = ({
 					onClick={onToggleExpand}>
 					<span
 						style={{
-							color: "#BABCC3",
 							whiteSpace: "nowrap",
 							overflow: "hidden",
 							textOverflow: "ellipsis",
@@ -123,9 +122,7 @@ const CodeBlock = ({
 						}}>
 						{removeLeadingNonAlphanumeric(path) + "\u200E"}
 					</span>
-					<VSCodeButton appearance="icon" aria-label="Toggle Code">
-						<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-					</VSCodeButton>
+					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
 			{(!path || isExpanded) && (
@@ -152,6 +149,13 @@ const CodeBlock = ({
 						customStyle={{
 							margin: 0,
 							padding: "6px 10px",
+							/*
+							overflowX: auto + inner div with padding results in an issue where the top/left/bottom padding renders but the right padding inside does not count as overflow as the width of the element is not exceeded. Once the inner div is outside the boundaries of the parent it counts as overflow.
+							https://stackoverflow.com/questions/60778406/why-is-padding-right-clipped-with-overflowscroll/77292459#77292459
+							this fixes the issue of right padding clipped off 
+							“ideal” size in a given axis when given infinite available space--allows the syntax highlighter to grow to largest possible width including its padding
+							*/
+							minWidth: "max-content",
 							borderRadius: 0,
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
