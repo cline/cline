@@ -394,11 +394,15 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		return await this.context.workspaceState.get(key)
 	}
 
-	private async clearAllWorkspaceState() {
-		this.context.workspaceState.keys().forEach((key) => {
-			this.context.workspaceState.update(key, undefined)
-		})
-	}
+	// private async clearState() {
+	// 	this.context.workspaceState.keys().forEach((key) => {
+	// 		this.context.workspaceState.update(key, undefined)
+	// 	})
+	// 	this.context.globalState.keys().forEach((key) => {
+	// 		this.context.globalState.update(key, undefined)
+	// 	})
+	// 	this.context.secrets.delete("apiKey")
+	// }
 
 	// secrets
 
