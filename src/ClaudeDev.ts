@@ -310,27 +310,17 @@ export class ClaudeDev {
 				.catch(() => false)
 			if (fileExists) {
 				const originalContent = await fs.readFile(filePath, "utf-8")
+				// condensed patch to return to claude
 				const diffResult = diff.createPatch(filePath, originalContent, newContent)
-				// Create diff for DiffCodeView.tsx
-				const completeDiffStringRaw = diff.diffLines(originalContent, newContent)
-				const completeDiffStringConverted = completeDiffStringRaw
-					.map((part, index) => {
-						const prefix = part.added ? "+ " : part.removed ? "- " : "  "
-						const value = part.value || ""
-						return value
+				// full diff representation for webview
+				const diffRepresentation = diff
+					.diffLines(originalContent, newContent)
+					.map((part) => {
+						const prefix = part.added ? "+" : part.removed ? "-" : " "
+						return (part.value || "")
 							.split("\n")
-							.map((line, lineIndex) => {
-								// avoid adding an extra empty line at the very end of the diff output
-								if (
-									line === "" &&
-									index === completeDiffStringRaw.length - 1 &&
-									lineIndex === value.split("\n").length - 1
-								) {
-									return null
-								}
-								return prefix + line + "\n"
-							})
-							.join("")
+							.map((line) => (line ? prefix + line : ""))
+							.join("\n")
 					})
 					.join("")
 
@@ -339,7 +329,7 @@ export class ClaudeDev {
 					JSON.stringify({
 						tool: "editedExistingFile",
 						path: filePath,
-						diff: completeDiffStringConverted,
+						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {

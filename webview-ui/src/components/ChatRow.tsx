@@ -133,6 +133,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									maxWidth: "100%",
 									margin: 0,
 									padding: "10px",
+									// important to note that min-width: max-content is not required here how it is in CodeBlock.tsx
 									borderRadius: 3,
 									border: "1px solid var(--vscode-sideBar-border)",
 									fontSize: "var(--vscode-editor-font-size)",
@@ -141,7 +142,10 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								}}
 							/>
 						) : (
-							<code {...rest} className={className}>
+							<code
+								{...rest}
+								className={className}
+								style={{ whiteSpace: "pre-line", wordBreak: "break-word" }}>
 								{children}
 							</code>
 						)
