@@ -490,7 +490,7 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeCommand(command: string): Promise<string> {
+	async executeCommand(command: string, returnEmptyStringOnSuccess: boolean = false): Promise<string> {
 		const { response, text } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
 			if (response === "textResponse" && text) {
@@ -507,6 +507,10 @@ export class ClaudeDev {
 			for await (const line of execa({ shell: true })`${command}`) {
 				this.say("command_output", line) // stream output to user in realtime
 				result += `${line}\n`
+			}
+			// for attemptCompletion, we don't want to return the command output
+			if (returnEmptyStringOnSuccess) {
+				return ""
 			}
 			return `Command executed successfully. Output:\n${result}`
 		} catch (e) {
@@ -529,7 +533,11 @@ export class ClaudeDev {
 		if (command) {
 			await this.say("completion_result", resultToSend)
 			// TODO: currently we don't handle if this command fails, it could be useful to let claude know and retry
-			await this.executeCommand(command)
+			const commandResult = await this.executeCommand(command, true)
+			// if we received non-empty string, the command was rejected or failed
+			if (commandResult) {
+				return commandResult
+			}
 			resultToSend = ""
 		}
 		const { response, text } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
