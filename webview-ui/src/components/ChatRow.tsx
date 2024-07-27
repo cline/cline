@@ -345,6 +345,24 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										/>
 									</>
 								)
+							case "analyzeProject":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("file-code")}
+											<span style={{ fontWeight: "bold" }}>
+												Claude wants to analyze this project:
+											</span>
+										</div>
+										<CodeBlock
+											code={tool.content!}
+											path={tool.path!}
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
+										/>
+									</>
+								)
 						}
 						break
 					case "request_limit_reached":

@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.84.0"
   },
-  "author": { "name": "Saoud Rizwan" },
+  "author": {
+    "name": "Saoud Rizwan"
+  },
   "license": "MIT",
   "publisher": "saoudrizwan",
   "repository": {
@@ -26,6 +28,9 @@
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
+  "files": [
+    "dist/**/*"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -62,10 +67,10 @@
         "icon": "$(settings-gear)"
       },
       {
-				"command": "claude-dev.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Claude Dev"
-			}
+        "command": "claude-dev.openInNewTab",
+        "title": "Open In New Tab",
+        "category": "Claude Dev"
+      }
     ],
     "menus": {
       "view/title": [
@@ -125,9 +130,11 @@
     "default-shell": "^2.2.0",
     "diff": "^5.2.0",
     "execa": "^9.3.0",
-    "glob": "^10.4.3",
+    "globby": "^14.0.2",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
-    "serialize-error": "^11.0.3"
+    "serialize-error": "^11.0.3",
+    "tree-sitter-wasms": "^0.1.11",
+    "web-tree-sitter": "^0.22.6"
   }
 }

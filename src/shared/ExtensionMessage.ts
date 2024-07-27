@@ -44,7 +44,7 @@ export type ClaudeSay =
 	| "api_req_retried"
 
 export interface ClaudeSayTool {
-	tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles"
+	tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles" | "analyzeProject"
 	path?: string
 	diff?: string
 	content?: string
