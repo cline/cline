@@ -309,10 +309,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 		const timer = setTimeout(() => {
 			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
 			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-			virtuosoRef.current?.scrollToIndex({
-				index: "LAST",
-				behavior: "smooth",
-			})
+			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
 		}, 50)
 
 		return () => clearTimeout(timer)
@@ -425,7 +422,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
 					onHeightChange={() =>
-						virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
+						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
+						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
 					}
 					placeholder={task ? "Type a message..." : "Type your task here..."}
 					maxRows={10}
