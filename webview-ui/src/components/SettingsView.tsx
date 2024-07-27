@@ -166,8 +166,6 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					fontStyle: "italic",
 				}}>
 				<p>
-					This project was made for Anthropic's "Build with Claude June 2024 contest"
-					<br />
 					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
