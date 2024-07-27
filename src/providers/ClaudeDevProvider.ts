@@ -13,7 +13,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
-	public static readonly viewType = "claude-dev.ClaudeDevProvider"
+	public static readonly viewType = "claude-dev.SidebarProvider"
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private providerInstanceIdentifier = Date.now()
