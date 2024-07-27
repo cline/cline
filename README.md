@@ -1,7 +1,7 @@
 # Claude Dev
 
 <p align="center">
-  <img src="./demo.gif" width="100%" />
+  <img src="https://media.githubusercontent.com/media/saoudrizwan/claude-dev/main/demo.gif" width="100%" />
 </p>
 
 <p align="center">
