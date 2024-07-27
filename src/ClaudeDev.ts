@@ -16,7 +16,7 @@ import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import os from "os"
-import { analyzeProject } from "./AnalyzeProject"
+import { analyzeProject } from "./analyze-project"
 
 const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
