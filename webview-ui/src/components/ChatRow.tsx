@@ -2,8 +2,6 @@ import React, { useState } from "react"
 import { ClaudeMessage, ClaudeAsk, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeProgressRing, VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 import { COMMAND_OUTPUT_STRING } from "../utilities/combineCommandSequences"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { dark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import CodeBlock from "./CodeBlock"
 
 interface ChatRowProps {
