@@ -3,7 +3,7 @@ import defaultShell from "default-shell"
 import * as diff from "diff"
 import { execa } from "execa"
 import fs from "fs/promises"
-import { glob } from "glob"
+import { globby } from "globby"
 import osName from "os-name"
 import * as path from "path"
 import { serializeError } from "serialize-error"
@@ -16,6 +16,7 @@ import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import os from "os"
+import { analyzeProject } from "./AnalyzeProject"
 
 const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -25,8 +26,9 @@ CAPABILITIES
 
 - You can read and analyze code in various programming languages, and can write clean, efficient, and well-documented code.
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
-- You have access to tools that let you execute CLI commands on the user's computer, list files in a directory, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
-    - For example, when asked to make edits or improvements you might use the list_files and read_file tools to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+- You have access to tools that let you analyze software projects, execute CLI commands on the user's computer, list files in a directory, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
+    - For example, when asked to make edits or improvements you might use the analyze_project and read_file tools to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+- You can use the analyze_project tool to get a comprehensive view of a software project's file structure and important syntactic nodes such as functions, classes, and methods. This can be particularly useful when you need to understand the broader context and relationships between different parts of the code, as well as the overall organization of files and directories.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run.
 
 ====
@@ -41,6 +43,7 @@ RULES
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the System Information context provided by the user to understand their environment and tailor your commands to ensure they are compatible with the user's system.
 - When using the execute_command tool, avoid running servers or executing commands that don't terminate on their own (e.g. Flask web servers, continuous scripts). If a task requires such a process or server, explain in your task completion result why you can't execute it directly and provide clear instructions on how the user can run it themselves.
+- Try not to use the analyze_project tool more than once since you can refer back to it along with any changes you made to get an adequate understanding of the project.
 - When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -87,6 +90,22 @@ const tools: Tool[] = [
 				},
 			},
 			required: ["command"],
+		},
+	},
+	{
+		name: "analyze_project",
+		description:
+			"Analyze the project structure by listing file paths and parsing supported source code to extract their key elements. This tool provides insights into the codebase structure, focusing on important code constructs like functions, classes, and methods.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description:
+						"The path of the directory to analyze. The tool will recursively scan this directory, list all file paths, and parse supported source code files.",
+				},
+			},
+			required: ["path"],
 		},
 	},
 	{
@@ -279,6 +298,8 @@ export class ClaudeDev {
 				return this.writeToFile(toolInput.path, toolInput.content)
 			case "read_file":
 				return this.readFile(toolInput.path)
+			case "analyze_project":
+				return this.analyzeProject(toolInput.path)
 			case "list_files":
 				return this.listFiles(toolInput.path)
 			case "execute_command":
@@ -387,6 +408,31 @@ export class ClaudeDev {
 		}
 	}
 
+	async analyzeProject(dirPath: string): Promise<string> {
+		try {
+			const analysis = await analyzeProject(dirPath)
+			const { response, text } = await this.ask(
+				"tool",
+				JSON.stringify({ tool: "analyzeProject", path: dirPath, content: analysis } as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				}
+				return "The user denied this operation."
+			}
+			return analysis
+		} catch (error) {
+			const errorString = `Error analyzing project: ${JSON.stringify(serializeError(error))}`
+			this.say(
+				"error",
+				`Error analyzing project:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
+			return errorString
+		}
+	}
+
 	async listFiles(dirPath: string, shouldLog: boolean = true): Promise<string> {
 		const absolutePath = path.resolve(dirPath)
 		const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
@@ -412,11 +458,12 @@ export class ClaudeDev {
 			const options = {
 				cwd: dirPath,
 				dot: true, // Allow patterns to match files/directories that start with '.', even if the pattern does not start with '.'
-				mark: true, // Append a / on any directories matched
+				absolute: true,
+				markDirectories: true, // Append a / on any directories matched
 			}
 			// * globs all files in one dir, ** globs files in nested directories
-			const entries = await glob("*", options)
-			const result = entries.slice(0, 500).join("\n") // truncate to 500 entries
+			const entries = await globby("*", options)
+			const result = entries.join("\n")
 			if (shouldLog) {
 				const { response, text } = await this.ask(
 					"tool",

@@ -1,4 +1,6 @@
 const esbuild = require("esbuild")
+const fs = require("fs")
+const path = require("path")
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
@@ -23,19 +25,51 @@ const esbuildProblemMatcherPlugin = {
 	},
 }
 
-const baseConfig = {
+const copyWasmFiles = {
+	name: "copy-wasm-files",
+	setup(build) {
+		build.onEnd(() => {
+			const sourceDir = path.join(__dirname, "node_modules", "web-tree-sitter")
+			const targetDir = path.join(__dirname, "dist")
+
+			// Copy tree-sitter.wasm
+			fs.copyFileSync(path.join(sourceDir, "tree-sitter.wasm"), path.join(targetDir, "tree-sitter.wasm"))
+
+			// Copy language-specific WASM files
+			const languageWasmDir = path.join(__dirname, "node_modules", "tree-sitter-wasms", "out")
+			const languages = [
+				"typescript",
+				"tsx",
+				"python",
+				"rust",
+				"javascript",
+				"go",
+				"cpp",
+				"c",
+				"c_sharp",
+				"ruby",
+				"java",
+				"swift",
+			]
+
+			languages.forEach((lang) => {
+				const filename = `tree-sitter-${lang}.wasm`
+				fs.copyFileSync(path.join(languageWasmDir, filename), path.join(targetDir, filename))
+			})
+		})
+	},
+}
+
+const extensionConfig = {
 	bundle: true,
 	minify: production,
 	sourcemap: !production,
 	logLevel: "silent",
 	plugins: [
+		copyWasmFiles,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 	],
-}
-
-const extensionConfig = {
-	...baseConfig,
 	entryPoints: ["src/extension.ts"],
 	format: "cjs",
 	sourcesContent: false,
