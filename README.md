@@ -33,7 +33,7 @@ Claude Dev has access to the following capabilities:
 
 1. **`execute_command`**: Execute CLI commands on the system
 2. **`analyze_project`**: Analyze the project's source code and file structure
-3. **`list_files`**: List all files and directories at the top level of the specified directory
+3. **`list_files`**: List all file paths at the top level of the specified directory
 4. **`read_file`**: Read the contents of a file at the specified path
 5. **`write_to_file`**: Write content to a file at the specified path
 6. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task

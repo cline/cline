@@ -43,7 +43,7 @@ RULES
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the System Information context provided by the user to understand their environment and tailor your commands to ensure they are compatible with the user's system.
 - When using the execute_command tool, avoid running servers or executing commands that don't terminate on their own (e.g. Flask web servers, continuous scripts). If a task requires such a process or server, explain in your task completion result why you can't execute it directly and provide clear instructions on how the user can run it themselves.
-- Try not to use the analyze_project tool more than once since you can refer back to it along with any changes you made to get an adequate understanding of the project.
+- Try not to use the analyze_project tool more than once since you can refer back to it along with any changes you made to get an adequate understanding of the project. But don't be hesitant to use it in the first place when you know you will be doing a coding task on an existing project. Prefer to use analyze_project over list_files, unless you think list_files is more appropriate for the job i.e. when viewing files on the Desktop.
 - When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -95,7 +95,7 @@ const tools: Tool[] = [
 	{
 		name: "analyze_project",
 		description:
-			"Analyze the project structure by listing file paths and parsing supported source code to extract their key elements. This tool provides insights into the codebase structure, focusing on important code constructs like functions, classes, and methods.",
+			"Analyze the project structure by listing file paths and parsing supported source code to extract their key elements. This tool provides insights into the codebase structure, focusing on important code constructs like functions, classes, and methods. This also helps to understand the contents and structure of a directory by examining file names and extensions. All this information can guide decision-making on which files to process or explore further.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -111,7 +111,7 @@ const tools: Tool[] = [
 	{
 		name: "list_files",
 		description:
-			"List all files and directories at the top level of the specified directory. Use this to understand the contents and structure of a directory by examining file names and extensions. This information can guide decision-making on which files to process or which subdirectories to explore further. To investigate subdirectories, call this tool again with the path of the subdirectory.",
+			"List all files and directories at the top level of the specified directory. This should only be used for generic directories you don't necessarily need the nested structure of, like the Desktop. If you think you need the nested structure of a directory, use the analyze_project tool instead.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -433,23 +433,21 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFiles(dirPath: string, shouldLog: boolean = true): Promise<string> {
+	async listFiles(dirPath: string): Promise<string> {
 		const absolutePath = path.resolve(dirPath)
 		const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
 		const isRoot = absolutePath === root
 		if (isRoot) {
-			if (shouldLog) {
-				const { response, text } = await this.ask(
-					"tool",
-					JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool)
-				)
-				if (response !== "yesButtonTapped") {
-					if (response === "textResponse" && text) {
-						await this.say("user_feedback", text)
-						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
-					}
-					return "The user denied this operation."
+			const { response, text } = await this.ask(
+				"tool",
+				JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
 				}
+				return "The user denied this operation."
 			}
 			return root
 		}
@@ -458,24 +456,23 @@ export class ClaudeDev {
 			const options = {
 				cwd: dirPath,
 				dot: true, // Allow patterns to match files/directories that start with '.', even if the pattern does not start with '.'
-				absolute: true,
+				absolute: false,
 				markDirectories: true, // Append a / on any directories matched
+				onlyFiles: false,
 			}
 			// * globs all files in one dir, ** globs files in nested directories
 			const entries = await globby("*", options)
 			const result = entries.join("\n")
-			if (shouldLog) {
-				const { response, text } = await this.ask(
-					"tool",
-					JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool)
-				)
-				if (response !== "yesButtonTapped") {
-					if (response === "textResponse" && text) {
-						await this.say("user_feedback", text)
-						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
-					}
-					return "The user denied this operation."
+			const { response, text } = await this.ask(
+				"tool",
+				JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
 				}
+				return "The user denied this operation."
 			}
 			return result
 		} catch (error) {
