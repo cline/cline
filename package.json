@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous software engineer right in your IDE, capable of reading/writing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -42,7 +42,7 @@
       "claude-dev-ActivityBar": [
         {
           "type": "webview",
-          "id": "claude-dev.ClaudeDevProvider",
+          "id": "claude-dev.SidebarProvider",
           "name": ""
         }
       ]
@@ -74,17 +74,17 @@
         {
           "command": "claude-dev.plusButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.ClaudeDevProvider"
+          "when": "view == claude-dev.SidebarProvider"
         },
         {
           "command": "claude-dev.popoutButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.ClaudeDevProvider"
+          "when": "view == claude-dev.SidebarProvider"
         },
         {
           "command": "claude-dev.settingsButtonTapped",
           "group": "navigation",
-          "when": "view == claude-dev.ClaudeDevProvider"
+          "when": "view == claude-dev.SidebarProvider"
         }
       ]
     }
