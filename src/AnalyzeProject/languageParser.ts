@@ -45,6 +45,8 @@ Sources:
 - https://github.com/tree-sitter/node-tree-sitter/issues/169
 - https://github.com/tree-sitter/node-tree-sitter/issues/168
 - https://github.com/Gregoor/tree-sitter-wasms/blob/main/README.md
+- https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/README.md
+- https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/query-test.js
 */
 export async function loadRequiredLanguageParsers(filesToParse: string[]): Promise<LanguageParser> {
 	await Parser.init()
