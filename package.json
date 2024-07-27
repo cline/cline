@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous software engineer right in your IDE, capable of reading/writing files, executing commands, and more with your permission every step of the way.",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -46,7 +46,7 @@
         {
           "type": "webview",
           "id": "claude-dev.ClaudeDevProvider",
-          "name": "Claude Dev"
+          "name": ""
         }
       ]
     },

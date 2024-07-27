@@ -32,6 +32,10 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					or <code>Claude Dev: Open In New Tab</code> in command palette) to see how Claude updates your
 					workspace more clearly
 				</li>
+				<li>
+					New <code>analyze_project</code> tool to help Claude get a comprehensive overview of your project's
+					source code definitions and file structure
+				</li>
 				<li>Provide feedback to tool use like terminal commands and file edits</li>
 				<li>
 					Updated max output tokens to 8192 so less lazy coding (<code>{"// rest of code here..."}</code>)
