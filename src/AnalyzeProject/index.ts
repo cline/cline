@@ -15,19 +15,28 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	// Load only the necessary language parsers
 	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
-	// Parse specific files and generate result
-	result += "Files parsed with ASTs:\n"
+	// Parse specific files we have language parsers for
+	const filesWithoutDefinitions: string[] = []
 	for (const file of filesToParse) {
-		result += `File: ${file}\n`
-		const ast = await parseFile(file, languageParsers)
-		result += `AST: ${JSON.stringify(ast, null, 2)}\n\n`
+		const definitions = await parseFile(file, languageParsers)
+		if (definitions) {
+			if (!result) {
+				result += "# Source code definitions:\n\n"
+			}
+			result += `${path.relative(dirPath, file)}\n${definitions}\n`
+		} else {
+			filesWithoutDefinitions.push(file)
+		}
 	}
 
-	// List remaining files
-	result += "Remaining files (not parsed):\n"
-	remainingFiles.forEach((file) => {
-		result += `${file}\n`
-	})
+	// List remaining files' paths
+	result += "# Unparsed files:\n\n"
+	filesWithoutDefinitions
+		.concat(remainingFiles)
+		.sort()
+		.forEach((file) => {
+			result += `${path.relative(dirPath, file)}\n`
+		})
 
 	return result
 }
@@ -100,7 +109,8 @@ Parsing files using tree-sitter
 1. Parse the file content into an AST (Abstract Syntax Tree) using the appropriate language grammar (set of rules that define how the components of a language like keywords, expressions, and statements can be combined to create valid programs).
 2. Create a query using a language-specific query string, and run it against the AST's root node to capture specific syntax elements.
     - We use tag queries to identify named entities in a program, and then use a syntax capture to label the entity and its name. A notable example of this is GitHub's search-based code navigation.
-3. Sort the captures by their position in the file, and format the output by iterating through the captures by i.e. adding "|----\n" for gaps between captured sections.
+	- Our custom tag queries are based on tree-sitter's default tag queries, but modified to only capture definitions.
+3. Sort the captures by their position in the file, output the name of the definition, and format by i.e. adding "|----\n" for gaps between captured sections.
 
 This approach allows us to focus on the most relevant parts of the code (defined by our language-specific queries) and provides a concise yet informative view of the file's structure and key elements.
 
@@ -109,7 +119,7 @@ This approach allows us to focus on the most relevant parts of the code (defined
 - https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/helper.js
 - https://tree-sitter.github.io/tree-sitter/code-navigation-systems
 */
-async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string> {
+async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string | undefined> {
 	const fileContent = await fs.readFile(filePath, "utf8")
 	const ext = path.extname(filePath).toLowerCase().slice(1)
 
@@ -118,7 +128,7 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		return `Unsupported file type: ${filePath}`
 	}
 
-	let formattedOutput = `${filePath}:\n|----\n`
+	let formattedOutput = ""
 
 	try {
 		// Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
@@ -138,30 +148,39 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		let lastLine = -1
 
 		captures.forEach((capture) => {
-			const { node } = capture
+			const { node, name } = capture
 			// Get the start and end lines of the current AST node
 			const startLine = node.startPosition.row
 			const endLine = node.endPosition.row
+			// Once we've retrieved the nodes we care about through the language query, we filter for lines with definition names only.
+			// name.startsWith("name.reference.") > refs can be used for ranking purposes, but we don't need them for the output
+			// previously we did `name.startsWith("name.definition.")` but this was too strict and excluded some relevant definitions
 
 			// Add separator if there's a gap between captures
 			if (lastLine !== -1 && startLine > lastLine + 1) {
 				formattedOutput += "|----\n"
 			}
-
-			// Add the captured lines
-			for (let i = startLine; i <= endLine; i++) {
-				formattedOutput += `│${lines[i]}\n`
+			// Only add the first line of the definition
+			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
+			if (name.includes("name") && lines[startLine]) {
+				formattedOutput += `│${lines[startLine]}\n`
 			}
+			// Adds all the captured lines
+			// for (let i = startLine; i <= endLine; i++) {
+			// 	formattedOutput += `│${lines[i]}\n`
+			// }
+			//}
 
 			lastLine = endLine
 		})
 	} catch (error) {
-		formattedOutput += `Error parsing file: ${error}\n`
+		console.log(`Error parsing file: ${error}\n`)
 	}
 
-	formattedOutput += "|----\n"
-
-	return formattedOutput
+	if (formattedOutput.length > 0) {
+		return `|----\n${formattedOutput}|----\n`
+	}
+	return undefined
 }
 
 export { analyzeProject }

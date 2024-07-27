@@ -1,3 +1,12 @@
+/*
+- struct declarations
+- union declarations
+- function declarations
+- method declarations (with namespace scope)
+- typedef declarations
+- enum declarations
+- class declarations
+*/
 export default `
 (struct_specifier name: (type_identifier) @name.definition.class body:(_)) @definition.class
 
