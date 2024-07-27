@@ -47,8 +47,8 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 				setMaxRequestsErrorMessage(undefined)
 			}
 		} else {
-            setMaxRequestsErrorMessage(undefined)
-        }
+			setMaxRequestsErrorMessage(undefined)
+		}
 	}
 
 	const handleSubmit = () => {
@@ -62,7 +62,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 	useEffect(() => {
 		validateApiKey(apiKey)
 		validateMaxRequests(maxRequestsPerTask)
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return (
@@ -153,7 +153,7 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 				}}>
 				<p>
 					This project was made for Anthropic's "Build with Claude June 2024 contest"
-					<br/>
+					<br />
 					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>

@@ -45,6 +45,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		this.clearTask()
 	}
 
+	// Initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
 	async tryToInitClaudeDevWithTask(task: string) {
 		const [apiKey, maxRequestsPerTask] = await Promise.all([
 			this.getSecret("apiKey") as Promise<string | undefined>,
@@ -177,8 +178,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
 	async clearTask() {
 		if (this.claudeDev) {
-			this.claudeDev.abort = true
-			this.claudeDev = undefined
+			this.claudeDev.abort = true // Will stop any agentically running promises
+			this.claudeDev = undefined // Removes reference to it, so once promises end it will be garbage collected
 		}
 		this.currentTask = undefined
 		await this.setClaudeMessages([])

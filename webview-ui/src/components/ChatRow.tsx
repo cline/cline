@@ -138,7 +138,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							borderRadius: "3px",
 							padding: "8px",
 							whiteSpace: "pre-line",
-							wordWrap: "break-word"
+							wordWrap: "break-word",
 						}}>
 						<span>{message.text}</span>
 					</div>
@@ -152,9 +152,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 								{title}
 							</div>
 						)}
-						<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>
-							{message.text}
-						</p>
+						<p style={{ ...contentStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 					</>
 				)
 			case "completion_result":
@@ -164,9 +162,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							{icon}
 							{title}
 						</div>
-						<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>
-							{message.text}
-						</p>
+						<p style={{ ...contentStyle, color: "var(--vscode-testing-iconPassed)" }}>{message.text}</p>
 					</>
 				)
 			case "tool":
@@ -193,9 +189,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							<>
 								<div style={headerStyle}>
 									{toolIcon("new-file")}
-									<span style={{ fontWeight: "bold" }}>
-										Claude wants to create a new file:
-									</span>
+									<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
 								</div>
 								<CodeBlock code={tool.content!} path={tool.path!} />
 							</>
@@ -215,9 +209,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 							<>
 								<div style={headerStyle}>
 									{toolIcon("folder-opened")}
-									<span style={{ fontWeight: "bold" }}>
-										Claude wants to view this directory:
-									</span>
+									<span style={{ fontWeight: "bold" }}>Claude wants to view this directory:</span>
 								</div>
 								<CodeBlock code={tool.content!} path={tool.path!} language="shell-session" />
 							</>
@@ -251,9 +243,7 @@ const ChatRow: React.FC<ChatRowProps> = ({ message }) => {
 
 							{output && (
 								<>
-									<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>
-										{COMMAND_OUTPUT_STRING}
-									</p>
+									<p style={{ ...contentStyle, margin: "10px 0 10px 0" }}>{COMMAND_OUTPUT_STRING}</p>
 									<CodeBlock code={output} language="shell-session" />
 								</>
 							)}

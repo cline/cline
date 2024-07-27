@@ -3,59 +3,6 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { getLanguageFromPath } from "../utilities/getLanguageFromPath"
-/*
-const vscodeSyntaxStyle: React.CSSProperties = {
-	backgroundColor: "var(--vscode-editor-background)",
-	color: "var(--vscode-editor-foreground)",
-	fontFamily: "var(--vscode-editor-font-family)",
-	fontSize: "var(--vscode-editor-font-size)",
-	lineHeight: "var(--vscode-editor-line-height)",
-	textAlign: "left",
-	whiteSpace: "pre",
-	wordSpacing: "normal",
-	wordBreak: "normal",
-	wordWrap: "normal",
-	tabSize: 4,
-	hyphens: "none",
-	padding: "1em",
-	margin: "0.5em 0",
-	overflow: "auto",
-	borderRadius: "6px",
-}
-
-const tokenStyles = {
-	comment: { color: "var(--vscode-editor-foreground)" },
-	prolog: { color: "var(--vscode-editor-foreground)" },
-	doctype: { color: "var(--vscode-editor-foreground)" },
-	cdata: { color: "var(--vscode-editor-foreground)" },
-	punctuation: { color: "var(--vscode-editor-foreground)" },
-	property: { color: "var(--vscode-symbolIcon-propertyForeground)" },
-	tag: { color: "var(--vscode-symbolIcon-colorForeground)" },
-	boolean: { color: "var(--vscode-symbolIcon-booleanForeground)" },
-	number: { color: "var(--vscode-symbolIcon-numberForeground)" },
-	constant: { color: "var(--vscode-symbolIcon-constantForeground)" },
-	symbol: { color: "var(--vscode-symbolIcon-colorForeground)" },
-	selector: { color: "var(--vscode-symbolIcon-colorForeground)" },
-	"attr-name": { color: "var(--vscode-symbolIcon-propertyForeground)" },
-	string: { color: "var(--vscode-symbolIcon-stringForeground)" },
-	char: { color: "var(--vscode-symbolIcon-stringForeground)" },
-	builtin: { color: "var(--vscode-symbolIcon-keywordForeground)" },
-	inserted: { color: "var(--vscode-gitDecoration-addedResourceForeground)" },
-	operator: { color: "var(--vscode-symbolIcon-operatorForeground)" },
-	entity: { color: "var(--vscode-symbolIcon-snippetForeground)", cursor: "help" },
-	url: { color: "var(--vscode-textLink-foreground)" },
-	variable: { color: "var(--vscode-symbolIcon-variableForeground)" },
-	atrule: { color: "var(--vscode-symbolIcon-keywordForeground)" },
-	"attr-value": { color: "var(--vscode-symbolIcon-stringForeground)" },
-	keyword: { color: "var(--vscode-symbolIcon-keywordForeground)" },
-	function: { color: "var(--vscode-symbolIcon-functionForeground)" },
-	regex: { color: "var(--vscode-symbolIcon-regexForeground)" },
-	important: { color: "var(--vscode-editorWarning-foreground)", fontWeight: "bold" },
-	bold: { fontWeight: "bold" },
-	italic: { fontStyle: "italic" },
-	deleted: { color: "var(--vscode-gitDecoration-deletedResourceForeground)" },
-}
-*/
 
 interface CodeBlockProps {
 	code?: string

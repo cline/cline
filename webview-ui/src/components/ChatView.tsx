@@ -20,14 +20,14 @@ const ChatView: React.FC<ChatViewProps> = ({ messages, isHidden, onMessagesUpdat
 	const task = messages.length > 0 ? messages[0] : undefined
 	const modifiedMessages = useMemo(() => {
 		const processedMessages = combineApiRequests(combineCommandSequences(messages.slice(1)))
-		return processedMessages.map(message => ({
+		return processedMessages.map((message) => ({
 			...message,
-			type: message.type || (message.say ? 'say' : 'ask'),
+			type: message.type || (message.say ? "say" : "ask"),
 			say: message.say,
-			ask: message.ask
+			ask: message.ask,
 		}))
 	}, [messages])
-	
+
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
