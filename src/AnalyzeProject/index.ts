@@ -1,22 +1,7 @@
-import * as path from "path"
-import { globby } from "globby"
 import * as fs from "fs/promises"
-import Parser from "web-tree-sitter"
-
-import {
-	javascriptQuery,
-	typescriptQuery,
-	pythonQuery,
-	rustQuery,
-	goQuery,
-	cppQuery,
-	cQuery,
-	csharpQuery,
-	rubyQuery,
-	javaQuery,
-	phpQuery,
-	swiftQuery,
-} from "./tree-sitter-queries/tags"
+import { globby } from "globby"
+import * as path from "path"
+import { LanguageParser, loadAllLanguages } from "./languageParser"
 
 async function analyzeProject(dirPath: string): Promise<string> {
 	let result = ""
@@ -27,11 +12,14 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	// Separate files to parse and remaining files
 	const { filesToParse, remainingFiles } = separateFiles(allFiles)
 
+	// Load only the necessary language parsers
+	const languageParsers = await loadAllLanguages(filesToParse)
+
 	// Parse specific files and generate result
 	result += "Files parsed with ASTs:\n"
 	for (const file of filesToParse) {
 		result += `File: ${file}\n`
-		const ast = await parseFile(file)
+		const ast = await parseFile(file, languageParsers)
 		result += `AST: ${JSON.stringify(ast, null, 2)}\n\n`
 	}
 
@@ -121,84 +109,13 @@ This approach allows us to focus on the most relevant parts of the code (defined
 - https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/helper.js
 - https://tree-sitter.github.io/tree-sitter/code-navigation-systems
 */
-async function parseFile(filePath: string): Promise<string> {
+async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string> {
 	const fileContent = await fs.readFile(filePath, "utf8")
 	const ext = path.extname(filePath).toLowerCase().slice(1)
-	await Parser.init()
-	const parser = new Parser()
-	let query: Parser.Query
 
-	switch (ext) {
-		case "js":
-		case "jsx":
-			const JavaScript = await loadLanguage("javascript")
-			parser.setLanguage(JavaScript)
-			query = JavaScript.query(javascriptQuery)
-			break
-		case "ts":
-			const TypeScript = await loadLanguage("typescript")
-			parser.setLanguage(TypeScript)
-			query = TypeScript.query(typescriptQuery)
-			break
-		case "tsx":
-			const Tsx = await loadLanguage("tsx")
-			parser.setLanguage(Tsx)
-			query = Tsx.query(typescriptQuery)
-			break
-		case "py":
-			const Python = await loadLanguage("python")
-			parser.setLanguage(Python)
-			query = Python.query(pythonQuery)
-			break
-		case "rs":
-			const Rust = await loadLanguage("rust")
-			parser.setLanguage(Rust)
-			query = Rust.query(rustQuery)
-			break
-		case "go":
-			const Go = await loadLanguage("go")
-			parser.setLanguage(Go)
-			query = Go.query(goQuery)
-			break
-		case "cpp":
-		case "hpp":
-			const Cpp = await loadLanguage("cpp")
-			parser.setLanguage(Cpp)
-			query = Cpp.query(cppQuery)
-			break
-		case "c":
-		case "h":
-			const C = await loadLanguage("c")
-			parser.setLanguage(C)
-			query = C.query(cQuery)
-			break
-		case "cs":
-			const CSharp = await loadLanguage("c_sharp")
-			parser.setLanguage(CSharp)
-			query = CSharp.query(csharpQuery)
-			break
-		case "rb":
-			const Ruby = await loadLanguage("ruby")
-			parser.setLanguage(Ruby)
-			query = Ruby.query(rubyQuery)
-			break
-		case "java":
-			const Java = await loadLanguage("java")
-			parser.setLanguage(Java)
-			query = Java.query(javaQuery)
-			break
-		case "php":
-			const PHP = await loadLanguage("php")
-			parser.setLanguage(PHP)
-			query = PHP.query(phpQuery)
-			break
-		case "swift":
-			const Swift = await loadLanguage("swift")
-			parser.setLanguage(Swift)
-			query = Swift.query(swiftQuery)
-			break
-		default:
-			return `Unsupported file type: ${filePath}`
+	const { parser, query } = languageParsers[ext] || {}
+	if (!parser || !query) {
+		return `Unsupported file type: ${filePath}`
 	}
 
 	let formattedOutput = `${filePath}:\n|----\n`
@@ -245,10 +162,6 @@ async function parseFile(filePath: string): Promise<string> {
 	formattedOutput += "|----\n"
 
 	return formattedOutput
-}
-
-async function loadLanguage(langName: string) {
-	return await Parser.Language.load(path.join(__dirname, `tree-sitter-${langName}.wasm`))
 }
 
 export { analyzeProject }
