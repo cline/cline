@@ -105,7 +105,19 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				components={{
 					p(props) {
 						const { style, ...rest } = props
-						return <p style={{ ...style, margin: 0, marginTop: 0, marginBottom: 0 }} {...rest} />
+						return (
+							<p
+								style={{
+									...style,
+									margin: 0,
+									marginTop: 0,
+									marginBottom: 0,
+									whiteSpace: "pre-wrap",
+									wordBreak: "break-word",
+								}}
+								{...rest}
+							/>
+						)
 					},
 					ol(props) {
 						const { style, ...rest } = props
