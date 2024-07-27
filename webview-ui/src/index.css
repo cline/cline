@@ -34,9 +34,11 @@ body {
 }
 
 body.scrollable,
-.scrollable, body.code-block-scrollable, .code-block-scrollable {
-    border-color: transparent;
-    transition: border-color 0.7s linear;
+.scrollable,
+body.code-block-scrollable,
+.code-block-scrollable {
+	border-color: transparent;
+	transition: border-color 0.7s linear;
 }
 
 body:hover.scrollable,
@@ -46,30 +48,29 @@ body:focus-within .scrollable,
 body:hover.code-block-scrollable,
 body:hover .code-block-scrollable,
 body:focus-within.code-block-scrollable,
-body:focus-within .code-block-scrollable
-{
-    border-color: var(--vscode-scrollbarSlider-background);
-    transition: none;
+body:focus-within .code-block-scrollable {
+	border-color: var(--vscode-scrollbarSlider-background);
+	transition: none;
 }
 
 .scrollable::-webkit-scrollbar-corner {
-    background-color: transparent !important;
+	background-color: transparent !important;
 }
 
 .scrollable::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-color: inherit;
-    border-right-style: inset;
-    border-right-width: calc(100vw + 100vh);
-    border-radius: unset !important;
+	background-color: transparent;
+	border-color: inherit;
+	border-right-style: inset;
+	border-right-width: calc(100vw + 100vh);
+	border-radius: unset !important;
 }
 
 .scrollable::-webkit-scrollbar-thumb:hover {
-    border-color: var(--vscode-scrollbarSlider-hoverBackground);
+	border-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 .scrollable::-webkit-scrollbar-thumb:active {
-    border-color: var(--vscode-scrollbarSlider-activeBackground);
+	border-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
 /*
@@ -87,24 +88,24 @@ The above scrollbar styling uses some transparent background color magic to acco
 */
 
 .code-block-scrollable::-webkit-scrollbar-track {
-    background: transparent;
+	background: transparent;
 }
 
 .code-block-scrollable::-webkit-scrollbar-thumb {
-    background-color: var(--vscode-scrollbarSlider-background);
-    border-radius: 5px;
-    border: 2px solid transparent;
-    background-clip: content-box;
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: content-box;
 }
 
 .code-block-scrollable::-webkit-scrollbar-thumb:hover {
-    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 .code-block-scrollable::-webkit-scrollbar-thumb:active {
-    background-color: var(--vscode-scrollbarSlider-activeBackground);
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
 .code-block-scrollable::-webkit-scrollbar-corner {
-    background-color: transparent;
+	background-color: transparent;
 }

@@ -9,10 +9,10 @@ import TaskHistoryView from "./components/TaskHistoryView"
 import { vscode } from "./utilities/vscode"
 
 interface TaskHistoryItem {
-	id: string;
-	description: string;
-	timestamp: number;
-	messages?: ClaudeMessage[];
+	id: string
+	description: string
+	timestamp: number
+	messages?: ClaudeMessage[]
 }
 
 const App: React.FC = () => {
@@ -61,17 +61,19 @@ const App: React.FC = () => {
 				case "taskHistory":
 					console.log("Received task history:", message.taskHistory)
 					if (Array.isArray(message.taskHistory)) {
-						setTaskHistory(message.taskHistory.map((task: any) => ({
-							id: task.id,
-							description: task.description,
-							timestamp: task.timestamp,
-							messages: Array.isArray(task.messages) ? task.messages as ClaudeMessage[] : []
-						})))
+						setTaskHistory(
+							message.taskHistory.map((task: any) => ({
+								id: task.id,
+								description: task.description,
+								timestamp: task.timestamp,
+								messages: Array.isArray(task.messages) ? (task.messages as ClaudeMessage[]) : [],
+							}))
+						)
 					}
 					break
 				case "loadedTaskHistory":
 					console.log("Received loaded task history:", message.messages)
-					setClaudeMessages(message.messages as ClaudeMessage[] || [])
+					setClaudeMessages((message.messages as ClaudeMessage[]) || [])
 					setShowTaskHistory(false)
 					break
 			}
