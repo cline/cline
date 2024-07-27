@@ -1,7 +1,7 @@
 # Claude Dev
 
 <p align="center">
-  <img src="https://imgur.com/KdfyxIC.gif" width="100%" />
+  <img src="./demo.gif" width="100%" />
 </p>
 
 <p align="center">
