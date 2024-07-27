@@ -1,7 +1,7 @@
 # Claude Dev
 
 <p align="center">
-  [video]
+  <img src="https://imgur.com/KdfyxIC.gif" width="100%" />
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <a href="#contribution"><strong>Make Contribution</strong></a>
 </p>
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him analyze project source code, read & write files, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. From building software projects to running system operations, Claude Dev is only limited by your imagination.
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him read & write files, analyze project source code, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. From building software projects to running system operations, Claude Dev is only limited by your imagination.
 
 While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev offers a human-in-the-loop GUI to supervise every file change and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
@@ -64,9 +64,20 @@ To build Claude Dev locally, follow these steps:
     ```
 4. Launch by pressing `F5` to open a new VSCode window with the extension loaded
 
+## Reviews
+
+-   ["Claude Sonnet 3.5 Artifacts in VSCode With This Extension"](https://www.youtube.com/watch?v=5FbZ8ALfSTs) by [CoderOne](https://www.youtube.com/@CoderOne)
+-   ["Meet Claude Dev — An Open-Source AI Programmer In VS Code"](https://generativeai.pub/meet-claude-dev-an-open-source-autonomous-ai-programmer-in-vs-code-f457f9821b7b) by [Jim Clyde Monge](https://jimclydemonge.medium.com/)
+-   ["Code Smarter with Claude Dev: An AI Programmer for Your Projects"](https://www.linkedin.com/pulse/code-smarter-claude-dev-ai-programmer-your-projects-iana-detochka-jiqpe) by Iana D.
+-   [Claude Dev also hit top 10 posts of all time on r/ClaudeAI (thank you for all the lovely comments)](https://www.reddit.com/r/ClaudeAI/comments/1e3h0f1/my_submission_to_anthropics_build_with_claude/)
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+## Questions?
+
+Contact me on twitter <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please create an <a href="https://github.com/saoudrizwan/claude-dev/issues">issue</a> if you come across a bug or would like a feature to be added.
 
 ## Acknowledgments
 
