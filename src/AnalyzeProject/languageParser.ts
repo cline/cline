@@ -46,100 +46,75 @@ Sources:
 - https://github.com/tree-sitter/node-tree-sitter/issues/168
 - https://github.com/Gregoor/tree-sitter-wasms/blob/main/README.md
 */
-export async function loadAllLanguages(filesToParse: string[]): Promise<LanguageParser> {
+export async function loadRequiredLanguageParsers(filesToParse: string[]): Promise<LanguageParser> {
 	await Parser.init()
-
 	const extensionsToLoad = new Set(filesToParse.map((file) => path.extname(file).toLowerCase().slice(1)))
-
-	const languageMap: { [key: string]: string } = {
-		js: "javascript",
-		jsx: "javascript",
-		ts: "typescript",
-		tsx: "tsx",
-		py: "python",
-		rs: "rust",
-		go: "go",
-		cpp: "cpp",
-		hpp: "cpp",
-		c: "c",
-		h: "c",
-		cs: "c_sharp",
-		rb: "ruby",
-		java: "java",
-		php: "php",
-		swift: "swift",
-	}
-
-	const languages: { [key: string]: Parser.Language } = {}
-
-	for (const ext of extensionsToLoad) {
-		if (ext in languageMap) {
-			const langName = languageMap[ext as keyof typeof languageMap]
-			if (!languages[langName]) {
-				languages[langName] = await loadLanguage(langName)
-			}
-		}
-	}
-
 	const parsers: LanguageParser = {}
-
 	for (const ext of extensionsToLoad) {
-		if (ext in languageMap) {
-			const langName = languageMap[ext as keyof typeof languageMap]
-			const lang = languages[langName]
-
-			const parser = new Parser()
-			parser.setLanguage(lang)
-			let query: Parser.Query
-
-			switch (ext) {
-				case "js":
-				case "jsx":
-					query = lang.query(javascriptQuery)
-					break
-				case "ts":
-				case "tsx":
-					query = lang.query(typescriptQuery)
-					break
-				case "py":
-					query = lang.query(pythonQuery)
-					break
-				case "rs":
-					query = lang.query(rustQuery)
-					break
-				case "go":
-					query = lang.query(goQuery)
-					break
-				case "cpp":
-				case "hpp":
-					query = lang.query(cppQuery)
-					break
-				case "c":
-				case "h":
-					query = lang.query(cQuery)
-					break
-				case "cs":
-					query = lang.query(csharpQuery)
-					break
-				case "rb":
-					query = lang.query(rubyQuery)
-					break
-				case "java":
-					query = lang.query(javaQuery)
-					break
-				case "php":
-					query = lang.query(phpQuery)
-					break
-				case "swift":
-					query = lang.query(swiftQuery)
-					break
-				default:
-					throw new Error(`Unsupported language: ${ext}`)
-			}
-
-			parsers[ext] = { parser, query }
+		let language: Parser.Language
+		let query: Parser.Query
+		switch (ext) {
+			case "js":
+			case "jsx":
+				language = await loadLanguage("javascript")
+				query = language.query(javascriptQuery)
+				break
+			case "ts":
+				language = await loadLanguage("typescript")
+				query = language.query(typescriptQuery)
+				break
+			case "tsx":
+				language = await loadLanguage("tsx")
+				query = language.query(typescriptQuery)
+				break
+			case "py":
+				language = await loadLanguage("python")
+				query = language.query(pythonQuery)
+				break
+			case "rs":
+				language = await loadLanguage("rust")
+				query = language.query(rustQuery)
+				break
+			case "go":
+				language = await loadLanguage("go")
+				query = language.query(goQuery)
+				break
+			case "cpp":
+			case "hpp":
+				language = await loadLanguage("cpp")
+				query = language.query(cppQuery)
+				break
+			case "c":
+			case "h":
+				language = await loadLanguage("c")
+				query = language.query(cQuery)
+				break
+			case "cs":
+				language = await loadLanguage("c_sharp")
+				query = language.query(csharpQuery)
+				break
+			case "rb":
+				language = await loadLanguage("ruby")
+				query = language.query(rubyQuery)
+				break
+			case "java":
+				language = await loadLanguage("java")
+				query = language.query(javaQuery)
+				break
+			case "php":
+				language = await loadLanguage("php")
+				query = language.query(phpQuery)
+				break
+			case "swift":
+				language = await loadLanguage("swift")
+				query = language.query(swiftQuery)
+				break
+			default:
+				throw new Error(`Unsupported language: ${ext}`)
 		}
+		const parser = new Parser()
+		parser.setLanguage(language)
+		parsers[ext] = { parser, query }
 	}
-
 	return parsers
 }

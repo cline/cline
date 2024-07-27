@@ -1,7 +1,7 @@
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
-import { LanguageParser, loadAllLanguages } from "./languageParser"
+import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 async function analyzeProject(dirPath: string): Promise<string> {
 	let result = ""
@@ -13,7 +13,7 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	const { filesToParse, remainingFiles } = separateFiles(allFiles)
 
 	// Load only the necessary language parsers
-	const languageParsers = await loadAllLanguages(filesToParse)
+	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
 	// Parse specific files and generate result
 	result += "Files parsed with ASTs:\n"
