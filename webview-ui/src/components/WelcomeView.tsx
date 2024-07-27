@@ -32,10 +32,14 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 20px" }}>
 			<h2>Hi, I'm Claude Dev</h2>
 			<p>
-				I can do all kinds of tasks thanks to the latest breakthroughs in Claude Sonnet 3.5's agentic coding
-				capabilities. I am prompted to think through tasks step-by-step and have access to tools that let me get
-				information about your project, read & write code, and execute terminal commands (with your permission,
-				of course).
+				I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
+				<VSCodeLink
+					href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
+					style={{ display: "inline" }}>
+					Claude 3.5 Sonnet's agentic coding capabilities.
+				</VSCodeLink>{" "}
+				I am prompted to think through tasks step-by-step and have access to tools that let me read & write
+				files, analyze project source code, and execute terminal commands (with your permission, of course).
 			</p>
 
 			<b>To get started, this extension needs an Anthropic API key:</b>
