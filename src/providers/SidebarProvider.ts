@@ -18,7 +18,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 	private currentTask?: string
 
 	constructor(public readonly context: vscode.ExtensionContext) {
-		this.taskHistoryManager = new TaskHistoryManager(context);
+		this.taskHistoryManager = new TaskHistoryManager(context)
 	}
 
 	resolveWebviewView(
@@ -116,7 +116,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 					await this.postTaskHistoryToWebview()
 					break
 				case "loadTask":
-					if ('taskId' in message && message.taskId) {
+					if ("taskId" in message && message.taskId) {
 						await this.loadTaskFromHistory(message.taskId)
 					}
 					break
@@ -166,11 +166,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		console.log("Posting task history to webview:", JSON.stringify(tasks, null, 2))
 		this.postMessageToWebview({
 			type: "taskHistory",
-			taskHistory: tasks.map(task => ({
+			taskHistory: tasks.map((task) => ({
 				id: task.id,
 				description: task.description,
 				timestamp: task.timestamp,
-				messages: task.messages
+				messages: task.messages,
 			})),
 		})
 	}
@@ -197,7 +197,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			// Send a separate message to the webview to ensure it updates the UI
 			this.postMessageToWebview({
 				type: "loadedTaskHistory",
-				messages: task.messages
+				messages: task.messages,
 			})
 		} else {
 			console.error("Task not found for id:", taskId)
@@ -214,7 +214,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 		console.log("Setting Claude messages:", JSON.stringify(messages, null, 2))
 		await this.updateWorkspaceState("claudeMessages", messages)
 		if (this.currentTask) {
-			const currentTask = this.taskHistoryManager.getTasks().find(task => task.description === this.currentTask)
+			const currentTask = this.taskHistoryManager.getTasks().find((task) => task.description === this.currentTask)
 			if (currentTask) {
 				this.taskHistoryManager.updateTaskMessages(currentTask.id, messages || [])
 			}

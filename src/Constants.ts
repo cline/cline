@@ -1,11 +1,11 @@
-import * as vscode from "vscode";
-import * as path from "path";
-import os from "os";
-import osName from "os-name";
-import defaultShell from "default-shell";
-import { Tool } from "./shared/Tool";
+import * as vscode from "vscode"
+import * as path from "path"
+import os from "os"
+import osName from "os-name"
+import defaultShell from "default-shell"
+import { Tool } from "./shared/Tool"
 
-export const DEFAULT_MAX_REQUESTS_PER_TASK = 10;
+export const DEFAULT_MAX_REQUESTS_PER_TASK = 10
 
 export const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -23,7 +23,9 @@ CAPABILITIES
 
 RULES
 
-- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop')}
+- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+}
 - Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
 - Always read a file before editing it if you are missing content. This will help you understand the context and make informed changes.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
@@ -57,7 +59,7 @@ SYSTEM INFORMATION
 
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
-`;
+`
 
 export const tools: Tool[] = [
 	{
@@ -162,4 +164,4 @@ export const tools: Tool[] = [
 			required: ["result"],
 		},
 	},
-];
+]
