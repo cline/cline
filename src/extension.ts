@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.viewType, sidebarProvider, {
+		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		})
 	)
@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 		const targetCol = Math.max(lastCol + 1, 1)
-		const panel = vscode.window.createWebviewPanel(ClaudeDevProvider.viewType, "Claude Dev", targetCol, {
+		const panel = vscode.window.createWebviewPanel(ClaudeDevProvider.tabPanelId, "Claude Dev", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
