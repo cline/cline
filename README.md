@@ -6,9 +6,9 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev"><strong>Download VSCode Extension</strong></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://www.youtube.com/@saoudrizwan"><strong>Tutorials (coming soon)</strong></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="#contribution"><strong>Make Contribution</strong></a>
 </p>
 
@@ -23,6 +23,8 @@ While autonomous AI scripts traditionally run in sandboxed environments, Claude 
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
 -   When a task is completed, Claude Dev determines if he can present the result to you with a CLI command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
+_**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in your editor._
+
 ## How it works
 
 Claude Dev uses an agentic loop style implementation with chain-of-thought prompting and access to powerful tools that give him the ability to accomplish nearly any task. Start by providing a task and the agentic loop fires off, where it might use certain tools (with your permission) to accomplish each step in its thought process.
@@ -31,13 +33,29 @@ Claude Dev uses an agentic loop style implementation with chain-of-thought promp
 
 Claude Dev has access to the following capabilities:
 
-1. **`execute_command`**: Execute CLI commands on the system
-2. **`analyze_project`**: Analyze the project's source code and file structure
-3. **`list_files`**: List all file paths at the top level of the specified directory
+1. **`execute_command`**: Execute CLI commands on the system (only with your permission, output is streamed into the chat)
+2. **`analyze_project`**: Analyze the project's source code and file structure (see more below)
+3. **`list_files`**: List all file paths at the top level of the specified directory (useful for generic file operations like retrieving a file from your Desktop)
 4. **`read_file`**: Read the contents of a file at the specified path
-5. **`write_to_file`**: Write content to a file at the specified path
-6. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task
+5. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
+6. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
 7. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a CLI command to kickoff a demonstration
+
+### Working in Existing Projects
+
+The `analyze_project` tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. This approach leverages the fact that large language models are fundamentally built on natural language processing–by focusing on these named elements, we provide the LLM with a structural understanding of the codebase that aligns closely with how developers conceptualize and organize their code.
+
+This method is particularly effective because:
+
+-   Developers typically name components to reflect their purpose and role within the larger system.
+-   These names often encapsulate high-level concepts and relationships that are crucial for understanding the overall architecture.
+-   By effectively extracting the "language" of the codebase, we enable the LLM to grasp structure and intent without wasting context on implementation details.
+
+Here's how `analyze_project` works:
+
+1. It scans your project directory, identifying source code files that tree-sitter can parse. Any unparsed files' paths will be listed at the end of the output so that Claude can request to manually read them if necessary.
+2. It parses each file into an abstract syntax tree and applies a language-specific query to extract definition names. You can see the exact query used for each language in `src/analyze-project/queries`.
+3. The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the structure and purpose of your entire codebase, making it more effective at assisting with complex development tasks.
 
 ### Only With Your Permission
 
