@@ -13,7 +13,7 @@ import {
 	javaQuery,
 	phpQuery,
 	swiftQuery,
-} from "./tree-sitter-queries/tags"
+} from "./queries"
 
 export interface LanguageParser {
 	[key: string]: {
