@@ -73,6 +73,19 @@ SYSTEM INFORMATION
 
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
+VSCode Visible Files: ${
+	vscode.window.visibleTextEditors
+		?.map((editor) => editor.document?.uri?.fsPath)
+		.filter(Boolean)
+		.join(", ") || "(No files open)"
+}
+VSCode Opened Tabs: ${
+	vscode.window.tabGroups.all
+		.flatMap((group) => group.tabs)
+		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+		.filter(Boolean)
+		.join(", ") || "(No tabs open)"
+}
 `
 
 const tools: Tool[] = [
