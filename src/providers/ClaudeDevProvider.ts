@@ -20,7 +20,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private claudeDev?: ClaudeDev
 	private latestAnnouncementId = "jul-25-2024" // update to some unique identifier when we add a new announcement
 
-	constructor(private readonly context: vscode.ExtensionContext) {}
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly outputChannel: vscode.OutputChannel
+	) {
+		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
+	}
 
 	/*
 	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
@@ -28,12 +33,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		console.log("Disposing provider...")
-		await this.clearTask() // clears claudeDev, api conversation history, and webview claude messages
-		console.log("Cleared task")
+		this.outputChannel.appendLine("Disposing ClaudeDevProvider...")
+		await this.clearTask()
+		this.outputChannel.appendLine("Cleared task")
 		if (this.view && "dispose" in this.view) {
 			this.view.dispose()
-			console.log("Disposed webview")
+			this.outputChannel.appendLine("Disposed webview")
 		}
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
@@ -41,7 +46,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				x.dispose()
 			}
 		}
-		console.log("Disposed disposables")
+		this.outputChannel.appendLine("Disposed all disposables")
 	}
 
 	resolveWebviewView(
@@ -49,6 +54,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
 		//token: vscode.CancellationToken
 	): void | Thenable<void> {
+		this.outputChannel.appendLine("Resolving webview view")
 		this.view = webviewView
 
 		webviewView.webview.options = {
@@ -105,7 +111,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		// Listen for when color changes
 		vscode.workspace.onDidChangeConfiguration(
 			(e) => {
-				if (e.affectsConfiguration("workbench.colorTheme")) {
+				if (e && e.affectsConfiguration("workbench.colorTheme")) {
 					// Sends latest theme name to webview
 					this.postStateToWebview()
 				}
@@ -119,6 +125,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 		// Clear previous version's (0.0.6) claudeMessage cache from workspace state. We now store in global state with a unique identifier for each provider instance. We need to store globally rather than per workspace to eventually implement task history
 		this.updateWorkspaceState("claudeMessages", undefined)
+
+		this.outputChannel.appendLine("Webview view resolved")
 	}
 
 	async tryToInitClaudeDevWithTask(task: string) {

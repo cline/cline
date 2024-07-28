@@ -12,12 +12,19 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 
 */
 
+let outputChannel: vscode.OutputChannel
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
 	//console.log('Congratulations, your extension "claude-dev" is now active!')
+
+	outputChannel = vscode.window.createOutputChannel("Claude Dev")
+	context.subscriptions.push(outputChannel)
+
+	outputChannel.appendLine("Claude Dev extension activated")
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
@@ -29,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// })
 	// context.subscriptions.push(disposable)
 
-	const sidebarProvider = new ClaudeDevProvider(context)
+	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.viewType, sidebarProvider, {
@@ -39,8 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
-			//const message = "claude-dev.plusButtonTapped!"
-			//vscode.window.showInformationMessage(message)
+			outputChannel.appendLine("Plus button tapped")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
 			await sidebarProvider.postMessageToWebview({ type: "action", action: "plusButtonTapped" })
@@ -48,9 +54,10 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	const openClaudeDevInNewTab = () => {
+		outputChannel.appendLine("Opening Claude Dev in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabProvider = new ClaudeDevProvider(context)
+		const tabProvider = new ClaudeDevProvider(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 		const targetCol = Math.max(lastCol + 1, 1)
@@ -82,4 +89,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+	outputChannel.appendLine("Claude Dev extension deactivated")
+}
