@@ -547,7 +547,7 @@ export class ClaudeDev {
 				}
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
-					const line = `\nUser exited command early...`
+					const line = `\nUser exited command...`
 					await this.say("command_output", line)
 					result += line
 				} else {

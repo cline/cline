@@ -12,7 +12,8 @@ interface ChatRowProps {
 	syntaxHighlighterStyle: SyntaxHighlighterStyle
 	isExpanded: boolean
 	onToggleExpand: () => void
-	apiRequestFailedMessage?: string
+	lastModifiedMessage?: ClaudeMessage
+	isLast: boolean
 }
 
 const ChatRow: React.FC<ChatRowProps> = ({
@@ -20,14 +21,36 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	syntaxHighlighterStyle,
 	isExpanded,
 	onToggleExpand,
-	apiRequestFailedMessage,
+	lastModifiedMessage,
+	isLast,
 }) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
+	const apiRequestFailedMessage =
+		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
+			? lastModifiedMessage?.text
+			: undefined
+	const isCommandExecuting =
+		isLast && lastModifiedMessage?.ask === "command" && lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
 
 	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, JSX.Element | null] => {
 		const normalColor = "var(--vscode-foreground)"
 		const errorColor = "var(--vscode-errorForeground)"
 		const successColor = "var(--vscode-testing-iconPassed)"
+
+		const ProgressIndicator = (
+			<div
+				style={{
+					width: "16px",
+					height: "16px",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+				}}>
+				<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
+					<VSCodeProgressRing />
+				</div>
+			</div>
+		)
 
 		switch (type) {
 			case "request_limit_reached":
@@ -46,9 +69,13 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				]
 			case "command":
 				return [
-					<span
-						className="codicon codicon-terminal"
-						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
+					isCommandExecuting ? (
+						ProgressIndicator
+					) : (
+						<span
+							className="codicon codicon-terminal"
+							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
 						Claude wants to execute this command:
 					</span>,
@@ -71,18 +98,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							className="codicon codicon-error"
 							style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
 					) : (
-						<div
-							style={{
-								width: "16px",
-								height: "16px",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-							}}>
-							<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
-								<VSCodeProgressRing />
-							</div>
-						</div>
+						ProgressIndicator
 					),
 					cost ? (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Complete</span>
@@ -91,6 +107,13 @@ const ChatRow: React.FC<ChatRowProps> = ({
 					) : (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>Making API Request...</span>
 					),
+				]
+			case "followup":
+				return [
+					<span
+						className="codicon codicon-question"
+						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Claude has a question:</span>,
 				]
 			default:
 				return [null, null]
