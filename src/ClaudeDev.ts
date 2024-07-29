@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import defaultShell from "default-shell"
 import * as diff from "diff"
-import { execa } from "execa"
+import { execa, ExecaError } from "execa"
 import fs from "fs/promises"
 import { globby } from "globby"
 import os from "os"
@@ -29,7 +29,7 @@ CAPABILITIES
 - You have access to tools that let you analyze software projects, execute CLI commands on the user's computer, list files in a directory, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
     - For example, when asked to make edits or improvements you might use the analyze_project and read_file tools to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
 - You can use the analyze_project tool to get a comprehensive overview of a software project's file structure and source code definitions. This can be particularly useful when you need to understand the broader context and relationships between different parts of the code, as well as the overall organization of files and directories.
-- The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run.
+- The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
 
 ====
 
@@ -523,30 +523,42 @@ export class ClaudeDev {
 			// execa returns a promise-like object that is both a promise and a Subprocess that has properties like stdin
 			const subprocess = execa({ shell: true })`${command}`
 
-			for await (const chunk of subprocess) {
-				const line = chunk.toString()
-				// stream output to user in realtime
-				this.ask("command_output", line)
-					.then(({ response, text }) => {
-						// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
-						if (response === "yesButtonTapped") {
-							subprocess.kill() // Will result in for loop throwing error, so claude will know command failed
-						} else {
-							// if the user sent some input, we send it to the command stdin
-							// add newline as cli programs expect a newline after each input
-							subprocess.stdin?.write(text + "\n")
-						}
-					})
-					.catch(() => {
-						// this can only happen if this ask promise was ignored, so ignore this error
-					})
-				result += `${line}\n`
+			try {
+				for await (const chunk of subprocess) {
+					const line = chunk.toString()
+					// stream output to user in realtime
+					// do not await as we are not waiting for a response
+					this.ask("command_output", line)
+						.then(({ response, text }) => {
+							// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
+							if (response === "yesButtonTapped") {
+								// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
+								subprocess.kill("SIGINT") // will result in for loop throwing error
+							} else {
+								// if the user sent some input, we send it to the command stdin
+								// add newline as cli programs expect a newline after each input
+								subprocess.stdin?.write(text + "\n")
+							}
+						})
+						.catch(() => {
+							// this can only happen if this ask promise was ignored, so ignore this error
+						})
+					result += `${line}\n`
+				}
+			} catch (e) {
+				if ((e as ExecaError).signal === "SIGINT") {
+					const line = `\nUser exited command early...`
+					await this.say("command_output", line)
+					result += line
+				} else {
+					throw e // if the command was not terminated by user, let outer catch handle it as a real error
+				}
 			}
 			// for attemptCompletion, we don't want to return the command output
 			if (returnEmptyStringOnSuccess) {
 				return ""
 			}
-			return `Command executed successfully. Output:\n${result}`
+			return `Command Output:\n${result}`
 		} catch (e) {
 			const error = e as any
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)

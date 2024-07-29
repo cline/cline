@@ -35,7 +35,7 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 					// Stop if we encounter the next command
 					break
 				}
-				if (messages[j].type === "ask" && messages[j].ask === "command_output") {
+				if (messages[j].ask === "command_output" || messages[j].say === "command_output") {
 					if (!didAddOutput) {
 						// Add a newline before the first output
 						combinedText += `\n${COMMAND_OUTPUT_STRING}`
@@ -57,7 +57,7 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 
 	// Second pass: remove command_outputs and replace original commands with combined ones
 	return messages
-		.filter((msg) => !(msg.type === "ask" && msg.ask === "command_output"))
+		.filter((msg) => !(msg.ask === "command_output" || msg.say === "command_output"))
 		.map((msg) => {
 			if (msg.type === "ask" && msg.ask === "command") {
 				const combinedCommand = combinedCommands.find((cmd) => cmd.ts === msg.ts)

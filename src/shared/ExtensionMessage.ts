@@ -42,6 +42,7 @@ export type ClaudeSay =
 	| "completion_result"
 	| "user_feedback"
 	| "api_req_retried"
+	| "command_output"
 
 export interface ClaudeSayTool {
 	tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles" | "analyzeProject"
