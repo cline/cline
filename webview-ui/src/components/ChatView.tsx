@@ -112,7 +112,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 							setTextAreaDisabled(false)
 							setClaudeAsk("command_output")
 							setEnableButtons(true)
-							setPrimaryButtonText("Exit Command Early")
+							setPrimaryButtonText("Exit Command")
 							setSecondaryButtonText(undefined)
 							break
 						case "completion_result":
@@ -394,11 +394,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						syntaxHighlighterStyle={syntaxHighlighterStyle}
 						isExpanded={expandedRows[message.ts] || false}
 						onToggleExpand={() => toggleRowExpansion(message.ts)}
-						apiRequestFailedMessage={
-							index === visibleMessages.length - 1 && modifiedMessages.at(-1)?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
-								? modifiedMessages.at(-1)?.text
-								: undefined
-						}
+						lastModifiedMessage={modifiedMessages.at(-1)}
+						isLast={index === visibleMessages.length - 1}
 					/>
 				)}
 			/>
