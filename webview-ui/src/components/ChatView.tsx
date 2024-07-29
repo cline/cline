@@ -138,6 +138,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 							break
 						case "text":
 							break
+						case "command_output":
+							break
 						case "completion_result":
 							break
 					}
@@ -324,7 +326,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 
 	const placeholderText = useMemo(() => {
 		if (messages.at(-1)?.ask === "command_output") {
-			return "Type input for command stdin..."
+			return "Type input to command stdin..."
 		}
 		return task ? "Type a message..." : "Type your task here..."
 	}, [task, messages])
