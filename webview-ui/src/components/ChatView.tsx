@@ -108,6 +108,13 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 							setPrimaryButtonText("Run Command")
 							setSecondaryButtonText("Reject")
 							break
+						case "command_output":
+							setTextAreaDisabled(false)
+							setClaudeAsk("command_output")
+							setEnableButtons(true)
+							setPrimaryButtonText("Exit Command Early")
+							setSecondaryButtonText(undefined)
+							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
 							setTextAreaDisabled(false)
@@ -130,8 +137,6 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						case "api_req_finished":
 							break
 						case "text":
-							break
-						case "command_output":
 							break
 						case "completion_result":
 							break
@@ -168,6 +173,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 					case "followup":
 					case "tool":
 					case "command": // user can provide feedback to a tool or command use
+					case "command_output": // user can send input to command stdin
 					case "completion_result": // if this happens then the user has feedback for the completion result
 						vscode.postMessage({ type: "askResponse", askResponse: "textResponse", text })
 						break
@@ -191,6 +197,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 			case "request_limit_reached":
 			case "api_req_failed":
 			case "command":
+			case "command_output":
 			case "tool":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
@@ -315,6 +322,13 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 		return () => clearTimeout(timer)
 	}, [visibleMessages])
 
+	const placeholderText = useMemo(() => {
+		if (messages.at(-1)?.ask === "command_output") {
+			return "Type input for command stdin..."
+		}
+		return task ? "Type a message..." : "Type your task here..."
+	}, [task, messages])
+
 	return (
 		<div
 			style={{
@@ -425,7 +439,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
 						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
 					}
-					placeholder={task ? "Type a message..." : "Type your task here..."}
+					placeholder={placeholderText}
 					maxRows={10}
 					autoFocus={true}
 					style={{

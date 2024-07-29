@@ -14,8 +14,8 @@ import { ClaudeMessage } from "@shared/ExtensionMessage"
  * @example
  * const messages: ClaudeMessage[] = [
  *   { type: 'ask', ask: 'command', text: 'ls', ts: 1625097600000 },
- *   { type: 'say', say: 'command_output', text: 'file1.txt', ts: 1625097601000 },
- *   { type: 'say', say: 'command_output', text: 'file2.txt', ts: 1625097602000 }
+ *   { type: 'ask', ask: 'command_output', text: 'file1.txt', ts: 1625097601000 },
+ *   { type: 'ask', ask: 'command_output', text: 'file2.txt', ts: 1625097602000 }
  * ];
  * const result = simpleCombineCommandSequences(messages);
  * // Result: [{ type: 'ask', ask: 'command', text: 'ls\nfile1.txt\nfile2.txt', ts: 1625097600000 }]
@@ -35,7 +35,7 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 					// Stop if we encounter the next command
 					break
 				}
-				if (messages[j].type === "say" && messages[j].say === "command_output") {
+				if (messages[j].type === "ask" && messages[j].ask === "command_output") {
 					if (!didAddOutput) {
 						// Add a newline before the first output
 						combinedText += `\n${COMMAND_OUTPUT_STRING}`
@@ -57,7 +57,7 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 
 	// Second pass: remove command_outputs and replace original commands with combined ones
 	return messages
-		.filter((msg) => !(msg.type === "say" && msg.say === "command_output"))
+		.filter((msg) => !(msg.type === "ask" && msg.ask === "command_output"))
 		.map((msg) => {
 			if (msg.type === "ask" && msg.ask === "command") {
 				const combinedCommand = combinedCommands.find((cmd) => cmd.ts === msg.ts)
