@@ -46,9 +46,9 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>
-				Subscribe to my new YouTube to see how to get the most out of Claude Dev!{" "}
-				<VSCodeLink href="https://youtube.com/@saoudrizwan" style={{ display: "inline" }}>
-					https://youtube.com/@saoudrizwan
+				Follow me for more updates!{" "}
+				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
+					https://x.com/sdrzn
 				</VSCodeLink>
 			</p>
 		</div>
