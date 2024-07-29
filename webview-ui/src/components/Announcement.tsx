@@ -34,7 +34,13 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				</li>
 				<li>
 					New <code>analyze_project</code> tool to help Claude get a comprehensive overview of your project's
-					source code definitions and file structure
+					source code definitions and file structure (
+					<VSCodeLink
+						href="https://github.com/saoudrizwan/claude-dev?tab=readme-ov-file#working-in-existing-projects"
+						style={{ display: "inline" }}>
+						more on this here
+					</VSCodeLink>
+					)
 				</li>
 				<li>Provide feedback to tool use like terminal commands and file edits</li>
 				<li>
