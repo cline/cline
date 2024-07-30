@@ -4,6 +4,11 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.6]
+
+- Interact with CLI commands by sending messages to stdin and terminating long-running processes like servers
+- Export tasks to markdown files (useful as context for future tasks)
+
 ## [1.0.5]
 
 - Claude now has context about vscode's visible editors and opened tabs

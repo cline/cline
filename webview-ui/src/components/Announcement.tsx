@@ -22,7 +22,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.0</h3>
+			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.6</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Open in the editor (using{" "}
@@ -34,27 +34,25 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				</li>
 				<li>
 					New <code>analyze_project</code> tool to help Claude get a comprehensive overview of your project's
-					source code definitions and file structure (
+					source code definitions and file structure
 					<VSCodeLink
 						href="https://github.com/saoudrizwan/claude-dev?tab=readme-ov-file#working-in-existing-projects"
 						style={{ display: "inline" }}>
-						more on this here
+						(more on this here)
 					</VSCodeLink>
-					)
 				</li>
-				<li>Provide feedback to tool use like terminal commands and file edits</li>
 				<li>
-					Updated max output tokens to 8192 so less lazy coding (<code>{"// rest of code here..."}</code>)
+					Interact with CLI commands by sending messages to stdin and terminating long-running processes like
+					servers
 				</li>
+				<li>Provide feedback to tool use like editing files or running commands</li>
 				<li>Added ability to retry failed API requests (helpful for rate limits)</li>
-				<li>
-					Quality of life improvements like markdown rendering, memory optimizations, better theme support
-				</li>
+				<li>Export task to a markdown file (useful as context for future tasks)</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
 				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
-					https://x.com/sdrzn
+					@sdrzn
 				</VSCodeLink>
 			</p>
 		</div>
