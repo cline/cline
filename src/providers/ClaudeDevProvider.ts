@@ -5,6 +5,8 @@ import { ClaudeDev } from "../ClaudeDev"
 import { ClaudeMessage, ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
 import { Anthropic } from "@anthropic-ai/sdk"
+import * as path from "path"
+import os from "os"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -279,6 +281,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
 						await this.postStateToWebview()
 						break
+					case "downloadTask":
+						this.downloadTask()
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -286,6 +291,81 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	async downloadTask() {
+		// File name
+		const date = new Date()
+		const month = date.toLocaleString("en-US", { month: "short" }).toLowerCase()
+		const day = date.getDate()
+		const year = date.getFullYear()
+		let hours = date.getHours()
+		const minutes = date.getMinutes().toString().padStart(2, "0")
+		const ampm = hours >= 12 ? "PM" : "AM"
+		hours = hours % 12
+		hours = hours ? hours : 12 // the hour '0' should be '12'
+		const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${ampm}.md`
+
+		// Generate markdown
+		const conversationHistory = await this.getApiConversationHistory()
+		const markdownContent = conversationHistory
+			.map((message) => {
+				const role = message.role === "user" ? "**User:**" : "**Assistant:**"
+				const content = Array.isArray(message.content)
+					? message.content.map(this.formatContentBlockToMarkdown).join("\n")
+					: message.content
+
+				return `${role}\n\n${content}\n\n`
+			})
+			.join("---\n\n")
+
+		// Prompt user for save location
+		const saveUri = await vscode.window.showSaveDialog({
+			filters: { Markdown: ["md"] },
+			defaultUri: vscode.Uri.file(path.join(os.homedir(), "Downloads", fileName)),
+		})
+
+		if (saveUri) {
+			// Write content to the selected location
+			await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+		}
+	}
+
+	private formatContentBlockToMarkdown(
+		block:
+			| Anthropic.TextBlockParam
+			| Anthropic.ImageBlockParam
+			| Anthropic.ToolUseBlockParam
+			| Anthropic.ToolResultBlockParam
+	): string {
+		switch (block.type) {
+			case "text":
+				return block.text
+			case "image":
+				return `[Image: ${block.source.media_type}]`
+			case "tool_use":
+				let input: string
+				if (typeof block.input === "object" && block.input !== null) {
+					input = Object.entries(block.input)
+						.map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`)
+						.join("\n")
+				} else {
+					input = String(block.input)
+				}
+				return `[Tool Use: ${block.name}]\n${input}`
+			case "tool_result":
+				if (typeof block.content === "string") {
+					return `[Tool Result${block.is_error ? " (Error)" : ""}]\n${block.content}`
+				} else if (Array.isArray(block.content)) {
+					return `[Tool Result${block.is_error ? " (Error)" : ""}]\n${block.content
+						.map(this.formatContentBlockToMarkdown)
+						.join("\n")}`
+				} else {
+					return `[Tool Result${block.is_error ? " (Error)" : ""}]`
+				}
+			default:
+				return "[Unexpected content type]"
+		}
 	}
 
 	async postStateToWebview() {
