@@ -1,7 +1,7 @@
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
-import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+//import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 async function analyzeProject(dirPath: string): Promise<string> {
 	let result = ""
@@ -13,12 +13,12 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	const { filesToParse, remainingFiles } = separateFiles(allFiles)
 
 	// Load only the necessary language parsers
-	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
+	//const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
 	// Parse specific files we have language parsers for
 	const filesWithoutDefinitions: string[] = []
 	for (const file of filesToParse) {
-		const definitions = await parseFile(file, languageParsers)
+		const definitions = undefined //await parseFile(file, languageParsers)
 		if (definitions) {
 			if (!result) {
 				result += "# Source code definitions:\n\n"
@@ -119,68 +119,68 @@ This approach allows us to focus on the most relevant parts of the code (defined
 - https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/helper.js
 - https://tree-sitter.github.io/tree-sitter/code-navigation-systems
 */
-async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string | undefined> {
-	const fileContent = await fs.readFile(filePath, "utf8")
-	const ext = path.extname(filePath).toLowerCase().slice(1)
+// async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string | undefined> {
+// 	const fileContent = await fs.readFile(filePath, "utf8")
+// 	const ext = path.extname(filePath).toLowerCase().slice(1)
 
-	const { parser, query } = languageParsers[ext] || {}
-	if (!parser || !query) {
-		return `Unsupported file type: ${filePath}`
-	}
+// 	const { parser, query } = languageParsers[ext] || {}
+// 	if (!parser || !query) {
+// 		return `Unsupported file type: ${filePath}`
+// 	}
 
-	let formattedOutput = ""
+// 	let formattedOutput = ""
 
-	try {
-		// Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
-		const tree = parser.parse(fileContent)
+// 	try {
+// 		// Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
+// 		const tree = parser.parse(fileContent)
 
-		// Apply the query to the AST and get the captures
-		// Captures are specific parts of the AST that match our query patterns, each capture represents a node in the AST that we're interested in.
-		const captures = query.captures(tree.rootNode)
+// 		// Apply the query to the AST and get the captures
+// 		// Captures are specific parts of the AST that match our query patterns, each capture represents a node in the AST that we're interested in.
+// 		const captures = query.captures(tree.rootNode)
 
-		// Sort captures by their start position
-		captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
+// 		// Sort captures by their start position
+// 		captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
 
-		// Split the file content into individual lines
-		const lines = fileContent.split("\n")
+// 		// Split the file content into individual lines
+// 		const lines = fileContent.split("\n")
 
-		// Keep track of the last line we've processed
-		let lastLine = -1
+// 		// Keep track of the last line we've processed
+// 		let lastLine = -1
 
-		captures.forEach((capture) => {
-			const { node, name } = capture
-			// Get the start and end lines of the current AST node
-			const startLine = node.startPosition.row
-			const endLine = node.endPosition.row
-			// Once we've retrieved the nodes we care about through the language query, we filter for lines with definition names only.
-			// name.startsWith("name.reference.") > refs can be used for ranking purposes, but we don't need them for the output
-			// previously we did `name.startsWith("name.definition.")` but this was too strict and excluded some relevant definitions
+// 		captures.forEach((capture) => {
+// 			const { node, name } = capture
+// 			// Get the start and end lines of the current AST node
+// 			const startLine = node.startPosition.row
+// 			const endLine = node.endPosition.row
+// 			// Once we've retrieved the nodes we care about through the language query, we filter for lines with definition names only.
+// 			// name.startsWith("name.reference.") > refs can be used for ranking purposes, but we don't need them for the output
+// 			// previously we did `name.startsWith("name.definition.")` but this was too strict and excluded some relevant definitions
 
-			// Add separator if there's a gap between captures
-			if (lastLine !== -1 && startLine > lastLine + 1) {
-				formattedOutput += "|----\n"
-			}
-			// Only add the first line of the definition
-			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
-			if (name.includes("name") && lines[startLine]) {
-				formattedOutput += `│${lines[startLine]}\n`
-			}
-			// Adds all the captured lines
-			// for (let i = startLine; i <= endLine; i++) {
-			// 	formattedOutput += `│${lines[i]}\n`
-			// }
-			//}
+// 			// Add separator if there's a gap between captures
+// 			if (lastLine !== -1 && startLine > lastLine + 1) {
+// 				formattedOutput += "|----\n"
+// 			}
+// 			// Only add the first line of the definition
+// 			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
+// 			if (name.includes("name") && lines[startLine]) {
+// 				formattedOutput += `│${lines[startLine]}\n`
+// 			}
+// 			// Adds all the captured lines
+// 			// for (let i = startLine; i <= endLine; i++) {
+// 			// 	formattedOutput += `│${lines[i]}\n`
+// 			// }
+// 			//}
 
-			lastLine = endLine
-		})
-	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
-	}
+// 			lastLine = endLine
+// 		})
+// 	} catch (error) {
+// 		console.log(`Error parsing file: ${error}\n`)
+// 	}
 
-	if (formattedOutput.length > 0) {
-		return `|----\n${formattedOutput}|----\n`
-	}
-	return undefined
-}
+// 	if (formattedOutput.length > 0) {
+// 		return `|----\n${formattedOutput}|----\n`
+// 	}
+// 	return undefined
+// }
 
 export { analyzeProject }
