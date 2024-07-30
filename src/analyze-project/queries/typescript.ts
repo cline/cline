@@ -4,9 +4,6 @@
 - abstract method signatures
 - class declarations (including abstract classes)
 - module declarations
-- interface declarations
-- type alias declarations
-- enum declarations
 */
 export default `
 (function_signature
@@ -24,9 +21,6 @@ export default `
 (module
   name: (identifier) @name.definition.module) @definition.module
 
-(interface_declaration
-  name: (type_identifier) @name.definition.interface) @definition.interface
-
 (function_declaration
   name: (identifier) @name.definition.function) @definition.function
 
@@ -35,10 +29,4 @@ export default `
 
 (class_declaration
   name: (type_identifier) @name.definition.class) @definition.class
-
-(type_alias_declaration
-  name: (type_identifier) @name.definition.type) @definition.type
-
-(enum_declaration
-  name: (identifier) @name.definition.enum) @definition.enum
 `

@@ -2,7 +2,6 @@
 - class declarations
 - method declarations
 - interface declarations
-- superclass references
 */
 export default `
 (class_declaration
@@ -13,6 +12,4 @@ export default `
 
 (interface_declaration
   name: (identifier) @name.definition.interface) @definition.interface
-
-(superclass (type_identifier) @name.reference.class) @reference.class
 `

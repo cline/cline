@@ -2,7 +2,6 @@
 - function declarations (with associated comments)
 - method declarations (with associated comments)
 - type specifications
-- type references
 */
 export default `
 (
@@ -25,6 +24,4 @@ export default `
 
 (type_spec
   name: (type_identifier) @name.definition.type) @definition.type
-
-(type_identifier) @name.reference.type @reference.type
 `

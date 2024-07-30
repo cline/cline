@@ -3,7 +3,6 @@
 - union declarations
 - function declarations
 - typedef declarations
-- enum declarations
 */
 export default `
 (struct_specifier name: (type_identifier) @name.definition.class body:(_)) @definition.class
@@ -13,6 +12,4 @@ export default `
 (function_declarator declarator: (identifier) @name.definition.function) @definition.function
 
 (type_definition declarator: (type_identifier) @name.definition.type) @definition.type
-
-(enum_specifier name: (type_identifier) @name.definition.type) @definition.type
 `

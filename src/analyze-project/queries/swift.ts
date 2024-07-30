@@ -1,6 +1,5 @@
 /*
 - class declarations
-- protocol declarations
 - method declarations (including initializers and deinitializers)
 - property declarations
 - function declarations
@@ -23,20 +22,6 @@ export default `
             )
             (init_declaration "init" @name)
             (deinit_declaration "deinit" @name)
-        ]
-    )
-) @definition.method
-
-(protocol_declaration
-    (protocol_body
-        [
-            (protocol_function_declaration
-                name: (simple_identifier) @name
-            )
-            (subscript_declaration
-                (parameter (simple_identifier) @name)
-            )
-            (init_declaration "init" @name)
         ]
     )
 ) @definition.method
