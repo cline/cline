@@ -66,7 +66,7 @@ const extensionConfig = {
 	sourcemap: !production,
 	logLevel: "silent",
 	plugins: [
-		copyWasmFiles,
+		//copyWasmFiles,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 	],
