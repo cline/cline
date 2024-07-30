@@ -13,7 +13,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev offers a human-in-the-loop GUI to supervise every file change and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
 -   View syntax highlighted file previews and diffs for every change Claude makes
--   Streams command execution output into the chat, so you never have to open a terminal yourself
+-   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
 -   Presents permission buttons (i.e. 'Approve CLI command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
@@ -29,7 +29,7 @@ Claude Dev uses an agentic loop style implementation with chain-of-thought promp
 
 Claude Dev has access to the following capabilities:
 
-1. **`execute_command`**: Execute CLI commands on the system (only with your permission, output is streamed into the chat)
+1. **`execute_command`**: Execute CLI commands on the system (only with your permission, output is streamed into the chat and you can respond to stdin or exit long-running processes when you're ready)
 2. **`analyze_project`**: Analyze the project's source code and file structure (see more below)
 3. **`list_files`**: List all file paths at the top level of the specified directory (useful for generic file operations like retrieving a file from your Desktop)
 4. **`read_file`**: Read the contents of a file at the specified path
