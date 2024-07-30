@@ -11,7 +11,6 @@ import { getSyntaxHighlighterStyleFromTheme } from "../utilities/getSyntaxHighli
 import { vscode } from "../utilities/vscode"
 import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import Announcement from "./Announcement"
 
 interface ChatViewProps {
@@ -43,8 +42,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 
 	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
 
-	const virtuosoRef = useRef<VirtuosoHandle>(null)
-
+	const chatContainerRef = useRef<HTMLDivElement>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 
 	const toggleRowExpansion = (ts: number) => {
@@ -314,15 +312,22 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 	}, [modifiedMessages])
 
 	useEffect(() => {
-		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
 		const timer = setTimeout(() => {
-			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
-			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
-		}, 50)
+			scrollToBottom()
+		}, 0)
 
 		return () => clearTimeout(timer)
 	}, [visibleMessages])
+
+	const scrollToBottom = (instant: boolean = false) => {
+		if (chatContainerRef.current) {
+			const scrollOptions: ScrollToOptions = {
+				top: chatContainerRef.current.scrollHeight,
+				behavior: instant ? "auto" : "smooth",
+			}
+			chatContainerRef.current.scrollTo(scrollOptions)
+		}
+	}
 
 	const placeholderText = useMemo(() => {
 		if (messages.at(-1)?.ask === "command_output") {
@@ -371,23 +376,14 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 					</div>
 				</>
 			)}
-			<Virtuoso
-				ref={virtuosoRef}
+			<div
+				ref={chatContainerRef}
 				className="scrollable"
 				style={{
 					flexGrow: 1,
 					overflowY: "scroll", // always show scrollbar
-				}}
-				// followOutput={(isAtBottom) => {
-				// 	const lastMessage = modifiedMessages.at(-1)
-				// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
-				// 		return "smooth"
-				// 	}
-				// 	return false
-				// }}
-				increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-				data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
-				itemContent={(index, message) => (
+				}}>
+				{visibleMessages.map((message, index) => (
 					<ChatRow
 						key={message.ts}
 						message={message}
@@ -397,8 +393,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						isLast={index === visibleMessages.length - 1}
 					/>
-				)}
-			/>
+				))}
+			</div>
 			<div
 				style={{
 					opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
@@ -434,10 +430,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 					disabled={textAreaDisabled}
 					onChange={(e) => setInputValue(e.target.value)}
 					onKeyDown={handleKeyDown}
-					onHeightChange={() =>
-						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
-						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
-					}
+					onHeightChange={() => scrollToBottom(true)}
 					placeholder={placeholderText}
 					maxRows={10}
 					autoFocus={true}
