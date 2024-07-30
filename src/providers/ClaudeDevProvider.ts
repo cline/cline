@@ -21,7 +21,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private providerInstanceIdentifier = Date.now()
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "jul-25-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "jul-29-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
