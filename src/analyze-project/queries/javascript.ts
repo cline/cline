@@ -3,7 +3,6 @@
 - method definitions
 - named function declarations
 - arrow functions and function expressions assigned to variables
-- exported constants
 */
 export default `
 (
@@ -63,15 +62,4 @@ export default `
   (#strip! @doc "^[\\s\\*/]+|^[\\s\\*/]$")
   (#select-adjacent! @doc @definition.function)
 )
-
-(export_statement value: (assignment_expression left: (identifier) @name right: ([
- (number)
- (string)
- (identifier)
- (undefined)
- (null)
- (new_expression)
- (binary_expression)
- (call_expression)
-]))) @definition.constant
 `
