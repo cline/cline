@@ -2,6 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import TextTruncate from "react-text-truncate"
 import { useWindowSize } from "react-use"
+import { vscode } from "../utilities/vscode"
 
 interface TaskHeaderProps {
 	taskText: string
@@ -71,6 +72,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 
 	const toggleExpand = () => setIsExpanded(!isExpanded)
 
+	const handleDownload = () => {
+		vscode.postMessage({ type: "downloadTask" })
+	}
+
 	return (
 		<div style={{ padding: "15px 15px 10px 15px" }}>
 			<div
@@ -82,6 +87,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 					display: "flex",
 					flexDirection: "column",
 					gap: "8px",
+					position: "relative",
 				}}>
 				<div
 					style={{
@@ -157,6 +163,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						<span>${totalCost.toFixed(4)}</span>
 					</div>
 				</div>
+				<VSCodeButton
+					appearance="icon"
+					onClick={handleDownload}
+					style={{
+						position: "absolute",
+						bottom: "9.5px",
+						right: "9px",
+					}}>
+					<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
+				</VSCodeButton>
 			</div>
 		</div>
 	)

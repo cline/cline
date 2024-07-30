@@ -7,6 +7,7 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "clearTask"
 		| "didShowAnnouncement"
+		| "downloadTask"
 	text?: string
 	askResponse?: ClaudeAskResponse
 }
