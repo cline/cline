@@ -301,7 +301,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		const year = date.getFullYear()
 		let hours = date.getHours()
 		const minutes = date.getMinutes().toString().padStart(2, "0")
-		const ampm = hours >= 12 ? "PM" : "AM"
+		const ampm = hours >= 12 ? "pm" : "am"
 		hours = hours % 12
 		hours = hours ? hours : 12 // the hour '0' should be '12'
 		const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${ampm}.md`
@@ -328,6 +328,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		if (saveUri) {
 			// Write content to the selected location
 			await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+			vscode.window.showTextDocument(saveUri, { preview: true })
 		}
 	}
 
