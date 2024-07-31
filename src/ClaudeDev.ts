@@ -383,7 +383,19 @@ export class ClaudeDev {
 					})
 					.join("")
 
-				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				// Create virtual document with new file, then open diff editor
+				const fileName = path.basename(filePath)
+				vscode.commands.executeCommand(
+					"vscode.diff",
+					vscode.Uri.file(filePath),
+					// to create a virtual doc we use a uri scheme registered in extension.ts, which then converts this base64 content into a text document
+					// (providing file name with extension in the uri lets vscode know the language of the file and apply syntax highlighting)
+					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+						query: Buffer.from(newContent).toString("base64"),
+					}),
+					`${fileName}: Original ↔ Suggested Changes`
+				)
+
 				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({
@@ -392,6 +404,10 @@ export class ClaudeDev {
 						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
+				// close the diff view if it's open
+				if (vscode.window.activeTextEditor?.document.uri.scheme === "claude-dev-diff") {
+					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+				}
 				if (response !== "yesButtonTapped") {
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)
@@ -401,12 +417,29 @@ export class ClaudeDev {
 				}
 
 				await fs.writeFile(filePath, newContent)
+				// Finish by opening the edited file in the editor
+				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
 				return `Changes applied to ${filePath}:\n${diffResult}`
 			} else {
+				const fileName = path.basename(filePath)
+				vscode.commands.executeCommand(
+					"vscode.diff",
+					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+						query: Buffer.from("").toString("base64"),
+					}),
+					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+						query: Buffer.from(newContent).toString("base64"),
+					}),
+					`${fileName}: New File`
+				)
+
 				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
 				)
+				if (vscode.window.activeTextEditor?.document.uri.scheme === "claude-dev-diff") {
+					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+				}
 				if (response !== "yesButtonTapped") {
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)

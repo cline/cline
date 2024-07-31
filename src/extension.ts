@@ -86,6 +86,22 @@ export function activate(context: vscode.ExtensionContext) {
 			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
 		})
 	)
+
+	/*
+	We use the text document content provider API to show a diff view for new files/edits by creating a virtual document for the new content.
+
+	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by claiming an uri-scheme for which your provider then returns text contents. The scheme must be provided when registering a provider and cannot change afterwards.
+	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents given such an uri. In return, content providers are wired into the open document logic so that providers are always considered.
+	https://code.visualstudio.com/api/extension-guides/virtual-documents
+	*/
+	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
+		provideTextDocumentContent(uri: vscode.Uri): string {
+			return Buffer.from(uri.query, "base64").toString("utf-8")
+		}
+	})()
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider("claude-dev-diff", diffContentProvider)
+	)
 }
 
 // This method is called when your extension is deactivated
