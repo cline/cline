@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous software engineer right in your IDE, capable of reading/writing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.0.64",
+  "version": "1.0.62",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -130,6 +130,8 @@
     "globby": "^14.0.2",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
-    "serialize-error": "^11.0.3"
+    "serialize-error": "^11.0.3",
+    "tree-sitter-wasms": "^0.1.11",
+    "web-tree-sitter": "^0.22.6"
   }
 }
