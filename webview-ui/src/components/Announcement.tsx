@@ -22,7 +22,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.6</h3>
+			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.7</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Open in the editor (using{" "}
@@ -33,8 +33,9 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					workspace more clearly
 				</li>
 				<li>
-					New <code>analyze_project</code> tool to help Claude get a comprehensive overview of your project's
-					source code definitions and file structure
+					New <code style={{ wordBreak: "break-all" }}>list_files_recursive</code> and{" "}
+					<code style={{ wordBreak: "break-all" }}>view_source_code_definitions_top_level</code> tools to help
+					Claude get a comprehensive overview of your project's file structure and source code definitions
 					<VSCodeLink
 						href="https://github.com/saoudrizwan/claude-dev?tab=readme-ov-file#working-in-existing-projects"
 						style={{ display: "inline" }}>

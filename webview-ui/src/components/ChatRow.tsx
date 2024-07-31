@@ -399,7 +399,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										/>
 									</>
 								)
-							case "extractSourceCodeDefinitionsTopLevel":
+							case "viewSourceCodeDefinitionsTopLevel":
 								return (
 									<>
 										<div style={headerStyle}>

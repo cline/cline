@@ -5,7 +5,7 @@ export type ToolName =
 	| "read_file"
 	| "list_files_top_level"
 	| "list_files_recursive"
-	| "extract_source_code_definitions_top_level"
+	| "view_source_code_definitions_top_level"
 	| "execute_command"
 	| "ask_followup_question"
 	| "attempt_completion"

@@ -9,7 +9,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { listFiles, parseSourceCodeForDefinitions } from "./parse-source-code"
+import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
@@ -27,8 +27,8 @@ CAPABILITIES
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
 - You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - You can use the list_files_recursive tool to get an overview of the project's file structure, which can provide key insights into the project from directory/file names (how developers conceptualize and organize their code) or file extensions (the language used). The list_files_top_level tool is better suited for generic directories you don't necessarily need the nested structure of, like the Desktop.
-- You can use the extract_source_code_definitions_top_level tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
-	- For example, when asked to make edits or improvements you might use list_files_recursive to get an overview of the project's file structure, then extract_source_code_definitions_top_level to get an overview of source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+- You can use the view_source_code_definitions_top_level tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
+	- For example, when asked to make edits or improvements you might use list_files_recursive to get an overview of the project's file structure, then view_source_code_definitions_top_level to get an overview of source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
 
 ====
@@ -134,15 +134,16 @@ const tools: Tool[] = [
 		},
 	},
 	{
-		name: "extract_source_code_definitions_top_level",
+		name: "view_source_code_definitions_top_level",
 		description:
-			"Parse all source code files at the top level of the specified directory to extract key elements like functions, classes, and methods. This tool provides insights into the codebase structure, focusing on important code constructs.",
+			"Parse all source code files at the top level of the specified directory to extract key elements like functions, classes, and methods. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.",
 		input_schema: {
 			type: "object",
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the directory to parse top level source code files for.",
+					description:
+						"The path of the directory to parse top level source code files for to view their definitions.",
 				},
 			},
 			required: ["path"],
@@ -335,8 +336,8 @@ export class ClaudeDev {
 				return this.listFilesTopLevel(toolInput.path)
 			case "list_files_recursive":
 				return this.listFilesRecursive(toolInput.path)
-			case "extract_source_code_definitions_top_level":
-				return this.extractSourceCodeDefinitionsTopLevel(toolInput.path)
+			case "view_source_code_definitions_top_level":
+				return this.viewSourceCodeDefinitionsTopLevel(toolInput.path)
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
 			case "ask_followup_question":
@@ -497,13 +498,13 @@ export class ClaudeDev {
 		}
 	}
 
-	async extractSourceCodeDefinitionsTopLevel(dirPath: string): Promise<string> {
+	async viewSourceCodeDefinitionsTopLevel(dirPath: string): Promise<string> {
 		try {
-			const result = await parseSourceCodeForDefinitions(dirPath)
+			const result = await parseSourceCodeForDefinitionsTopLevel(dirPath)
 			const { response, text } = await this.ask(
 				"tool",
 				JSON.stringify({
-					tool: "extractSourceCodeDefinitionsTopLevel",
+					tool: "viewSourceCodeDefinitionsTopLevel",
 					path: dirPath,
 					content: result,
 				} as ClaudeSayTool)

@@ -4,7 +4,7 @@ import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
-export async function parseSourceCodeForDefinitions(dirPath: string): Promise<string> {
+export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
 	// Get all files at top level (not gitignored)
 	const allFiles = await listFiles(dirPath, false)
 
