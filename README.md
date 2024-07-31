@@ -10,7 +10,7 @@
 
 Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him read & write files, analyze project source code, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. From building software projects to running system operations, Claude Dev is only limited by your imagination.
 
-While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev offers a human-in-the-loop GUI to supervise every file change and command executed, providing a safe and accessible way to explore the potential of agentic AI.
+While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev provides a human-in-the-loop GUI to supervise every file changed and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
 -   View syntax highlighted file previews and diffs for every change Claude makes
 -   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
@@ -30,28 +30,27 @@ Claude Dev uses an agentic loop style implementation with chain-of-thought promp
 Claude Dev has access to the following capabilities:
 
 1. **`execute_command`**: Execute CLI commands on the system (only with your permission, output is streamed into the chat and you can respond to stdin or exit long-running processes when you're ready)
-2. **`analyze_project`**: Analyze the project's source code and file structure (see more below)
-3. **`list_files`**: List all file paths at the top level of the specified directory (useful for generic file operations like retrieving a file from your Desktop)
-4. **`read_file`**: Read the contents of a file at the specified path
-5. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
-6. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
-7. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a CLI command to kickoff a demonstration
+2. **`list_files_top_level`**: List all paths for files at the top level of the specified directory (useful for generic file operations like retrieving a file from your Desktop)
+3. **`list_files_recursive`**: List all paths for files in the specified directory and nested subdirectories (excludes files in .gitignore)
+4. **`view_source_code_definitions_top_level`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
+5. **`read_file`**: Read the contents of a file at the specified path
+6. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
+7. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
+8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a CLI command to kickoff a demonstration
 
 ### Working in Existing Projects
 
-The `analyze_project` tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. This approach leverages the fact that large language models are fundamentally built on natural language processing–by focusing on these named elements, we provide the LLM with a structural understanding of the codebase that aligns closely with how developers conceptualize and organize their code.
+Developers tend to name directories, files, classes, functions, and other components in ways that reflect their purpose and role within the larger system. These names often encapsulate high-level concepts and relationships that are crucial for understanding a project's overall architecture.
 
-This method is particularly effective because:
+Claude Dev leverages the fact that large language models are fundamentally built on natural language processing, and by focusing on these named elements we provide the LLM with a structural understanding of the codebase that aligns closely with how developers conceptualize and organize their code. By effectively extracting the "language" of the codebase, we enable the LLM to grasp structure and intent without wasting context on implementation details.
 
--   Developers typically name components to reflect their purpose and role within the larger system.
--   These names often encapsulate high-level concepts and relationships that are crucial for understanding the overall architecture.
--   By effectively extracting the "language" of the codebase, we enable the LLM to grasp structure and intent without wasting context on implementation details.
+1. **File Structure**: Claude first uses the `list_files_recursive` tool to get a complete picture of the project's file structure. This provides insights into the organization of the codebase, helping Claude understand the project's architecture and identify key areas of interest.
 
-Here's how `analyze_project` works:
+2. **High-Level Code Overview**: Claude may then use the `view_source_code_definitions_top_level` tool on specific directories of interest. This tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. `view_source_code_definitions_top_level` works by first scanning your project directory, identifying source code files that tree-sitter can parse (currently supports `python`, `javascript`, `typescript`, `ruby`, `go`, `java`, `php`, `rust`, `c`, `c++`, `c#`, and `swift`), and then parsing each file into an abstract syntax tree and applies a language-specific query to extract definition names (you can see the exact query used for each language in `src/analyze-project/queries`). The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose.
 
-1. It scans your project directory, identifying source code files that tree-sitter can parse. Any unparsed files' paths will be listed at the end of the output so that Claude can request to manually read them if necessary.
-2. It parses each file into an abstract syntax tree and applies a language-specific query to extract definition names. You can see the exact query used for each language in `src/analyze-project/queries`.
-3. The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the structure and purpose of your entire codebase, making it more effective at assisting with complex development tasks.
+3. **Read Relevant Files**: With the insights gained from the project file structure and high-level code overview, Claude can then use the `read_file` tool to examine specific files that are most relevant to the task at hand.
+
+By carefully managing what information is added to context, Claude can provide valuable assistance even for complex, large-scale projects without overwhelming its context window (200k tokens, translating to roughly 150k words or about 500 pages of a typical book).
 
 ### Only With Your Permission
 
