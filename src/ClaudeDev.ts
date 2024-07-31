@@ -136,7 +136,7 @@ const tools: Tool[] = [
 	{
 		name: "view_source_code_definitions_top_level",
 		description:
-			"Parse all source code files at the top level of the specified directory to extract key elements like functions, classes, and methods. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.",
+			"Parse all source code files at the top level of the specified directory to extract names of key elements like classes and functions. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.",
 		input_schema: {
 			type: "object",
 			properties: {
