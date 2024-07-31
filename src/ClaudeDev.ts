@@ -3,14 +3,13 @@ import defaultShell from "default-shell"
 import * as diff from "diff"
 import { execa, ExecaError } from "execa"
 import fs from "fs/promises"
-import { globby } from "globby"
 import os from "os"
 import osName from "os-name"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { analyzeProject } from "./analyze-project"
+import { listFiles, parseSourceCodeForDefinitions } from "./analyze-project"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
@@ -26,9 +25,10 @@ CAPABILITIES
 
 - You can read and analyze code in various programming languages, and can write clean, efficient, and well-documented code.
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
-- You have access to tools that let you analyze software projects, execute CLI commands on the user's computer, list files in a directory, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
-    - For example, when asked to make edits or improvements you might use the analyze_project and read_file tools to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
-- You can use the analyze_project tool to get a comprehensive overview of a software project's file structure and source code definitions. This can be particularly useful when you need to understand the broader context and relationships between different parts of the code, as well as the overall organization of files and directories.
+- You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
+- You can use the list_files_recursive tool to get an overview of the project's file structure, which can provide key insights into the project from directory/file names (how developers conceptualize and organize their code) or file extensions (the language used). The list_files_top_level tool is better suited for generic directories you don't necessarily need the nested structure of, like the Desktop.
+- You can use the extract_source_code_definitions_top_level tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
+	- For example, when asked to make edits or improvements you might use list_files_recursive to get an overview of the project's file structure, then extract_source_code_definitions_top_level to get an overview of source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
 
 ====
@@ -42,7 +42,6 @@ RULES
 - If you do not know the contents of an existing file you need to edit, use the read_file tool to help you make informed changes. However if you have seen this file before, you can assume its contents have not changed since you last read it or wrote to it.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system.
-- Try not to use the analyze_project tool more than once since you can refer back to it along with any changes you made to get an adequate understanding of the project. But don't be hesitant to use it in the first place when you know you will be doing a coding task on an existing project. Prefer to use analyze_project over list_files, unless you think list_files is more appropriate for the job i.e. when viewing files on the Desktop.
 - When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -105,31 +104,45 @@ const tools: Tool[] = [
 		},
 	},
 	{
-		name: "analyze_project",
+		name: "list_files_top_level",
 		description:
-			"Analyze the project structure by listing file paths and parsing supported source code to extract their key elements. This tool provides insights into the codebase structure, focusing on important code constructs like functions, classes, and methods. This also helps to understand the contents and structure of a directory by examining file names and extensions. All this information can guide decision-making on which files to process or explore further.",
-		input_schema: {
-			type: "object",
-			properties: {
-				path: {
-					type: "string",
-					description:
-						"The path of the directory to analyze. The tool will recursively scan this directory, list all file paths, and parse supported source code files.",
-				},
-			},
-			required: ["path"],
-		},
-	},
-	{
-		name: "list_files",
-		description:
-			"List all files and directories at the top level of the specified directory. This should only be used for generic directories you don't necessarily need the nested structure of, like the Desktop. If you think you need the nested structure of a directory, use the analyze_project tool instead.",
+			"List all files and directories at the top level of the specified directory. This should only be used for generic directories you don't necessarily need the nested structure of, like the Desktop.",
 		input_schema: {
 			type: "object",
 			properties: {
 				path: {
 					type: "string",
 					description: "The path of the directory to list contents for.",
+				},
+			},
+			required: ["path"],
+		},
+	},
+	{
+		name: "list_files_recursive",
+		description:
+			"Recursively list all files and directories within the specified directory. This provides a comprehensive view of the project structure, and can guide decision-making on which files to process or explore further.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: "The path of the directory to recursively list contents for.",
+				},
+			},
+			required: ["path"],
+		},
+	},
+	{
+		name: "extract_source_code_definitions_top_level",
+		description:
+			"Parse all source code files at the top level of the specified directory to extract key elements like functions, classes, and methods. This tool provides insights into the codebase structure, focusing on important code constructs.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: "The path of the directory to parse top level source code files for.",
 				},
 			},
 			required: ["path"],
@@ -318,10 +331,12 @@ export class ClaudeDev {
 				return this.writeToFile(toolInput.path, toolInput.content)
 			case "read_file":
 				return this.readFile(toolInput.path)
-			case "analyze_project":
-				return this.analyzeProject(toolInput.path)
-			case "list_files":
-				return this.listFiles(toolInput.path)
+			case "list_files_top_level":
+				return this.listFilesTopLevel(toolInput.path)
+			case "list_files_recursive":
+				return this.listFilesRecursive(toolInput.path)
+			case "extract_source_code_definitions_top_level":
+				return this.extractSourceCodeDefinitionsTopLevel(toolInput.path)
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
 			case "ask_followup_question":
@@ -428,64 +443,13 @@ export class ClaudeDev {
 		}
 	}
 
-	async analyzeProject(dirPath: string): Promise<string> {
+	async listFilesTopLevel(dirPath: string): Promise<string> {
 		try {
-			const analysis = await analyzeProject(dirPath)
+			const files = await listFiles(dirPath, false)
+			const result = files.map((file) => path.relative(dirPath, file)).join("\n")
 			const { response, text } = await this.ask(
 				"tool",
-				JSON.stringify({ tool: "analyzeProject", path: dirPath, content: analysis } as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
-				}
-				return "The user denied this operation."
-			}
-			return analysis
-		} catch (error) {
-			const errorString = `Error analyzing project: ${JSON.stringify(serializeError(error))}`
-			this.say(
-				"error",
-				`Error analyzing project:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
-			)
-			return errorString
-		}
-	}
-
-	async listFiles(dirPath: string): Promise<string> {
-		const absolutePath = path.resolve(dirPath)
-		const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
-		const isRoot = absolutePath === root
-		if (isRoot) {
-			const { response, text } = await this.ask(
-				"tool",
-				JSON.stringify({ tool: "listFiles", path: dirPath, content: root } as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
-				}
-				return "The user denied this operation."
-			}
-			return root
-		}
-
-		try {
-			const options = {
-				cwd: dirPath,
-				dot: true, // Allow patterns to match files/directories that start with '.', even if the pattern does not start with '.'
-				absolute: false,
-				markDirectories: true, // Append a / on any directories matched
-				onlyFiles: false,
-			}
-			// * globs all files in one dir, ** globs files in nested directories
-			const entries = await globby("*", options)
-			const result = entries.join("\n")
-			const { response, text } = await this.ask(
-				"tool",
-				JSON.stringify({ tool: "listFiles", path: dirPath, content: result } as ClaudeSayTool)
+				JSON.stringify({ tool: "listFilesTopLevel", path: dirPath, content: result } as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
 				if (response === "textResponse" && text) {
@@ -500,6 +464,63 @@ export class ClaudeDev {
 			this.say(
 				"error",
 				`Error listing files and directories:\n${
+					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				}`
+			)
+			return errorString
+		}
+	}
+
+	async listFilesRecursive(dirPath: string): Promise<string> {
+		try {
+			const files = await listFiles(dirPath, true)
+			const result = files.map((file) => path.relative(dirPath, file)).join("\n")
+			const { response, text } = await this.ask(
+				"tool",
+				JSON.stringify({ tool: "listFilesRecursive", path: dirPath, content: result } as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				}
+				return "The user denied this operation."
+			}
+			return result
+		} catch (error) {
+			const errorString = `Error listing files recursively: ${JSON.stringify(serializeError(error))}`
+			this.say(
+				"error",
+				`Error listing files recursively:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
+			return errorString
+		}
+	}
+
+	async extractSourceCodeDefinitionsTopLevel(dirPath: string): Promise<string> {
+		try {
+			const result = await parseSourceCodeForDefinitions(dirPath)
+			const { response, text } = await this.ask(
+				"tool",
+				JSON.stringify({
+					tool: "extractSourceCodeDefinitionsTopLevel",
+					path: dirPath,
+					content: result,
+				} as ClaudeSayTool)
+			)
+			if (response !== "yesButtonTapped") {
+				if (response === "textResponse" && text) {
+					await this.say("user_feedback", text)
+					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				}
+				return "The user denied this operation."
+			}
+			return result
+		} catch (error) {
+			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
+			this.say(
+				"error",
+				`Error parsing source code definitions:\n${
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)

@@ -4,11 +4,11 @@ import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
-async function analyzeProject(dirPath: string): Promise<string> {
-	// Get all files (not gitignored)
-	const allFiles = await getAllProjectFiles(dirPath)
+export async function parseSourceCodeForDefinitions(dirPath: string): Promise<string> {
+	// Get all files at top level (not gitignored)
+	const allFiles = await listFiles(dirPath, false)
 
-	let result = `Project: ${path.basename(dirPath)} (${allFiles.length.toLocaleString()} files)\n\n`
+	let result = ""
 
 	// Separate files to parse and remaining files
 	const { filesToParse, remainingFiles } = separateFiles(allFiles)
@@ -16,28 +16,41 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
 	// Parse specific files we have language parsers for
-	const filesWithoutDefinitions: string[] = []
+	// const filesWithoutDefinitions: string[] = []
 	for (const file of filesToParse) {
 		const definitions = await parseFile(file, languageParsers)
 		if (definitions) {
 			result += `${path.relative(dirPath, file)}\n${definitions}\n`
-		} else {
-			filesWithoutDefinitions.push(file)
 		}
+		// else {
+		// 	filesWithoutDefinitions.push(file)
+		// }
 	}
 
 	// List remaining files' paths
-	filesWithoutDefinitions
-		.concat(remainingFiles)
-		.sort()
-		.forEach((file) => {
-			result += `${path.relative(dirPath, file)}\n`
-		})
+	// let didFindUnparsedFiles = false
+	// filesWithoutDefinitions
+	// 	.concat(remainingFiles)
+	// 	.sort()
+	// 	.forEach((file) => {
+	// 		if (!didFindUnparsedFiles) {
+	// 			result += "# Unparsed Files\n\n"
+	// 			didFindUnparsedFiles = true
+	// 		}
+	// 		result += `${path.relative(dirPath, file)}\n`
+	// 	})
 
-	return result
+	return result ? result : "No source code definitions found."
 }
 
-async function getAllProjectFiles(dirPath: string): Promise<string[]> {
+export async function listFiles(dirPath: string, recursive: boolean): Promise<string[]> {
+	const absolutePath = path.resolve(dirPath)
+	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
+	const isRoot = absolutePath === root
+	if (isRoot) {
+		return [root]
+	}
+
 	const dirsToIgnore = [
 		"node_modules",
 		"__pycache__",
@@ -61,12 +74,13 @@ async function getAllProjectFiles(dirPath: string): Promise<string[]> {
 		cwd: dirPath,
 		dot: true, // do not ignore hidden files/directories
 		absolute: true,
-		markDirectories: true,
-		gitignore: true, // globby ignores any files that are gitignored
-		ignore: dirsToIgnore, // just in case there is no gitignore, we ignore sensible defaults
+		markDirectories: true, // Append a / on any directories matched
+		gitignore: recursive, // globby ignores any files that are gitignored
+		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
+		onlyFiles: recursive, // true by default, false means it will list directories on their own too
 	}
 	// * globs all files in one dir, ** globs files in nested directories
-	const files = await globby("**", options)
+	const files = await globby(recursive ? "**" : "*", options)
 	return files
 }
 
@@ -178,5 +192,3 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 	}
 	return undefined
 }
-
-export { analyzeProject }

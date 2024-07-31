@@ -361,13 +361,13 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										/>
 									</>
 								)
-							case "listFiles":
+							case "listFilesTopLevel":
 								return (
 									<>
 										<div style={headerStyle}>
 											{toolIcon("folder-opened")}
 											<span style={{ fontWeight: "bold" }}>
-												Claude wants to view this directory:
+												Claude wants to view the top level files in this directory:
 											</span>
 										</div>
 										<CodeBlock
@@ -380,13 +380,33 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										/>
 									</>
 								)
-							case "analyzeProject":
+							case "listFilesRecursive":
+								return (
+									<>
+										<div style={headerStyle}>
+											{toolIcon("folder-opened")}
+											<span style={{ fontWeight: "bold" }}>
+												Claude wants to recursively view all files in this directory:
+											</span>
+										</div>
+										<CodeBlock
+											code={tool.content!}
+											path={tool.path!}
+											language="shell-session"
+											syntaxHighlighterStyle={syntaxHighlighterStyle}
+											isExpanded={isExpanded}
+											onToggleExpand={onToggleExpand}
+										/>
+									</>
+								)
+							case "extractSourceCodeDefinitionsTopLevel":
 								return (
 									<>
 										<div style={headerStyle}>
 											{toolIcon("file-code")}
 											<span style={{ fontWeight: "bold" }}>
-												Claude wants to analyze this project:
+												Claude wants to view source code definitions in files at the top level
+												of this directory:
 											</span>
 										</div>
 										<CodeBlock

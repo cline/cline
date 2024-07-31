@@ -45,7 +45,13 @@ export type ClaudeSay =
 	| "command_output"
 
 export interface ClaudeSayTool {
-	tool: "editedExistingFile" | "newFileCreated" | "readFile" | "listFiles" | "analyzeProject"
+	tool:
+		| "editedExistingFile"
+		| "newFileCreated"
+		| "readFile"
+		| "listFilesTopLevel"
+		| "listFilesRecursive"
+		| "extractSourceCodeDefinitionsTopLevel"
 	path?: string
 	diff?: string
 	content?: string
