@@ -141,7 +141,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 					)}
 				</div>
 				<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-					<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+					<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
 						<span style={{ fontWeight: "bold" }}>Tokens:</span>
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
@@ -158,21 +158,27 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 							{tokensIn.toLocaleString()}
 						</span>
 					</div>
-					<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-						<span style={{ fontWeight: "bold" }}>API Cost:</span>
-						<span>${totalCost.toFixed(4)}</span>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+						}}>
+						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+							<span style={{ fontWeight: "bold" }}>API Cost:</span>
+							<span>${totalCost.toFixed(4)}</span>
+						</div>
+						<VSCodeButton
+							appearance="icon"
+							onClick={handleDownload}
+							style={{
+								marginBottom: "-2px",
+								marginRight: "-2.5px",
+							}}>
+							<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
+						</VSCodeButton>
 					</div>
 				</div>
-				<VSCodeButton
-					appearance="icon"
-					onClick={handleDownload}
-					style={{
-						position: "absolute",
-						bottom: "9.5px",
-						right: "9px",
-					}}>
-					<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
-				</VSCodeButton>
 			</div>
 		</div>
 	)
