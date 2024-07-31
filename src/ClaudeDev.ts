@@ -17,7 +17,8 @@ import { ClaudeAsk, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 
-const SYSTEM_PROMPT = `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+const SYSTEM_PROMPT =
+	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
  
@@ -36,8 +37,9 @@ CAPABILITIES
 RULES
 
 - Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${
-	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
-}
+		vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ??
+		path.join(os.homedir(), "Desktop")
+	}
 - Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
 - If you do not know the contents of an existing file you need to edit, use the read_file tool to help you make informed changes. However if you have seen this file before, you can assume its contents have not changed since you last read it or wrote to it.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
@@ -72,18 +74,18 @@ SYSTEM INFORMATION
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
 VSCode Visible Files: ${
-	vscode.window.visibleTextEditors
-		?.map((editor) => editor.document?.uri?.fsPath)
-		.filter(Boolean)
-		.join(", ") || "(No files open)"
-}
+		vscode.window.visibleTextEditors
+			?.map((editor) => editor.document?.uri?.fsPath)
+			.filter(Boolean)
+			.join(", ") || "(No files open)"
+	}
 VSCode Opened Tabs: ${
-	vscode.window.tabGroups.all
-		.flatMap((group) => group.tabs)
-		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-		.filter(Boolean)
-		.join(", ") || "(No tabs open)"
-}
+		vscode.window.tabGroups.all
+			.flatMap((group) => group.tabs)
+			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+			.filter(Boolean)
+			.join(", ") || "(No tabs open)"
+	}
 `
 
 const tools: Tool[] = [
@@ -623,7 +625,7 @@ export class ClaudeDev {
 					model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
 					// beta max tokens
 					max_tokens: 8192,
-					system: SYSTEM_PROMPT,
+					system: SYSTEM_PROMPT(),
 					messages: (await this.providerRef.deref()?.getApiConversationHistory()) || [],
 					tools: tools,
 					tool_choice: { type: "auto" },
