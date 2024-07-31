@@ -449,7 +449,20 @@ export class ClaudeDev {
 	async listFilesTopLevel(dirPath: string): Promise<string> {
 		try {
 			const files = await listFiles(dirPath, false)
-			const result = files.map((file) => path.relative(dirPath, file)).join("\n")
+			const result = files
+				.map((file) => {
+					const relativePath = path.relative(dirPath, file)
+					return file.endsWith("/") ? relativePath + "/" : relativePath
+				})
+				.sort((a, b) => {
+					const aIsDir = a.endsWith("/")
+					const bIsDir = b.endsWith("/")
+					if (aIsDir !== bIsDir) {
+						return aIsDir ? -1 : 1
+					}
+					return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+				})
+				.join("\n")
 			const { response, text } = await this.ask(
 				"tool",
 				JSON.stringify({ tool: "listFilesTopLevel", path: dirPath, content: result } as ClaudeSayTool)
