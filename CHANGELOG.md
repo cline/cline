@@ -6,7 +6,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.0.7]
 
-- Replace `list_files` and `analyze_project` with more explicit `list_files_top_level`, `list_files_recursive`, and `view_source_code_definitions_top_level` to get source code definitions only for files to the task
+- Replace `list_files` and `analyze_project` with more explicit `list_files_top_level`, `list_files_recursive`, and `view_source_code_definitions_top_level` to get source code definitions only for files relevant to the task
 
 ## [1.0.6]
 
