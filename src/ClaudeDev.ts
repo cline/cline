@@ -418,7 +418,7 @@ export class ClaudeDev {
 
 				await fs.writeFile(filePath, newContent)
 				// Finish by opening the edited file in the editor
-				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
 				return `Changes applied to ${filePath}:\n${diffResult}`
 			} else {
 				const fileName = path.basename(filePath)
@@ -449,7 +449,7 @@ export class ClaudeDev {
 				}
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
-				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
