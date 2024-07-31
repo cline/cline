@@ -26,6 +26,15 @@ async function loadLanguage(langName: string) {
 	return await Parser.Language.load(path.join(__dirname, `tree-sitter-${langName}.wasm`))
 }
 
+let isParserInitialized = false
+
+async function initializeParser() {
+	if (!isParserInitialized) {
+		await Parser.init()
+		isParserInitialized = true
+	}
+}
+
 /*
 Using node bindings for tree-sitter is problematic in vscode extensions 
 because of incompatibility with electron. Going the .wasm route has the 
@@ -49,7 +58,7 @@ Sources:
 - https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/query-test.js
 */
 export async function loadRequiredLanguageParsers(filesToParse: string[]): Promise<LanguageParser> {
-	await Parser.init()
+	await initializeParser()
 	const extensionsToLoad = new Set(filesToParse.map((file) => path.extname(file).toLowerCase().slice(1)))
 	const parsers: LanguageParser = {}
 	for (const ext of extensionsToLoad) {
