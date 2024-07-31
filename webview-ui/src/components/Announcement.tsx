@@ -47,6 +47,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 					servers
 				</li>
 				<li>Provide feedback to tool use like editing files or running commands</li>
+				<li>Shows diff view of new or edited files right in the editor</li>
 				<li>Added ability to retry failed API requests (helpful for rate limits)</li>
 				<li>Export task to a markdown file (useful as context for future tasks)</li>
 			</ul>
