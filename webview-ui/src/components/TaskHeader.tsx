@@ -109,6 +109,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						fontSize: "var(--vscode-font-size)",
 						overflowY: isExpanded ? "auto" : "hidden",
 						wordBreak: "break-word",
+						overflowWrap: "anywhere",
 					}}>
 					<TextTruncate
 						key={textTruncateKey}

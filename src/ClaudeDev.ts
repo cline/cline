@@ -383,6 +383,7 @@ export class ClaudeDev {
 					})
 					.join("")
 
+				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
 				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({
@@ -415,6 +416,7 @@ export class ClaudeDev {
 				}
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
+				vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
