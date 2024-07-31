@@ -187,7 +187,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							<code
 								{...rest}
 								className={className}
-								style={{ whiteSpace: "pre-line", wordBreak: "break-word" }}>
+								style={{ whiteSpace: "pre-line", wordBreak: "break-all" }}>
 								{children}
 							</code>
 						)
