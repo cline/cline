@@ -3,16 +3,16 @@ import { globby } from "globby"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
+// TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 async function analyzeProject(dirPath: string): Promise<string> {
-	let result = ""
-
 	// Get all files (not gitignored)
 	const allFiles = await getAllProjectFiles(dirPath)
+
+	let result = `Project: ${path.basename(dirPath)} (${allFiles.length.toLocaleString()} files)\n\n`
 
 	// Separate files to parse and remaining files
 	const { filesToParse, remainingFiles } = separateFiles(allFiles)
 
-	// Load only the necessary language parsers
 	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
 	// Parse specific files we have language parsers for
@@ -20,9 +20,6 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	for (const file of filesToParse) {
 		const definitions = await parseFile(file, languageParsers)
 		if (definitions) {
-			if (!result) {
-				result += "# Source code definitions:\n\n"
-			}
 			result += `${path.relative(dirPath, file)}\n${definitions}\n`
 		} else {
 			filesWithoutDefinitions.push(file)
@@ -30,7 +27,6 @@ async function analyzeProject(dirPath: string): Promise<string> {
 	}
 
 	// List remaining files' paths
-	result += "# Unparsed files:\n\n"
 	filesWithoutDefinitions
 		.concat(remainingFiles)
 		.sort()
@@ -98,8 +94,8 @@ function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingF
 		"php",
 		"swift",
 	].map((e) => `.${e}`)
-	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file)))
-	const remainingFiles = allFiles.filter((file) => !extensions.includes(path.extname(file)))
+	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
+	const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))
 	return { filesToParse, remainingFiles }
 }
 
