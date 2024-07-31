@@ -122,10 +122,14 @@ const ChatRow: React.FC<ChatRowProps> = ({
 
 	const renderMarkdown = (markdown: string = "") => {
 		// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
+		// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
+		const parsed = markdown.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
+			return `_<thinking>_\n\n${content}\n\n_</thinking>_`
+		})
 		return (
 			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
 				<Markdown
-					children={markdown}
+					children={parsed}
 					components={{
 						p(props) {
 							const { style, ...rest } = props
