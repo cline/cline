@@ -12,12 +12,12 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 
 While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev provides a human-in-the-loop GUI to supervise every file changed and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
--   View syntax highlighted file previews and diffs for every change Claude makes
+-   Inspect diffs of every change Claude makes right in the editor, and keep track with syntax highlighted previews in chat
 -   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
 -   Presents permission buttons (i.e. 'Approve CLI command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
--   When a task is completed, Claude Dev determines if he can present the result to you with a CLI command like `open -a "Google Chrome" index.html`, which you run with a click of a button
+-   When a task is completed, Claude determines if he can present the result to you with a CLI command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
 _**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in your editor._
 
