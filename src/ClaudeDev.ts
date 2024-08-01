@@ -408,10 +408,13 @@ export class ClaudeDev {
 						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
-				// close the diff view if it's open
-				if (vscode.window.activeTextEditor?.document.uri.scheme === "claude-dev-diff") {
-					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
-				}
+				// close the diff view
+				vscode.workspace.textDocuments
+					.filter((doc) => doc.uri.scheme === "claude-dev-diff")
+					.forEach(async (doc) => {
+						await vscode.window.showTextDocument(doc.uri, { preserveFocus: false, preview: true })
+						await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+					})
 				if (response !== "yesButtonTapped") {
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)
@@ -441,9 +444,12 @@ export class ClaudeDev {
 					"tool",
 					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
 				)
-				if (vscode.window.activeTextEditor?.document.uri.scheme === "claude-dev-diff") {
-					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
-				}
+				vscode.workspace.textDocuments
+					.filter((doc) => doc.uri.scheme === "claude-dev-diff")
+					.forEach(async (doc) => {
+						await vscode.window.showTextDocument(doc.uri, { preserveFocus: false, preview: true })
+						await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+					})
 				if (response !== "yesButtonTapped") {
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)
