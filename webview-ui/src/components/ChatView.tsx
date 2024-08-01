@@ -31,7 +31,6 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 
 	const [inputValue, setInputValue] = useState("")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const [textAreaHeight, setTextAreaHeight] = useState<number | undefined>(undefined)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
@@ -276,12 +275,6 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 	})
 
 	useEffect(() => {
-		if (textAreaRef.current && !textAreaHeight) {
-			setTextAreaHeight(textAreaRef.current.offsetHeight)
-		}
-	}, [textAreaHeight])
-
-	useEffect(() => {
 		const timer = setTimeout(() => {
 			if (!isHidden && !textAreaDisabled && !enableButtons) {
 				textAreaRef.current?.focus()
@@ -463,7 +456,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						right: 20,
 						display: "flex",
 						alignItems: "center",
-						...(!!textAreaHeight ? { height: textAreaHeight, bottom: 12 } : { top: 0, bottom: 1.5 }),
+						top: 0,
+						bottom: 1.5,
 					}}>
 					<VSCodeButton
 						disabled={textAreaDisabled}
