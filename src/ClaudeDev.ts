@@ -41,7 +41,7 @@ RULES
 		path.join(os.homedir(), "Desktop")
 	}
 - Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
-- If you do not know the contents of an existing file you need to edit, use the read_file tool to help you make informed changes. However if you have seen this file before, you can assume its contents have not changed since you last read it or wrote to it.
+- If you do not know the contents of an existing file you need to edit, use the read_file tool to help you make informed changes. However if you have already read or written to this file before, you can assume its contents have not changed since then so you would not need to call the read_file tool beforehand.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system.
 - When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
@@ -328,10 +328,10 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeTool(toolName: ToolName, toolInput: any): Promise<string> {
+	async executeTool(toolName: ToolName, toolInput: any, isLastWriteToFile: boolean = false): Promise<string> {
 		switch (toolName) {
 			case "write_to_file":
-				return this.writeToFile(toolInput.path, toolInput.content)
+				return this.writeToFile(toolInput.path, toolInput.content, isLastWriteToFile)
 			case "read_file":
 				return this.readFile(toolInput.path)
 			case "list_files_top_level":
@@ -361,7 +361,7 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(filePath: string, newContent: string): Promise<string> {
+	async writeToFile(filePath: string, newContent: string, isLast: boolean): Promise<string> {
 		try {
 			const fileExists = await fs
 				.access(filePath)
@@ -408,24 +408,22 @@ export class ClaudeDev {
 						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
-				// close the diff view
-				vscode.workspace.textDocuments
-					.filter((doc) => doc.uri.scheme === "claude-dev-diff")
-					.forEach(async (doc) => {
-						await vscode.window.showTextDocument(doc.uri, { preserveFocus: false, preview: true })
-						await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
-					})
 				if (response !== "yesButtonTapped") {
+					if (isLast) {
+						await this.closeDiffViews()
+					}
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)
 						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
 					}
 					return "The user denied this operation."
 				}
-
 				await fs.writeFile(filePath, newContent)
 				// Finish by opening the edited file in the editor
 				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				if (isLast) {
+					await this.closeDiffViews()
+				}
 				return `Changes applied to ${filePath}:\n${diffResult}`
 			} else {
 				const fileName = path.basename(filePath)
@@ -439,18 +437,14 @@ export class ClaudeDev {
 					}),
 					`${fileName}: New File`
 				)
-
 				const { response, text } = await this.ask(
 					"tool",
 					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
 				)
-				vscode.workspace.textDocuments
-					.filter((doc) => doc.uri.scheme === "claude-dev-diff")
-					.forEach(async (doc) => {
-						await vscode.window.showTextDocument(doc.uri, { preserveFocus: false, preview: true })
-						await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
-					})
 				if (response !== "yesButtonTapped") {
+					if (isLast) {
+						await this.closeDiffViews()
+					}
 					if (response === "textResponse" && text) {
 						await this.say("user_feedback", text)
 						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
@@ -460,12 +454,28 @@ export class ClaudeDev {
 				await fs.mkdir(path.dirname(filePath), { recursive: true })
 				await fs.writeFile(filePath, newContent)
 				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				if (isLast) {
+					await this.closeDiffViews()
+				}
 				return `New file created and content written to ${filePath}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
 			this.say("error", `Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
 			return errorString
+		}
+	}
+
+	async closeDiffViews() {
+		const tabs = vscode.window.tabGroups.all
+			.map((tg) => tg.tabs)
+			.flat()
+			.filter(
+				(tab) =>
+					tab.input instanceof vscode.TabInputTextDiff && tab.input?.modified?.scheme === "claude-dev-diff"
+			)
+		for (const tab of tabs) {
+			await vscode.window.tabGroups.close(tab)
 		}
 	}
 
@@ -783,6 +793,10 @@ export class ClaudeDev {
 
 			let toolResults: Anthropic.ToolResultBlockParam[] = []
 			let attemptCompletionBlock: Anthropic.Messages.ToolUseBlock | undefined
+			const writeToFileCount = response.content.filter(
+				(block) => block.type === "tool_use" && (block.name as ToolName) === "write_to_file"
+			).length
+			let currentWriteToFile = 0
 			for (const contentBlock of response.content) {
 				if (contentBlock.type === "tool_use") {
 					assistantResponses.push(contentBlock)
@@ -792,7 +806,14 @@ export class ClaudeDev {
 					if (toolName === "attempt_completion") {
 						attemptCompletionBlock = contentBlock
 					} else {
-						const result = await this.executeTool(toolName, toolInput)
+						if (toolName === "write_to_file") {
+							currentWriteToFile++
+						}
+						const result = await this.executeTool(
+							toolName,
+							toolInput,
+							currentWriteToFile === writeToFileCount
+						)
 						// this.say(
 						// 	"tool",
 						// 	`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}\nTool Result: ${result}`
