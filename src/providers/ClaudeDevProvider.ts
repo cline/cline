@@ -440,22 +440,33 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	// conversation history to send in API requests
 
+	/*
+	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
+	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
+	*/
+	private apiConversationHistory: Anthropic.MessageParam[] = []
+
 	async getApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
-		const history = (await this.getGlobalState(
-			this.getApiConversationHistoryStateKey()
-		)) as Anthropic.MessageParam[]
-		return history || []
+		// const history = (await this.getGlobalState(
+		// 	this.getApiConversationHistoryStateKey()
+		// )) as Anthropic.MessageParam[]
+		// return history || []
+		return this.apiConversationHistory
 	}
 
 	async setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
-		await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
+		// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
+		this.apiConversationHistory = history || []
 	}
 
 	async addMessageToApiConversationHistory(message: Anthropic.MessageParam): Promise<Anthropic.MessageParam[]> {
-		const history = await this.getApiConversationHistory()
-		history.push(message)
-		await this.setApiConversationHistory(history)
-		return history
+		// const history = await this.getApiConversationHistory()
+		// history.push(message)
+		// await this.setApiConversationHistory(history)
+		// return history
+		this.apiConversationHistory.push(message)
+		return this.apiConversationHistory
 	}
 
 	/*
