@@ -369,6 +369,10 @@ export class ClaudeDev {
 				.catch(() => false)
 			if (fileExists) {
 				const originalContent = await fs.readFile(filePath, "utf-8")
+				// fix issue where claude always removes newline from the file
+				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
+					newContent += "\n"
+				}
 				// condensed patch to return to claude
 				const diffResult = diff.createPatch(filePath, originalContent, newContent)
 				// full diff representation for webview
