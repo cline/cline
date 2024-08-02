@@ -131,6 +131,7 @@
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "serialize-error": "^11.0.3",
+    "tree-kill": "^1.2.2",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.22.6"
   }
