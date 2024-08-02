@@ -16,6 +16,7 @@ import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
+import treeKill from "tree-kill"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -627,7 +628,15 @@ export class ClaudeDev {
 							// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
 							if (response === "yesButtonTapped") {
 								// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
-								subprocess.kill("SIGINT") // will result in for loop throwing error
+								/*
+								.kill sends SIGINT by default. However by not passing any options into .kill(), execa internally sends a SIGKILL after a grace period if the SIGINT failed.
+								however it turns out that even this isn't enough for certain processes like npm starting servers. therefore we use the tree-kill package to kill all processes in the process tree, including the root process.
+								- Sends signal to all children processes of the process with pid pid, including pid. Signal defaults to SIGTERM.
+								*/
+								if (subprocess.pid) {
+									//subprocess.kill("SIGINT") // will result in for loop throwing error
+									treeKill(subprocess.pid, "SIGINT")
+								}
 							} else {
 								// if the user sent some input, we send it to the command stdin
 								// add newline as cli programs expect a newline after each input
