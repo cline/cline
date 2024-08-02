@@ -13,7 +13,7 @@ import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
-import { ClaudeAsk, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
+import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 
@@ -227,6 +227,8 @@ export class ClaudeDev {
 	private client: Anthropic
 	private maxRequestsPerTask: number
 	private requestCount = 0
+	apiConversationHistory: Anthropic.MessageParam[] = []
+	claudeMessages: ClaudeMessage[] = []
 	private askResponse?: ClaudeAskResponse
 	private askResponseText?: string
 	private lastMessageTs?: number
@@ -263,7 +265,7 @@ export class ClaudeDev {
 		this.askResponseText = undefined
 		const askTs = Date.now()
 		this.lastMessageTs = askTs
-		await this.providerRef.deref()?.addClaudeMessage({ ts: askTs, type: "ask", ask: type, text: question })
+		this.claudeMessages.push({ ts: askTs, type: "ask", ask: type, text: question })
 		await this.providerRef.deref()?.postStateToWebview()
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
 		if (this.lastMessageTs !== askTs) {
@@ -281,14 +283,15 @@ export class ClaudeDev {
 		}
 		const sayTs = Date.now()
 		this.lastMessageTs = sayTs
-		await this.providerRef.deref()?.addClaudeMessage({ ts: sayTs, type: "say", say: type, text: text })
+		this.claudeMessages.push({ ts: sayTs, type: "say", say: type, text: text })
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
 	private async startTask(task: string): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
-		await this.providerRef.deref()?.setClaudeMessages(undefined)
+		this.claudeMessages = []
+		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
 		// This first message kicks off a task, it is not included in every subsequent message.
@@ -693,7 +696,7 @@ export class ClaudeDev {
 					// beta max tokens
 					max_tokens: 8192,
 					system: SYSTEM_PROMPT(),
-					messages: (await this.providerRef.deref()?.getApiConversationHistory()) || [],
+					messages: this.apiConversationHistory,
 					tools: tools,
 					tool_choice: { type: "auto" },
 				},
@@ -729,7 +732,7 @@ export class ClaudeDev {
 			throw new Error("ClaudeDev instance aborted")
 		}
 
-		await this.providerRef.deref()?.addMessageToApiConversationHistory({ role: "user", content: userContent })
+		this.apiConversationHistory.push({ role: "user", content: userContent })
 		if (this.requestCount >= this.maxRequestsPerTask) {
 			const { response } = await this.ask(
 				"request_limit_reached",
@@ -739,7 +742,7 @@ export class ClaudeDev {
 			if (response === "yesButtonTapped") {
 				this.requestCount = 0
 			} else {
-				await this.providerRef.deref()?.addMessageToApiConversationHistory({
+				this.apiConversationHistory.push({
 					role: "assistant",
 					content: [
 						{
@@ -823,13 +826,11 @@ export class ClaudeDev {
 			}
 
 			if (assistantResponses.length > 0) {
-				await this.providerRef
-					.deref()
-					?.addMessageToApiConversationHistory({ role: "assistant", content: assistantResponses })
+				this.apiConversationHistory.push({ role: "assistant", content: assistantResponses })
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				this.say("error", "Unexpected Error: No assistant messages were found in the API response")
-				await this.providerRef.deref()?.addMessageToApiConversationHistory({
+				this.apiConversationHistory.push({
 					role: "assistant",
 					content: [{ type: "text", text: "Failure: I did not have a response to provide." }],
 				})
@@ -859,10 +860,8 @@ export class ClaudeDev {
 
 			if (toolResults.length > 0) {
 				if (didEndLoop) {
-					await this.providerRef
-						.deref()
-						?.addMessageToApiConversationHistory({ role: "user", content: toolResults })
-					await this.providerRef.deref()?.addMessageToApiConversationHistory({
+					this.apiConversationHistory.push({ role: "user", content: toolResults })
+					this.apiConversationHistory.push({
 						role: "assistant",
 						content: [
 							{

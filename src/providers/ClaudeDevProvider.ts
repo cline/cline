@@ -19,7 +19,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
-	private providerInstanceIdentifier = Date.now()
 	private claudeDev?: ClaudeDev
 	private latestAnnouncementId = "jul-29-2024" // update to some unique identifier when we add a new announcement
 
@@ -307,7 +306,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${ampm}.md`
 
 		// Generate markdown
-		const conversationHistory = await this.getApiConversationHistory()
+		const conversationHistory = this.claudeDev?.apiConversationHistory || []
 		const markdownContent = conversationHistory
 			.map((message) => {
 				const role = message.role === "user" ? "**User:**" : "**Assistant:**"
@@ -370,10 +369,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async postStateToWebview() {
-		const [apiKey, maxRequestsPerTask, claudeMessages, lastShownAnnouncementId] = await Promise.all([
+		const [apiKey, maxRequestsPerTask, lastShownAnnouncementId] = await Promise.all([
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
-			this.getClaudeMessages(),
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 		])
 		this.postMessageToWebview({
@@ -382,7 +380,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				apiKey,
 				maxRequestsPerTask,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
-				claudeMessages,
+				claudeMessages: this.claudeDev?.claudeMessages || [],
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			},
 		})
@@ -393,14 +391,14 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.claudeDev.abort = true // will stop any agentically running promises
 			this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
 		}
-		await this.setApiConversationHistory(undefined)
-		await this.setClaudeMessages(undefined)
+		// this.setApiConversationHistory(undefined)
+		// this.setClaudeMessages(undefined)
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
 
 	/*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we do to reduce memory footprint in long conversations.
+	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we could to reduce memory footprint in long conversations.
 
 	- We have to be careful of what state is shared between ClaudeDevProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
@@ -411,32 +409,36 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	However in the future when we implement task history, we'll need to use a unique identifier for each task. As well as manage a data structure that keeps track of task history with their associated identifiers and the task message itself, to present in a 'Task History' view.
 	Task history is a significant undertaking as it would require refactoring how we wait for ask responses--it would need to be a hidden claudeMessage, so that user's can resume tasks that ended with an ask.
 	*/
+	// private providerInstanceIdentifier = Date.now()
+	// getClaudeMessagesStateKey() {
+	// 	return `claudeMessages-${this.providerInstanceIdentifier}`
+	// }
 
-	getClaudeMessagesStateKey() {
-		return `claudeMessages-${this.providerInstanceIdentifier}`
-	}
-
-	getApiConversationHistoryStateKey() {
-		return `apiConversationHistory-${this.providerInstanceIdentifier}`
-	}
+	// getApiConversationHistoryStateKey() {
+	// 	return `apiConversationHistory-${this.providerInstanceIdentifier}`
+	// }
 
 	// claude messages to present in the webview
 
-	async getClaudeMessages(): Promise<ClaudeMessage[]> {
-		const messages = (await this.getGlobalState(this.getClaudeMessagesStateKey())) as ClaudeMessage[]
-		return messages || []
-	}
+	// getClaudeMessages(): ClaudeMessage[] {
+	// 	// const messages = (await this.getGlobalState(this.getClaudeMessagesStateKey())) as ClaudeMessage[]
+	// 	// return messages || []
+	// 	return this.claudeMessages
+	// }
 
-	async setClaudeMessages(messages: ClaudeMessage[] | undefined) {
-		await this.updateGlobalState(this.getClaudeMessagesStateKey(), messages)
-	}
+	// setClaudeMessages(messages: ClaudeMessage[] | undefined) {
+	// 	// await this.updateGlobalState(this.getClaudeMessagesStateKey(), messages)
+	// 	this.claudeMessages = messages || []
+	// }
 
-	async addClaudeMessage(message: ClaudeMessage): Promise<ClaudeMessage[]> {
-		const messages = await this.getClaudeMessages()
-		messages.push(message)
-		await this.setClaudeMessages(messages)
-		return messages
-	}
+	// addClaudeMessage(message: ClaudeMessage): ClaudeMessage[] {
+	// 	// const messages = await this.getClaudeMessages()
+	// 	// messages.push(message)
+	// 	// await this.setClaudeMessages(messages)
+	// 	// return messages
+	// 	this.claudeMessages.push(message)
+	// 	return this.claudeMessages
+	// }
 
 	// conversation history to send in API requests
 
@@ -445,29 +447,28 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
-	private apiConversationHistory: Anthropic.MessageParam[] = []
 
-	async getApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
-		// const history = (await this.getGlobalState(
-		// 	this.getApiConversationHistoryStateKey()
-		// )) as Anthropic.MessageParam[]
-		// return history || []
-		return this.apiConversationHistory
-	}
+	// getApiConversationHistory(): Anthropic.MessageParam[] {
+	// 	// const history = (await this.getGlobalState(
+	// 	// 	this.getApiConversationHistoryStateKey()
+	// 	// )) as Anthropic.MessageParam[]
+	// 	// return history || []
+	// 	return this.apiConversationHistory
+	// }
 
-	async setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
-		// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
-		this.apiConversationHistory = history || []
-	}
+	// setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
+	// 	// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
+	// 	this.apiConversationHistory = history || []
+	// }
 
-	async addMessageToApiConversationHistory(message: Anthropic.MessageParam): Promise<Anthropic.MessageParam[]> {
-		// const history = await this.getApiConversationHistory()
-		// history.push(message)
-		// await this.setApiConversationHistory(history)
-		// return history
-		this.apiConversationHistory.push(message)
-		return this.apiConversationHistory
-	}
+	// addMessageToApiConversationHistory(message: Anthropic.MessageParam): Anthropic.MessageParam[] {
+	// 	// const history = await this.getApiConversationHistory()
+	// 	// history.push(message)
+	// 	// await this.setApiConversationHistory(history)
+	// 	// return history
+	// 	this.apiConversationHistory.push(message)
+	// 	return this.apiConversationHistory
+	// }
 
 	/*
 	Storage
