@@ -100,8 +100,9 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ apiConfiguration, setApiConfigu
 							style={{ width: "100%" }}
 							onChange={handleInputChange("awsRegion")}>
 							<VSCodeOption value="">Select a region...</VSCodeOption>
+							{/* Currently Claude 3.5 Sonnet is only available in us-east-1 */}
 							<VSCodeOption value="us-east-1">US East (N. Virginia)</VSCodeOption>
-							<VSCodeOption value="us-east-2">US East (Ohio)</VSCodeOption>
+							{/* <VSCodeOption value="us-east-2">US East (Ohio)</VSCodeOption>
 							<VSCodeOption value="us-west-1">US West (N. California)</VSCodeOption>
 							<VSCodeOption value="us-west-2">US West (Oregon)</VSCodeOption>
 							<VSCodeOption value="af-south-1">Africa (Cape Town)</VSCodeOption>
@@ -119,7 +120,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ apiConfiguration, setApiConfigu
 							<VSCodeOption value="eu-west-3">Europe (Paris)</VSCodeOption>
 							<VSCodeOption value="eu-north-1">Europe (Stockholm)</VSCodeOption>
 							<VSCodeOption value="me-south-1">Middle East (Bahrain)</VSCodeOption>
-							<VSCodeOption value="sa-east-1">South America (São Paulo)</VSCodeOption>
+							<VSCodeOption value="sa-east-1">South America (São Paulo)</VSCodeOption> */}
 						</VSCodeDropdown>
 					</div>
 					<p
