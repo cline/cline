@@ -31,6 +31,6 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 		case "bedrock":
 			return new AwsBedrockHandler(options)
 		default:
-			throw new Error(`Unknown API provider: ${apiProvider}`)
+			return new AnthropicHandler(options)
 	}
 }
