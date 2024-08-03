@@ -85,6 +85,5 @@ const extensionToLanguage: { [key: string]: string } = {
 
 export function getLanguageFromPath(path: string): string | undefined {
 	const extension = path.split(".").pop()?.toLowerCase() || ""
-    console.log(`converted path to language: ${path} -> ${extensionToLanguage[extension]}`)
 	return extensionToLanguage[extension]
 }
