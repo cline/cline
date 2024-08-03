@@ -10,6 +10,15 @@ export interface ApiHandler {
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
 	): Promise<Anthropic.Messages.Message>
+
+	createUserReadableRequest(
+		userContent: Array<
+			| Anthropic.TextBlockParam
+			| Anthropic.ImageBlockParam
+			| Anthropic.ToolUseBlockParam
+			| Anthropic.ToolResultBlockParam
+		>
+	): any
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {

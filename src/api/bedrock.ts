@@ -36,4 +36,22 @@ export class AwsBedrockHandler implements ApiHandler {
 			tool_choice: { type: "auto" },
 		})
 	}
+
+	createUserReadableRequest(
+		userContent: Array<
+			| Anthropic.TextBlockParam
+			| Anthropic.ImageBlockParam
+			| Anthropic.ToolUseBlockParam
+			| Anthropic.ToolResultBlockParam
+		>
+	): any {
+		return {
+			model: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+			max_tokens: 4096,
+			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
+			messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+			tools: "(see tools in src/ClaudeDev.ts)",
+			tool_choice: { type: "auto" },
+		}
+	}
 }
