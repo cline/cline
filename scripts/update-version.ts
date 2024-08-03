@@ -14,12 +14,6 @@ const rootPackage = JSON.parse(fs.readFileSync(rootPackagePath, "utf8"))
 rootPackage.version = newVersion
 fs.writeFileSync(rootPackagePath, JSON.stringify(rootPackage, null, 2))
 
-// Update webview package.json
-const webviewPackagePath = path.join(__dirname, "..", "webview-ui", "package.json")
-const webviewPackage = JSON.parse(fs.readFileSync(webviewPackagePath, "utf8"))
-webviewPackage.version = newVersion
-fs.writeFileSync(webviewPackagePath, JSON.stringify(webviewPackage, null, 2))
-
 // Update Announcement.tsx
 const announcementPath = path.join(__dirname, "..", "webview-ui", "src", "components", "Announcement.tsx")
 let announcementContent = fs.readFileSync(announcementPath, "utf8")
