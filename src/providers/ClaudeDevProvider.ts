@@ -558,8 +558,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	// secrets
 
-	private async storeSecret(key: SecretKey, value: any) {
-		await this.context.secrets.store(key, value)
+	private async storeSecret(key: SecretKey, value?: string) {
+		if (value) {
+			await this.context.secrets.store(key, value)
+		} else {
+			await this.context.secrets.delete(key)
+		}
 	}
 
 	private async getSecret(key: SecretKey) {
