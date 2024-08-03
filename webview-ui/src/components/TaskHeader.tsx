@@ -2,7 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import TextTruncate from "react-text-truncate"
 import { useWindowSize } from "react-use"
-import { vscode } from "../utilities/vscode"
+import { vscode } from "../utils/vscode"
 
 interface TaskHeaderProps {
 	taskText: string
