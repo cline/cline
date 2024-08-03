@@ -22,7 +22,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.87</h3>
+			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.9</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Open in the editor (using{" "}
@@ -50,6 +50,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				<li>Shows diff view of new or edited files right in the editor</li>
 				<li>Added ability to retry failed API requests (helpful for rate limits)</li>
 				<li>Export task to a markdown file (useful as context for future tasks)</li>
+				<li>Added OpenRouter and AWS Bedrock support</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}

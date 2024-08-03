@@ -4,6 +4,10 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.0.9]
+
+- Add support for OpenRouter and AWS Bedrock
+
 ## [1.0.8]
 
 - Shows diff view of new or edited files right in the editor
