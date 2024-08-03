@@ -77,7 +77,7 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 		markDirectories: true, // Append a / on any directories matched
 		gitignore: recursive, // globby ignores any files that are gitignored
 		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
-		onlyFiles: recursive, // true by default, false means it will list directories on their own too
+		onlyFiles: false, // true by default, false means it will list directories on their own too
 	}
 	// * globs all files in one dir, ** globs files in nested directories
 	const files = await globby(recursive ? "**" : "*", options)
