@@ -1,6 +1,8 @@
+import { ApiConfiguration, ApiProvider } from "./api"
+
 export interface WebviewMessage {
 	type:
-		| "apiKey"
+		| "apiConfiguration"
 		| "maxRequestsPerTask"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -10,6 +12,7 @@ export interface WebviewMessage {
 		| "downloadTask"
 	text?: string
 	askResponse?: ClaudeAskResponse
+	apiConfiguration?: ApiConfiguration
 }
 
 export type ClaudeAskResponse = "yesButtonTapped" | "noButtonTapped" | "textResponse"

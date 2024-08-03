@@ -8,15 +8,17 @@ import osName from "os-name"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
+import treeKill from "tree-kill"
 import * as vscode from "vscode"
+import { ApiHandler, buildApiHandler } from "./api"
 import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
+import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import treeKill from "tree-kill"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -225,7 +227,7 @@ const tools: Tool[] = [
 ]
 
 export class ClaudeDev {
-	private client: Anthropic
+	private api: ApiHandler
 	private maxRequestsPerTask: number
 	private requestCount = 0
 	apiConversationHistory: Anthropic.MessageParam[] = []
@@ -236,16 +238,21 @@ export class ClaudeDev {
 	private providerRef: WeakRef<ClaudeDevProvider>
 	abort: boolean = false
 
-	constructor(provider: ClaudeDevProvider, task: string, apiKey: string, maxRequestsPerTask?: number) {
+	constructor(
+		provider: ClaudeDevProvider,
+		task: string,
+		apiConfiguration: ApiConfiguration,
+		maxRequestsPerTask?: number
+	) {
 		this.providerRef = new WeakRef(provider)
-		this.client = new Anthropic({ apiKey })
+		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 
 		this.startTask(task)
 	}
 
-	updateApiKey(apiKey: string) {
-		this.client = new Anthropic({ apiKey })
+	updateApi(apiConfiguration: ApiConfiguration) {
+		this.api = buildApiHandler(apiConfiguration)
 	}
 
 	updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
@@ -699,22 +706,7 @@ export class ClaudeDev {
 
 	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {
 		try {
-			const response = await this.client.messages.create(
-				{
-					model: "claude-3-5-sonnet-20240620", // https://docs.anthropic.com/en/docs/about-claude/models
-					// beta max tokens
-					max_tokens: 8192,
-					system: SYSTEM_PROMPT(),
-					messages: this.apiConversationHistory,
-					tools: tools,
-					tool_choice: { type: "auto" },
-				},
-				{
-					// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
-					headers: { "anthropic-beta": "max-tokens-3-5-sonnet-2024-07-15" },
-				}
-			)
-			return response
+			return await this.api.createMessage(SYSTEM_PROMPT(), this.apiConversationHistory, tools)
 		} catch (error) {
 			const { response } = await this.ask(
 				"api_req_failed",

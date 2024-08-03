@@ -109,3 +109,23 @@ The above scrollbar styling uses some transparent background color magic to acco
 .code-block-scrollable::-webkit-scrollbar-corner {
 	background-color: transparent;
 }
+
+/*
+Dropdown label
+https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#with-label
+*/
+.dropdown-container {
+	box-sizing: border-box;
+	display: flex;
+	flex-flow: column nowrap;
+	align-items: flex-start;
+	justify-content: flex-start;
+}
+.dropdown-container label {
+	display: block;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: var(--vscode-font-size);
+	line-height: normal;
+	margin-bottom: 2px;
+}
