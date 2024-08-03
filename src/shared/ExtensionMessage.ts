@@ -1,5 +1,7 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonTapped' or 'settingsButtonTapped' or 'hello'
 
+import { ApiConfiguration } from "./api"
+
 // webview will hold state
 export interface ExtensionMessage {
 	type: "action" | "state"
@@ -9,7 +11,7 @@ export interface ExtensionMessage {
 }
 
 export interface ExtensionState {
-	apiKey?: string
+	apiConfiguration?: ApiConfiguration
 	maxRequestsPerTask?: number
 	themeName?: string
 	claudeMessages: ClaudeMessage[]

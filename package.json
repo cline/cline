@@ -122,12 +122,14 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.24.3",
     "@vscode/codicons": "^0.0.36",
     "default-shell": "^2.2.0",
     "diff": "^5.2.0",
     "execa": "^9.3.0",
     "globby": "^14.0.2",
+    "openai": "^4.54.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "serialize-error": "^11.0.3",

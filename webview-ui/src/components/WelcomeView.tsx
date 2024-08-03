@@ -1,32 +1,27 @@
-import React, { useState, useEffect } from "react"
-import { VSCodeButton, VSCodeTextField, VSCodeLink, VSCodeDivider } from "@vscode/webview-ui-toolkit/react"
+import { ApiConfiguration } from "@shared/api"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useState } from "react"
+import { validateApiConfiguration } from "../utilities/validate"
 import { vscode } from "../utilities/vscode"
+import ApiOptions from "./ApiOptions"
 
 interface WelcomeViewProps {
-	apiKey: string
-	setApiKey: React.Dispatch<React.SetStateAction<string>>
+	apiConfiguration?: ApiConfiguration
+	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 }
 
-const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
-	const [apiKeyErrorMessage, setApiKeyErrorMessage] = useState<string | undefined>(undefined)
+const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfiguration }) => {
+	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
-	const disableLetsGoButton = apiKeyErrorMessage != null
-
-	const validateApiKey = (value: string) => {
-		if (value.trim() === "") {
-			setApiKeyErrorMessage("API Key cannot be empty")
-		} else {
-			setApiKeyErrorMessage(undefined)
-		}
-	}
+	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleSubmit = () => {
-		vscode.postMessage({ type: "apiKey", text: apiKey })
+		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 	}
 
 	useEffect(() => {
-		validateApiKey(apiKey)
-	}, [apiKey])
+		setApiErrorMessage(validateApiConfiguration(apiConfiguration))
+	}, [apiConfiguration])
 
 	return (
 		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 20px" }}>
@@ -42,35 +37,14 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiKey, setApiKey }) => {
 				files, analyze project source code, and execute terminal commands (with your permission, of course).
 			</p>
 
-			<b>To get started, this extension needs an Anthropic API key:</b>
-			<ol style={{ paddingLeft: "15px" }}>
-				<li>
-					Go to{" "}
-					<VSCodeLink href="https://console.anthropic.com" style={{ display: "inline" }}>
-						https://console.anthropic.com
-					</VSCodeLink>
-				</li>
-				<li>You may need to buy some credits (although Anthropic is offering $5 free credit for new users)</li>
-				<li>Click 'Get API Keys' and create a new key (you can delete it any time)</li>
-			</ol>
+			<b>To get started, this extension needs an API key for Claude 3.5 Sonnet:</b>
 
-			<VSCodeDivider />
-
-			<div style={{ marginTop: "20px", display: "flex", alignItems: "center" }}>
-				<VSCodeTextField
-					style={{ flexGrow: 1, marginRight: "10px" }}
-					placeholder="Enter API Key..."
-					value={apiKey}
-					onInput={(e: any) => setApiKey(e.target.value)}
-				/>
-				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton}>
-					Submit
+			<div style={{ marginTop: "15px" }}>
+				<ApiOptions apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+					Let's go!
 				</VSCodeButton>
 			</div>
-
-			<p style={{ fontSize: "12px", marginTop: "10px", color: "var(--vscode-descriptionForeground)" }}>
-				Your API key is stored securely on your computer and used only for interacting with the Anthropic API.
-			</p>
 		</div>
 	)
 }

@@ -6,6 +6,7 @@ import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utilities/vscode"
 import { useEvent } from "react-use"
+import { ApiConfiguration } from "@shared/api"
 
 /*
 The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
@@ -19,7 +20,7 @@ const App: React.FC = () => {
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
-	const [apiKey, setApiKey] = useState<string>("")
+	const [apiConfiguration, setApiConfiguration] = useState<ApiConfiguration | undefined>(undefined)
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
@@ -33,8 +34,12 @@ const App: React.FC = () => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
 			case "state":
-				setShowWelcome(!message.state!.apiKey)
-				setApiKey(message.state!.apiKey || "")
+				const hasKey =
+					message.state!.apiConfiguration?.apiKey !== undefined ||
+					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
+					message.state!.apiConfiguration?.awsAccessKey !== undefined
+				setShowWelcome(!hasKey)
+				setApiConfiguration(message.state!.apiConfiguration)
 				setMaxRequestsPerTask(
 					message.state!.maxRequestsPerTask !== undefined ? message.state!.maxRequestsPerTask.toString() : ""
 				)
@@ -70,13 +75,13 @@ const App: React.FC = () => {
 	return (
 		<>
 			{showWelcome ? (
-				<WelcomeView apiKey={apiKey} setApiKey={setApiKey} />
+				<WelcomeView apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 			) : (
 				<>
 					{showSettings && (
 						<SettingsView
-							apiKey={apiKey}
-							setApiKey={setApiKey}
+							apiConfiguration={apiConfiguration}
+							setApiConfiguration={setApiConfiguration}
 							maxRequestsPerTask={maxRequestsPerTask}
 							setMaxRequestsPerTask={setMaxRequestsPerTask}
 							onDone={() => setShowSettings(false)}

@@ -1,63 +1,49 @@
+import { ApiConfiguration } from "@shared/api"
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useState } from "react"
-import { useEffectOnce } from "react-use"
+import React, { useEffect, useState } from "react"
+import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utilities/validate"
 import { vscode } from "../utilities/vscode"
+import ApiOptions from "./ApiOptions"
 
 type SettingsViewProps = {
-	apiKey: string
-	setApiKey: React.Dispatch<React.SetStateAction<string>>
+	apiConfiguration?: ApiConfiguration
+	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	maxRequestsPerTask: string
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
-	onDone: () => void // Define the type of the onDone prop
+	onDone: () => void
 }
 
-const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPerTask, onDone }: SettingsViewProps) => {
-	const [apiKeyErrorMessage, setApiKeyErrorMessage] = useState<string | undefined>(undefined)
+const SettingsView = ({
+	apiConfiguration,
+	setApiConfiguration,
+	maxRequestsPerTask,
+	setMaxRequestsPerTask,
+	onDone,
+}: SettingsViewProps) => {
+	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
 
-	const disableDoneButton = apiKeyErrorMessage != null || maxRequestsErrorMessage != null
-
-	const handleApiKeyChange = (event: any) => {
-		const input = event.target.value
-		setApiKey(input)
-		validateApiKey(input)
-	}
-
-	const validateApiKey = (value: string) => {
-		if (value.trim() === "") {
-			setApiKeyErrorMessage("API Key cannot be empty")
-		} else {
-			setApiKeyErrorMessage(undefined)
-		}
-	}
-
-	const handleMaxRequestsChange = (event: any) => {
-		const input = event.target.value
-		setMaxRequestsPerTask(input)
-		validateMaxRequests(input)
-	}
-
-	const validateMaxRequests = (value: string | undefined) => {
-		if (value?.trim()) {
-			const num = Number(value)
-			if (isNaN(num)) {
-				setMaxRequestsErrorMessage("Maximum requests must be a number")
-			} else if (num < 3 || num > 100) {
-				setMaxRequestsErrorMessage("Maximum requests must be between 3 and 100")
-			} else {
-				setMaxRequestsErrorMessage(undefined)
-			}
-		} else {
-			setMaxRequestsErrorMessage(undefined)
-		}
-	}
-
 	const handleSubmit = () => {
-		vscode.postMessage({ type: "apiKey", text: apiKey })
-		vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
+		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTask)
 
-		onDone()
+		setApiErrorMessage(apiValidationResult)
+		setMaxRequestsErrorMessage(maxRequestsValidationResult)
+
+		if (!apiValidationResult && !maxRequestsValidationResult) {
+			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
+			onDone()
+		}
 	}
+
+	useEffect(() => {
+		setApiErrorMessage(undefined)
+	}, [apiConfiguration])
+
+	useEffect(() => {
+		setMaxRequestsErrorMessage(undefined)
+	}, [maxRequestsPerTask])
 
 	// validate as soon as the component is mounted
 	/*
@@ -70,14 +56,6 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
-	useEffectOnce(() => {
-		const timeoutId = setTimeout(() => {
-			validateApiKey(apiKey)
-			validateMaxRequests(maxRequestsPerTask)
-		}, 1000)
-
-		return () => clearTimeout(timeoutId)
-	})
 
 	return (
 		<div style={{ margin: "0 auto", paddingTop: "10px" }}>
@@ -89,40 +67,21 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					marginBottom: "17px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={handleSubmit} disabled={disableDoneButton}>
-					Done
-				</VSCodeButton>
+				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ marginBottom: "20px" }}>
-				<VSCodeTextField
-					value={apiKey}
-					style={{ width: "100%" }}
-					placeholder="Enter your Anthropic API Key"
-					onInput={handleApiKeyChange}>
-					<span style={{ fontWeight: "500" }}>Anthropic API Key</span>
-				</VSCodeTextField>
-				{apiKeyErrorMessage && (
+			<div style={{ marginBottom: 5 }}>
+				<ApiOptions apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+				{apiErrorMessage && (
 					<p
 						style={{
+							margin: "-5px 0 12px 0",
 							fontSize: "12px",
-							marginTop: "5px",
 							color: "var(--vscode-errorForeground)",
 						}}>
-						{apiKeyErrorMessage}
+						{apiErrorMessage}
 					</p>
 				)}
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					This key is not shared with anyone and only used to make API requests from the extension.
-					<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
-						You can get an API key by signing up here.
-					</VSCodeLink>
-				</p>
 			</div>
 
 			<div style={{ marginBottom: "20px" }}>
@@ -130,9 +89,18 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					value={maxRequestsPerTask}
 					style={{ width: "100%" }}
 					placeholder="20"
-					onInput={handleMaxRequestsChange}>
+					onInput={(e: any) => setMaxRequestsPerTask(e.target?.value)}>
 					<span style={{ fontWeight: "500" }}>Maximum # Requests Per Task</span>
 				</VSCodeTextField>
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					If Claude Dev reaches this limit, it will pause and ask for your permission before making additional
+					requests.
+				</p>
 				{maxRequestsErrorMessage && (
 					<p
 						style={{
@@ -143,15 +111,6 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 						{maxRequestsErrorMessage}
 					</p>
 				)}
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					If Claude Dev reaches this limit, it will pause and ask for your permission before making additional
-					requests.
-				</p>
 			</div>
 
 			<VSCodeDivider />
@@ -163,13 +122,14 @@ const SettingsView = ({ apiKey, setApiKey, maxRequestsPerTask, setMaxRequestsPer
 					color: "var(--vscode-descriptionForeground)",
 					fontSize: "12px",
 					lineHeight: "1.2",
-					fontStyle: "italic",
 				}}>
-				<p>
-					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev">
+				<p style={{ wordWrap: "break-word" }}>
+					If you have any questions or feedback, feel free to open an issue at{" "}
+					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev" style={{ display: "inline" }}>
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
 				</p>
+				<p style={{ fontStyle: "italic" }}>v1.0.86</p>
 			</div>
 		</div>
 	)
