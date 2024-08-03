@@ -12,7 +12,7 @@
 		"noImplicitReturns": true,
 		"noUnusedLocals": false,
 		"resolveJsonModule": true,
-		"rootDir": "src",
+		"rootDir": ".",
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
@@ -20,5 +20,6 @@
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false
 	},
+	"include": ["src/**/*", "scripts/**/*"],
 	"exclude": ["node_modules", ".vscode-test", "webview-ui"]
 }
