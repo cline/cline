@@ -4,7 +4,7 @@ import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
 import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
-import { vscode } from "./utilities/vscode"
+import { vscode } from "./utils/vscode"
 import { useEvent } from "react-use"
 import { ApiConfiguration } from "@shared/api"
 

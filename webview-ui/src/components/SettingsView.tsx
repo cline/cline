@@ -1,8 +1,8 @@
 import { ApiConfiguration } from "@shared/api"
 import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
-import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utilities/validate"
-import { vscode } from "../utilities/vscode"
+import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
+import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
 type SettingsViewProps = {
