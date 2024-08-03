@@ -43,7 +43,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ apiConfiguration, setApiConfigu
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from the extension.
+						This key is stored locally and only used to make API requests from this extension.
 						<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
 							You can get an Anthropic API key by signing up here.
 						</VSCodeLink>
@@ -66,7 +66,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ apiConfiguration, setApiConfigu
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from the extension.
+						This key is stored locally and only used to make API requests from this extension.
 						<VSCodeLink href="https://openrouter.ai/" style={{ display: "inline" }}>
 							You can get an OpenRouter API key by signing up here.
 						</VSCodeLink>
@@ -129,7 +129,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ apiConfiguration, setApiConfigu
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						These credentials are stored locally and only used to make API requests from the extension.
+						These credentials are stored locally and only used to make API requests from this extension.
 						<VSCodeLink
 							href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
 							style={{ display: "inline" }}>
