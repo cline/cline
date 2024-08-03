@@ -31,4 +31,22 @@ export class AnthropicHandler implements ApiHandler {
 			}
 		)
 	}
+
+	createUserReadableRequest(
+		userContent: Array<
+			| Anthropic.TextBlockParam
+			| Anthropic.ImageBlockParam
+			| Anthropic.ToolUseBlockParam
+			| Anthropic.ToolResultBlockParam
+		>
+	): any {
+		return {
+			model: "claude-3-5-sonnet-20240620",
+			max_tokens: 8192,
+			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
+			messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+			tools: "(see tools in src/ClaudeDev.ts)",
+			tool_choice: { type: "auto" },
+		}
+	}
 }

@@ -773,14 +773,7 @@ export class ClaudeDev {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: {
-					model: "claude-3-5-sonnet-20240620",
-					max_tokens: 8192,
-					system: "(see SYSTEM_PROMPT in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
-					messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
-					tools: "(see tools in https://github.com/saoudrizwan/claude-dev/blob/main/src/ClaudeDev.ts)",
-					tool_choice: { type: "auto" },
-				},
+				request: this.api.createUserReadableRequest(userContent),
 			})
 		)
 		try {
@@ -825,6 +818,7 @@ export class ClaudeDev {
 						if (toolName === "write_to_file") {
 							currentWriteToFile++
 						}
+						// NOTE: while anthropic sdk accepts string or array of string/image, openai sdk (openrouter) only accepts a string
 						const result = await this.executeTool(
 							toolName,
 							toolInput,
