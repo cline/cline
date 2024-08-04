@@ -19,6 +19,7 @@ import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
+import delay from "delay"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -676,13 +677,19 @@ export class ClaudeDev {
 				}
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
-					const line = `\nUser exited command...`
+					const line = `\nUser terminated process via SIGINT...`
 					await this.say("command_output", line)
 					result += line
 				} else {
 					throw e // if the command was not terminated by user, let outer catch handle it as a real error
 				}
 			}
+			// Wait for the next event loop tick to ensure all promises from the loop are created
+			// This is necessary because the non-awaited promises in the loop might not be
+			// created until the next Node.js event loop cycle. We want to make sure all
+			// promises are at least created before proceeding, to maintain the correct
+			// order of messages and avoid potential race conditions.
+			await delay(0)
 			// for attemptCompletion, we don't want to return the command output
 			if (returnEmptyStringOnSuccess) {
 				return ""
