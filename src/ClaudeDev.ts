@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import defaultShell from "default-shell"
 import * as diff from "diff"
-import { execa, ExecaError } from "execa"
+import { execa, ExecaError, ResultPromise } from "execa"
 import fs from "fs/promises"
 import os from "os"
 import osName from "os-name"
@@ -631,6 +631,34 @@ export class ClaudeDev {
 			}
 			return "The user denied this operation."
 		}
+
+		const sendCommandOutput = async (subprocess: ResultPromise, line: string): Promise<void> => {
+			try {
+				const { response, text } = await this.ask("command_output", line)
+				// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
+				if (response === "yesButtonTapped") {
+					// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
+					/*
+					.kill sends SIGINT by default. However by not passing any options into .kill(), execa internally sends a SIGKILL after a grace period if the SIGINT failed.
+					however it turns out that even this isn't enough for certain processes like npm starting servers. therefore we use the tree-kill package to kill all processes in the process tree, including the root process.
+					- Sends signal to all children processes of the process with pid pid, including pid. Signal defaults to SIGTERM.
+					*/
+					if (subprocess.pid) {
+						//subprocess.kill("SIGINT") // will result in for loop throwing error
+						treeKill(subprocess.pid, "SIGINT")
+					}
+				} else {
+					// if the user sent some input, we send it to the command stdin
+					// add newline as cli programs expect a newline after each input
+					subprocess.stdin?.write(text + "\n")
+					// Recurse with an empty string to continue listening for more input
+					sendCommandOutput(subprocess, "") // empty strings are effectively ignored by the webview, this is done solely to relinquish control over the exit command button
+				}
+			} catch {
+				// This can only happen if this ask promise was ignored, so ignore this error
+			}
+		}
+
 		try {
 			let result = ""
 			// execa by default tries to convert bash into javascript, so need to specify `shell: true` to use sh on unix or cmd.exe on windows
@@ -643,29 +671,7 @@ export class ClaudeDev {
 					const line = chunk.toString()
 					// stream output to user in realtime
 					// do not await as we are not waiting for a response
-					this.ask("command_output", line)
-						.then(({ response, text }) => {
-							// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
-							if (response === "yesButtonTapped") {
-								// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
-								/*
-								.kill sends SIGINT by default. However by not passing any options into .kill(), execa internally sends a SIGKILL after a grace period if the SIGINT failed.
-								however it turns out that even this isn't enough for certain processes like npm starting servers. therefore we use the tree-kill package to kill all processes in the process tree, including the root process.
-								- Sends signal to all children processes of the process with pid pid, including pid. Signal defaults to SIGTERM.
-								*/
-								if (subprocess.pid) {
-									//subprocess.kill("SIGINT") // will result in for loop throwing error
-									treeKill(subprocess.pid, "SIGINT")
-								}
-							} else {
-								// if the user sent some input, we send it to the command stdin
-								// add newline as cli programs expect a newline after each input
-								subprocess.stdin?.write(text + "\n")
-							}
-						})
-						.catch(() => {
-							// this can only happen if this ask promise was ignored, so ignore this error
-						})
+					sendCommandOutput(subprocess, line)
 					result += `${line}\n`
 				}
 			} catch (e) {
