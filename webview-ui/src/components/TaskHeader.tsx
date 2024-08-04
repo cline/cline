@@ -146,17 +146,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						<span style={{ fontWeight: "bold" }}>Tokens:</span>
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
-								className="codicon codicon-arrow-down"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
-							/>
-							{tokensOut.toLocaleString()}
-						</span>
-						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-							<i
 								className="codicon codicon-arrow-up"
 								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1.5px" }}
 							/>
 							{tokensIn.toLocaleString()}
+						</span>
+						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+							<i
+								className="codicon codicon-arrow-down"
+								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
+							/>
+							{tokensOut.toLocaleString()}
 						</span>
 					</div>
 					<div
