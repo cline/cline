@@ -129,7 +129,7 @@ const SettingsView = ({
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
 				</p>
-				<p style={{ fontStyle: "italic" }}>v1.0.93</p>
+				<p style={{ fontStyle: "italic" }}>v1.0.94</p>
 			</div>
 		</div>
 	)
