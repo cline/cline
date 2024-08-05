@@ -684,12 +684,12 @@ export class ClaudeDev {
 					throw e // if the command was not terminated by user, let outer catch handle it as a real error
 				}
 			}
-			// Wait for the next event loop tick to ensure all promises from the loop are created
-			// This is necessary because the non-awaited promises in the loop might not be
-			// created until the next Node.js event loop cycle. We want to make sure all
-			// promises are at least created before proceeding, to maintain the correct
-			// order of messages and avoid potential race conditions.
-			await delay(0)
+			// Wait for a short delay to ensure all messages are sent to the webview
+			// This delay allows time for non-awaited promises to be created and
+			// for their associated messages to be sent to the webview, maintaining
+			// the correct order of messages (although the webview is smart about
+			// grouping command_output messages despite any gaps anyways)
+			await delay(100)
 			// for attemptCompletion, we don't want to return the command output
 			if (returnEmptyStringOnSuccess) {
 				return ""
