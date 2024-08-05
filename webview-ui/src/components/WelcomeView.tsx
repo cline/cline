@@ -33,7 +33,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 					style={{ display: "inline" }}>
 					Claude 3.5 Sonnet's agentic coding capabilities.
 				</VSCodeLink>{" "}
-				I am prompted to think through tasks step-by-step and have access to tools that let me read & write
+				I am prompted to think through tasks step-by-step and have access to tools that let me create & edit
 				files, analyze project source code, and execute terminal commands (with your permission, of course).
 			</p>
 

@@ -364,8 +364,8 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 								style={{ display: "inline" }}>
 								Claude 3.5 Sonnet's agentic coding capabilities,
 							</VSCodeLink>{" "}
-							I can handle complex software development tasks step-by-step. With tools that let me read &
-							write files, analyze project source code, and execute terminal commands (after you grant
+							I can handle complex software development tasks step-by-step. With tools that let me create
+							& edit files, analyze project source code, and execute terminal commands (after you grant
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
 						</p>
 					</div>
