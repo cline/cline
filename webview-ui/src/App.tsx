@@ -39,7 +39,8 @@ const App: React.FC = () => {
 				const hasKey =
 					message.state!.apiConfiguration?.apiKey !== undefined ||
 					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined
+					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
+					message.state!.apiConfiguration?.gcProjectId !== undefined
 				setShowWelcome(!hasKey)
 				setApiConfiguration(message.state!.apiConfiguration)
 				setMaxRequestsPerTask(

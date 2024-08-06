@@ -18,6 +18,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "vertex":
+				if (!apiConfiguration.gcProjectId || !apiConfiguration.gcRegion) {
+					return "You must provide a valid Google Cloud project ID and region."
+				}
+				break
 		}
 	}
 	return undefined
