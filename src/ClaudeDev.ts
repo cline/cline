@@ -40,19 +40,17 @@ CAPABILITIES
 
 RULES
 
-- Unless otherwise specified by the user, you MUST accomplish your task within the following directory: ${
-		vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ??
-		path.join(os.homedir(), "Desktop")
-	}
-- Your current working directory is '${process.cwd()}', and you cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${process.cwd()}', so be sure to pass in the appropriate 'path' parameter when using tools that require a path.
+- Your current working directory is: ${cwd}
+- You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${cwd}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
+- Do not use the ~ character or $HOME to refer to the home directory.
+- Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
-- Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory, and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${process.cwd()}'). For example, if you needed to run \`npm install\` in a project, you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
-- When creating a new project (such as an app, website, or any software project), unless the user specifies otherwise, organize all new files within a dedicated project directory. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
+- When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example if you need to know the name of a file, you can use the list files tool to get the name yourself. If the user refers to something vague, you can use the list_files_recursive tool to get a better understanding of the project to see if that helps you clear up any confusion.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
 - NEVER end completion_attempt with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user. 
 - NEVER start your responses with affirmations like "Certaintly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
@@ -76,6 +74,8 @@ SYSTEM INFORMATION
 
 Operating System: ${osName()}
 Default Shell: ${defaultShell}
+Home Directory: ${os.homedir()}
+Current Working Directory: ${cwd}
 VSCode Visible Files: ${
 		vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
@@ -91,11 +91,13 @@ VSCode Opened Tabs: ${
 	}
 `
 
+const cwd =
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+
 const tools: Tool[] = [
 	{
 		name: "execute_command",
-		description:
-			"Execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run.",
+		description: `Execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd}`,
 		input_schema: {
 			type: "object",
 			properties: {
@@ -117,7 +119,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the directory to list contents for.",
+					description: `The path of the directory to list contents for (relative to the current working directory ${cwd})`,
 				},
 			},
 			required: ["path"],
@@ -132,7 +134,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the directory to recursively list contents for.",
+					description: `The path of the directory to recursively list contents for (relative to the current working directory ${cwd})`,
 				},
 			},
 			required: ["path"],
@@ -147,8 +149,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description:
-						"The path of the directory to parse top level source code files for to view their definitions.",
+					description: `The path of the directory (relative to the current working directory ${cwd}) to parse top level source code files for to view their definitions`,
 				},
 			},
 			required: ["path"],
@@ -163,7 +164,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to read.",
+					description: `The path of the file to read (relative to the current working directory ${cwd})`,
 				},
 			},
 			required: ["path"],
@@ -178,7 +179,7 @@ const tools: Tool[] = [
 			properties: {
 				path: {
 					type: "string",
-					description: "The path of the file to write to.",
+					description: `The path of the file to write to (relative to the current working directory ${cwd})`,
 				},
 				content: {
 					type: "string",
@@ -372,20 +373,21 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(filePath: string, newContent: string, isLast: boolean): Promise<string> {
+	async writeToFile(relPath: string, newContent: string, isLast: boolean): Promise<string> {
 		try {
+			const absolutePath = path.resolve(cwd, relPath)
 			const fileExists = await fs
-				.access(filePath)
+				.access(absolutePath)
 				.then(() => true)
 				.catch(() => false)
 			if (fileExists) {
-				const originalContent = await fs.readFile(filePath, "utf-8")
+				const originalContent = await fs.readFile(absolutePath, "utf-8")
 				// fix issue where claude always removes newline from the file
 				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
 					newContent += "\n"
 				}
 				// condensed patch to return to claude
-				const diffResult = diff.createPatch(filePath, originalContent, newContent)
+				const diffResult = diff.createPatch(relPath, originalContent, newContent)
 				// full diff representation for webview
 				const diffRepresentation = diff
 					.diffLines(originalContent, newContent)
@@ -399,10 +401,10 @@ export class ClaudeDev {
 					.join("")
 
 				// Create virtual document with new file, then open diff editor
-				const fileName = path.basename(filePath)
+				const fileName = path.basename(absolutePath)
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.file(filePath),
+					vscode.Uri.file(absolutePath),
 					// to create a virtual doc we use a uri scheme registered in extension.ts, which then converts this base64 content into a text document
 					// (providing file name with extension in the uri lets vscode know the language of the file and apply syntax highlighting)
 					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
@@ -415,7 +417,7 @@ export class ClaudeDev {
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
-						path: filePath,
+						path: relPath,
 						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
@@ -429,15 +431,15 @@ export class ClaudeDev {
 					}
 					return "The user denied this operation."
 				}
-				await fs.writeFile(filePath, newContent)
+				await fs.writeFile(absolutePath, newContent)
 				// Finish by opening the edited file in the editor
-				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 				if (isLast) {
 					await this.closeDiffViews()
 				}
-				return `Changes applied to ${filePath}:\n${diffResult}`
+				return `Changes applied to ${relPath}:\n${diffResult}`
 			} else {
-				const fileName = path.basename(filePath)
+				const fileName = path.basename(absolutePath)
 				vscode.commands.executeCommand(
 					"vscode.diff",
 					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
@@ -450,7 +452,7 @@ export class ClaudeDev {
 				)
 				const { response, text } = await this.ask(
 					"tool",
-					JSON.stringify({ tool: "newFileCreated", path: filePath, content: newContent } as ClaudeSayTool)
+					JSON.stringify({ tool: "newFileCreated", path: relPath, content: newContent } as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
 					if (isLast) {
@@ -462,13 +464,13 @@ export class ClaudeDev {
 					}
 					return "The user denied this operation."
 				}
-				await fs.mkdir(path.dirname(filePath), { recursive: true })
-				await fs.writeFile(filePath, newContent)
-				await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false })
+				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
+				await fs.writeFile(absolutePath, newContent)
+				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 				if (isLast) {
 					await this.closeDiffViews()
 				}
-				return `New file created and content written to ${filePath}`
+				return `New file created and content written to ${relPath}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
@@ -490,12 +492,13 @@ export class ClaudeDev {
 		}
 	}
 
-	async readFile(filePath: string): Promise<string> {
+	async readFile(relPath: string): Promise<string> {
 		try {
-			const content = await fs.readFile(filePath, "utf-8")
+			const absolutePath = path.resolve(cwd, relPath)
+			const content = await fs.readFile(absolutePath, "utf-8")
 			const { response, text } = await this.ask(
 				"tool",
-				JSON.stringify({ tool: "readFile", path: filePath, content } as ClaudeSayTool)
+				JSON.stringify({ tool: "readFile", path: relPath, content } as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
 				if (response === "textResponse" && text) {
@@ -512,13 +515,18 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesTopLevel(dirPath: string): Promise<string> {
+	async listFilesTopLevel(relDirPath: string): Promise<string> {
 		try {
-			const files = await listFiles(dirPath, false)
-			const result = this.formatFilesList(dirPath, files)
+			const absolutePath = path.resolve(cwd, relDirPath)
+			const files = await listFiles(absolutePath, false)
+			const result = this.formatFilesList(absolutePath, files)
 			const { response, text } = await this.ask(
 				"tool",
-				JSON.stringify({ tool: "listFilesTopLevel", path: dirPath, content: result } as ClaudeSayTool)
+				JSON.stringify({
+					tool: "listFilesTopLevel",
+					path: this.getReadableDirPath(relDirPath),
+					content: result,
+				} as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
 				if (response === "textResponse" && text) {
@@ -540,13 +548,18 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesRecursive(dirPath: string): Promise<string> {
+	async listFilesRecursive(relDirPath: string): Promise<string> {
 		try {
-			const files = await listFiles(dirPath, true)
-			const result = this.formatFilesList(dirPath, files)
+			const absolutePath = path.resolve(cwd, relDirPath)
+			const files = await listFiles(absolutePath, true)
+			const result = this.formatFilesList(absolutePath, files)
 			const { response, text } = await this.ask(
 				"tool",
-				JSON.stringify({ tool: "listFilesRecursive", path: dirPath, content: result } as ClaudeSayTool)
+				JSON.stringify({
+					tool: "listFilesRecursive",
+					path: this.getReadableDirPath(relDirPath),
+					content: result,
+				} as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
 				if (response === "textResponse" && text) {
@@ -566,11 +579,24 @@ export class ClaudeDev {
 		}
 	}
 
-	formatFilesList(dirPath: string, files: string[]): string {
+	getReadableDirPath(relDirPath: string): string {
+		const absolutePath = path.resolve(cwd, relDirPath)
+		if (cwd === path.join(os.homedir(), "Desktop")) {
+			// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
+			return absolutePath
+		}
+		if (path.normalize(absolutePath) === path.normalize(cwd)) {
+			return path.basename(absolutePath) + "/"
+		} else {
+			return relDirPath
+		}
+	}
+
+	formatFilesList(absolutePath: string, files: string[]): string {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
-				const relativePath = path.relative(dirPath, file)
+				const relativePath = path.relative(absolutePath, file)
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			})
 			.sort((a, b) => {
@@ -592,14 +618,15 @@ export class ClaudeDev {
 		}
 	}
 
-	async viewSourceCodeDefinitionsTopLevel(dirPath: string): Promise<string> {
+	async viewSourceCodeDefinitionsTopLevel(relDirPath: string): Promise<string> {
 		try {
-			const result = await parseSourceCodeForDefinitionsTopLevel(dirPath)
+			const absolutePath = path.resolve(cwd, relDirPath)
+			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
 			const { response, text } = await this.ask(
 				"tool",
 				JSON.stringify({
 					tool: "viewSourceCodeDefinitionsTopLevel",
-					path: dirPath,
+					path: this.getReadableDirPath(relDirPath),
 					content: result,
 				} as ClaudeSayTool)
 			)
@@ -665,7 +692,7 @@ export class ClaudeDev {
 			// execa by default tries to convert bash into javascript, so need to specify `shell: true` to use sh on unix or cmd.exe on windows
 			// also worth noting that execa`input` and the execa(command) have nuanced differences like the template literal version handles escaping for you, while with the function call, you need to be more careful about how arguments are passed, especially when using shell: true.
 			// execa returns a promise-like object that is both a promise and a Subprocess that has properties like stdin
-			const subprocess = execa({ shell: true })`${command}`
+			const subprocess = execa({ shell: true, cwd: cwd })`${command}`
 
 			try {
 				for await (const chunk of subprocess) {
@@ -677,9 +704,8 @@ export class ClaudeDev {
 				}
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
-					const line = `\nUser terminated process via SIGINT...`
-					await this.say("command_output", line)
-					result += line
+					await this.say("command_output", `\nUser exited command...`)
+					result += `\n====\nUser terminated command process via SIGINT. Please continue with your task but keep in mind that the command is no longer running.`
 				} else {
 					throw e // if the command was not terminated by user, let outer catch handle it as a real error
 				}
