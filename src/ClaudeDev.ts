@@ -45,6 +45,7 @@ RULES
 - Do not use the ~ character or $HOME to refer to the home directory.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system.
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. The system handles diff generation automatically.
+- If you need to read or edit a file you have already read or edited, you can assume its contents have not changed since then (unless specified otherwise by the user) and skip using the read_file tool before proceeding.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -387,7 +388,7 @@ export class ClaudeDev {
 					newContent += "\n"
 				}
 				// condensed patch to return to claude
-				const diffResult = diff.createPatch(relPath, originalContent, newContent)
+				const diffResult = diff.createPatch(absolutePath, originalContent, newContent)
 				// full diff representation for webview
 				const diffRepresentation = diff
 					.diffLines(originalContent, newContent)
@@ -417,7 +418,7 @@ export class ClaudeDev {
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
-						path: relPath,
+						path: this.getReadablePath(relPath),
 						diff: diffRepresentation,
 					} as ClaudeSayTool)
 				)
@@ -452,7 +453,11 @@ export class ClaudeDev {
 				)
 				const { response, text } = await this.ask(
 					"tool",
-					JSON.stringify({ tool: "newFileCreated", path: relPath, content: newContent } as ClaudeSayTool)
+					JSON.stringify({
+						tool: "newFileCreated",
+						path: this.getReadablePath(relPath),
+						content: newContent,
+					} as ClaudeSayTool)
 				)
 				if (response !== "yesButtonTapped") {
 					if (isLast) {
@@ -498,7 +503,7 @@ export class ClaudeDev {
 			const content = await fs.readFile(absolutePath, "utf-8")
 			const { response, text } = await this.ask(
 				"tool",
-				JSON.stringify({ tool: "readFile", path: relPath, content } as ClaudeSayTool)
+				JSON.stringify({ tool: "readFile", path: this.getReadablePath(relPath), content } as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
 				if (response === "textResponse" && text) {
@@ -524,7 +529,7 @@ export class ClaudeDev {
 				"tool",
 				JSON.stringify({
 					tool: "listFilesTopLevel",
-					path: this.getReadableDirPath(relDirPath),
+					path: this.getReadablePath(relDirPath),
 					content: result,
 				} as ClaudeSayTool)
 			)
@@ -557,7 +562,7 @@ export class ClaudeDev {
 				"tool",
 				JSON.stringify({
 					tool: "listFilesRecursive",
-					path: this.getReadableDirPath(relDirPath),
+					path: this.getReadablePath(relDirPath),
 					content: result,
 				} as ClaudeSayTool)
 			)
@@ -579,16 +584,24 @@ export class ClaudeDev {
 		}
 	}
 
-	getReadableDirPath(relDirPath: string): string {
-		const absolutePath = path.resolve(cwd, relDirPath)
+	getReadablePath(relPath: string): string {
+		// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
+		const absolutePath = path.resolve(cwd, relPath)
 		if (cwd === path.join(os.homedir(), "Desktop")) {
 			// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
 			return absolutePath
 		}
 		if (path.normalize(absolutePath) === path.normalize(cwd)) {
-			return path.basename(absolutePath) + "/"
+			return path.basename(absolutePath)
 		} else {
-			return relDirPath
+			// show the relative path to the cwd
+			const normalizedRelPath = path.relative(cwd, absolutePath)
+			if (absolutePath.includes(cwd)) {
+				return normalizedRelPath
+			} else {
+				// we are outside the cwd, so show the absolute path (useful for when claude passes in '../../' for example)
+				return absolutePath
+			}
 		}
 	}
 
@@ -613,6 +626,8 @@ export class ClaudeDev {
 			const truncatedList = sorted.slice(0, 1000).join("\n")
 			const remainingCount = sorted.length - 1000
 			return `${truncatedList}\n\n(${remainingCount} files not listed due to automatic truncation. Try listing files in subdirectories if you need to explore further.)`
+		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
+			return "No files found or you do not have permission to view this directory."
 		} else {
 			return sorted.join("\n")
 		}
@@ -626,7 +641,7 @@ export class ClaudeDev {
 				"tool",
 				JSON.stringify({
 					tool: "viewSourceCodeDefinitionsTopLevel",
-					path: this.getReadableDirPath(relDirPath),
+					path: this.getReadablePath(relDirPath),
 					content: result,
 				} as ClaudeSayTool)
 			)
@@ -678,6 +693,7 @@ export class ClaudeDev {
 				} else {
 					// if the user sent some input, we send it to the command stdin
 					// add newline as cli programs expect a newline after each input
+					// (stdin needs to be set to `pipe` to send input to the command, execa does this by default when using template literals - other options are inherit (from parent process stdin) or null (no stdin))
 					subprocess.stdin?.write(text + "\n")
 					// Recurse with an empty string to continue listening for more input
 					sendCommandOutput(subprocess, "") // empty strings are effectively ignored by the webview, this is done solely to relinquish control over the exit command button
@@ -694,14 +710,24 @@ export class ClaudeDev {
 			// execa returns a promise-like object that is both a promise and a Subprocess that has properties like stdin
 			const subprocess = execa({ shell: true, cwd: cwd })`${command}`
 
-			try {
-				for await (const chunk of subprocess) {
-					const line = chunk.toString()
+			subprocess.stdout?.on("data", (data) => {
+				if (data) {
+					const output = data.toString()
 					// stream output to user in realtime
-					// do not await as we are not waiting for a response
-					sendCommandOutput(subprocess, line)
-					result += `${line}\n`
+					// do not await since it's sent as an ask and we are not waiting for a response
+					sendCommandOutput(subprocess, output)
+					result += output
 				}
+			})
+
+			try {
+				await subprocess
+				// NOTE: using for await to stream execa output does not return lines that expect user input, so we use listen to the stdout stream and handle data directly, allowing us to process output as soon as it's available even before a full line is complete.
+				// for await (const chunk of subprocess) {
+				// 	const line = chunk.toString()
+				// 	sendCommandOutput(subprocess, line)
+				// 	result += `${line}\n`
+				// }
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
 					await this.say("command_output", `\nUser exited command...`)
