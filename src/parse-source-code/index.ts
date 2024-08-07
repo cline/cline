@@ -1,10 +1,20 @@
 import * as fs from "fs/promises"
 import { globby } from "globby"
+import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
+	// check if the path exists
+	const dirExists = await fs
+		.access(path.resolve(dirPath))
+		.then(() => true)
+		.catch(() => false)
+	if (!dirExists) {
+		return "This directory does not exist or you do not have permission to access it."
+	}
+
 	// Get all files at top level (not gitignored)
 	const allFiles = await listFiles(dirPath, false)
 
@@ -45,10 +55,16 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 
 export async function listFiles(dirPath: string, recursive: boolean): Promise<string[]> {
 	const absolutePath = path.resolve(dirPath)
+	// Do not allow listing files in root or home directory, which Claude tends to want to do when the user's prompt is vague.
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
 	const isRoot = absolutePath === root
 	if (isRoot) {
 		return [root]
+	}
+	const homeDir = os.homedir()
+	const isHomeDir = absolutePath === homeDir
+	if (isHomeDir) {
+		return [homeDir]
 	}
 
 	const dirsToIgnore = [
