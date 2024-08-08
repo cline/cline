@@ -442,12 +442,8 @@ export class ClaudeDev {
 				.then(() => true)
 				.catch(() => false)
 
-			let originalContent: string | undefined
 			if (fileExists) {
-				originalContent = await fs.readFile(absolutePath, "utf-8")
-			}
-
-			if (fileExists && originalContent && originalContent.length > 0) {
+				const originalContent = await fs.readFile(absolutePath, "utf-8")
 				// fix issue where claude always removes newline from the file
 				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
 					newContent += "\n"
