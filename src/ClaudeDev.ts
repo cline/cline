@@ -419,8 +419,14 @@ export class ClaudeDev {
 				.access(absolutePath)
 				.then(() => true)
 				.catch(() => false)
+
+			// Some users reported that fs readfile would return undefined instead of failing
+			let originalContent: string | undefined
 			if (fileExists) {
-				const originalContent = await fs.readFile(absolutePath, "utf-8")
+				originalContent = await fs.readFile(absolutePath, "utf-8")
+			}
+
+			if (fileExists && originalContent && originalContent.length > 0) {
 				// fix issue where claude always removes newline from the file
 				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
 					newContent += "\n"
