@@ -149,7 +149,7 @@ export class OpenRouterHandler implements ApiHandler {
 								if (part.type === "image") {
 									return {
 										type: "image_url",
-										image_url: { url: "data:image/webp;base64," + part.source.data },
+										image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
 									}
 								}
 								return { type: "text", text: part.text }
@@ -161,7 +161,7 @@ export class OpenRouterHandler implements ApiHandler {
 					toolMessages.forEach((toolMessage) => {
 						// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 						let content: string
-						let images: string[] = []
+						let images: Anthropic.Messages.ImageBlockParam[] = []
 						if (typeof toolMessage.content === "string") {
 							content = toolMessage.content
 						} else {
@@ -169,7 +169,7 @@ export class OpenRouterHandler implements ApiHandler {
 								toolMessage.content
 									?.map((part) => {
 										if (part.type === "image") {
-											images.push(part.source.data)
+											images.push(part)
 											return "(see following user message for image)"
 										}
 										return part.text
@@ -185,9 +185,9 @@ export class OpenRouterHandler implements ApiHandler {
 						if (images.length > 0) {
 							openAiMessages.push({
 								role: "user",
-								content: images.map((image) => ({
+								content: images.map((part) => ({
 									type: "image_url",
-									image_url: { url: "data:image/webp;base64," + image },
+									image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
 								})),
 							})
 						}

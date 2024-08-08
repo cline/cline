@@ -271,7 +271,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 
 	const handlePaste = async (e: React.ClipboardEvent) => {
 		const items = e.clipboardData.items
-		const acceptedTypes = ["png", "jpg", "jpeg", "gif", "webp", "tiff", "avif", "svg"]
+		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
 		const imageItems = Array.from(items).filter((item) => {
 			const [type, subtype] = item.type.split("/")
 			return type === "image" && acceptedTypes.includes(subtype)
@@ -299,15 +299,10 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 				})
 			})
 			const imageDataArray = await Promise.all(imagePromises)
-			const base64Strings = imageDataArray
-				.filter((dataUrl): dataUrl is string => dataUrl !== null)
-				.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
-			if (base64Strings.length > 0) {
-				// Send base64 encoded image data to the extension
-				vscode.postMessage({
-					type: "processPastedImages",
-					images: base64Strings,
-				})
+			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+			//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
+			if (dataUrls.length > 0) {
+				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
 			} else {
 				console.warn("No valid images were processed")
 			}

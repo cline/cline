@@ -48,7 +48,7 @@ const Thumbnails: React.FC<ThumbnailsProps> = ({ images, style, setImages, onHei
 					onMouseEnter={() => setHoveredIndex(index)}
 					onMouseLeave={() => setHoveredIndex(null)}>
 					<img
-						src={`data:image/webp;base64,${image}`}
+						src={image}
 						alt={`Thumbnail ${index + 1}`}
 						style={{
 							width: 34,
