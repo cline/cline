@@ -158,10 +158,11 @@ export class OpenRouterHandler implements ApiHandler {
 					}
 
 					// Process tool result messages
+					let toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
 					toolMessages.forEach((toolMessage) => {
 						// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 						let content: string
-						let images: Anthropic.Messages.ImageBlockParam[] = []
+
 						if (typeof toolMessage.content === "string") {
 							content = toolMessage.content
 						} else {
@@ -169,7 +170,7 @@ export class OpenRouterHandler implements ApiHandler {
 								toolMessage.content
 									?.map((part) => {
 										if (part.type === "image") {
-											images.push(part)
+											toolResultImages.push(part)
 											return "(see following user message for image)"
 										}
 										return part.text
@@ -181,17 +182,21 @@ export class OpenRouterHandler implements ApiHandler {
 							tool_call_id: toolMessage.tool_use_id,
 							content: content,
 						})
-						// If tool results contain images, send as a separate user message
-						if (images.length > 0) {
-							openAiMessages.push({
-								role: "user",
-								content: images.map((part) => ({
-									type: "image_url",
-									image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
-								})),
-							})
-						}
 					})
+
+					// If tool results contain images, send as a separate user message
+					// I ran into an issue where if I gave feedback for one of many tool uses, the request would fail.
+					// "Messages following `tool_use` blocks must begin with a matching number of `tool_result` blocks."
+					// Therefore we need to send these images after the tool result messages
+					if (toolResultImages.length > 0) {
+						openAiMessages.push({
+							role: "user",
+							content: toolResultImages.map((part) => ({
+								type: "image_url",
+								image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+							})),
+						})
+					}
 				} else if (anthropicMessage.role === "assistant") {
 					const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
 						nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
