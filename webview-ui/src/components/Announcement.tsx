@@ -22,7 +22,7 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.98</h3>
+			<h3 style={{ margin: "0 0 8px" }}>🎉{"  "}New in v1.0.99</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Open in the editor (using{" "}
