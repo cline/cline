@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler } from "."
+import { ApiHandler, withoutImageData } from "."
 import { ApiHandlerOptions } from "../shared/api"
 
 export class OpenRouterHandler implements ApiHandler {
@@ -118,6 +118,7 @@ export class OpenRouterHandler implements ApiHandler {
 				openAiMessages.push({ role: anthropicMessage.role, content: anthropicMessage.content })
 			} else {
 				// image_url.url is base64 encoded image data
+				// ensure it contains the content-type of the image: data:image/png;base64,
 				/*
 			{ role: "user", content: "" | { type: "text", text: string } | { type: "image_url", image_url: { url: string } } },
 			 // content required unless tool_calls is present
@@ -146,7 +147,10 @@ export class OpenRouterHandler implements ApiHandler {
 							role: "user",
 							content: nonToolMessages.map((part) => {
 								if (part.type === "image") {
-									return { type: "image_url", image_url: { url: part.source.data } }
+									return {
+										type: "image_url",
+										image_url: { url: "data:image/webp;base64," + part.source.data },
+									}
 								}
 								return { type: "text", text: part.text }
 							}),
@@ -157,6 +161,7 @@ export class OpenRouterHandler implements ApiHandler {
 					toolMessages.forEach((toolMessage) => {
 						// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 						let content: string
+						let images: string[] = []
 						if (typeof toolMessage.content === "string") {
 							content = toolMessage.content
 						} else {
@@ -164,7 +169,8 @@ export class OpenRouterHandler implements ApiHandler {
 								toolMessage.content
 									?.map((part) => {
 										if (part.type === "image") {
-											return `{ type: "image_url", image_url: { url: ${part.source.data} } }`
+											images.push(part.source.data)
+											return "(see following user message for image)"
 										}
 										return part.text
 									})
@@ -175,6 +181,16 @@ export class OpenRouterHandler implements ApiHandler {
 							tool_call_id: toolMessage.tool_use_id,
 							content: content,
 						})
+						// If tool results contain images, send as a separate user message
+						if (images.length > 0) {
+							openAiMessages.push({
+								role: "user",
+								content: images.map((image) => ({
+									type: "image_url",
+									image_url: { url: "data:image/webp;base64," + image },
+								})),
+							})
+						}
 					})
 				} else if (anthropicMessage.role === "assistant") {
 					const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
@@ -198,7 +214,7 @@ export class OpenRouterHandler implements ApiHandler {
 						content = nonToolMessages
 							.map((part) => {
 								if (part.type === "image") {
-									return `{ type: "image_url", image_url: { url: ${part.source.data} } }`
+									return "" // impossible as the assistant cannot send images
 								}
 								return part.text
 							})
@@ -239,7 +255,7 @@ export class OpenRouterHandler implements ApiHandler {
 		return {
 			model: "anthropic/claude-3.5-sonnet:beta",
 			max_tokens: 4096,
-			messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: "auto",
 		}

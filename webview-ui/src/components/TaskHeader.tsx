@@ -3,9 +3,11 @@ import React, { useEffect, useRef, useState } from "react"
 import TextTruncate from "react-text-truncate"
 import { useWindowSize } from "react-use"
 import { vscode } from "../utils/vscode"
+import { ClaudeMessage } from "@shared/ExtensionMessage"
+import Thumbnails from "./Thumbnails"
 
 interface TaskHeaderProps {
-	taskText: string
+	task: ClaudeMessage
 	tokensIn: number
 	tokensOut: number
 	totalCost: number
@@ -13,7 +15,7 @@ interface TaskHeaderProps {
 	isHidden: boolean
 }
 
-const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, totalCost, onClose, isHidden }) => {
+const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, totalCost, onClose, isHidden }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [textTruncateKey, setTextTruncateKey] = useState(0)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -116,7 +118,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						line={isExpanded ? 0 : 3}
 						element="span"
 						truncateText="…"
-						text={taskText}
+						text={task.text}
 						textTruncateChild={
 							<span
 								style={{
@@ -141,6 +143,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ taskText, tokensIn, tokensOut, 
 						</span>
 					)}
 				</div>
+				{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
 				<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 					<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
 						<span style={{ fontWeight: "bold" }}>Tokens:</span>

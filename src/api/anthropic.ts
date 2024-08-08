@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "."
+import { ApiHandler, withoutImageData } from "."
 import { ApiHandlerOptions } from "../shared/api"
 
 export class AnthropicHandler implements ApiHandler {
@@ -44,7 +44,7 @@ export class AnthropicHandler implements ApiHandler {
 			model: "claude-3-5-sonnet-20240620",
 			max_tokens: 8192,
 			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: { type: "auto" },
 		}
