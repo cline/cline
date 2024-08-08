@@ -56,6 +56,7 @@ RULES
 - NEVER end completion_attempt with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user. 
 - NEVER start your responses with affirmations like "Certaintly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
+- When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 
 ====
 
@@ -229,6 +230,8 @@ const tools: Tool[] = [
 	},
 ]
 
+type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
+
 export class ClaudeDev {
 	private api: ApiHandler
 	private maxRequestsPerTask: number
@@ -237,6 +240,7 @@ export class ClaudeDev {
 	claudeMessages: ClaudeMessage[] = []
 	private askResponse?: ClaudeAskResponse
 	private askResponseText?: string
+	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private providerRef: WeakRef<ClaudeDevProvider>
 	abort: boolean = false
@@ -245,13 +249,14 @@ export class ClaudeDev {
 		provider: ClaudeDevProvider,
 		task: string,
 		apiConfiguration: ApiConfiguration,
-		maxRequestsPerTask?: number
+		maxRequestsPerTask?: number,
+		images?: string[]
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 
-		this.startTask(task)
+		this.startTask(task, images)
 	}
 
 	updateApi(apiConfiguration: ApiConfiguration) {
@@ -262,18 +267,23 @@ export class ClaudeDev {
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 	}
 
-	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string) {
+	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
 		this.askResponseText = text
+		this.askResponseImages = images
 	}
 
-	async ask(type: ClaudeAsk, question: string): Promise<{ response: ClaudeAskResponse; text?: string }> {
+	async ask(
+		type: ClaudeAsk,
+		question: string
+	): Promise<{ response: ClaudeAskResponse; text?: string; images?: string[] }> {
 		// If this ClaudeDev instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of ClaudeDev now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set claudeDev = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
 		this.askResponse = undefined
 		this.askResponseText = undefined
+		this.askResponseImages = undefined
 		const askTs = Date.now()
 		this.lastMessageTs = askTs
 		this.claudeMessages.push({ ts: askTs, type: "ask", ask: type, text: question })
@@ -282,23 +292,44 @@ export class ClaudeDev {
 		if (this.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
-		const result = { response: this.askResponse!, text: this.askResponseText }
+		const result = { response: this.askResponse!, text: this.askResponseText, images: this.askResponseImages }
 		this.askResponse = undefined
 		this.askResponseText = undefined
+		this.askResponseImages = undefined
 		return result
 	}
 
-	async say(type: ClaudeSay, text?: string): Promise<undefined> {
+	async say(type: ClaudeSay, text?: string, images?: string[]): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
 		const sayTs = Date.now()
 		this.lastMessageTs = sayTs
-		this.claudeMessages.push({ ts: sayTs, type: "say", say: type, text: text })
+		this.claudeMessages.push({ ts: sayTs, type: "say", say: type, text: text, images })
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
-	private async startTask(task: string): Promise<void> {
+	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
+		return images
+			? images.map((base64) => ({
+					type: "image",
+					source: { type: "base64", media_type: "image/webp", data: base64 },
+			  }))
+			: []
+	}
+
+	private formatIntoToolResponse(text?: string, images?: string[]): ToolResponse {
+		if (images && images.length > 0) {
+			const textBlock: Anthropic.TextBlockParam = { type: "text", text: text ?? "" }
+			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
+			// "Just as with document-query placement, Claude works best when images come before text. Images placed after text or interpolated with text will still perform well, but if your use case allows it, we recommend an image-then-text structure."
+			return [...imageBlocks, textBlock]
+		} else {
+			return text ?? ""
+		}
+	}
+
+	private async startTask(task: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
 		this.claudeMessages = []
@@ -306,19 +337,22 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 
 		// This first message kicks off a task, it is not included in every subsequent message.
-		let userPrompt = `Task: \"${task}\"`
+
+		let textBlock: Anthropic.TextBlockParam = { type: "text", text: `Task: \"${task}\"` }
+		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 
 		// TODO: create tools that let Claude interact with VSCode (e.g. open a file, list open files, etc.)
 		//const openFiles = vscode.window.visibleTextEditors?.map((editor) => editor.document.uri.fsPath).join("\n")
 
-		await this.say("text", task)
+		await this.say("text", task, images)
 
 		let totalInputTokens = 0
 		let totalOutputTokens = 0
 
 		while (this.requestCount < this.maxRequestsPerTask) {
 			const { didEndLoop, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
-				{ type: "text", text: userPrompt },
+				...imageBlocks,
+				textBlock,
 			])
 			totalInputTokens += inputTokens
 			totalOutputTokens += outputTokens
@@ -328,6 +362,7 @@ export class ClaudeDev {
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
+				// for now this never happens
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
@@ -335,13 +370,16 @@ export class ClaudeDev {
 				// 	"tool",
 				// 	"Claude responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
 				// )
-				userPrompt =
-					"Ask yourself if you have completed the user's task. If you have, use the attempt_completion tool, otherwise proceed to the next step. (This is an automated message, so do not respond to it conversationally. Just proceed with the task.)"
+				textBlock = {
+					type: "text",
+					text: "Ask yourself if you have completed the user's task. If you have, use the attempt_completion tool, otherwise proceed to the next step. (This is an automated message, so do not respond to it conversationally. Just proceed with the task.)",
+				}
+				imageBlocks = []
 			}
 		}
 	}
 
-	async executeTool(toolName: ToolName, toolInput: any, isLastWriteToFile: boolean = false): Promise<string> {
+	async executeTool(toolName: ToolName, toolInput: any, isLastWriteToFile: boolean = false): Promise<ToolResponse> {
 		switch (toolName) {
 			case "write_to_file":
 				return this.writeToFile(toolInput.path, toolInput.content, isLastWriteToFile)
@@ -374,7 +412,7 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(relPath: string, newContent: string, isLast: boolean): Promise<string> {
+	async writeToFile(relPath: string, newContent: string, isLast: boolean): Promise<ToolResponse> {
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const fileExists = await fs
@@ -414,7 +452,7 @@ export class ClaudeDev {
 					`${fileName}: Original ↔ Suggested Changes`
 				)
 
-				const { response, text } = await this.ask(
+				const { response, text, images } = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
@@ -426,9 +464,12 @@ export class ClaudeDev {
 					if (isLast) {
 						await this.closeDiffViews()
 					}
-					if (response === "textResponse" && text) {
-						await this.say("user_feedback", text)
-						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(
+							`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+							images
+						)
 					}
 					return "The user denied this operation."
 				}
@@ -451,7 +492,7 @@ export class ClaudeDev {
 					}),
 					`${fileName}: New File`
 				)
-				const { response, text } = await this.ask(
+				const { response, text, images } = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "newFileCreated",
@@ -463,9 +504,12 @@ export class ClaudeDev {
 					if (isLast) {
 						await this.closeDiffViews()
 					}
-					if (response === "textResponse" && text) {
-						await this.say("user_feedback", text)
-						return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(
+							`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+							images
+						)
 					}
 					return "The user denied this operation."
 				}
@@ -497,18 +541,21 @@ export class ClaudeDev {
 		}
 	}
 
-	async readFile(relPath: string): Promise<string> {
+	async readFile(relPath: string): Promise<ToolResponse> {
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const content = await fs.readFile(absolutePath, "utf-8")
-			const { response, text } = await this.ask(
+			const { response, text, images } = await this.ask(
 				"tool",
 				JSON.stringify({ tool: "readFile", path: this.getReadablePath(relPath), content } as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(
+						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+						images
+					)
 				}
 				return "The user denied this operation."
 			}
@@ -520,12 +567,12 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesTopLevel(relDirPath: string): Promise<string> {
+	async listFilesTopLevel(relDirPath: string): Promise<ToolResponse> {
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, false)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text } = await this.ask(
+			const { response, text, images } = await this.ask(
 				"tool",
 				JSON.stringify({
 					tool: "listFilesTopLevel",
@@ -534,9 +581,12 @@ export class ClaudeDev {
 				} as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(
+						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+						images
+					)
 				}
 				return "The user denied this operation."
 			}
@@ -553,12 +603,12 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesRecursive(relDirPath: string): Promise<string> {
+	async listFilesRecursive(relDirPath: string): Promise<ToolResponse> {
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, true)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text } = await this.ask(
+			const { response, text, images } = await this.ask(
 				"tool",
 				JSON.stringify({
 					tool: "listFilesRecursive",
@@ -567,9 +617,12 @@ export class ClaudeDev {
 				} as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(
+						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+						images
+					)
 				}
 				return "The user denied this operation."
 			}
@@ -633,11 +686,11 @@ export class ClaudeDev {
 		}
 	}
 
-	async viewSourceCodeDefinitionsTopLevel(relDirPath: string): Promise<string> {
+	async viewSourceCodeDefinitionsTopLevel(relDirPath: string): Promise<ToolResponse> {
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
-			const { response, text } = await this.ask(
+			const { response, text, images } = await this.ask(
 				"tool",
 				JSON.stringify({
 					tool: "viewSourceCodeDefinitionsTopLevel",
@@ -646,9 +699,12 @@ export class ClaudeDev {
 				} as ClaudeSayTool)
 			)
 			if (response !== "yesButtonTapped") {
-				if (response === "textResponse" && text) {
-					await this.say("user_feedback", text)
-					return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(
+						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+						images
+					)
 				}
 				return "The user denied this operation."
 			}
@@ -665,12 +721,15 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeCommand(command: string, returnEmptyStringOnSuccess: boolean = false): Promise<string> {
-		const { response, text } = await this.ask("command", command)
+	async executeCommand(command: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
+		const { response, text, images } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
-			if (response === "textResponse" && text) {
-				await this.say("user_feedback", text)
-				return `The user denied this operation and provided the following feedback:\n\"${text}\"`
+			if (response === "messageResponse") {
+				await this.say("user_feedback", text, images)
+				return this.formatIntoToolResponse(
+					`The user denied this operation and provided the following feedback:\n\"${text}\"`,
+					images
+				)
 			}
 			return "The user denied this operation."
 		}
@@ -756,13 +815,13 @@ export class ClaudeDev {
 		}
 	}
 
-	async askFollowupQuestion(question: string): Promise<string> {
-		const { text } = await this.ask("followup", question)
-		await this.say("user_feedback", text ?? "")
-		return `User's response:\n\"${text}\"`
+	async askFollowupQuestion(question: string): Promise<ToolResponse> {
+		const { text, images } = await this.ask("followup", question)
+		await this.say("user_feedback", text ?? "", images)
+		return this.formatIntoToolResponse(`User's response:\n\"${text}\"`, images)
 	}
 
-	async attemptCompletion(result: string, command?: string): Promise<string> {
+	async attemptCompletion(result: string, command?: string): Promise<ToolResponse> {
 		let resultToSend = result
 		if (command) {
 			await this.say("completion_result", resultToSend)
@@ -774,12 +833,15 @@ export class ClaudeDev {
 			}
 			resultToSend = ""
 		}
-		const { response, text } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
+		const { response, text, images } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
 		if (response === "yesButtonTapped") {
-			return ""
+			return "" // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
 		}
-		await this.say("user_feedback", text ?? "")
-		return `The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`
+		await this.say("user_feedback", text ?? "", images)
+		return this.formatIntoToolResponse(
+			`The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`,
+			images
+		)
 	}
 
 	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {

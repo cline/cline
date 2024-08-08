@@ -4,10 +4,11 @@ import { ApiConfiguration } from "./api"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state"
+	type: "action" | "state" | "selectedImages"
 	text?: string
 	action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
 	state?: ExtensionState
+	images?: string[]
 }
 
 export interface ExtensionState {
@@ -24,6 +25,7 @@ export interface ClaudeMessage {
 	ask?: ClaudeAsk
 	say?: ClaudeSay
 	text?: string
+	images?: string[]
 }
 
 export type ClaudeAsk =

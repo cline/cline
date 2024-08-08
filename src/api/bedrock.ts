@@ -1,7 +1,7 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandlerOptions } from "../shared/api"
-import { ApiHandler } from "."
+import { ApiHandler, withoutImageData } from "."
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -49,7 +49,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			model: "anthropic.claude-3-5-sonnet-20240620-v1:0",
 			max_tokens: 4096,
 			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: userContent }],
+			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: { type: "auto" },
 		}
