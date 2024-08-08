@@ -322,8 +322,8 @@ export class ClaudeDev {
 		if (images && images.length > 0) {
 			const textBlock: Anthropic.TextBlockParam = { type: "text", text: text ?? "" }
 			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
-			// "Just as with document-query placement, Claude works best when images come before text. Images placed after text or interpolated with text will still perform well, but if your use case allows it, we recommend an image-then-text structure."
-			return [...imageBlocks, textBlock]
+			// Placing images after text leads to better results
+			return [textBlock, ...imageBlocks]
 		} else {
 			return text ?? ""
 		}
@@ -351,8 +351,8 @@ export class ClaudeDev {
 
 		while (this.requestCount < this.maxRequestsPerTask) {
 			const { didEndLoop, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
-				...imageBlocks,
 				textBlock,
+				...imageBlocks,
 			])
 			totalInputTokens += inputTokens
 			totalOutputTokens += outputTokens
