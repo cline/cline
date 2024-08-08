@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous software engineer right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.0.95",
+  "version": "1.0.96",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
