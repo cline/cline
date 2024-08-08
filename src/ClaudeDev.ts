@@ -418,17 +418,21 @@ export class ClaudeDev {
 	}
 
 	async writeToFile(relPath?: string, newContent?: string, isLast: boolean = true): Promise<ToolResponse> {
-		if (relPath === undefined || newContent === undefined) {
-			if (newContent === undefined) {
-				// Special message for this case since this tends to happen the most
-				this.say(
-					"error",
-					`Claude tried to use write_to_file for '${relPath}' without any content. This tends to happen due to API token limits. Retrying...`
-				)
-			} else {
-				this.say("error", "Claude tried to use write_to_file with missing parameters. Retrying...")
-			}
-			return "Error: Missing required parameters. Please retry with complete parameters."
+		if (relPath === undefined) {
+			this.say(
+				"error",
+				"Claude tried to use write_to_file without value for required parameter 'path'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+		}
+
+		if (newContent === undefined) {
+			// Special message for this case since this tends to happen the most
+			this.say(
+				"error",
+				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to output token limits. Retrying...`
+			)
+			return "Error: Missing value for required parameter 'content'. Please retry with complete response."
 		}
 
 		try {
@@ -566,8 +570,8 @@ export class ClaudeDev {
 
 	async readFile(relPath?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
-			this.say("error", "Claude tried to use read_file with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say("error", "Claude tried to use read_file without value for required parameter 'path'. Retrying...")
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
@@ -596,8 +600,11 @@ export class ClaudeDev {
 
 	async listFilesTopLevel(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			this.say("error", "Claude tried to use list_files_top_level with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say(
+				"error",
+				"Claude tried to use list_files_top_level without value for required parameter 'path'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
@@ -636,8 +643,11 @@ export class ClaudeDev {
 
 	async listFilesRecursive(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			this.say("error", "Claude tried to use list_files_recursive with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say(
+				"error",
+				"Claude tried to use list_files_recursive without value for required parameter 'path'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
@@ -725,9 +735,9 @@ export class ClaudeDev {
 		if (relDirPath === undefined) {
 			this.say(
 				"error",
-				"Claude tried to use view_source_code_definitions_top_level with missing parameters. Retrying..."
+				"Claude tried to use view_source_code_definitions_top_level without value for required parameter 'path'. Retrying..."
 			)
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
@@ -765,8 +775,11 @@ export class ClaudeDev {
 
 	async executeCommand(command?: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
 		if (command === undefined) {
-			this.say("error", "Claude tried to use execute_command with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say(
+				"error",
+				"Claude tried to use execute_command without value for required parameter 'command'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'command'. Please retry with complete response."
 		}
 		const { response, text, images } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
@@ -863,8 +876,11 @@ export class ClaudeDev {
 
 	async askFollowupQuestion(question?: string): Promise<ToolResponse> {
 		if (question === undefined) {
-			this.say("error", "Claude tried to use ask_followup_question with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say(
+				"error",
+				"Claude tried to use ask_followup_question without value for required parameter 'question'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'question'. Please retry with complete response."
 		}
 		const { text, images } = await this.ask("followup", question)
 		await this.say("user_feedback", text ?? "", images)
@@ -874,8 +890,11 @@ export class ClaudeDev {
 	async attemptCompletion(result?: string, command?: string): Promise<ToolResponse> {
 		// result is required, command is optional
 		if (result === undefined) {
-			this.say("error", "Claude tried to use attempt_completion with missing parameters. Retrying...")
-			return "Error: Missing required parameters. Please retry with complete parameters."
+			this.say(
+				"error",
+				"Claude tried to use attempt_completion without value for required parameter 'result'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'result'. Please retry with complete response."
 		}
 		let resultToSend = result
 		if (command) {
