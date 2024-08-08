@@ -11,7 +11,6 @@ export interface WebviewMessage {
 		| "didShowAnnouncement"
 		| "downloadTask"
 		| "selectImages"
-		| "processPastedImages"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

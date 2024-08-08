@@ -1,14 +1,11 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import os from "os"
-import * as path from "path"
 import * as vscode from "vscode"
 import { Uri, Webview } from "vscode"
 import { ClaudeDev } from "../ClaudeDev"
 import { ApiProvider } from "../shared/api"
 import { ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
-import { processPastedImages, selectAndProcessImages } from "../utils/process-images"
 import { downloadTask } from "../utils/export-markdown"
+import { selectImages } from "../utils/process-images"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -301,16 +298,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						downloadTask(this.claudeDev?.apiConversationHistory ?? [])
 						break
 					case "selectImages":
-						const images = await selectAndProcessImages()
+						const images = await selectImages()
 						await this.postMessageToWebview({ type: "selectedImages", images })
-						break
-					case "processPastedImages":
-						const pastedImages = message.images ?? []
-						if (pastedImages.length > 0) {
-							const processedImages = await processPastedImages(pastedImages)
-							await this.postMessageToWebview({ type: "selectedImages", images: processedImages })
-						}
-
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
