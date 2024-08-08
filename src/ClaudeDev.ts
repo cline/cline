@@ -217,7 +217,7 @@ const tools: Tool[] = [
 				command: {
 					type: "string",
 					description:
-						"The CLI command to execute to show a live demo of the result to the user. For example, use 'open -a \"Google Chrome\" index.html' to display a created website. Avoid commands that run indefinitely (like servers) that don't terminate on their own. Instead, if such a command is needed, include instructions for the user to run it in the 'result' parameter.",
+						"The CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
 				},
 				result: {
 					type: "string",
@@ -412,7 +412,20 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(relPath: string, newContent: string, isLast: boolean): Promise<ToolResponse> {
+	async writeToFile(relPath?: string, newContent?: string, isLast: boolean = true): Promise<ToolResponse> {
+		if (relPath === undefined || newContent === undefined) {
+			if (newContent === undefined) {
+				// Special message for this case since this tends to happen the most
+				this.say(
+					"error",
+					`Claude tried to use write_to_file for '${relPath}' without any content. This tends to happen due to API token limits. Retrying...`
+				)
+			} else {
+				this.say("error", "Claude tried to use write_to_file with missing parameters. Retrying...")
+			}
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
+
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const fileExists = await fs
@@ -420,7 +433,6 @@ export class ClaudeDev {
 				.then(() => true)
 				.catch(() => false)
 
-			// Some users reported that fs readfile would return undefined instead of failing
 			let originalContent: string | undefined
 			if (fileExists) {
 				originalContent = await fs.readFile(absolutePath, "utf-8")
@@ -547,7 +559,11 @@ export class ClaudeDev {
 		}
 	}
 
-	async readFile(relPath: string): Promise<ToolResponse> {
+	async readFile(relPath?: string): Promise<ToolResponse> {
+		if (relPath === undefined) {
+			this.say("error", "Claude tried to use read_file with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const content = await fs.readFile(absolutePath, "utf-8")
@@ -573,7 +589,11 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesTopLevel(relDirPath: string): Promise<ToolResponse> {
+	async listFilesTopLevel(relDirPath?: string): Promise<ToolResponse> {
+		if (relDirPath === undefined) {
+			this.say("error", "Claude tried to use list_files_top_level with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, false)
@@ -609,7 +629,11 @@ export class ClaudeDev {
 		}
 	}
 
-	async listFilesRecursive(relDirPath: string): Promise<ToolResponse> {
+	async listFilesRecursive(relDirPath?: string): Promise<ToolResponse> {
+		if (relDirPath === undefined) {
+			this.say("error", "Claude tried to use list_files_recursive with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, true)
@@ -692,7 +716,14 @@ export class ClaudeDev {
 		}
 	}
 
-	async viewSourceCodeDefinitionsTopLevel(relDirPath: string): Promise<ToolResponse> {
+	async viewSourceCodeDefinitionsTopLevel(relDirPath?: string): Promise<ToolResponse> {
+		if (relDirPath === undefined) {
+			this.say(
+				"error",
+				"Claude tried to use view_source_code_definitions_top_level with missing parameters. Retrying..."
+			)
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
@@ -727,7 +758,11 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeCommand(command: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
+	async executeCommand(command?: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
+		if (command === undefined) {
+			this.say("error", "Claude tried to use execute_command with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		const { response, text, images } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
 			if (response === "messageResponse") {
@@ -796,7 +831,7 @@ export class ClaudeDev {
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
 					await this.say("command_output", `\nUser exited command...`)
-					result += `\n====\nUser terminated command process via SIGINT. Please continue with your task but keep in mind that the command is no longer running.`
+					result += `\n====\nUser terminated command process via SIGINT. This is not an error. Please continue with your task but keep in mind that the command is no longer running. In other words, if this command was used to start a server, the server is no longer running.`
 				} else {
 					throw e // if the command was not terminated by user, let outer catch handle it as a real error
 				}
@@ -821,13 +856,22 @@ export class ClaudeDev {
 		}
 	}
 
-	async askFollowupQuestion(question: string): Promise<ToolResponse> {
+	async askFollowupQuestion(question?: string): Promise<ToolResponse> {
+		if (question === undefined) {
+			this.say("error", "Claude tried to use ask_followup_question with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		const { text, images } = await this.ask("followup", question)
 		await this.say("user_feedback", text ?? "", images)
 		return this.formatIntoToolResponse(`User's response:\n\"${text}\"`, images)
 	}
 
-	async attemptCompletion(result: string, command?: string): Promise<ToolResponse> {
+	async attemptCompletion(result?: string, command?: string): Promise<ToolResponse> {
+		// result is required, command is optional
+		if (result === undefined) {
+			this.say("error", "Claude tried to use attempt_completion with missing parameters. Retrying...")
+			return "Error: Missing required parameters. Please retry with complete parameters."
+		}
 		let resultToSend = result
 		if (command) {
 			await this.say("completion_result", resultToSend)
