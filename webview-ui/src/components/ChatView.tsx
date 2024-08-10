@@ -446,7 +446,7 @@ const ChatView = ({
 								Claude 3.5 Sonnet's agentic coding capabilities,
 							</VSCodeLink>{" "}
 							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, analyze project source code, and execute terminal commands (after you grant
+							& edit files, explore complex projects, and execute terminal commands (after you grant
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
 						</p>
 					</div>
