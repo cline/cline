@@ -332,12 +332,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async clearTask() {
-		if (this.claudeDev) {
-			this.claudeDev.abort = true // will stop any agentically running promises
-			this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
-		}
-		// this.setApiConversationHistory(undefined)
-		// this.setClaudeMessages(undefined)
+		this.claudeDev?.abortTask()
+		this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
