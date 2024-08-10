@@ -12,6 +12,7 @@ export interface ExtensionMessage {
 }
 
 export interface ExtensionState {
+	version: string
 	apiConfiguration?: ApiConfiguration
 	maxRequestsPerTask?: number
 	themeName?: string

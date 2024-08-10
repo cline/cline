@@ -6,6 +6,7 @@ import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
 type SettingsViewProps = {
+	version: string
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	maxRequestsPerTask: string
@@ -14,6 +15,7 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({
+	version,
 	apiConfiguration,
 	setApiConfiguration,
 	maxRequestsPerTask,
@@ -129,7 +131,7 @@ const SettingsView = ({
 						https://github.com/saoudrizwan/claude-dev
 					</VSCodeLink>
 				</p>
-				<p style={{ fontStyle: "italic" }}>v1.0.99</p>
+				<p style={{ fontStyle: "italic" }}>v{version}</p>
 			</div>
 		</div>
 	)

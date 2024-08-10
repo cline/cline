@@ -20,6 +20,7 @@ const App: React.FC = () => {
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
+	const [version, setVersion] = useState<string>("")
 	const [apiConfiguration, setApiConfiguration] = useState<ApiConfiguration | undefined>(undefined)
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
@@ -34,6 +35,7 @@ const App: React.FC = () => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
 			case "state":
+				setVersion(message.state!.version)
 				const hasKey =
 					message.state!.apiConfiguration?.apiKey !== undefined ||
 					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
@@ -80,6 +82,7 @@ const App: React.FC = () => {
 				<>
 					{showSettings && (
 						<SettingsView
+							version={version}
 							apiConfiguration={apiConfiguration}
 							setApiConfiguration={setApiConfiguration}
 							maxRequestsPerTask={maxRequestsPerTask}
@@ -89,6 +92,7 @@ const App: React.FC = () => {
 					)}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 					<ChatView
+						version={version}
 						messages={claudeMessages}
 						isHidden={showSettings}
 						vscodeThemeName={vscodeThemeName}

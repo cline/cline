@@ -16,6 +16,7 @@ import Announcement from "./Announcement"
 import Thumbnails from "./Thumbnails"
 
 interface ChatViewProps {
+	version: string
 	messages: ClaudeMessage[]
 	isHidden: boolean
 	vscodeThemeName?: string
@@ -25,7 +26,14 @@ interface ChatViewProps {
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideAnnouncement }: ChatViewProps) => {
+const ChatView = ({
+	version,
+	messages,
+	isHidden,
+	vscodeThemeName,
+	showAnnouncement,
+	hideAnnouncement,
+}: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -427,7 +435,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 				/>
 			) : (
 				<>
-					{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} />}
+					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px" }}>
 						<h2>What can I do for you?</h2>
 						<p>
