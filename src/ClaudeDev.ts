@@ -247,9 +247,9 @@ export class ClaudeDev {
 
 	constructor(
 		provider: ClaudeDevProvider,
-		task: string,
 		apiConfiguration: ApiConfiguration,
 		maxRequestsPerTask?: number,
+		task?: string,
 		images?: string[]
 	) {
 		this.providerRef = new WeakRef(provider)
@@ -323,25 +323,23 @@ export class ClaudeDev {
 			: []
 	}
 
-	private formatIntoToolResponse(text?: string, images?: string[]): ToolResponse {
+	private formatIntoToolResponse(text: string, images?: string[]): ToolResponse {
 		if (images && images.length > 0) {
-			const textBlock: Anthropic.TextBlockParam = { type: "text", text: text ?? "" }
+			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
 			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 			// Placing images after text leads to better results
 			return [textBlock, ...imageBlocks]
 		} else {
-			return text ?? ""
+			return text
 		}
 	}
 
-	private async startTask(task: string, images?: string[]): Promise<void> {
+	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
 		this.claudeMessages = []
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
-
-		// This first message kicks off a task, it is not included in every subsequent message.
 
 		let textBlock: Anthropic.TextBlockParam = { type: "text", text: `Task: \"${task}\"` }
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
