@@ -242,8 +242,9 @@ export class ClaudeDev {
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
+	private executeCommandRunningProcess?: ResultPromise
 	private providerRef: WeakRef<ClaudeDevProvider>
-	abort: boolean = false
+	private abort: boolean = false
 
 	constructor(
 		provider: ClaudeDevProvider,
@@ -379,6 +380,14 @@ export class ClaudeDev {
 				}
 				imageBlocks = []
 			}
+		}
+	}
+
+	abortTask() {
+		this.abort = true // will stop any autonomously running promises
+		const runningProcessId = this.executeCommandRunningProcess?.pid
+		if (runningProcessId) {
+			treeKill(runningProcessId, "SIGTERM")
 		}
 	}
 
@@ -821,6 +830,7 @@ export class ClaudeDev {
 			// also worth noting that execa`input` and the execa(command) have nuanced differences like the template literal version handles escaping for you, while with the function call, you need to be more careful about how arguments are passed, especially when using shell: true.
 			// execa returns a promise-like object that is both a promise and a Subprocess that has properties like stdin
 			const subprocess = execa({ shell: true, cwd: cwd })`${command}`
+			this.executeCommandRunningProcess = subprocess
 
 			subprocess.stdout?.on("data", (data) => {
 				if (data) {
@@ -854,6 +864,7 @@ export class ClaudeDev {
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
 			await delay(100)
+			this.executeCommandRunningProcess = undefined
 			// for attemptCompletion, we don't want to return the command output
 			if (returnEmptyStringOnSuccess) {
 				return ""
@@ -864,6 +875,7 @@ export class ClaudeDev {
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
 			this.say("error", `Error executing command:\n${errorMessage}`) // TODO: in webview show code block for command errors
+			this.executeCommandRunningProcess = undefined
 			return errorString
 		}
 	}
