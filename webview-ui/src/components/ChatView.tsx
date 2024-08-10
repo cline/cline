@@ -177,7 +177,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 
 	const handleSendMessage = () => {
 		const text = inputValue.trim()
-		if (text) {
+		if (text || selectedImages.length > 0) {
 			if (messages.length === 0) {
 				vscode.postMessage({ type: "newTask", text, images: selectedImages })
 			} else if (claudeAsk) {
@@ -598,7 +598,7 @@ const ChatView = ({ messages, isHidden, vscodeThemeName, showAnnouncement, hideA
 						appearance="icon"
 						aria-label="Send Message"
 						onClick={handleSendMessage}>
-						<span className="codicon codicon-send" style={{ marginBottom: -1 }}></span>
+						<span className="codicon codicon-send"></span>
 					</VSCodeButton>
 				</div>
 			</div>
