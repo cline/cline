@@ -175,7 +175,7 @@ const tools: Tool[] = [
 	{
 		name: "write_to_file",
 		description:
-			"Write content to a file at the specified path. If the file exists, only the necessary changes will be applied. If the file doesn't exist, it will be created. Always provide the full intended content of the file. This tool will automatically create any directories needed to write the file.",
+			"Write content to a file at the specified path. If the file exists, only the necessary changes will be applied. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -377,7 +377,7 @@ export class ClaudeDev {
 				// )
 				textBlock = {
 					type: "text",
-					text: "Ask yourself if you have completed the user's task. If you have, use the attempt_completion tool, otherwise proceed to the next step. (This is an automated message, so do not respond to it conversationally. Just proceed with the task.)",
+					text: "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
 				}
 				imageBlocks = []
 			}
