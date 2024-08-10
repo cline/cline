@@ -22,7 +22,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "jul-29-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "aug-10-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -324,6 +324,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		this.postMessageToWebview({
 			type: "state",
 			state: {
+				version: this.context.extension?.packageJSON?.version ?? "",
 				apiConfiguration: { apiProvider, apiKey, openRouterApiKey, awsAccessKey, awsSecretKey, awsRegion },
 				maxRequestsPerTask,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
