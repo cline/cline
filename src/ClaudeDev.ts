@@ -853,7 +853,7 @@ export class ClaudeDev {
 			} catch (e) {
 				if ((e as ExecaError).signal === "SIGINT") {
 					await this.say("command_output", `\nUser exited command...`)
-					result += `\n====\nUser terminated command process via SIGINT. This is not an error. Please continue with your task but keep in mind that the command is no longer running. In other words, if this command was used to start a server, the server is no longer running.`
+					result += `\n====\nUser terminated command process via SIGINT. This is not an error. Please continue with your task, but keep in mind that the command is no longer running. For example, if this command was used to start a server for a react app, the server is no longer running and you cannot open a browser to view it anymore.`
 				} else {
 					throw e // if the command was not terminated by user, let outer catch handle it as a real error
 				}
