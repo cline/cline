@@ -8,17 +8,17 @@
   <a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev"><strong>Download VSCode Extension</strong></a>
 </p>
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him create & edit files, traverse complex projects, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. From building software projects to running system operations, Claude Dev is only limited by your imagination.
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore complex projects, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. From building software projects to running system operations, Claude Dev is only limited by your imagination.
 
 While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev provides a human-in-the-loop GUI to supervise every file changed and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
 -   Inspect diffs of every change Claude makes right in the editor, and keep track with syntax highlighted previews in chat
--   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
--   Presents permission buttons (i.e. 'Approve CLI command') before tool use or sending information to the API
+-   Runs terminal commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
+-   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
--   When a task is completed, Claude determines if he can present the result to you with a CLI command like `open -a "Google Chrome" index.html`, which you run with a click of a button
+-   When a task is completed, Claude determines if he can present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
 _**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in your editor._
 
@@ -30,14 +30,14 @@ Claude Dev uses an autonomous task execution loop with chain-of-thought promptin
 
 Claude Dev has access to the following capabilities:
 
-1. **`execute_command`**: Execute CLI commands on the system (only with your permission, output is streamed into the chat and you can respond to stdin or exit long-running processes when you're ready)
+1. **`execute_command`**: Execute terminal commands on the system (only with your permission, output is streamed into the chat and you can respond to stdin or exit long-running processes when you're ready)
 2. **`list_files_top_level`**: List all paths for files at the top level of the specified directory (useful for generic file operations like retrieving a file from your Desktop)
 3. **`list_files_recursive`**: List all paths for files in the specified directory and nested subdirectories (excludes files in .gitignore)
 4. **`view_source_code_definitions_top_level`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
 5. **`read_file`**: Read the contents of a file at the specified path
 6. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
 7. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
-8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a CLI command to kickoff a demonstration
+8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
 
 ### Working in Existing Projects
 
