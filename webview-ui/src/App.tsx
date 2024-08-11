@@ -22,6 +22,7 @@ const App: React.FC = () => {
 	const [version, setVersion] = useState<string>("")
 	const [apiConfiguration, setApiConfiguration] = useState<ApiConfiguration | undefined>(undefined)
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
+	const [customInstructions, setCustomInstructions] = useState<string>("")
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -44,6 +45,7 @@ const App: React.FC = () => {
 				setMaxRequestsPerTask(
 					message.state!.maxRequestsPerTask !== undefined ? message.state!.maxRequestsPerTask.toString() : ""
 				)
+				setCustomInstructions(message.state!.customInstructions || "")
 				setVscodeThemeName(message.state!.themeName)
 				setClaudeMessages(message.state!.claudeMessages)
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
@@ -90,6 +92,8 @@ const App: React.FC = () => {
 							setApiConfiguration={setApiConfiguration}
 							maxRequestsPerTask={maxRequestsPerTask}
 							setMaxRequestsPerTask={setMaxRequestsPerTask}
+							customInstructions={customInstructions}
+							setCustomInstructions={setCustomInstructions}
 							onDone={() => setShowSettings(false)}
 						/>
 					)}

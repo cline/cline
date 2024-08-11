@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
@@ -11,6 +11,8 @@ type SettingsViewProps = {
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	maxRequestsPerTask: string
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
+	customInstructions: string
+	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
 	onDone: () => void
 }
 
@@ -20,6 +22,8 @@ const SettingsView = ({
 	setApiConfiguration,
 	maxRequestsPerTask,
 	setMaxRequestsPerTask,
+	customInstructions,
+	setCustomInstructions,
 	onDone,
 }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -35,6 +39,7 @@ const SettingsView = ({
 		if (!apiValidationResult && !maxRequestsValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
+			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			onDone()
 		}
 	}
@@ -102,7 +107,28 @@ const SettingsView = ({
 					)}
 				</div>
 
-				<div style={{ marginBottom: "20px" }}>
+				<div style={{ marginBottom: 15 }}>
+					<VSCodeTextArea
+						value={customInstructions}
+						style={{ width: "100%" }}
+						rows={4}
+						placeholder={
+							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+						}
+						onInput={(e: any) => setCustomInstructions(e.target?.value || "")}>
+						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+					</VSCodeTextArea>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 20 }}>
 					<VSCodeTextField
 						value={maxRequestsPerTask}
 						style={{ width: "100%" }}

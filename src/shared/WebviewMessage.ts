@@ -4,6 +4,7 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "maxRequestsPerTask"
+		| "customInstructions"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
