@@ -72,8 +72,8 @@ By modifying these rules, we can change how webpack processes different files in
 
 Why we need to modify the webpack config
 
-Create React App (CRA) is designed to only process files within the src directory for security reasons. Our project structure includes a shared directory outside of src. 
-To use files from this shared directory, we need to:
+Create React App (CRA) is designed to only process files within the src directory for security reasons. (CRA limits processing to the src directory to prevent accidental inclusion of sensitive files, reduce the attack surface, and ensure predictable builds, enhancing overall project security and consistency. Therefore it's essential that if you do include files outside src, you do so explicitly.)
+To use files from the shared directory, we need to:
 1. Modify ModuleScopePlugin to allow imports from the shared directory.
 2. Update the TypeScript loader rule to process TypeScript files from the shared directory.
 These changes tell webpack it's okay to import from the shared directory and ensure that TypeScript files in this directory are properly converted to JavaScript.
@@ -89,7 +89,8 @@ Note: This code assumes a specific structure in the CRA webpack config. If CRA u
 */
 config.module.rules[1].oneOf.forEach((rule) => {
 	if (rule.test && rule.test.toString().includes("ts|tsx")) {
-		rule.include = [...(rule.include || []), sharedDir]
+		// rule.include is path to src by default, but we can update rule.include to be an array as it matches an expected schema by react-scripts
+		rule.include = [rule.include, sharedDir].filter(Boolean)
 	}
 })
 

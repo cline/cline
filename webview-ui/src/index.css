@@ -129,3 +129,11 @@ https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#wi
 	line-height: normal;
 	margin-bottom: 2px;
 }
+
+/* Fix scrollbar in dropdown */
+
+vscode-dropdown::part(listbox) {
+	border-color: var(--vscode-scrollbarSlider-background);
+	transition: none;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
