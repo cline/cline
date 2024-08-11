@@ -425,7 +425,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async getState() {
 		const [
-			apiProvider,
+			storedApiProvider,
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
@@ -447,9 +447,24 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 		])
+
+		let apiProvider: ApiProvider
+		if (storedApiProvider) {
+			apiProvider = storedApiProvider
+		} else {
+			// Either new user or legacy user that doesn't have the apiProvider stored in state
+			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
+			if (apiKey) {
+				apiProvider = "anthropic"
+			} else {
+				// New users should default to openrouter
+				apiProvider = "openrouter"
+			}
+		}
+
 		return {
 			apiConfiguration: {
-				apiProvider: apiProvider || "anthropic", // for legacy users that were using Anthropic by default
+				apiProvider,
 				apiModelId,
 				apiKey,
 				openRouterApiKey,
