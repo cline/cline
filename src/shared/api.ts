@@ -152,18 +152,25 @@ export const openRouterModels = {
 	// 	inputPrice: 0.06,
 	// 	outputPrice: 0.06,
 	// },
-	"google/gemini-pro-1.5": {
-		maxTokens: 8192,
-		supportsImages: true,
-		inputPrice: 2.5,
-		outputPrice: 7.5,
-	},
-	"google/gemini-flash-1.5": {
-		maxTokens: 8192,
-		supportsImages: true,
-		inputPrice: 0.25,
-		outputPrice: 0.75,
-	},
+	// OpenRouter needs to fix mapping gemini 1.5 responses for tool calls properly, they return content with line breaks formatted wrong (too many escapes), and throw errors for being in the wrong order when they're not. They also cannot handle feedback given to a request with multiple tools. Giving feedback to one tool use requests works fine. ("Please ensure that function response turn comes immediately after a function call turn. And the number of function response parts should be equal to number of function call parts of the function call turn.")
+	// "google/gemini-pro-1.5": {
+	// 	maxTokens: 8192,
+	// 	supportsImages: false, // "Function Calling is not supported with non-text input"
+	// 	inputPrice: 2.5,
+	// 	outputPrice: 7.5,
+	// },
+	// "google/gemini-flash-1.5": {
+	// 	maxTokens: 8192,
+	// 	supportsImages: false, // "Function Calling is not supported with non-text input"
+	// 	inputPrice: 0.25,
+	// 	outputPrice: 0.75,
+	// },
+	// "google/gemini-pro": {
+	// 	maxTokens: 8192,
+	// 	supportsImages: false, // "Function Calling is not supported with non-text input"
+	// 	inputPrice: 0.125,
+	// 	outputPrice: 0.375,
+	// },
 	// while deepseek coder can use tools, it may sometimes send tool invocation as a text block
 	"deepseek/deepseek-coder": {
 		maxTokens: 4096,
