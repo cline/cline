@@ -353,7 +353,7 @@ export class ClaudeDev {
 		let totalInputTokens = 0
 		let totalOutputTokens = 0
 
-		while (this.requestCount < this.maxRequestsPerTask) {
+		while (!this.abort) {
 			const { didEndLoop, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
 				textBlock,
 				...imageBlocks,
@@ -366,7 +366,7 @@ export class ClaudeDev {
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
-				// for now this never happens
+				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
