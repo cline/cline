@@ -32,6 +32,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					applications or fix bugs with screenshots
 				</li>
 				<li>
+					Added a settings option to choose other Claude models (+ GPT-4o, Gemini, DeepSeek, and Mistral if
+					you use OpenRouter)
+				</li>
+				<li>
 					Improved support for running interactive terminal commands and long-running processes like servers
 				</li>
 			</ul>

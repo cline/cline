@@ -4,6 +4,10 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.1.1]
+
+- Added the ability to choose other Claude models (+ GPT-4o, Gemini, DeepSeek, and Mistral if you use OpenRouter)
+
 ## [1.1.0]
 
 - Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
