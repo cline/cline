@@ -1,10 +1,9 @@
-import { ApiConfiguration } from "../../../src/shared/api"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
+import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
-import { useEffectOnce } from "react-use"
 
 interface WelcomeViewProps {
 	apiConfiguration?: ApiConfiguration
@@ -23,13 +22,6 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 	useEffect(() => {
 		setApiErrorMessage(validateApiConfiguration(apiConfiguration))
 	}, [apiConfiguration])
-
-	useEffectOnce(() => {
-		setApiConfiguration((prevConfig) => ({
-			...prevConfig,
-			apiProvider: "openrouter",
-		}))
-	})
 
 	return (
 		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 20px" }}>
