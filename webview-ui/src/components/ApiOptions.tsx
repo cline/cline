@@ -146,15 +146,15 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 							<VSCodeOption value="">Select a region...</VSCodeOption>
 							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
 							<VSCodeOption value="us-east-1">US East (N. Virginia)</VSCodeOption>
-							<VSCodeOption value="us-east-2">US East (Ohio)</VSCodeOption>
-							<VSCodeOption value="us-west-1">US West (N. California)</VSCodeOption>
+							{/* <VSCodeOption value="us-east-2">US East (Ohio)</VSCodeOption> */}
+							{/* <VSCodeOption value="us-west-1">US West (N. California)</VSCodeOption> */}
 							<VSCodeOption value="us-west-2">US West (Oregon)</VSCodeOption>
-							<VSCodeOption value="af-south-1">Africa (Cape Town)</VSCodeOption>
-							<VSCodeOption value="ap-east-1">Asia Pacific (Hong Kong)</VSCodeOption>
+							{/* <VSCodeOption value="af-south-1">Africa (Cape Town)</VSCodeOption> */}
+							{/* <VSCodeOption value="ap-east-1">Asia Pacific (Hong Kong)</VSCodeOption> */}
 							<VSCodeOption value="ap-south-1">Asia Pacific (Mumbai)</VSCodeOption>
 							<VSCodeOption value="ap-northeast-1">Asia Pacific (Tokyo)</VSCodeOption>
-							<VSCodeOption value="ap-northeast-2">Asia Pacific (Seoul)</VSCodeOption>
-							<VSCodeOption value="ap-northeast-3">Asia Pacific (Osaka)</VSCodeOption>
+							{/* <VSCodeOption value="ap-northeast-2">Asia Pacific (Seoul)</VSCodeOption> */}
+							{/* <VSCodeOption value="ap-northeast-3">Asia Pacific (Osaka)</VSCodeOption> */}
 							<VSCodeOption value="ap-southeast-1">Asia Pacific (Singapore)</VSCodeOption>
 							<VSCodeOption value="ap-southeast-2">Asia Pacific (Sydney)</VSCodeOption>
 							<VSCodeOption value="ca-central-1">Canada (Central)</VSCodeOption>
@@ -162,8 +162,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 							<VSCodeOption value="eu-west-1">Europe (Ireland)</VSCodeOption>
 							<VSCodeOption value="eu-west-2">Europe (London)</VSCodeOption>
 							<VSCodeOption value="eu-west-3">Europe (Paris)</VSCodeOption>
-							<VSCodeOption value="eu-north-1">Europe (Stockholm)</VSCodeOption>
-							<VSCodeOption value="me-south-1">Middle East (Bahrain)</VSCodeOption>
+							{/* <VSCodeOption value="eu-north-1">Europe (Stockholm)</VSCodeOption> */}
+							{/* <VSCodeOption value="me-south-1">Middle East (Bahrain)</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">South America (São Paulo)</VSCodeOption>
 						</VSCodeDropdown>
 					</div>
