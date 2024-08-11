@@ -54,6 +54,11 @@ export class OpenRouterHandler implements ApiHandler {
 			tool_choice: "auto",
 		})
 
+		const errorMessage = (completion as any).error?.message // openrouter returns an error object instead of the openai sdk throwing an error
+		if (errorMessage) {
+			throw new Error(errorMessage)
+		}
+
 		// Convert OpenAI response to Anthropic format
 		const openAiMessage = completion.choices[0].message
 		const anthropicMessage: Anthropic.Messages.Message = {
@@ -246,7 +251,8 @@ export class OpenRouterHandler implements ApiHandler {
 					openAiMessages.push({
 						role: "assistant",
 						content,
-						tool_calls,
+						// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
+						tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
 					})
 				}
 			}

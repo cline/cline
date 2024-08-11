@@ -395,6 +395,12 @@ const ChatView = ({
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 					return false
+				case "text":
+					// Sometimes Claude returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
+					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+						return false
+					}
+					break
 			}
 			return true
 		})
