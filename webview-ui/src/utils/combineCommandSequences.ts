@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "@shared/ExtensionMessage"
+import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 
 /**
  * Combines sequences of command and command_output messages in an array of ClaudeMessages.

@@ -414,12 +414,9 @@ export class ClaudeDev {
 		}
 	}
 
-	// Calculates cost of a Claude 3.5 Sonnet API request
 	calculateApiCost(inputTokens: number, outputTokens: number): number {
-		const INPUT_COST_PER_MILLION = 3.0 // $3 per million input tokens
-		const OUTPUT_COST_PER_MILLION = 15.0 // $15 per million output tokens
-		const inputCost = (inputTokens / 1_000_000) * INPUT_COST_PER_MILLION
-		const outputCost = (outputTokens / 1_000_000) * OUTPUT_COST_PER_MILLION
+		const inputCost = (this.api.getModel().info.inputPrice / 1_000_000) * inputTokens
+		const outputCost = (this.api.getModel().info.outputPrice / 1_000_000) * outputTokens
 		const totalCost = inputCost + outputCost
 		return totalCost
 	}

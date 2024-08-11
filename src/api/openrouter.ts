@@ -1,7 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler, withoutImageData } from "."
-import { ApiHandlerOptions } from "../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	openRouterDefaultModelId,
+	OpenRouterModelId,
+	openRouterModels,
+} from "../shared/api"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -41,8 +47,8 @@ export class OpenRouterHandler implements ApiHandler {
 		}))
 
 		const completion = await this.client.chat.completions.create({
-			model: "anthropic/claude-3.5-sonnet:beta",
-			max_tokens: 4096,
+			model: this.getModel().id,
+			max_tokens: this.getModel().info.maxTokens,
 			messages: openAiMessages,
 			tools: openAiTools,
 			tool_choice: "auto",
@@ -258,11 +264,20 @@ export class OpenRouterHandler implements ApiHandler {
 		>
 	): any {
 		return {
-			model: "anthropic/claude-3.5-sonnet:beta",
-			max_tokens: 4096,
+			model: this.getModel().id,
+			max_tokens: this.getModel().info.maxTokens,
 			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: "auto",
 		}
+	}
+
+	getModel(): { id: OpenRouterModelId; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in openRouterModels) {
+			const id = modelId as OpenRouterModelId
+			return { id, info: openRouterModels[id] }
+		}
+		return { id: openRouterDefaultModelId, info: openRouterModels[openRouterDefaultModelId] }
 	}
 }

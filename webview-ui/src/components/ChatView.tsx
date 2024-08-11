@@ -1,18 +1,18 @@
-import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
+import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../utils/combineApiRequests"
 import { combineCommandSequences } from "../utils/combineCommandSequences"
 import { getApiMetrics } from "../utils/getApiMetrics"
 import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
+import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
 import TaskHeader from "./TaskHeader"
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import Announcement from "./Announcement"
 import Thumbnails from "./Thumbnails"
 
 interface ChatViewProps {
@@ -21,6 +21,7 @@ interface ChatViewProps {
 	isHidden: boolean
 	vscodeThemeName?: string
 	showAnnouncement: boolean
+	selectedModelSupportsImages: boolean
 	hideAnnouncement: () => void
 }
 
@@ -32,6 +33,7 @@ const ChatView = ({
 	isHidden,
 	vscodeThemeName,
 	showAnnouncement,
+	selectedModelSupportsImages,
 	hideAnnouncement,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
@@ -278,6 +280,11 @@ const ChatView = ({
 	}
 
 	const handlePaste = async (e: React.ClipboardEvent) => {
+		if (shouldDisableImages) {
+			e.preventDefault()
+			return
+		}
+
 		const items = e.clipboardData.items
 		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
 		const imageItems = Array.from(items).filter((item) => {
@@ -411,6 +418,12 @@ const ChatView = ({
 		const text = task ? "Type a message..." : "Type your task here..."
 		return [text, false]
 	}, [task, messages])
+
+	const shouldDisableImages =
+		!selectedModelSupportsImages ||
+		textAreaDisabled ||
+		selectedImages.length >= MAX_IMAGES_PER_MESSAGE ||
+		isInputPipingToStdin
 
 	return (
 		<div
@@ -590,9 +603,7 @@ const ChatView = ({
 						height: "calc(100% - 20px)", // Full height minus top and bottom padding
 					}}>
 					<VSCodeButton
-						disabled={
-							textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE || isInputPipingToStdin
-						}
+						disabled={shouldDisableImages}
 						appearance="icon"
 						aria-label="Attach Images"
 						onClick={selectImages}

@@ -2,8 +2,8 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import TextTruncate from "react-text-truncate"
 import { useWindowSize } from "react-use"
+import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { vscode } from "../utils/vscode"
-import { ClaudeMessage } from "@shared/ExtensionMessage"
 import Thumbnails from "./Thumbnails"
 
 interface TaskHeaderProps {
