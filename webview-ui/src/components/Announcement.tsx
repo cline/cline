@@ -28,20 +28,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
-					Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional
-					applications or fix bugs with screenshots
+					Paste images in chat and turn mockups into fully functional applications or fix bugs with
+					screenshots
 				</li>
 				<li>
-					Added a settings option to choose other Claude models (+ GPT-4o, DeepSeek, and Mistral if you use
-					OpenRouter)
+					Added option to choose other Claude models (+ GPT-4o, DeepSeek, and Mistral if you use OpenRouter)
 				</li>
 				<li>
 					You can now add custom instructions to the end of the system prompt (e.g. "Always use Python",
 					"Speak in Spanish")
 				</li>
-				<li>
-					Improved support for running interactive terminal commands and long-running processes like servers
-				</li>
+				<li>Improved support for running interactive terminal commands and servers</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
