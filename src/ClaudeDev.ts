@@ -235,6 +235,7 @@ type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlo
 export class ClaudeDev {
 	private api: ApiHandler
 	private maxRequestsPerTask: number
+	private customInstructions?: string
 	private requestCount = 0
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
@@ -250,12 +251,14 @@ export class ClaudeDev {
 		provider: ClaudeDevProvider,
 		apiConfiguration: ApiConfiguration,
 		maxRequestsPerTask?: number,
+		customInstructions?: string,
 		task?: string,
 		images?: string[]
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
+		this.customInstructions = customInstructions
 
 		this.startTask(task, images)
 	}
@@ -266,6 +269,10 @@ export class ClaudeDev {
 
 	updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
+	}
+
+	updateCustomInstructions(customInstructions: string | undefined) {
+		this.customInstructions = customInstructions
 	}
 
 	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
@@ -923,7 +930,19 @@ export class ClaudeDev {
 
 	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {
 		try {
-			return await this.api.createMessage(SYSTEM_PROMPT(), this.apiConversationHistory, tools)
+			let systemPrompt = SYSTEM_PROMPT()
+			if (this.customInstructions && this.customInstructions.trim()) {
+				systemPrompt += `
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user. They should be followed and given precedence in case of conflicts with previous instructions.
+
+${this.customInstructions.trim()}
+`
+			}
+			return await this.api.createMessage(systemPrompt, this.apiConversationHistory, tools)
 		} catch (error) {
 			const { response } = await this.ask(
 				"api_req_failed",

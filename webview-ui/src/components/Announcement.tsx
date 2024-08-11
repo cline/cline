@@ -36,6 +36,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					OpenRouter)
 				</li>
 				<li>
+					You can now add custom instructions to the end of the system prompt (e.g. "Always use Python",
+					"Speak in Spanish")
+				</li>
+				<li>
 					Improved support for running interactive terminal commands and long-running processes like servers
 				</li>
 			</ul>

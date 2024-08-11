@@ -15,6 +15,7 @@ export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
 	maxRequestsPerTask?: number
+	customInstructions?: string
 	themeName?: string
 	claudeMessages: ClaudeMessage[]
 	shouldShowAnnouncement: boolean

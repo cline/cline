@@ -6,7 +6,8 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.1.1]
 
-- Added the ability to choose other Claude models (+ GPT-4o, DeepSeek, and Mistral if you use OpenRouter)
+- Adds option to choose other Claude models (+ GPT-4o, DeepSeek, and Mistral if you use OpenRouter)
+- Adds option to add custom instructions to the end of the system prompt
 
 ## [1.1.0]
 
