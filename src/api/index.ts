@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiConfiguration } from "../shared/api"
+import { ApiConfiguration, ApiModelId, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./anthropic"
 import { AwsBedrockHandler } from "./bedrock"
 import { OpenRouterHandler } from "./openrouter"
@@ -19,6 +19,8 @@ export interface ApiHandler {
 			| Anthropic.ToolResultBlockParam
 		>
 	): any
+
+	getModel(): { id: ApiModelId; info: ModelInfo }
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {

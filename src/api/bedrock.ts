@@ -1,7 +1,7 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions } from "../shared/api"
 import { ApiHandler, withoutImageData } from "."
+import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../shared/api"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -28,8 +28,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		tools: Anthropic.Messages.Tool[]
 	): Promise<Anthropic.Messages.Message> {
 		return await this.client.messages.create({
-			model: "anthropic.claude-3-5-sonnet-20240620-v1:0",
-			max_tokens: 4096,
+			model: this.getModel().id,
+			max_tokens: this.getModel().info.maxTokens,
 			system: systemPrompt,
 			messages,
 			tools,
@@ -46,12 +46,21 @@ export class AwsBedrockHandler implements ApiHandler {
 		>
 	): any {
 		return {
-			model: "anthropic.claude-3-5-sonnet-20240620-v1:0",
-			max_tokens: 4096,
+			model: this.getModel().id,
+			max_tokens: this.getModel().info.maxTokens,
 			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
 			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: { type: "auto" },
 		}
+	}
+
+	getModel(): { id: BedrockModelId; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in bedrockModels) {
+			const id = modelId as BedrockModelId
+			return { id, info: bedrockModels[id] }
+		}
+		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
 }

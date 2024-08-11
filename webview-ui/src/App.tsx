@@ -1,19 +1,18 @@
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent } from "react-use"
+import { ApiConfiguration } from "../../src/shared/api"
+import { ClaudeMessage, ExtensionMessage } from "../../src/shared/ExtensionMessage"
 import "./App.css"
+import { normalizeApiConfiguration } from "./components/ApiOptions"
 import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
-import { ClaudeMessage, ExtensionMessage } from "@shared/ExtensionMessage"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utils/vscode"
-import { useEvent } from "react-use"
-import { ApiConfiguration } from "@shared/api"
 
 /*
 The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
 
 The best way to solve this is to make your webview stateless. Use message passing to save off the webview's state and then restore the state when the webview becomes visible again.
-
-
 */
 
 const App: React.FC = () => {
@@ -70,6 +69,10 @@ const App: React.FC = () => {
 
 	useEvent("message", handleMessage)
 
+	const { selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration)
+	}, [apiConfiguration])
+
 	if (!didHydrateState) {
 		return null
 	}
@@ -97,6 +100,7 @@ const App: React.FC = () => {
 						isHidden={showSettings}
 						vscodeThemeName={vscodeThemeName}
 						showAnnouncement={showAnnouncement}
+						selectedModelSupportsImages={selectedModelInfo.supportsImages}
 						hideAnnouncement={() => setShowAnnouncement(false)}
 					/>
 				</>

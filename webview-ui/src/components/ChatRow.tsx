@@ -1,11 +1,11 @@
-import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "@shared/ExtensionMessage"
 import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
+import Markdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../utils/combineCommandSequences"
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock/CodeBlock"
-import Markdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import Thumbnails from "./Thumbnails"
 
 interface ChatRowProps {

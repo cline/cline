@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration } from "../../../src/shared/api"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { validateApiConfiguration } from "../utils/validate"
@@ -40,7 +40,11 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 			<b>To get started, this extension needs an API key for Claude 3.5 Sonnet:</b>
 
 			<div style={{ marginTop: "15px" }}>
-				<ApiOptions apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+				<ApiOptions
+					apiConfiguration={apiConfiguration}
+					setApiConfiguration={setApiConfiguration}
+					showModelOptions={false}
+				/>
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
 					Let's go!
 				</VSCodeButton>

@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "@shared/ExtensionMessage";
+import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 
 export const mockMessages: ClaudeMessage[] = [
 	{
