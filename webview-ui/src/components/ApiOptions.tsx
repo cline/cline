@@ -67,8 +67,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -113,7 +113,11 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						This key is stored locally and only used to make API requests from this extension.
 						<VSCodeLink href="https://openrouter.ai/" style={{ display: "inline" }}>
 							You can get an OpenRouter API key by signing up here.
-						</VSCodeLink>
+						</VSCodeLink>{" "}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<b>Note:</b> OpenRouter support is experimental and may not work well with tool use or
+							large outputs.)
+						</span>
 					</p>
 				</div>
 			)}
