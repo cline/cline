@@ -457,8 +457,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to openrouter
-				apiProvider = "openrouter"
+				// New users should default to anthropic (openrouter doesn't perform well with large files)
+				apiProvider = "anthropic"
 			}
 		}
 
