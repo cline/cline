@@ -89,27 +89,27 @@ export const bedrockModels = {
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
 export type OpenRouterModelId = keyof typeof openRouterModels
-export const openRouterDefaultModelId: OpenRouterModelId = "anthropic/claude-3.5-sonnet"
+export const openRouterDefaultModelId: OpenRouterModelId = "anthropic/claude-3.5-sonnet:beta"
 export const openRouterModels = {
-	"anthropic/claude-3.5-sonnet": {
+	"anthropic/claude-3.5-sonnet:beta": {
 		maxTokens: 8192,
 		supportsImages: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
-	"anthropic/claude-3-opus": {
+	"anthropic/claude-3-opus:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
 		inputPrice: 15,
 		outputPrice: 75,
 	},
-	"anthropic/claude-3-sonnet": {
+	"anthropic/claude-3-sonnet:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
 		inputPrice: 3,
 		outputPrice: 15,
 	},
-	"anthropic/claude-3-haiku": {
+	"anthropic/claude-3-haiku:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
 		inputPrice: 0.25,
