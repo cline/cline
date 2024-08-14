@@ -72,23 +72,23 @@ const SettingsView = ({
 				left: 0,
 				right: 0,
 				bottom: 0,
-				padding: "10px 18px 18px 20px",
+				padding: "10px 0px 15px 20px",
 				display: "flex",
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
-			<div style={{ flexGrow: 1, overflow: "auto" }}>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						marginBottom: "17px",
-					}}>
-					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-					<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
-				</div>
-
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					marginBottom: "17px",
+					paddingRight: 18,
+				}}>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
+				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
+			</div>
+			<div style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8 }}>
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						apiConfiguration={apiConfiguration}
@@ -128,7 +128,7 @@ const SettingsView = ({
 					</p>
 				</div>
 
-				<div style={{ marginBottom: 20 }}>
+				<div>
 					<VSCodeTextField
 						value={maxRequestsPerTask}
 						style={{ width: "100%" }}
@@ -164,6 +164,8 @@ const SettingsView = ({
 					color: "var(--vscode-descriptionForeground)",
 					fontSize: "12px",
 					lineHeight: "1.2",
+					paddingTop: 10,
+					paddingRight: 18,
 				}}>
 				<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 					If you have any questions or feedback, feel free to open an issue at{" "}
