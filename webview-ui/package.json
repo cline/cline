@@ -16,7 +16,6 @@
     "react-markdown": "^9.0.1",
     "react-scripts": "5.0.1",
     "react-syntax-highlighter": "^15.5.0",
-    "react-text-truncate": "^0.19.0",
     "react-textarea-autosize": "^8.5.3",
     "react-use": "^17.5.1",
     "react-virtuoso": "^4.7.13",

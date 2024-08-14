@@ -1,6 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
-import TextTruncate from "react-text-truncate"
 import { useWindowSize } from "react-use"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { vscode } from "../utils/vscode"
@@ -17,8 +16,9 @@ interface TaskHeaderProps {
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, totalCost, onClose, isHidden }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
-	const [textTruncateKey, setTextTruncateKey] = useState(0)
+	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
+	const textRef = useRef<HTMLDivElement>(null)
 
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
@@ -52,25 +52,29 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, tota
 	After:
 	*/
 
-	const { height: windowHeight } = useWindowSize()
+	const { height: windowHeight, width: windowWidth } = useWindowSize()
 
 	useEffect(() => {
 		if (isExpanded && textContainerRef.current) {
-			const maxHeight = windowHeight * (3 / 5)
+			const maxHeight = windowHeight * (1 / 2)
 			textContainerRef.current.style.maxHeight = `${maxHeight}px`
 		}
 	}, [isExpanded, windowHeight])
 
 	useEffect(() => {
-		if (!isHidden) {
-			/*
-			There's an issue with TextTruncate where it is hidden when removed from the screen. It uses canvas to measure text width and adjusts the content accordingly. However, when the component is hidden, the canvas is not rendered and the text is not measured.
-			We can fix this by forcing re-render after navigation by using a key prop that changes when you navigate back to the page.
-			- https://github.com/ShinyChang/React-Text-Truncate?tab=readme-ov-file#faq
-			*/
-			setTextTruncateKey((prev) => prev + 1)
+		if (textRef.current && textContainerRef.current) {
+			let textContainerHeight = textContainerRef.current.clientHeight
+			if (!textContainerHeight) {
+				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
+			}
+			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
+			// necessary to show see more button again if user resizes window to expand and then back to collapse
+			if (!isOverflowing) {
+				setIsExpanded(false)
+			}
+			setShowSeeMore(isOverflowing)
 		}
-	}, [isHidden])
+	}, [task.text, windowWidth])
 
 	const toggleExpand = () => setIsExpanded(!isExpanded)
 
@@ -112,40 +116,68 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, tota
 						overflowY: isExpanded ? "auto" : "hidden",
 						wordBreak: "break-word",
 						overflowWrap: "anywhere",
+						position: "relative",
 					}}>
-					<TextTruncate
-						key={textTruncateKey}
-						line={isExpanded ? 0 : 3}
-						element="span"
-						truncateText="…"
-						text={task.text}
-						textTruncateChild={
-							<span
+					<div
+						ref={textRef}
+						style={{
+							display: "-webkit-box",
+							WebkitLineClamp: isExpanded ? "unset" : 3,
+							WebkitBoxOrient: "vertical",
+							overflow: "hidden",
+							whiteSpace: "pre-wrap",
+							wordBreak: "break-word",
+							overflowWrap: "anywhere",
+						}}>
+						{task.text}
+					</div>
+					{!isExpanded && showSeeMore && (
+						<div
+							style={{
+								position: "absolute",
+								right: 0,
+								bottom: 0,
+								display: "flex",
+								alignItems: "center",
+							}}>
+							<div
+								style={{
+									width: 30,
+									height: "1.2em",
+									background:
+										"linear-gradient(to right, transparent, var(--vscode-badge-background))",
+								}}
+							/>
+							<div
 								style={{
 									cursor: "pointer",
 									color: "var(--vscode-textLink-foreground)",
-									marginLeft: "5px",
+									paddingRight: 0,
+									paddingLeft: 3,
+									backgroundColor: "var(--vscode-badge-background)",
 								}}
 								onClick={toggleExpand}>
 								See more
-							</span>
-						}
-					/>
-					{isExpanded && (
-						<span
-							style={{
-								cursor: "pointer",
-								color: "var(--vscode-textLink-foreground)",
-								marginLeft: "5px",
-							}}
-							onClick={toggleExpand}>
-							See less
-						</span>
+							</div>
+						</div>
 					)}
 				</div>
+				{isExpanded && showSeeMore && (
+					<div
+						style={{
+							cursor: "pointer",
+							color: "var(--vscode-textLink-foreground)",
+							marginLeft: "auto",
+							textAlign: "right",
+							paddingRight: 0,
+						}}
+						onClick={toggleExpand}>
+						See less
+					</div>
+				)}
 				{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
 				<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-					<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+					<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 						<span style={{ fontWeight: "bold" }}>Tokens:</span>
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
