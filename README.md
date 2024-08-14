@@ -11,7 +11,7 @@
 Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore complex projects, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev provides a human-in-the-loop GUI to supervise every file changed and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
--   Inspect diffs of every change Claude makes right in the editor, and keep track with syntax highlighted previews in chat
+-   Inspect diffs of every change Claude makes right in the editor, and provide feedback until you're satisfied with the result
 -   Runs terminal commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
 -   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
@@ -39,17 +39,15 @@ Claude Dev has access to the following capabilities:
 
 ### Working in Existing Projects
 
-Developers tend to name directories, files, classes, functions, and other components in ways that reflect their purpose and role within the larger system. These names often encapsulate high-level concepts and relationships that are crucial for understanding a project's overall architecture.
-
-Claude Dev leverages the fact that large language models are fundamentally built on natural language processing, and by focusing on these named elements we provide the LLM with a structural understanding of the codebase that aligns closely with how developers conceptualize and organize their code. By effectively extracting the "language" of the codebase, we enable the LLM to grasp structure and intent without wasting context on implementation details.
+When given a task in an existing project, Claude will look for the most relevant files to read and edit the same way you or I would–by first looking at the names of directories, files, classes, and functions since these names tend to reflect their purpose and role within the broader system, and often encapsulate high-level concepts and relationships that help understand a project's overall architecture. With tools like `list_files_recursive` and `view_source_code_definitions_top_level`, Claude is able to extract names of various elements in a project to determine what files are most relevant to a given task without you having to mention `@file`s or `@folder`s yourself.
 
 1. **File Structure**: Claude first uses the `list_files_recursive` tool to get a complete picture of the project's file structure. It turns out Claude 3.5 Sonnet is _really_ good at inferring what it needs to process further just from these file names alone.
 
-2. **High-Level Code Overview**: Claude may then use the `view_source_code_definitions_top_level` tool on specific directories of interest. This tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. `view_source_code_definitions_top_level` works by first identifying source code files that tree-sitter can parse (currently supports `python`, `javascript`, `typescript`, `ruby`, `go`, `java`, `php`, `rust`, `c`, `c++`, `c#`, `swift`), then parsing each file into an abstract syntax tree, and finally applying a language-specific query to extract definition names (you can see the exact query used for each language in `src/parse-source-code/queries`). The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose.
+2. **Source Code Definitions**: Claude may then use the `view_source_code_definitions_top_level` tool on specific directories of interest. This tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. It works by first identifying source code files that tree-sitter can parse (currently supports `python`, `javascript`, `typescript`, `ruby`, `go`, `java`, `php`, `rust`, `c`, `c++`, `c#`, `swift`), then parsing each file into an abstract syntax tree, and finally applying a language-specific query to extract definition names (you can see the exact query used for each language in `src/parse-source-code/queries`). The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose.
 
-3. **Read Relevant Files**: With the insights gained from the project file structure and high-level code overview, Claude can then use the `read_file` tool to examine specific files that are most relevant to the task at hand.
+3. **Read Relevant Files**: With insights gained from the names of various files and source code definitions, Claude can then use the `read_file` tool to examine specific files that are most relevant to the task at hand.
 
-By carefully managing what information is added to context, Claude can provide valuable assistance even for complex, large-scale projects without overwhelming its context window (200k tokens, translating to roughly 150k words or about 500 pages of a typical book).
+By carefully managing what information is added to context, Claude can provide valuable assistance even for complex, large-scale projects without overwhelming its context window.
 
 ### Only With Your Permission
 
@@ -59,7 +57,7 @@ Claude always asks for your permission first before any tools are executed or in
 
 ## Contribution
 
-Paul Graham said it best, "if you build something now that barely works with AI, the next models will make it _really_ work." I've built this project with the assumption that scaling laws will continue to improve the quality (and cost) of AI models, and what might be difficult for Claude 3.5 Sonnet today will be effortless for future generations. That is the design philosophy I'd like to develop this project with, so it will always be updated with the best models, tools, and capabilities available–without wasting effort on implementing stopgaps like cheaper agents. With that said, I'm always open to suggestions and feedback, so please feel free to contribute to this project by submitting issues and pull requests. Contributions are welcome and appreciated!
+Paul Graham said it best, "if you build something now that barely works with AI, the next models will make it _really_ work." I've built this project with the assumption that scaling laws will continue to improve the quality (and cost) of AI models, and what might be difficult for Claude 3.5 Sonnet today will be effortless for future generations. That is the design philosophy I'd like to develop this project with, so it will always be updated with the best models, tools, and capabilities available–without wasting effort on implementing stopgaps like cheaper agents. With that said, I'm always open to suggestions and feedback, so please feel free to contribute to this project by submitting issues and pull requests.
 
 To build Claude Dev locally, follow these steps:
 
@@ -88,6 +86,7 @@ To build Claude Dev locally, follow these steps:
 -   ["Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative"](https://www.youtube.com/watch?v=Rv0wJZRpnCQ) by [Josh Pocock](https://www.youtube.com/@joshfpocock)
 -   ["Claude Dev Is Mindblowing. The Best Coding Assistant tool?"](https://www.youtube.com/watch?v=Vp1Z3VGZroA) by [Yaron Been](https://www.youtube.com/@ecomxfactor-YaronBeen)
 -   ["ClaudeDev: The Ultimate Coding Agent for VS Code"](https://www.youtube.com/watch?v=aq0yw_DtphQ) by [Blas](https://www.youtube.com/@blascerecer)
+-   ["I Built My First Web App in One Day Using Claude Dev Extension – Mind Blown!"](https://www.reddit.com/r/ClaudeAI/comments/1eqo3nk/i_built_my_first_web_app_in_one_day_using_claude/)
 -   ["AI Development with Claude Dev"](https://www.linkedin.com/pulse/ai-development-claude-dev-shannon-lal-3ql3e/) by Shannon Lal
 -   ["Code Smarter with Claude Dev: An AI Programmer for Your Projects"](https://www.linkedin.com/pulse/code-smarter-claude-dev-ai-programmer-your-projects-iana-detochka-jiqpe) by Iana D.
 -   [Claude Dev also hit top 10 posts of all time on r/ClaudeAI](https://www.reddit.com/r/ClaudeAI/comments/1e3h0f1/my_submission_to_anthropics_build_with_claude/)
@@ -102,4 +101,4 @@ Contact me on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please
 
 ## Acknowledgments
 
-Special thanks to Anthropic for providing the API that powers this extension.
+Special thanks to Anthropic for providing the model that powers this extension.
