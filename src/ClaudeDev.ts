@@ -78,19 +78,6 @@ Operating System: ${osName()}
 Default Shell: ${defaultShell}
 Home Directory: ${os.homedir()}
 Current Working Directory: ${cwd}
-VSCode Visible Files: ${
-		vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
-			.filter(Boolean)
-			.join(", ") || "(No files open)"
-	}
-VSCode Opened Tabs: ${
-		vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
-			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-			.filter(Boolean)
-			.join(", ") || "(No tabs open)"
-	}
 `
 
 const cwd =
@@ -349,7 +336,10 @@ export class ClaudeDev {
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
-		let textBlock: Anthropic.TextBlockParam = { type: "text", text: `Task: \"${task}\"` }
+		let textBlock: Anthropic.TextBlockParam = {
+			type: "text",
+			text: `<task>\n${task}\n</task>\n${this.getPotentiallyRelevantDetails()}`, // cannot be sent with system prompt since it's cached and these details can change
+		}
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 
 		// TODO: create tools that let Claude interact with VSCode (e.g. open a file, list open files, etc.)
@@ -500,10 +490,7 @@ export class ClaudeDev {
 					}
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(
-							`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-							images
-						)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -540,10 +527,7 @@ export class ClaudeDev {
 					}
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(
-							`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-							images
-						)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -590,10 +574,7 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(
-						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-						images
-					)
+					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
 			}
@@ -628,10 +609,7 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(
-						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-						images
-					)
+					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
 			}
@@ -671,10 +649,7 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(
-						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-						images
-					)
+					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
 			}
@@ -760,10 +735,7 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(
-						`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-						images
-					)
+					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
 			}
@@ -792,10 +764,7 @@ export class ClaudeDev {
 		if (response !== "yesButtonTapped") {
 			if (response === "messageResponse") {
 				await this.say("user_feedback", text, images)
-				return this.formatIntoToolResponse(
-					`The user denied this operation and provided the following feedback:\n\"${text}\"`,
-					images
-				)
+				return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
 			}
 			return "The user denied this operation."
 		}
@@ -894,7 +863,7 @@ export class ClaudeDev {
 		}
 		const { text, images } = await this.ask("followup", question)
 		await this.say("user_feedback", text ?? "", images)
-		return this.formatIntoToolResponse(`User's response:\n\"${text}\"`, images)
+		return this.formatIntoToolResponse(`<answer>\n${text}\n</answer>`, images)
 	}
 
 	async attemptCompletion(result?: string, command?: string): Promise<ToolResponse> {
@@ -923,7 +892,7 @@ export class ClaudeDev {
 		}
 		await this.say("user_feedback", text ?? "", images)
 		return this.formatIntoToolResponse(
-			`The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\nUser's feedback:\n\"${text}\"`,
+			`The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
 			images
 		)
 	}
@@ -1118,5 +1087,30 @@ ${this.customInstructions.trim()}
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonTapped, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
 		}
+	}
+
+	// Prompts
+
+	getPotentiallyRelevantDetails() {
+		// TODO: add more details
+		return `<potentially_relevant_details>
+VSCode Visible Files: ${
+			vscode.window.visibleTextEditors
+				?.map((editor) => editor.document?.uri?.fsPath)
+				.filter(Boolean)
+				.join(", ") || "(No files open)"
+		}
+VSCode Opened Tabs: ${
+			vscode.window.tabGroups.all
+				.flatMap((group) => group.tabs)
+				.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+				.filter(Boolean)
+				.join(", ") || "(No tabs open)"
+		}
+</potentially_relevant_details>`
+	}
+
+	formatGenericToolFeedback(feedback?: string) {
+		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>\n\n${this.getPotentiallyRelevantDetails()}`
 	}
 }
