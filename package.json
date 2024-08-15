@@ -123,7 +123,7 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
-    "@anthropic-ai/sdk": "^0.24.3",
+    "@anthropic-ai/sdk": "^0.26.0",
     "@vscode/codicons": "^0.0.36",
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",

@@ -18,8 +18,11 @@ export type ApiConfiguration = ApiHandlerOptions & {
 export interface ModelInfo {
 	maxTokens: number
 	supportsImages: boolean
+	supportsPromptCache: boolean
 	inputPrice: number
 	outputPrice: number
+	cacheWrites?: number
+	cacheReads?: number
 }
 
 export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
@@ -32,26 +35,36 @@ export const anthropicModels = {
 	"claude-3-5-sonnet-20240620": {
 		maxTokens: 8192,
 		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
+		cacheWrites: 3.75, // $3.75 per million tokens
+		cacheReads: 0.3, // $0.30 per million tokens
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
+		cacheWrites: 18.75,
+		cacheReads: 1.5,
 	},
 	"claude-3-sonnet-20240229": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"claude-3-haiku-20240307": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+		cacheWrites: 0.3,
+		cacheReads: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
 
@@ -63,24 +76,28 @@ export const bedrockModels = {
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"anthropic.claude-3-opus-20240229-v1:0": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 	},
 	"anthropic.claude-3-sonnet-20240229-v1:0": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"anthropic.claude-3-haiku-20240307-v1:0": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
@@ -94,42 +111,49 @@ export const openRouterModels = {
 	"anthropic/claude-3.5-sonnet:beta": {
 		maxTokens: 8192,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"anthropic/claude-3-opus:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 15,
 		outputPrice: 75,
 	},
 	"anthropic/claude-3-sonnet:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 15,
 	},
 	"anthropic/claude-3-haiku:beta": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
 	"openai/gpt-4o-2024-08-06": {
 		maxTokens: 16384,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 2.5,
 		outputPrice: 10,
 	},
 	"openai/gpt-4o-mini-2024-07-18": {
 		maxTokens: 16384,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 	},
 	"openai/gpt-4-turbo": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 10,
 		outputPrice: 30,
 	},
@@ -175,6 +199,7 @@ export const openRouterModels = {
 	"deepseek/deepseek-coder": {
 		maxTokens: 4096,
 		supportsImages: false,
+		supportsPromptCache: false,
 		inputPrice: 0.14,
 		outputPrice: 0.28,
 	},
@@ -182,6 +207,7 @@ export const openRouterModels = {
 	"mistralai/mistral-large": {
 		maxTokens: 8192,
 		supportsImages: false,
+		supportsPromptCache: false,
 		inputPrice: 3,
 		outputPrice: 9,
 	},

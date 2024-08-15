@@ -411,10 +411,25 @@ export class ClaudeDev {
 		}
 	}
 
-	calculateApiCost(inputTokens: number, outputTokens: number): number {
-		const inputCost = (this.api.getModel().info.inputPrice / 1_000_000) * inputTokens
+	calculateApiCost(
+		inputTokens: number,
+		outputTokens: number,
+		cacheCreationInputTokens?: number,
+		cacheReadInputTokens?: number
+	): number {
+		const modelCacheWritesPrice = this.api.getModel().info.cacheWrites
+		let cacheWritesCost = 0
+		if (cacheCreationInputTokens && modelCacheWritesPrice) {
+			cacheWritesCost = (modelCacheWritesPrice / 1_000_000) * cacheCreationInputTokens
+		}
+		const modelCacheReadsPrice = this.api.getModel().info.cacheReads
+		let cacheReadsCost = 0
+		if (cacheReadInputTokens && modelCacheReadsPrice) {
+			cacheReadsCost = (modelCacheReadsPrice / 1_000_000) * cacheReadInputTokens
+		}
+		const baseInputCost = (this.api.getModel().info.inputPrice / 1_000_000) * inputTokens
 		const outputCost = (this.api.getModel().info.outputPrice / 1_000_000) * outputTokens
-		const totalCost = inputCost + outputCost
+		const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
 		return totalCost
 	}
 
@@ -901,6 +916,7 @@ export class ClaudeDev {
 		try {
 			let systemPrompt = SYSTEM_PROMPT()
 			if (this.customInstructions && this.customInstructions.trim()) {
+				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 				systemPrompt += `
 ====
 
@@ -975,12 +991,25 @@ ${this.customInstructions.trim()}
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
 			let inputTokens = response.usage.input_tokens
 			let outputTokens = response.usage.output_tokens
+			let cacheCreationInputTokens =
+				(response as Anthropic.Beta.PromptCaching.Messages.PromptCachingBetaMessage).usage
+					.cache_creation_input_tokens || undefined
+			let cacheReadInputTokens =
+				(response as Anthropic.Beta.PromptCaching.Messages.PromptCachingBetaMessage).usage
+					.cache_read_input_tokens || undefined
 			await this.say(
 				"api_req_finished",
 				JSON.stringify({
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
-					cost: this.calculateApiCost(inputTokens, outputTokens),
+					cacheWrites: cacheCreationInputTokens,
+					cacheReads: cacheReadInputTokens,
+					cost: this.calculateApiCost(
+						inputTokens,
+						outputTokens,
+						cacheCreationInputTokens,
+						cacheReadInputTokens
+					),
 				})
 			)
 

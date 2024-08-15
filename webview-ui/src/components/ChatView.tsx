@@ -22,6 +22,7 @@ interface ChatViewProps {
 	vscodeThemeName?: string
 	showAnnouncement: boolean
 	selectedModelSupportsImages: boolean
+	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 }
 
@@ -34,6 +35,7 @@ const ChatView = ({
 	vscodeThemeName,
 	showAnnouncement,
 	selectedModelSupportsImages,
+	selectedModelSupportsPromptCache,
 	hideAnnouncement,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
@@ -448,6 +450,9 @@ const ChatView = ({
 					task={task}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
+					doesModelSupportPromptCache={selectedModelSupportsPromptCache}
+					cacheWrites={apiMetrics.totalCacheWrites}
+					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
