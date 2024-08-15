@@ -244,12 +244,14 @@ export const sapAiCoreModels = {
 	"anthropic--claude-3.5-sonnet": {
 		maxTokens: 8192,
 		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"anthropic--claude-3-sonnet": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
