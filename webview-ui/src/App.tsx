@@ -105,6 +105,7 @@ const App: React.FC = () => {
 						vscodeThemeName={vscodeThemeName}
 						showAnnouncement={showAnnouncement}
 						selectedModelSupportsImages={selectedModelInfo.supportsImages}
+						selectedModelSupportsPromptCache={selectedModelInfo.supportsPromptCache}
 						hideAnnouncement={() => setShowAnnouncement(false)}
 					/>
 				</>

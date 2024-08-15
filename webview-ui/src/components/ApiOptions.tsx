@@ -217,25 +217,17 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			<span
-				style={{
-					fontWeight: 500,
-					color: modelInfo.supportsImages
-						? "var(--vscode-testing-iconPassed)"
-						: "var(--vscode-errorForeground)",
-				}}>
-				<i
-					className={`codicon codicon-${modelInfo.supportsImages ? "check" : "x"}`}
-					style={{
-						marginRight: 4,
-						marginBottom: modelInfo.supportsImages ? 1 : -1,
-						fontSize: modelInfo.supportsImages ? 11 : 13,
-						fontWeight: 700,
-						display: "inline-block",
-						verticalAlign: "bottom",
-					}}></i>
-				{modelInfo.supportsImages ? "Supports images" : "Does not support images"}
-			</span>
+			<ModelInfoSupportsItem
+				isSupported={modelInfo.supportsPromptCache}
+				supportsLabel="Supports prompt cache"
+				doesNotSupportLabel="Does not support prompt cache"
+			/>
+			<br />
+			<ModelInfoSupportsItem
+				isSupported={modelInfo.supportsImages}
+				supportsLabel="Supports images"
+				doesNotSupportLabel="Does not support images"
+			/>
 			<br />
 			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens.toLocaleString()} tokens
 			<br />
@@ -246,6 +238,34 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 		</p>
 	)
 }
+
+const ModelInfoSupportsItem = ({
+	isSupported,
+	supportsLabel,
+	doesNotSupportLabel,
+}: {
+	isSupported: boolean
+	supportsLabel: string
+	doesNotSupportLabel: string
+}) => (
+	<span
+		style={{
+			fontWeight: 500,
+			color: isSupported ? "var(--vscode-testing-iconPassed)" : "var(--vscode-errorForeground)",
+		}}>
+		<i
+			className={`codicon codicon-${isSupported ? "check" : "x"}`}
+			style={{
+				marginRight: 4,
+				marginBottom: isSupported ? 1 : -1,
+				fontSize: isSupported ? 11 : 13,
+				fontWeight: 700,
+				display: "inline-block",
+				verticalAlign: "bottom",
+			}}></i>
+		{isSupported ? supportsLabel : doesNotSupportLabel}
+	</span>
+)
 
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"
