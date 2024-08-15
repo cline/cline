@@ -21,8 +21,8 @@ export interface ModelInfo {
 	supportsPromptCache: boolean
 	inputPrice: number
 	outputPrice: number
-	cacheWrites?: number
-	cacheReads?: number
+	cacheWritesPrice?: number
+	cacheReadsPrice?: number
 }
 
 export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
@@ -38,8 +38,8 @@ export const anthropicModels = {
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
-		cacheWrites: 3.75, // $3.75 per million tokens
-		cacheReads: 0.3, // $0.30 per million tokens
+		cacheWritesPrice: 3.75, // $3.75 per million tokens
+		cacheReadsPrice: 0.3, // $0.30 per million tokens
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
@@ -47,8 +47,8 @@ export const anthropicModels = {
 		supportsPromptCache: false,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
-		cacheWrites: 18.75,
-		cacheReads: 1.5,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
 	},
 	"claude-3-sonnet-20240229": {
 		maxTokens: 4096,
@@ -63,8 +63,8 @@ export const anthropicModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
-		cacheWrites: 0.3,
-		cacheReads: 0.03,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
 

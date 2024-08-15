@@ -215,13 +215,19 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 		}).format(price)
 	}
 
+	const showPromptCachingPrices =
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice
+
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
 				isSupported={modelInfo.supportsPromptCache}
-				supportsLabel="Supports prompt cache"
-				doesNotSupportLabel="Does not support prompt cache"
-			/>
+				supportsLabel="Supports prompt caching"
+				doesNotSupportLabel="Does not support prompt caching"
+			/>{" "}
+			<VSCodeLink href="https://www.anthropic.com/news/prompt-caching" style={{ display: "inline" }}>
+				(what is this?)
+			</VSCodeLink>
 			<br />
 			<ModelInfoSupportsItem
 				isSupported={modelInfo.supportsImages}
@@ -231,7 +237,20 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 			<br />
 			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens.toLocaleString()} tokens
 			<br />
-			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)} per million tokens
+			<span style={{ fontWeight: 500 }}>
+				{showPromptCachingPrices ? "Base input price:" : "Input price:"}
+			</span>{" "}
+			{formatPrice(modelInfo.inputPrice)} per million tokens
+			{showPromptCachingPrices && (
+				<>
+					<br />
+					<span style={{ fontWeight: 500 }}>Prompt caching write price:</span>{" "}
+					{formatPrice(modelInfo.cacheWritesPrice || 0)} per million tokens
+					<br />
+					<span style={{ fontWeight: 500 }}>Prompt caching read price:</span>{" "}
+					{formatPrice(modelInfo.cacheReadsPrice || 0)} per million tokens
+				</>
+			)}
 			<br />
 			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)} per million
 			tokens
