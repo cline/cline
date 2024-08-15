@@ -18,6 +18,21 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "sapaicore":
+				if (!apiConfiguration.sapAiCoreBaseUrl) {
+					return "You must provide a valid Base URL key or choose a different provider."
+				}
+				if (!apiConfiguration.sapAiCoreClientId) {
+					return "You must provide a valid Client Id or choose a different provider."
+				}
+				if (!apiConfiguration.sapAiCoreClientSecret) {
+					return "You must provide a valid Client Secret or choose a different provider."
+				}
+				if (!apiConfiguration.sapAiCoreTokenUrl) {
+					return "You must provide a valid Aith URL or choose a different provider."
+				}
+				break
+
 		}
 	}
 	return undefined

@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "sapaicore"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,6 +7,10 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	sapAiCoreTokenUrl?: string
+	sapAiCoreBaseUrl?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -22,7 +26,7 @@ export interface ModelInfo {
 	outputPrice: number
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
+export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | SapAiCoreModelId
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
@@ -205,4 +209,22 @@ export const openRouterModels = {
 	// 	inputPrice: 0.5,
 	// 	outputPrice: 1.5,
 	// },
+} as const satisfies Record<string, ModelInfo>
+
+// SAP AI Core
+export type SapAiCoreModelId = keyof typeof sapAiCoreModels
+export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-sonnet"
+export const sapAiCoreModels = {
+	"anthropic--claude-3.5-sonnet": {
+		maxTokens: 8192,
+		supportsImages: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"anthropic--claude-3-sonnet": {
+		maxTokens: 4096,
+		supportsImages: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 } as const satisfies Record<string, ModelInfo>
