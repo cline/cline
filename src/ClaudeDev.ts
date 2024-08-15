@@ -417,12 +417,12 @@ export class ClaudeDev {
 		cacheCreationInputTokens?: number,
 		cacheReadInputTokens?: number
 	): number {
-		const modelCacheWritesPrice = this.api.getModel().info.cacheWrites
+		const modelCacheWritesPrice = this.api.getModel().info.cacheWritesPrice
 		let cacheWritesCost = 0
 		if (cacheCreationInputTokens && modelCacheWritesPrice) {
 			cacheWritesCost = (modelCacheWritesPrice / 1_000_000) * cacheCreationInputTokens
 		}
-		const modelCacheReadsPrice = this.api.getModel().info.cacheReads
+		const modelCacheReadsPrice = this.api.getModel().info.cacheReadsPrice
 		let cacheReadsCost = 0
 		if (cacheReadInputTokens && modelCacheReadsPrice) {
 			cacheReadsCost = (modelCacheReadsPrice / 1_000_000) * cacheReadInputTokens
