@@ -1,3 +1,7 @@
+## SAP AI Core Integration
+
+This fork extends the original functionality of Claude Dev by adding support for **SAP AI Core**, enabling users to leverage the capabilities of **Claude 3.5 Sonnet** and **Claude 3.0 Sonnet** through their BTP accounts. **SAP AI Core** is a cloud-based service provided by SAP that offers a scalable and secure environment for managing and deploying AI models. With this integration, developers can utilize Claude's advanced agentic coding capabilities in Claude Dev directly through their BTP accounts.
+
 # Claude Dev
 
 <p align="center">
