@@ -9,12 +9,25 @@ interface TaskHeaderProps {
 	task: ClaudeMessage
 	tokensIn: number
 	tokensOut: number
+	doesModelSupportPromptCache: boolean
+	cacheWrites?: number
+	cacheReads?: number
 	totalCost: number
 	onClose: () => void
 	isHidden: boolean
 }
 
-const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, totalCost, onClose, isHidden }) => {
+const TaskHeader: React.FC<TaskHeaderProps> = ({
+	task,
+	tokensIn,
+	tokensOut,
+	doesModelSupportPromptCache,
+	cacheWrites,
+	cacheReads,
+	totalCost,
+	onClose,
+	isHidden,
+}) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -194,6 +207,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({ task, tokensIn, tokensOut, tota
 							{tokensOut.toLocaleString()}
 						</span>
 					</div>
+					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
+						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+							<span style={{ fontWeight: "bold" }}>Prompt Cache:</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								<i
+									className="codicon codicon-database"
+									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
+								/>
+								+{(cacheWrites || 0).toLocaleString()}
+							</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								<i
+									className="codicon codicon-arrow-right"
+									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
+								/>
+								{(cacheReads || 0).toLocaleString()}
+							</span>
+						</div>
+					)}
 					<div
 						style={{
 							display: "flex",
