@@ -338,7 +338,7 @@ export class ClaudeDev {
 
 		let textBlock: Anthropic.TextBlockParam = {
 			type: "text",
-			text: `<task>\n${task}\n</task>\n${this.getPotentiallyRelevantDetails()}`, // cannot be sent with system prompt since it's cached and these details can change
+			text: `<task>\n${task}\n</task>\n\n${this.getPotentiallyRelevantDetails()}`, // cannot be sent with system prompt since it's cached and these details can change
 		}
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 
