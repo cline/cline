@@ -243,24 +243,28 @@ export const vertexModels = {
 	"claude-3-5-sonnet@20240620": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"claude-3-opus@20240229": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 	},
 	"claude-3-sonnet@20240229": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
 	"claude-3-haiku@20240307": {
 		maxTokens: 4096,
 		supportsImages: true,
+		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
