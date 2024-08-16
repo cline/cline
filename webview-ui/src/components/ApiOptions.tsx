@@ -197,14 +197,14 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						style={{ width: "100%" }}
 						onInput={handleInputChange("gcProjectId")}
 						placeholder="Enter Project ID...">
-						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
+						<span style={{ fontWeight: 500 }}>Project ID</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.gcRegion || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("gcRegion")}
 						placeholder="Enter Region...">
-						<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
+						<span style={{ fontWeight: 500 }}>Region</span>
 					</VSCodeTextField>
 					<p
 						style={{
@@ -219,17 +219,24 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 							You can find the region here.
 						</VSCodeLink>
 					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.gcServiceAccountKey || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("gcServiceAccountKey")}
+						placeholder="Enter Service Account Key...">
+						<span style={{ fontWeight: 500 }}>Service Account Key (base64 encoded)</span>
+					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						You need to set up Application Default Credentials (ADC) to use Vertex AI.
+						For security reasons, it is recommended to use Application Default Credentials (ADC) instead of Service Account Keys. If you want to use ADC, leave empty.
 						<VSCodeLink
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc"
 							style={{ display: "inline" }}>
-							For more information, click here.
+							For more information about ADC, click here.
 						</VSCodeLink>
 					</p>
 				</div>

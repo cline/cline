@@ -9,6 +9,7 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	gcRegion?: string
 	gcProjectId?: string
+	gcServiceAccountKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

@@ -10,7 +10,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "gcServiceAccountKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -266,6 +266,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								awsRegion,
 								gcProjectId,
 								gcRegion,
+								gcServiceAccountKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -276,6 +277,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("awsRegion", awsRegion)
 							await this.updateGlobalState("gcProjectId", gcProjectId);
 							await this.updateGlobalState("gcRegion", gcRegion)
+							await this.storeSecret("gcServiceAccountKey", gcServiceAccountKey)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -440,6 +442,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			awsRegion,
 			gcProjectId,
 			gcRegion,
+			gcServiceAccountKey,
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
@@ -453,6 +456,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("gcProjectId") as Promise<string | undefined>,
 			this.getGlobalState("gcRegion") as Promise<string | undefined>,
+			this.getSecret("gcServiceAccountKey") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
@@ -483,6 +487,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				awsRegion,
 				gcProjectId,
 				gcRegion,
+				gcServiceAccountKey,
 			},
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
