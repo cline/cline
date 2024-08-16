@@ -18,6 +18,9 @@ type GlobalStateKey =
 	| "maxRequestsPerTask"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
+	| "approveReadFile"
+	| "approveListFilesTopLevel"
+	| "approveListFilesRecursively"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -138,8 +141,18 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { maxRequestsPerTask, apiConfiguration, customInstructions } = await this.getState()
-		this.claudeDev = new ClaudeDev(this, apiConfiguration, maxRequestsPerTask, customInstructions, task, images)
+		const { maxRequestsPerTask, apiConfiguration, customInstructions, approveReadFile, approveListFilesTopLevel, approveListFilesRecursively } = await this.getState()
+		this.claudeDev = new ClaudeDev(
+			this, 
+			apiConfiguration, 
+			maxRequestsPerTask, 
+			customInstructions, 
+			approveReadFile,
+			approveListFilesTopLevel,
+			approveListFilesRecursively,			
+			task, 
+			images
+		)
 	}
 
 	// Send any JSON serializable data to the react app
@@ -292,6 +305,21 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						this.claudeDev?.updateCustomInstructions(message.text || undefined)
 						await this.postStateToWebview()
 						break
+						case "approveReadFile":
+							await this.updateGlobalState("approveReadFile", message.value)
+							this.claudeDev?.updateApproveReadFile(message.value ?? false)
+							await this.postStateToWebview()
+							break
+					case "approveListFilesTopLevel":
+							await this.updateGlobalState("approveListFilesTopLevel", message.value)
+							this.claudeDev?.updateApproveListFilesTopLevel(message.value ?? false)
+							await this.postStateToWebview()
+							break
+					case "approveListFilesRecursively":
+							await this.updateGlobalState("approveListFilesRecursively", message.value)
+							this.claudeDev?.updateApproveListFilesRecursively(message.value ?? false)
+							await this.postStateToWebview()
+							break
 					case "askResponse":
 						this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -321,8 +349,15 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async postStateToWebview() {
-		const { apiConfiguration, maxRequestsPerTask, lastShownAnnouncementId, customInstructions } =
-			await this.getState()
+		const { 
+			apiConfiguration, 
+			maxRequestsPerTask, 
+			lastShownAnnouncementId, 
+			customInstructions,
+			approveReadFile,
+			approveListFilesTopLevel,
+			approveListFilesRecursively,		  
+		} = await this.getState()
 		this.postMessageToWebview({
 			type: "state",
 			state: {
@@ -333,6 +368,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 				claudeMessages: this.claudeDev?.claudeMessages || [],
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+				approveReadFile,
+				approveListFilesTopLevel,
+				approveListFilesRecursively,				
 			},
 		})
 	}
@@ -435,6 +473,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
+			approveReadFile,
+			approveListFilesTopLevel,
+			approveListFilesRecursively,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
@@ -446,6 +487,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
+			this.getGlobalState("approveReadFile") as Promise<boolean | undefined>,
+			this.getGlobalState("approveListFilesTopLevel") as Promise<boolean | undefined>,
+			this.getGlobalState("approveListFilesRecursively") as Promise<boolean | undefined>,			
 		])
 
 		let apiProvider: ApiProvider
@@ -475,6 +519,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
+			approveReadFile,
+			approveListFilesTopLevel,
+			approveListFilesRecursively,			
 		}
 	}
 

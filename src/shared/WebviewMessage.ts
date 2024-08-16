@@ -12,10 +12,14 @@ export interface WebviewMessage {
 		| "didShowAnnouncement"
 		| "downloadTask"
 		| "selectImages"
+		| "approveReadFile"
+		| "approveListFilesTopLevel"
+		| "approveListFilesRecursively"		
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	value?: boolean  // Add this line for the new approval settings	
 }
 
 export type ClaudeAskResponse = "yesButtonTapped" | "noButtonTapped" | "messageResponse"

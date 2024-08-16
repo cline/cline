@@ -9,12 +9,6 @@ import SettingsView from "./components/SettingsView"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utils/vscode"
 
-/*
-The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
-
-The best way to solve this is to make your webview stateless. Use message passing to save off the webview's state and then restore the state when the webview becomes visible again.
-*/
-
 const App: React.FC = () => {
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
@@ -26,6 +20,9 @@ const App: React.FC = () => {
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [approveReadFile, setApproveReadFile] = useState<boolean>(true)
+	const [approveListFilesTopLevel, setApproveListFilesTopLevel] = useState<boolean>(true)
+	const [approveListFilesRecursively, setApproveListFilesRecursively] = useState<boolean>(true)
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
@@ -48,6 +45,9 @@ const App: React.FC = () => {
 				setCustomInstructions(message.state!.customInstructions || "")
 				setVscodeThemeName(message.state!.themeName)
 				setClaudeMessages(message.state!.claudeMessages)
+				setApproveReadFile(message.state!.approveReadFile ?? true)
+				setApproveListFilesTopLevel(message.state!.approveListFilesTopLevel ?? true)
+				setApproveListFilesRecursively(message.state!.approveListFilesRecursively ?? true)
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {
 					setShowAnnouncement(true)
@@ -66,7 +66,6 @@ const App: React.FC = () => {
 				}
 				break
 		}
-		// we don't need to define any dependencies since we're not using any state in the callback. if you were to use state, you'd either have to include it in the dependency array or use the updater function `setUserText(prev => `${prev}${key}`);`. (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
 	}, [])
 
 	useEvent("message", handleMessage)
@@ -94,6 +93,12 @@ const App: React.FC = () => {
 							setMaxRequestsPerTask={setMaxRequestsPerTask}
 							customInstructions={customInstructions}
 							setCustomInstructions={setCustomInstructions}
+							approveReadFile={approveReadFile}
+							setApproveReadFile={setApproveReadFile}
+							approveListFilesTopLevel={approveListFilesTopLevel}
+							setApproveListFilesTopLevel={setApproveListFilesTopLevel}
+							approveListFilesRecursively={approveListFilesRecursively}
+							setApproveListFilesRecursively={setApproveListFilesRecursively}
 							onDone={() => setShowSettings(false)}
 						/>
 					)}

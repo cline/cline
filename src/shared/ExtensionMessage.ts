@@ -19,6 +19,9 @@ export interface ExtensionState {
 	themeName?: string
 	claudeMessages: ClaudeMessage[]
 	shouldShowAnnouncement: boolean
+	approveReadFile?: boolean
+	approveListFilesTopLevel?: boolean
+	approveListFilesRecursively?: boolean	
 }
 
 export interface ClaudeMessage {

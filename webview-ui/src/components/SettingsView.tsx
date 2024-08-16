@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
@@ -13,6 +13,12 @@ type SettingsViewProps = {
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
 	customInstructions: string
 	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
+	approveReadFile: boolean
+	setApproveReadFile: React.Dispatch<React.SetStateAction<boolean>>
+	approveListFilesTopLevel: boolean
+	setApproveListFilesTopLevel: React.Dispatch<React.SetStateAction<boolean>>
+	approveListFilesRecursively: boolean
+	setApproveListFilesRecursively: React.Dispatch<React.SetStateAction<boolean>>
 	onDone: () => void
 }
 
@@ -24,6 +30,12 @@ const SettingsView = ({
 	setMaxRequestsPerTask,
 	customInstructions,
 	setCustomInstructions,
+	approveReadFile,
+	setApproveReadFile,
+	approveListFilesTopLevel,
+	setApproveListFilesTopLevel,
+	approveListFilesRecursively,
+	setApproveListFilesRecursively,
 	onDone,
 }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -40,6 +52,9 @@ const SettingsView = ({
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({ type: "approveReadFile", value: approveReadFile })
+			vscode.postMessage({ type: "approveListFilesTopLevel", value: approveListFilesTopLevel })
+			vscode.postMessage({ type: "approveListFilesRecursively", value: approveListFilesRecursively })
 			onDone()
 		}
 	}
@@ -51,18 +66,6 @@ const SettingsView = ({
 	useEffect(() => {
 		setMaxRequestsErrorMessage(undefined)
 	}, [maxRequestsPerTask])
-
-	// validate as soon as the component is mounted
-	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
 
 	return (
 		<div
@@ -155,6 +158,36 @@ const SettingsView = ({
 							{maxRequestsErrorMessage}
 						</p>
 					)}
+				</div>
+
+				<div style={{ marginTop: 15 }}>
+					<h4 style={{ marginBottom: 10 }}>File Operation Approvals</h4>
+					<VSCodeCheckbox
+						checked={approveReadFile}
+						onChange={() => setApproveReadFile(!approveReadFile)}
+					>
+						Approve read_file operations
+					</VSCodeCheckbox>
+					<VSCodeCheckbox
+						checked={approveListFilesTopLevel}
+						onChange={() => setApproveListFilesTopLevel(!approveListFilesTopLevel)}
+					>
+						Approve list_files_top_level operations
+					</VSCodeCheckbox>
+					<VSCodeCheckbox
+						checked={approveListFilesRecursively}
+						onChange={() => setApproveListFilesRecursively(!approveListFilesRecursively)}
+					>
+						Approve list_files_recursively operations
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When unchecked, the corresponding tool runs without user approval.
+					</p>
 				</div>
 			</div>
 
