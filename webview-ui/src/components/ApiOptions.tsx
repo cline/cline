@@ -264,37 +264,76 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 		}).format(price)
 	}
 
+	const showPromptCachingPrices =
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice
+
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			<span
-				style={{
-					fontWeight: 500,
-					color: modelInfo.supportsImages
-						? "var(--vscode-testing-iconPassed)"
-						: "var(--vscode-errorForeground)",
-				}}>
-				<i
-					className={`codicon codicon-${modelInfo.supportsImages ? "check" : "x"}`}
-					style={{
-						marginRight: 4,
-						marginBottom: modelInfo.supportsImages ? 1 : -1,
-						fontSize: modelInfo.supportsImages ? 11 : 13,
-						fontWeight: 700,
-						display: "inline-block",
-						verticalAlign: "bottom",
-					}}></i>
-				{modelInfo.supportsImages ? "Supports images" : "Does not support images"}
-			</span>
+			<ModelInfoSupportsItem
+				isSupported={modelInfo.supportsPromptCache}
+				supportsLabel="Supports prompt caching"
+				doesNotSupportLabel="Does not support prompt caching"
+			/>{" "}
+			<VSCodeLink href="https://www.anthropic.com/news/prompt-caching" style={{ display: "inline" }}>
+				(what is this?)
+			</VSCodeLink>
+			<br />
+			<ModelInfoSupportsItem
+				isSupported={modelInfo.supportsImages}
+				supportsLabel="Supports images"
+				doesNotSupportLabel="Does not support images"
+			/>
 			<br />
 			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens.toLocaleString()} tokens
 			<br />
-			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)} per million tokens
+			<span style={{ fontWeight: 500 }}>
+				{showPromptCachingPrices ? "Base input price:" : "Input price:"}
+			</span>{" "}
+			{formatPrice(modelInfo.inputPrice)} per million tokens
+			{showPromptCachingPrices && (
+				<>
+					<br />
+					<span style={{ fontWeight: 500 }}>Prompt caching write price:</span>{" "}
+					{formatPrice(modelInfo.cacheWritesPrice || 0)} per million tokens
+					<br />
+					<span style={{ fontWeight: 500 }}>Prompt caching read price:</span>{" "}
+					{formatPrice(modelInfo.cacheReadsPrice || 0)} per million tokens
+				</>
+			)}
 			<br />
 			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)} per million
 			tokens
 		</p>
 	)
 }
+
+const ModelInfoSupportsItem = ({
+	isSupported,
+	supportsLabel,
+	doesNotSupportLabel,
+}: {
+	isSupported: boolean
+	supportsLabel: string
+	doesNotSupportLabel: string
+}) => (
+	<span
+		style={{
+			fontWeight: 500,
+			color: isSupported ? "var(--vscode-testing-iconPassed)" : "var(--vscode-errorForeground)",
+		}}>
+		<i
+			className={`codicon codicon-${isSupported ? "check" : "x"}`}
+			style={{
+				marginRight: 4,
+				marginBottom: isSupported ? 1 : -1,
+				fontSize: isSupported ? 11 : 13,
+				fontWeight: 700,
+				display: "inline-block",
+				verticalAlign: "bottom",
+			}}></i>
+		{isSupported ? supportsLabel : doesNotSupportLabel}
+	</span>
+)
 
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"
