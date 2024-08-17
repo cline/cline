@@ -604,7 +604,7 @@ export class ClaudeDev {
 		})()
 
 		const combinedText =
-			`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete. Be aware that the conversation history and project state may have changed since then. The current working directory is now ${cwd}. Please reassess the task context before proceeding.` +
+			`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now ${cwd}. If the task has not been completed, retry the last step before interruption and proceed with completing the task.` +
 			(modifiedOldUserContentText
 				? `\n\nLast recorded user input before interruption:\n<previous_message>\n${modifiedOldUserContentText}\n</previous_message>\n`
 				: "") +
