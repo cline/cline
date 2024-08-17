@@ -15,7 +15,7 @@ const HistoryPreview = ({ taskHistory, showHistoryView }: HistoryPreviewProps) =
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
 		return date
-			.toLocaleString("en-US", {
+			?.toLocaleString("en-US", {
 				month: "long",
 				day: "numeric",
 				hour: "numeric",
@@ -100,14 +100,14 @@ const HistoryPreview = ({ taskHistory, showHistoryView }: HistoryPreviewProps) =
 							</div>
 							<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
 								<span>
-									Tokens: ↑{item.tokensIn.toLocaleString()} ↓{item.tokensOut.toLocaleString()}
+									Tokens: ↑{item.tokensIn?.toLocaleString()} ↓{item.tokensOut?.toLocaleString()}
 								</span>
 								{" • "}
 								{item.cacheWrites && item.cacheReads && (
 									<>
 										<span>
-											Cache: +{item.cacheWrites.toLocaleString()} →{" "}
-											{item.cacheReads.toLocaleString()}
+											Cache: +{item.cacheWrites?.toLocaleString()} →{" "}
+											{item.cacheReads?.toLocaleString()}
 										</span>
 										{" • "}
 									</>

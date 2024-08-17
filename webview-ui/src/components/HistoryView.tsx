@@ -23,7 +23,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
 		return date
-			.toLocaleString("en-US", {
+			?.toLocaleString("en-US", {
 				month: "long",
 				day: "numeric",
 				hour: "numeric",
@@ -185,7 +185,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													marginBottom: "-2px",
 												}}
 											/>
-											{item.tokensIn.toLocaleString()}
+											{item.tokensIn?.toLocaleString()}
 										</span>
 										<span
 											style={{
@@ -202,7 +202,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													marginBottom: "-2px",
 												}}
 											/>
-											{item.tokensOut.toLocaleString()}
+											{item.tokensOut?.toLocaleString()}
 										</span>
 									</div>
 									{item.cacheWrites && item.cacheReads && (
@@ -235,7 +235,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 														marginBottom: "-1px",
 													}}
 												/>
-												+{item.cacheWrites.toLocaleString()}
+												+{item.cacheWrites?.toLocaleString()}
 											</span>
 											<span
 												style={{
@@ -248,7 +248,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													className="codicon codicon-arrow-right"
 													style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
 												/>
-												{item.cacheReads.toLocaleString()}
+												{item.cacheReads?.toLocaleString()}
 											</span>
 										</div>
 									)}

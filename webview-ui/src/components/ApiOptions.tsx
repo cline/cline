@@ -229,7 +229,7 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 				doesNotSupportLabel="Does not support prompt caching"
 			/>
 			<br />
-			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens.toLocaleString()} tokens
+			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo?.maxTokens?.toLocaleString()} tokens
 			<br />
 			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
 			{modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice && (
