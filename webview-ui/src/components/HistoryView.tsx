@@ -68,7 +68,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
-						padding: "10px 16px 10px 20px",
+						padding: "10px 17px 10px 20px",
 					}}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
