@@ -112,7 +112,7 @@ const HistoryPreview = ({ taskHistory, showHistoryView }: HistoryPreviewProps) =
 										{" • "}
 									</>
 								)}
-								<span>API Cost: ${item.totalCost.toFixed(4)}</span>
+								<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
 							</div>
 						</div>
 					</div>

@@ -234,7 +234,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						}}>
 						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
 							<span style={{ fontWeight: "bold" }}>API Cost:</span>
-							<span>${totalCost.toFixed(4)}</span>
+							<span>${totalCost?.toFixed(4)}</span>
 						</div>
 						<VSCodeButton
 							appearance="icon"
