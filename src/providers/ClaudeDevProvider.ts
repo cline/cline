@@ -326,8 +326,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.postMessageToWebview({ type: "selectedImages", images })
 						break
 					case "exportCurrentTask":
-						const firstMessageTs = this.claudeDev?.claudeMessages.at(0)?.ts ?? Date.now()
-						downloadTask(firstMessageTs, this.claudeDev?.apiConversationHistory ?? [])
+						const currentTaskId = this.claudeDev?.taskId
+						if (currentTaskId) {
+							this.exportTaskWithId(currentTaskId)
+						}
 						break
 					case "showTaskWithId":
 						this.showTaskWithId(message.text!)
