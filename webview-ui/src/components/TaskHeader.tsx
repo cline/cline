@@ -195,7 +195,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
 								className="codicon codicon-arrow-up"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1.5px" }}
+								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 							/>
 							{tokensIn.toLocaleString()}
 						</span>
@@ -209,7 +209,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
 						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-							<span style={{ fontWeight: "bold" }}>Prompt Cache:</span>
+							<span style={{ fontWeight: "bold" }}>Cache:</span>
 							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 								<i
 									className="codicon codicon-database"

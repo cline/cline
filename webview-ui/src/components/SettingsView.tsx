@@ -72,7 +72,7 @@ const SettingsView = ({
 				left: 0,
 				right: 0,
 				bottom: 0,
-				padding: "10px 0px 15px 20px",
+				padding: "10px 0px 0px 20px",
 				display: "flex",
 				flexDirection: "column",
 				overflow: "hidden",
@@ -88,7 +88,8 @@ const SettingsView = ({
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
-			<div style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8 }}>
+			<div
+				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						apiConfiguration={apiConfiguration}
@@ -107,7 +108,7 @@ const SettingsView = ({
 					)}
 				</div>
 
-				<div style={{ marginBottom: 15 }}>
+				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
 						value={customInstructions}
 						style={{ width: "100%" }}
@@ -156,24 +157,24 @@ const SettingsView = ({
 						</p>
 					)}
 				</div>
-			</div>
 
-			<div
-				style={{
-					textAlign: "center",
-					color: "var(--vscode-descriptionForeground)",
-					fontSize: "12px",
-					lineHeight: "1.2",
-					paddingTop: 10,
-					paddingRight: 18,
-				}}>
-				<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
-					If you have any questions or feedback, feel free to open an issue at{" "}
-					<VSCodeLink href="https://github.com/saoudrizwan/claude-dev" style={{ display: "inline" }}>
-						https://github.com/saoudrizwan/claude-dev
-					</VSCodeLink>
-				</p>
-				<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
+				<div
+					style={{
+						textAlign: "center",
+						color: "var(--vscode-descriptionForeground)",
+						fontSize: "12px",
+						lineHeight: "1.2",
+						marginTop: "auto",
+						padding: "10px 8px 15px 0px",
+					}}>
+					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
+						If you have any questions or feedback, feel free to open an issue at{" "}
+						<VSCodeLink href="https://github.com/saoudrizwan/claude-dev" style={{ display: "inline" }}>
+							https://github.com/saoudrizwan/claude-dev
+						</VSCodeLink>
+					</p>
+					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
+				</div>
 			</div>
 		</div>
 	)
