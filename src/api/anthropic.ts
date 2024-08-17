@@ -33,7 +33,7 @@ export class AnthropicHandler implements ApiHandler {
 					{
 						model: modelId,
 						max_tokens: this.getModel().info.maxTokens,
-						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }],
+						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }], // setting cache breakpoint for system prompt so new tasks can reuse it
 						messages: messages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
 								return {
