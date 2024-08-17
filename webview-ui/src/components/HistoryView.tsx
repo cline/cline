@@ -268,7 +268,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 												API Cost:
 											</span>
 											<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-												${item.totalCost.toFixed(4)}
+												${item.totalCost?.toFixed(4)}
 											</span>
 										</div>
 										<VSCodeButton
