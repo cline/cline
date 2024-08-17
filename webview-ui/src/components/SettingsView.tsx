@@ -83,7 +83,7 @@ const SettingsView = ({
 					justifyContent: "space-between",
 					alignItems: "center",
 					marginBottom: "17px",
-					paddingRight: 18,
+					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
