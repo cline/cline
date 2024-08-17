@@ -20,6 +20,10 @@ import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/Ext
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import delay from "delay"
+import { getApiMetrics } from "./shared/getApiMetrics"
+import { HistoryItem } from "./shared/HistoryItem"
+import { combineApiRequests } from "./shared/combineApiRequests"
+import { combineCommandSequences } from "./shared/combineCommandSequences"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -219,8 +223,12 @@ const tools: Tool[] = [
 ]
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
+type UserContent = Array<
+	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
+>
 
 export class ClaudeDev {
+	readonly taskId: string
 	private api: ApiHandler
 	private maxRequestsPerTask: number
 	private customInstructions?: string
@@ -241,14 +249,23 @@ export class ClaudeDev {
 		maxRequestsPerTask?: number,
 		customInstructions?: string,
 		task?: string,
-		images?: string[]
+		images?: string[],
+		historyItem?: HistoryItem
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 		this.customInstructions = customInstructions
 
-		this.startTask(task, images)
+		if (historyItem) {
+			this.taskId = historyItem.id
+			this.resumeTaskFromHistory()
+		} else if (task || images) {
+			this.taskId = Date.now().toString()
+			this.startTask(task, images)
+		} else {
+			throw new Error("Either historyItem or task/images must be provided")
+		}
 	}
 
 	updateApi(apiConfiguration: ApiConfiguration) {
@@ -269,9 +286,97 @@ export class ClaudeDev {
 		this.askResponseImages = images
 	}
 
+	// storing task to disk for history
+
+	private async ensureTaskDirectoryExists(): Promise<string> {
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		if (!globalStoragePath) {
+			throw new Error("Global storage uri is invalid")
+		}
+		const taskDir = path.join(globalStoragePath, "tasks", this.taskId)
+		await fs.mkdir(taskDir, { recursive: true })
+		return taskDir
+	}
+
+	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), "api_conversation_history.json")
+		const fileExists = await fs
+			.access(filePath)
+			.then(() => true)
+			.catch(() => false)
+		if (fileExists) {
+			return JSON.parse(await fs.readFile(filePath, "utf8"))
+		}
+		return []
+	}
+
+	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
+		this.apiConversationHistory.push(message)
+		await this.saveApiConversationHistory()
+	}
+
+	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+		this.apiConversationHistory = newHistory
+		await this.saveApiConversationHistory()
+	}
+
+	private async saveApiConversationHistory() {
+		try {
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), "api_conversation_history.json")
+			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
+		} catch (error) {
+			// in the off chance this fails, we don't want to stop the task
+			console.error("Failed to save API conversation history:", error)
+		}
+	}
+
+	private async getSavedClaudeMessages(): Promise<ClaudeMessage[]> {
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+		const fileExists = await fs
+			.access(filePath)
+			.then(() => true)
+			.catch(() => false)
+		if (fileExists) {
+			return JSON.parse(await fs.readFile(filePath, "utf8"))
+		}
+		return []
+	}
+
+	private async addToClaudeMessages(message: ClaudeMessage) {
+		this.claudeMessages.push(message)
+		await this.saveClaudeMessages()
+	}
+
+	private async overwriteClaudeMessages(newMessages: ClaudeMessage[]) {
+		this.claudeMessages = newMessages
+		await this.saveClaudeMessages()
+	}
+
+	private async saveClaudeMessages() {
+		try {
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+			await fs.writeFile(filePath, JSON.stringify(this.claudeMessages))
+			// combined as they are in ChatView
+			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.claudeMessages.slice(1))))
+			const taskMessage = this.claudeMessages[0] // first message is always the task say
+			await this.providerRef.deref()?.updateTaskHistory({
+				id: this.taskId,
+				ts: taskMessage.ts,
+				task: taskMessage.text ?? "",
+				tokensIn: apiMetrics.totalTokensIn,
+				tokensOut: apiMetrics.totalTokensOut,
+				cacheWrites: apiMetrics.totalCacheWrites,
+				cacheReads: apiMetrics.totalCacheReads,
+				totalCost: apiMetrics.totalCost,
+			})
+		} catch (error) {
+			console.error("Failed to save claude messages:", error)
+		}
+	}
+
 	async ask(
 		type: ClaudeAsk,
-		question: string
+		question?: string
 	): Promise<{ response: ClaudeAskResponse; text?: string; images?: string[] }> {
 		// If this ClaudeDev instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of ClaudeDev now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set claudeDev = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.abort) {
@@ -282,7 +387,7 @@ export class ClaudeDev {
 		this.askResponseImages = undefined
 		const askTs = Date.now()
 		this.lastMessageTs = askTs
-		this.claudeMessages.push({ ts: askTs, type: "ask", ask: type, text: question })
+		await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text: question })
 		await this.providerRef.deref()?.postStateToWebview()
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
 		if (this.lastMessageTs !== askTs) {
@@ -301,7 +406,7 @@ export class ClaudeDev {
 		}
 		const sayTs = Date.now()
 		this.lastMessageTs = sayTs
-		this.claudeMessages.push({ ts: sayTs, type: "say", say: type, text: text, images })
+		await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text: text, images })
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
@@ -342,22 +447,177 @@ export class ClaudeDev {
 			text: `<task>\n${task}\n</task>\n\n${this.getPotentiallyRelevantDetails()}`, // cannot be sent with system prompt since it's cached and these details can change
 		}
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
-
-		// TODO: create tools that let Claude interact with VSCode (e.g. open a file, list open files, etc.)
-		//const openFiles = vscode.window.visibleTextEditors?.map((editor) => editor.document.uri.fsPath).join("\n")
-
 		await this.say("text", task, images)
+		await this.initiateTaskLoop([textBlock, ...imageBlocks])
+	}
 
-		let totalInputTokens = 0
-		let totalOutputTokens = 0
+	private async resumeTaskFromHistory() {
+		const modifiedClaudeMessages = await this.getSavedClaudeMessages()
+		// need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
+		const lastApiReqStartedIndex = modifiedClaudeMessages.reduce(
+			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_started" ? index : lastIndex),
+			-1
+		)
+		const lastApiReqFinishedIndex = modifiedClaudeMessages.reduce(
+			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_finished" ? index : lastIndex),
+			-1
+		)
+		if (lastApiReqStartedIndex > lastApiReqFinishedIndex && lastApiReqStartedIndex !== -1) {
+			modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
+		}
+		await this.overwriteClaudeMessages(modifiedClaudeMessages)
+		this.claudeMessages = await this.getSavedClaudeMessages()
+
+		// Now present the claude messages to the user and ask if they want to resume
+
+		const lastClaudeMessage = this.claudeMessages
+			.slice()
+			.reverse()
+			.find((m) => m.ask !== "resume_task") // could be multiple resume tasks
+		const { response, text, images } = await this.ask("resume_task") // calls poststatetowebview
+
+		let newUserContent: UserContent = []
+		if (response === "messageResponse") {
+			await this.say("user_feedback", text, images)
+			if (images && images.length > 0) {
+				newUserContent.push(...this.formatImagesIntoBlocks(images))
+			}
+			if (text) {
+				newUserContent.push({ type: "text", text })
+			}
+		}
+
+		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with claude messages
+
+		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
+		// if there's no tool use and only a text block, then we can just add a user message
+
+		// if the last message is a user message, we can need to get the assistant message before it to see if it made tool calls, and if so, fill in the remaining tool responses with 'interrupted'
+
+		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
+			await this.getSavedApiConversationHistory()
+
+		let modifiedOldUserContent: UserContent
+		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[]
+		if (existingApiConversationHistory.length > 0) {
+			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
+
+			if (lastMessage.role === "assistant") {
+				const content = Array.isArray(lastMessage.content)
+					? lastMessage.content
+					: [{ type: "text", text: lastMessage.content }]
+				const hasToolUse = content.some((block) => block.type === "tool_use")
+
+				if (hasToolUse) {
+					const toolUseBlocks = content.filter(
+						(block) => block.type === "tool_use"
+					) as Anthropic.Messages.ToolUseBlock[]
+					const toolResponses: Anthropic.ToolResultBlockParam[] = toolUseBlocks.map((block) => ({
+						type: "tool_result",
+						tool_use_id: block.id,
+						content: "Task was interrupted before this tool call could be completed.",
+					}))
+					modifiedApiConversationHistory = [...existingApiConversationHistory] // no changes
+					modifiedOldUserContent = [...toolResponses]
+				} else {
+					modifiedApiConversationHistory = [...existingApiConversationHistory]
+					modifiedOldUserContent = []
+				}
+			} else if (lastMessage.role === "user") {
+				const previousAssistantMessage =
+					existingApiConversationHistory[existingApiConversationHistory.length - 2]
+
+				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
+					? lastMessage.content
+					: [{ type: "text", text: lastMessage.content }]
+				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
+					const assistantContent = Array.isArray(previousAssistantMessage.content)
+						? previousAssistantMessage.content
+						: [{ type: "text", text: previousAssistantMessage.content }]
+
+					const toolUseBlocks = assistantContent.filter(
+						(block) => block.type === "tool_use"
+					) as Anthropic.Messages.ToolUseBlock[]
+
+					if (toolUseBlocks.length > 0) {
+						const existingToolResults = existingUserContent.filter(
+							(block) => block.type === "tool_result"
+						) as Anthropic.ToolResultBlockParam[]
+
+						const missingToolResponses: Anthropic.ToolResultBlockParam[] = toolUseBlocks
+							.filter(
+								(toolUse) => !existingToolResults.some((result) => result.tool_use_id === toolUse.id)
+							)
+							.map((toolUse) => ({
+								type: "tool_result",
+								tool_use_id: toolUse.id,
+								content: "Task was interrupted before this tool call could be completed.",
+							}))
+
+						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+						modifiedOldUserContent = [...existingUserContent, ...missingToolResponses]
+					} else {
+						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+						modifiedOldUserContent = [...existingUserContent]
+					}
+				} else {
+					modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+					modifiedOldUserContent = [...existingUserContent]
+				}
+			} else {
+				throw new Error("Unexpected: Last message is not a user or assistant message")
+			}
+		} else {
+			throw new Error("Unexpected: No existing API conversation history")
+		}
+
+		// now we have newUserContent which is user's current message, and the modifiedOldUserContent which is the old message with tool responses filled in
+		// we need to combine them while ensuring there is only one text block
+		const modifiedOldUserContentText = modifiedOldUserContent.find((block) => block.type === "text")?.text
+		const newUserContentText = newUserContent.find((block) => block.type === "text")?.text
+		const agoText = (() => {
+			const timestamp = lastClaudeMessage?.ts ?? Date.now()
+			const now = Date.now()
+			const diff = now - timestamp
+			const minutes = Math.floor(diff / 60000)
+			const hours = Math.floor(minutes / 60)
+			const days = Math.floor(hours / 24)
+
+			if (days > 0) {
+				return `${days} day${days > 1 ? "s" : ""} ago`
+			}
+			if (hours > 0) {
+				return `${hours} hour${hours > 1 ? "s" : ""} ago`
+			}
+			if (minutes > 0) {
+				return `${minutes} minute${minutes > 1 ? "s" : ""} ago`
+			}
+			return "just now"
+		})()
+
+		const combinedText =
+			`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete. Be aware that the conversation history and project state may have changed since then. The current working directory is now ${cwd}. Please reassess the task context before proceeding.` +
+			(modifiedOldUserContentText
+				? `\n\nLast recorded user input before interruption:\n<previous_message>\n${modifiedOldUserContentText}\n</previous_message>\n`
+				: "") +
+			(newUserContentText
+				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>\n`
+				: "") +
+			`\n\n${this.getPotentiallyRelevantDetails()}`
+
+		const combinedModifiedOldUserContentWithNewUserContent: UserContent = (
+			modifiedOldUserContent.filter((block) => block.type !== "text") as UserContent
+		).concat([{ type: "text", text: combinedText }])
+
+		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
+		await this.initiateTaskLoop(combinedModifiedOldUserContentWithNewUserContent)
+	}
+
+	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
+		let nextUserContent = userContent
 
 		while (!this.abort) {
-			const { didEndLoop, inputTokens, outputTokens } = await this.recursivelyMakeClaudeRequests([
-				textBlock,
-				...imageBlocks,
-			])
-			totalInputTokens += inputTokens
-			totalOutputTokens += outputTokens
+			const { didEndLoop } = await this.recursivelyMakeClaudeRequests(nextUserContent)
 
 			//  The way this agentic loop works is that claude will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
 			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Claude is prompted to finish the task as efficiently as he can.
@@ -372,11 +632,12 @@ export class ClaudeDev {
 				// 	"tool",
 				// 	"Claude responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
 				// )
-				textBlock = {
-					type: "text",
-					text: "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
-				}
-				imageBlocks = []
+				nextUserContent = [
+					{
+						type: "text",
+						text: "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
+					},
+				]
 			}
 		}
 	}
@@ -436,7 +697,7 @@ export class ClaudeDev {
 
 	async writeToFile(relPath?: string, newContent?: string, isLast: boolean = true): Promise<ToolResponse> {
 		if (relPath === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use write_to_file without value for required parameter 'path'. Retrying..."
 			)
@@ -445,7 +706,7 @@ export class ClaudeDev {
 
 		if (newContent === undefined) {
 			// Special message for this case since this tends to happen the most
-			this.say(
+			await this.say(
 				"error",
 				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to output token limits. Retrying...`
 			)
@@ -557,7 +818,10 @@ export class ClaudeDev {
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", `Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+			await this.say(
+				"error",
+				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
 			return errorString
 		}
 	}
@@ -577,7 +841,10 @@ export class ClaudeDev {
 
 	async readFile(relPath?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
-			this.say("error", "Claude tried to use read_file without value for required parameter 'path'. Retrying...")
+			await this.say(
+				"error",
+				"Claude tried to use read_file without value for required parameter 'path'. Retrying..."
+			)
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 		try {
@@ -597,14 +864,17 @@ export class ClaudeDev {
 			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
-			this.say("error", `Error reading file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`)
+			await this.say(
+				"error",
+				`Error reading file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
 			return errorString
 		}
 	}
 
 	async listFilesTopLevel(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use list_files_top_level without value for required parameter 'path'. Retrying..."
 			)
@@ -632,7 +902,7 @@ export class ClaudeDev {
 			return result
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
-			this.say(
+			await this.say(
 				"error",
 				`Error listing files and directories:\n${
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
@@ -644,7 +914,7 @@ export class ClaudeDev {
 
 	async listFilesRecursive(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use list_files_recursive without value for required parameter 'path'. Retrying..."
 			)
@@ -672,7 +942,7 @@ export class ClaudeDev {
 			return result
 		} catch (error) {
 			const errorString = `Error listing files recursively: ${JSON.stringify(serializeError(error))}`
-			this.say(
+			await this.say(
 				"error",
 				`Error listing files recursively:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
@@ -731,7 +1001,7 @@ export class ClaudeDev {
 
 	async viewSourceCodeDefinitionsTopLevel(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use view_source_code_definitions_top_level without value for required parameter 'path'. Retrying..."
 			)
@@ -758,7 +1028,7 @@ export class ClaudeDev {
 			return result
 		} catch (error) {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
-			this.say(
+			await this.say(
 				"error",
 				`Error parsing source code definitions:\n${
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
@@ -770,7 +1040,7 @@ export class ClaudeDev {
 
 	async executeCommand(command?: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
 		if (command === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use execute_command without value for required parameter 'command'. Retrying..."
 			)
@@ -863,7 +1133,7 @@ export class ClaudeDev {
 			const error = e as any
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
-			this.say("error", `Error executing command:\n${errorMessage}`) // TODO: in webview show code block for command errors
+			await this.say("error", `Error executing command:\n${errorMessage}`) // TODO: in webview show code block for command errors
 			this.executeCommandRunningProcess = undefined
 			return errorString
 		}
@@ -871,7 +1141,7 @@ export class ClaudeDev {
 
 	async askFollowupQuestion(question?: string): Promise<ToolResponse> {
 		if (question === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use ask_followup_question without value for required parameter 'question'. Retrying..."
 			)
@@ -885,7 +1155,7 @@ export class ClaudeDev {
 	async attemptCompletion(result?: string, command?: string): Promise<ToolResponse> {
 		// result is required, command is optional
 		if (result === undefined) {
-			this.say(
+			await this.say(
 				"error",
 				"Claude tried to use attempt_completion without value for required parameter 'result'. Retrying..."
 			)
@@ -943,19 +1213,12 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	async recursivelyMakeClaudeRequests(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): Promise<ClaudeRequestResult> {
+	async recursivelyMakeClaudeRequests(userContent: UserContent): Promise<ClaudeRequestResult> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
 
-		this.apiConversationHistory.push({ role: "user", content: userContent })
+		await this.addToApiConversationHistory({ role: "user", content: userContent })
 		if (this.requestCount >= this.maxRequestsPerTask) {
 			const { response } = await this.ask(
 				"request_limit_reached",
@@ -965,7 +1228,7 @@ ${this.customInstructions.trim()}
 			if (response === "yesButtonTapped") {
 				this.requestCount = 0
 			} else {
-				this.apiConversationHistory.push({
+				await this.addToApiConversationHistory({
 					role: "assistant",
 					content: [
 						{
@@ -988,6 +1251,10 @@ ${this.customInstructions.trim()}
 		try {
 			const response = await this.attemptApiRequest()
 			this.requestCount++
+
+			if (this.abort) {
+				throw new Error("ClaudeDev instance aborted")
+			}
 
 			let assistantResponses: Anthropic.Messages.ContentBlock[] = []
 			let inputTokens = response.usage.input_tokens
@@ -1056,11 +1323,11 @@ ${this.customInstructions.trim()}
 			}
 
 			if (assistantResponses.length > 0) {
-				this.apiConversationHistory.push({ role: "assistant", content: assistantResponses })
+				await this.addToApiConversationHistory({ role: "assistant", content: assistantResponses })
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				this.say("error", "Unexpected Error: No assistant messages were found in the API response")
-				this.apiConversationHistory.push({
+				await this.say("error", "Unexpected Error: No assistant messages were found in the API response")
+				await this.addToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: "Failure: I did not have a response to provide." }],
 				})
@@ -1090,8 +1357,8 @@ ${this.customInstructions.trim()}
 
 			if (toolResults.length > 0) {
 				if (didEndLoop) {
-					this.apiConversationHistory.push({ role: "user", content: toolResults })
-					this.apiConversationHistory.push({
+					await this.addToApiConversationHistory({ role: "user", content: toolResults })
+					await this.addToApiConversationHistory({
 						role: "assistant",
 						content: [
 							{

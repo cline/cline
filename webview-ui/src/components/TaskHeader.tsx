@@ -92,11 +92,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const toggleExpand = () => setIsExpanded(!isExpanded)
 
 	const handleDownload = () => {
-		vscode.postMessage({ type: "downloadTask" })
+		vscode.postMessage({ type: "exportCurrentTask" })
 	}
 
 	return (
-		<div style={{ padding: "15px 15px 10px 15px" }}>
+		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
@@ -118,7 +118,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<VSCodeButton
 						appearance="icon"
 						onClick={onClose}
-						style={{ marginTop: "-5px", marginRight: "-5px" }}>
+						style={{ marginTop: "-6px", marginRight: "-4px" }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>

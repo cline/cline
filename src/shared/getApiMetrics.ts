@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
+import { ClaudeMessage } from "./ExtensionMessage"
 
 interface ApiMetrics {
 	totalTokensIn: number

@@ -1,12 +1,13 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonTapped' or 'settingsButtonTapped' or 'hello'
 
 import { ApiConfiguration } from "./api"
+import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
 	type: "action" | "state" | "selectedImages"
 	text?: string
-	action?: "plusButtonTapped" | "settingsButtonTapped" | "didBecomeVisible"
+	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	state?: ExtensionState
 	images?: string[]
 }
@@ -18,6 +19,7 @@ export interface ExtensionState {
 	customInstructions?: string
 	themeName?: string
 	claudeMessages: ClaudeMessage[]
+	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 }
 
@@ -38,6 +40,7 @@ export type ClaudeAsk =
 	| "completion_result"
 	| "tool"
 	| "api_req_failed"
+	| "resume_task"
 
 export type ClaudeSay =
 	| "task"

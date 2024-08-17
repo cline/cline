@@ -3,18 +3,19 @@ import os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 
-export async function downloadTask(conversationHistory: Anthropic.MessageParam[]) {
+export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
-	const date = new Date()
+	const date = new Date(dateTs)
 	const month = date.toLocaleString("en-US", { month: "short" }).toLowerCase()
 	const day = date.getDate()
 	const year = date.getFullYear()
 	let hours = date.getHours()
 	const minutes = date.getMinutes().toString().padStart(2, "0")
+	const seconds = date.getSeconds().toString().padStart(2, "0")
 	const ampm = hours >= 12 ? "pm" : "am"
 	hours = hours % 12
 	hours = hours ? hours : 12 // the hour '0' should be '12'
-	const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${ampm}.md`
+	const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${seconds}-${ampm}.md`
 
 	// Generate markdown
 	const markdownContent = conversationHistory
