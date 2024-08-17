@@ -107,18 +107,13 @@ export class SapAiCoreHandler implements ApiHandler {
 
         const url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
-		console.log("Payload:");
-	    console.log(JSON.stringify(payload, null, 2));
-		console.log("url", url)
-
         try {
-            const response = await axios.post(url, payload, { 
+            const response = await axios.post(url, JSON.stringify(payload, null, 2), { 
                 headers,
                 responseType: 'stream'
             })
 
             const data = await this.streamCompletion(response.data, model);
-            console.log(data);
             return data;
         } catch (error) {
             console.error("Error creating message:", error)
