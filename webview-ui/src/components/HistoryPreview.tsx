@@ -69,54 +69,60 @@ const HistoryPreview = ({ taskHistory, showHistoryView }: HistoryPreviewProps) =
 			</div>
 
 			<div style={{ padding: "0px 20px 0 20px" }}>
-				{taskHistory.slice(0, 3).map((item) => (
-					<div key={item.id} className="history-preview-item" onClick={() => handleHistorySelect(item.id)}>
-						<div style={{ padding: "12px" }}>
-							<div style={{ marginBottom: "8px" }}>
-								<span
+				{taskHistory
+					.filter((item) => item.ts && item.task && item.totalCost)
+					.slice(0, 3)
+					.map((item) => (
+						<div
+							key={item.id}
+							className="history-preview-item"
+							onClick={() => handleHistorySelect(item.id)}>
+							<div style={{ padding: "12px" }}>
+								<div style={{ marginBottom: "8px" }}>
+									<span
+										style={{
+											color: "var(--vscode-descriptionForeground)",
+											fontWeight: 500,
+											fontSize: "0.85em",
+											textTransform: "uppercase",
+										}}>
+										{formatDate(item.ts)}
+									</span>
+								</div>
+								<div
 									style={{
+										fontSize: "var(--vscode-font-size)",
 										color: "var(--vscode-descriptionForeground)",
-										fontWeight: 500,
-										fontSize: "0.85em",
-										textTransform: "uppercase",
+										marginBottom: "8px",
+										display: "-webkit-box",
+										WebkitLineClamp: 3,
+										WebkitBoxOrient: "vertical",
+										overflow: "hidden",
+										whiteSpace: "pre-wrap",
+										wordBreak: "break-word",
+										overflowWrap: "anywhere",
 									}}>
-									{formatDate(item.ts)}
-								</span>
-							</div>
-							<div
-								style={{
-									fontSize: "var(--vscode-font-size)",
-									color: "var(--vscode-descriptionForeground)",
-									marginBottom: "8px",
-									display: "-webkit-box",
-									WebkitLineClamp: 3,
-									WebkitBoxOrient: "vertical",
-									overflow: "hidden",
-									whiteSpace: "pre-wrap",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}>
-								{item.task}
-							</div>
-							<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
-								<span>
-									Tokens: ↑{item.tokensIn?.toLocaleString()} ↓{item.tokensOut?.toLocaleString()}
-								</span>
-								{" • "}
-								{item.cacheWrites && item.cacheReads && (
-									<>
-										<span>
-											Cache: +{item.cacheWrites?.toLocaleString()} →{" "}
-											{item.cacheReads?.toLocaleString()}
-										</span>
-										{" • "}
-									</>
-								)}
-								<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
+									{item.task}
+								</div>
+								<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
+									<span>
+										Tokens: ↑{item.tokensIn?.toLocaleString()} ↓{item.tokensOut?.toLocaleString()}
+									</span>
+									{" • "}
+									{item.cacheWrites && item.cacheReads && (
+										<>
+											<span>
+												Cache: +{item.cacheWrites?.toLocaleString()} →{" "}
+												{item.cacheReads?.toLocaleString()}
+											</span>
+											{" • "}
+										</>
+									)}
+									<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
+								</div>
 							</div>
 						</div>
-					</div>
-				))}
+					))}
 				<div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
 					<VSCodeButton
 						appearance="icon"
