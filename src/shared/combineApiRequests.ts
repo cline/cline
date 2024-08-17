@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
+import { ClaudeMessage } from "./ExtensionMessage"
 
 /**
  * Combines API request start and finish messages in an array of ClaudeMessages.
