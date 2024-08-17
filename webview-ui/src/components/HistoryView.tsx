@@ -98,114 +98,68 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 						</div>
 					)}
 
-					{taskHistory.map((item, index) => (
-						<div
-							key={item.id}
-							className="history-item"
-							style={{
-								cursor: "pointer",
-								borderBottom:
-									index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-							}}
-							onClick={() => handleHistorySelect(item.id)}>
+					{taskHistory
+						.filter((item) => item.ts && item.task && item.totalCost)
+						.map((item, index) => (
 							<div
+								key={item.id}
+								className="history-item"
 								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: "8px",
-									padding: "12px 20px",
-									position: "relative",
-								}}>
+									cursor: "pointer",
+									borderBottom:
+										index < taskHistory.length - 1
+											? "1px solid var(--vscode-panel-border)"
+											: "none",
+								}}
+								onClick={() => handleHistorySelect(item.id)}>
 								<div
 									style={{
 										display: "flex",
-										justifyContent: "space-between",
-										alignItems: "center",
+										flexDirection: "column",
+										gap: "8px",
+										padding: "12px 20px",
+										position: "relative",
 									}}>
-									<span
-										style={{
-											color: "var(--vscode-descriptionForeground)",
-											fontWeight: 500,
-											fontSize: "0.85em",
-											textTransform: "uppercase",
-										}}>
-										{formatDate(item.ts)}
-									</span>
-									<VSCodeButton
-										appearance="icon"
-										onClick={(e) => {
-											e.stopPropagation()
-											handleDeleteHistoryItem(item.id)
-										}}
-										className="delete-button">
-										<span className="codicon codicon-trash"></span>
-									</VSCodeButton>
-								</div>
-								<div
-									style={{
-										fontSize: "var(--vscode-font-size)",
-										color: "var(--vscode-foreground)",
-										display: "-webkit-box",
-										WebkitLineClamp: 3,
-										WebkitBoxOrient: "vertical",
-										overflow: "hidden",
-										whiteSpace: "pre-wrap",
-										wordBreak: "break-word",
-										overflowWrap: "anywhere",
-									}}>
-									{item.task}
-								</div>
-								<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 									<div
 										style={{
 											display: "flex",
+											justifyContent: "space-between",
 											alignItems: "center",
-											gap: "4px",
-											flexWrap: "wrap",
 										}}>
 										<span
 											style={{
+												color: "var(--vscode-descriptionForeground)",
 												fontWeight: 500,
-												color: "var(--vscode-descriptionForeground)",
+												fontSize: "0.85em",
+												textTransform: "uppercase",
 											}}>
-											Tokens:
+											{formatDate(item.ts)}
 										</span>
-										<span
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-												color: "var(--vscode-descriptionForeground)",
-											}}>
-											<i
-												className="codicon codicon-arrow-up"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: "-2px",
-												}}
-											/>
-											{item.tokensIn?.toLocaleString()}
-										</span>
-										<span
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-												color: "var(--vscode-descriptionForeground)",
-											}}>
-											<i
-												className="codicon codicon-arrow-down"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: "-2px",
-												}}
-											/>
-											{item.tokensOut?.toLocaleString()}
-										</span>
+										<VSCodeButton
+											appearance="icon"
+											onClick={(e) => {
+												e.stopPropagation()
+												handleDeleteHistoryItem(item.id)
+											}}
+											className="delete-button">
+											<span className="codicon codicon-trash"></span>
+										</VSCodeButton>
 									</div>
-									{item.cacheWrites && item.cacheReads && (
+									<div
+										style={{
+											fontSize: "var(--vscode-font-size)",
+											color: "var(--vscode-foreground)",
+											display: "-webkit-box",
+											WebkitLineClamp: 3,
+											WebkitBoxOrient: "vertical",
+											overflow: "hidden",
+											whiteSpace: "pre-wrap",
+											wordBreak: "break-word",
+											overflowWrap: "anywhere",
+										}}>
+										{item.task}
+									</div>
+									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 										<div
 											style={{
 												display: "flex",
@@ -218,7 +172,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													fontWeight: 500,
 													color: "var(--vscode-descriptionForeground)",
 												}}>
-												Cache:
+												Tokens:
 											</span>
 											<span
 												style={{
@@ -228,14 +182,14 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													color: "var(--vscode-descriptionForeground)",
 												}}>
 												<i
-													className="codicon codicon-database"
+													className="codicon codicon-arrow-up"
 													style={{
 														fontSize: "12px",
 														fontWeight: "bold",
-														marginBottom: "-1px",
+														marginBottom: "-2px",
 													}}
 												/>
-												+{item.cacheWrites?.toLocaleString()}
+												{item.tokensIn?.toLocaleString()}
 											</span>
 											<span
 												style={{
@@ -245,47 +199,101 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 													color: "var(--vscode-descriptionForeground)",
 												}}>
 												<i
-													className="codicon codicon-arrow-right"
-													style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
+													className="codicon codicon-arrow-down"
+													style={{
+														fontSize: "12px",
+														fontWeight: "bold",
+														marginBottom: "-2px",
+													}}
 												/>
-												{item.cacheReads?.toLocaleString()}
+												{item.tokensOut?.toLocaleString()}
 											</span>
 										</div>
-									)}
-									<div
-										style={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "center",
-											marginTop: -2,
-										}}>
-										<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-											<span
+										{item.cacheWrites && item.cacheReads && (
+											<div
 												style={{
-													fontWeight: 500,
-													color: "var(--vscode-descriptionForeground)",
+													display: "flex",
+													alignItems: "center",
+													gap: "4px",
+													flexWrap: "wrap",
 												}}>
-												API Cost:
-											</span>
-											<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-												${item.totalCost?.toFixed(4)}
-											</span>
-										</div>
-										<VSCodeButton
-											appearance="icon"
-											onClick={(e) => {
-												e.stopPropagation()
-												handleExportMd(item.id)
-											}}>
-											<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>
-												EXPORT .MD
+												<span
+													style={{
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													Cache:
+												</span>
+												<span
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-database"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-1px",
+														}}
+													/>
+													+{item.cacheWrites?.toLocaleString()}
+												</span>
+												<span
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-right"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: 0,
+														}}
+													/>
+													{item.cacheReads?.toLocaleString()}
+												</span>
 											</div>
-										</VSCodeButton>
+										)}
+										<div
+											style={{
+												display: "flex",
+												justifyContent: "space-between",
+												alignItems: "center",
+												marginTop: -2,
+											}}>
+											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+												<span
+													style={{
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													API Cost:
+												</span>
+												<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+													${item.totalCost?.toFixed(4)}
+												</span>
+											</div>
+											<VSCodeButton
+												appearance="icon"
+												onClick={(e) => {
+													e.stopPropagation()
+													handleExportMd(item.id)
+												}}>
+												<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>
+													EXPORT .MD
+												</div>
+											</VSCodeButton>
+										</div>
 									</div>
 								</div>
 							</div>
-						</div>
-					))}
+						))}
 				</div>
 			</div>
 		</>

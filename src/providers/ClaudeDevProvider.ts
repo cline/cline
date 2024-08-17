@@ -447,7 +447,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				customInstructions,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 				claudeMessages: this.claudeDev?.claudeMessages || [],
-				taskHistory: (taskHistory || []).sort((a, b) => b.ts - a.ts),
+				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			},
 		})
