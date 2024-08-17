@@ -197,14 +197,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								className="codicon codicon-arrow-up"
 								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 							/>
-							{tokensIn.toLocaleString()}
+							{tokensIn?.toLocaleString()}
 						</span>
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
 								className="codicon codicon-arrow-down"
 								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 							/>
-							{tokensOut.toLocaleString()}
+							{tokensOut?.toLocaleString()}
 						</span>
 					</div>
 					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
@@ -215,14 +215,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									className="codicon codicon-database"
 									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
 								/>
-								+{(cacheWrites || 0).toLocaleString()}
+								+{(cacheWrites || 0)?.toLocaleString()}
 							</span>
 							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 								<i
 									className="codicon codicon-arrow-right"
 									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
 								/>
-								{(cacheReads || 0).toLocaleString()}
+								{(cacheReads || 0)?.toLocaleString()}
 							</span>
 						</div>
 					)}
