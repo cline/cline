@@ -54,6 +54,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "claude-dev.historyButtonTapped",
+        "title": "History",
+        "icon": "$(history)"
+      },
+      {
         "command": "claude-dev.popoutButtonTapped",
         "title": "Open in Editor",
         "icon": "$(link-external)"
@@ -73,17 +78,22 @@
       "view/title": [
         {
           "command": "claude-dev.plusButtonTapped",
-          "group": "navigation",
+          "group": "navigation@1",
+          "when": "view == claude-dev.SidebarProvider"
+        },
+        {
+          "command": "claude-dev.historyButtonTapped",
+          "group": "navigation@2",
           "when": "view == claude-dev.SidebarProvider"
         },
         {
           "command": "claude-dev.popoutButtonTapped",
-          "group": "navigation",
+          "group": "navigation@3",
           "when": "view == claude-dev.SidebarProvider"
         },
         {
           "command": "claude-dev.settingsButtonTapped",
-          "group": "navigation",
+          "group": "navigation@4",
           "when": "view == claude-dev.SidebarProvider"
         }
       ]

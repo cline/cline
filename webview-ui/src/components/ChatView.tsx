@@ -5,25 +5,29 @@ import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { combineApiRequests } from "../utils/combineApiRequests"
-import { combineCommandSequences } from "../utils/combineCommandSequences"
-import { getApiMetrics } from "../utils/getApiMetrics"
+import { getApiMetrics } from "../../../src/shared/getApiMetrics"
+import { combineApiRequests } from "../../../src/shared/combineApiRequests"
+import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
 import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
+import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
+import { HistoryItem } from "../../../src/shared/HistoryItem"
 
 interface ChatViewProps {
 	version: string
 	messages: ClaudeMessage[]
+	taskHistory: HistoryItem[]
 	isHidden: boolean
 	vscodeThemeName?: string
 	showAnnouncement: boolean
 	selectedModelSupportsImages: boolean
 	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
+	showHistoryView: () => void
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -31,14 +35,16 @@ const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 const ChatView = ({
 	version,
 	messages,
+	taskHistory,
 	isHidden,
 	vscodeThemeName,
 	showAnnouncement,
 	selectedModelSupportsImages,
 	selectedModelSupportsPromptCache,
 	hideAnnouncement,
+	showHistoryView,
 }: ChatViewProps) => {
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined
+	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
 	// has to be after api_req_finished are all reduced into api_req_started messages
@@ -137,6 +143,13 @@ const ChatView = ({
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
 							break
+						case "resume_task":
+							setTextAreaDisabled(false)
+							setClaudeAsk("resume_task")
+							setEnableButtons(true)
+							setPrimaryButtonText("Resume Task")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -199,6 +212,7 @@ const ChatView = ({
 					case "command": // user can provide feedback to a tool or command use
 					case "command_output": // user can send input to command stdin
 					case "completion_result": // if this happens then the user has feedback for the completion result
+					case "resume_task":
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "messageResponse",
@@ -229,6 +243,7 @@ const ChatView = ({
 			case "command":
 			case "command_output":
 			case "tool":
+			case "resume_task":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
 			case "completion_result":
@@ -392,6 +407,8 @@ const ChatView = ({
 					break
 				case "api_req_failed": // this message is used to update the latest api_req_started that the request failed
 					return false
+				case "resume_task":
+					return false
 			}
 			switch (message.say) {
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
@@ -460,7 +477,7 @@ const ChatView = ({
 			) : (
 				<>
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-					<div style={{ padding: "0 20px" }}>
+					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>
 							Thanks to{" "}
@@ -474,64 +491,72 @@ const ChatView = ({
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
 						</p>
 					</div>
+					{taskHistory.length > 0 && (
+						<HistoryPreview taskHistory={taskHistory} showHistoryView={showHistoryView} />
+					)}
 				</>
 			)}
-			<Virtuoso
-				ref={virtuosoRef}
-				className="scrollable"
-				style={{
-					flexGrow: 1,
-					overflowY: "scroll", // always show scrollbar
-				}}
-				// followOutput={(isAtBottom) => {
-				// 	const lastMessage = modifiedMessages.at(-1)
-				// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
-				// 		return "smooth"
-				// 	}
-				// 	return false
-				// }}
-				increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-				data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
-				itemContent={(index, message) => (
-					<ChatRow
-						key={message.ts}
-						message={message}
-						syntaxHighlighterStyle={syntaxHighlighterStyle}
-						isExpanded={expandedRows[message.ts] || false}
-						onToggleExpand={() => toggleRowExpansion(message.ts)}
-						lastModifiedMessage={modifiedMessages.at(-1)}
-						isLast={index === visibleMessages.length - 1}
-					/>
-				)}
-			/>
-			<div
-				style={{
-					opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
-					display: "flex",
-					padding: "10px 15px 0px 15px",
-				}}>
-				{primaryButtonText && (
-					<VSCodeButton
-						appearance="primary"
-						disabled={!enableButtons}
+			{task && (
+				<>
+					<Virtuoso
+						ref={virtuosoRef}
+						className="scrollable"
 						style={{
-							flex: secondaryButtonText ? 1 : 2,
-							marginRight: secondaryButtonText ? "6px" : "0",
+							flexGrow: 1,
+							overflowY: "scroll", // always show scrollbar
 						}}
-						onClick={handlePrimaryButtonClick}>
-						{primaryButtonText}
-					</VSCodeButton>
-				)}
-				{secondaryButtonText && (
-					<VSCodeButton
-						appearance="secondary"
-						disabled={!enableButtons}
-						style={{ flex: 1, marginLeft: "6px" }}
-						onClick={handleSecondaryButtonClick}>
-						{secondaryButtonText}
-					</VSCodeButton>
-				)}
-			</div>
+						// followOutput={(isAtBottom) => {
+						// 	const lastMessage = modifiedMessages.at(-1)
+						// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
+						// 		return "smooth"
+						// 	}
+						// 	return false
+						// }}
+						increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
+						itemContent={(index, message) => (
+							<ChatRow
+								key={message.ts}
+								message={message}
+								syntaxHighlighterStyle={syntaxHighlighterStyle}
+								isExpanded={expandedRows[message.ts] || false}
+								onToggleExpand={() => toggleRowExpansion(message.ts)}
+								lastModifiedMessage={modifiedMessages.at(-1)}
+								isLast={index === visibleMessages.length - 1}
+							/>
+						)}
+					/>
+					<div
+						style={{
+							opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
+							display: "flex",
+							padding: "10px 15px 0px 15px",
+						}}>
+						{primaryButtonText && (
+							<VSCodeButton
+								appearance="primary"
+								disabled={!enableButtons}
+								style={{
+									flex: secondaryButtonText ? 1 : 2,
+									marginRight: secondaryButtonText ? "6px" : "0",
+								}}
+								onClick={handlePrimaryButtonClick}>
+								{primaryButtonText}
+							</VSCodeButton>
+						)}
+						{secondaryButtonText && (
+							<VSCodeButton
+								appearance="secondary"
+								disabled={!enableButtons}
+								style={{ flex: 1, marginLeft: "6px" }}
+								onClick={handleSecondaryButtonClick}>
+								{secondaryButtonText}
+							</VSCodeButton>
+						)}
+					</div>
+				</>
+			)}
+
 			<div
 				style={{
 					padding: "10px 15px",

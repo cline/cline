@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine("Plus button tapped")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "plusButtonTapped" })
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
 		})
 	)
 
@@ -84,6 +84,12 @@ export function activate(context: vscode.ExtensionContext) {
 			//const message = "claude-dev.settingsButtonTapped!"
 			//vscode.window.showInformationMessage(message)
 			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+		})
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("claude-dev.historyButtonTapped", () => {
+			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonTapped" })
 		})
 	)
 
