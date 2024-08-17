@@ -27,20 +27,18 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				🎉{"  "}New in v{version}
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
+				<li>Task history is here! New tasks will automatically save so you can always resume them later</li>
 				<li>
 					Adds support for{" "}
 					<VSCodeLink href="https://www.anthropic.com/news/prompt-caching" style={{ display: "inline" }}>
 						Prompt Caching
 					</VSCodeLink>{" "}
-					to reduce costs by up to 90% and latency by up to 85% (currently only available through Anthropic
-					API for Claude 3.5 Sonnet and Claude 3.0 Haiku)
+					to make requests up to 90% cheaper and 85% faster (currently only available through Anthropic API
+					for Claude 3.5 Sonnet and Claude 3.0 Haiku)
 				</li>
 				<li>
 					Paste images in chat and turn mockups into fully functional applications or fix bugs with
 					screenshots
-				</li>
-				<li>
-					Adds option to choose other Claude models (+ GPT-4o, DeepSeek, and Mistral if you use OpenRouter)
 				</li>
 				<li>
 					You can now add custom instructions to the end of the system prompt (e.g. "Always use Python",

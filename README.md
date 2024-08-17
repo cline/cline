@@ -12,17 +12,17 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
 -   Inspect diffs of every change Claude makes right in the editor, and provide feedback until you're satisfied with the result
--   Runs terminal commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
+-   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
 -   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
 -   When a task is completed, Claude determines if he can present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
-_**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in your editor._
+_**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in the editor._
 
 ## How it works
 
-Claude Dev uses an autonomous task execution loop with chain-of-thought prompting and access to powerful tools that give him the ability to accomplish nearly any task. Start by providing a task and the loop fires off, where it might use certain tools (with your permission) to accomplish each step in its thought process.
+Claude Dev uses an autonomous task execution loop with chain-of-thought prompting and access to powerful tools that give him the ability to accomplish nearly any task. Start by providing a task and the loop fires off, where Claude might use certain tools (with your permission) to accomplish each step in his thought process.
 
 ### Tools
 
