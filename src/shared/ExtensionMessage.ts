@@ -41,6 +41,7 @@ export type ClaudeAsk =
 	| "tool"
 	| "api_req_failed"
 	| "resume_task"
+	| "resume_completed_task"
 
 export type ClaudeSay =
 	| "task"

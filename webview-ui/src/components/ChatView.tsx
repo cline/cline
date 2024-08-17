@@ -150,6 +150,13 @@ const ChatView = ({
 							setPrimaryButtonText("Resume Task")
 							setSecondaryButtonText(undefined)
 							break
+						case "resume_completed_task":
+							setTextAreaDisabled(false)
+							setClaudeAsk("resume_completed_task")
+							setEnableButtons(true)
+							setPrimaryButtonText("Start New Task")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -213,6 +220,7 @@ const ChatView = ({
 					case "command_output": // user can send input to command stdin
 					case "completion_result": // if this happens then the user has feedback for the completion result
 					case "resume_task":
+					case "resume_completed_task":
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "messageResponse",
@@ -247,6 +255,7 @@ const ChatView = ({
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
 			case "completion_result":
+			case "resume_completed_task":
 				// extension waiting for feedback. but we can just present a new task button
 				startNewTask()
 				break
@@ -406,8 +415,8 @@ const ChatView = ({
 					}
 					break
 				case "api_req_failed": // this message is used to update the latest api_req_started that the request failed
-					return false
 				case "resume_task":
+				case "resume_completed_task":
 					return false
 			}
 			switch (message.say) {

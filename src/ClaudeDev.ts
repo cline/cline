@@ -473,8 +473,16 @@ export class ClaudeDev {
 		const lastClaudeMessage = this.claudeMessages
 			.slice()
 			.reverse()
-			.find((m) => m.ask !== "resume_task") // could be multiple resume tasks
-		const { response, text, images } = await this.ask("resume_task") // calls poststatetowebview
+			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+
+		let askType: ClaudeAsk
+		if (lastClaudeMessage?.ask === "completion_result") {
+			askType = "resume_completed_task"
+		} else {
+			askType = "resume_task"
+		}
+
+		const { response, text, images } = await this.ask(askType) // calls poststatetowebview
 
 		let newUserContent: UserContent = []
 		if (response === "messageResponse") {
