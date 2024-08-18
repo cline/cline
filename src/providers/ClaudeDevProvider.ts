@@ -1,9 +1,14 @@
+import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { ClaudeDev } from "../ClaudeDev"
 import { ApiModelId, ApiProvider } from "../shared/api"
 import { ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
 import { downloadTask, getNonce, getUri, selectImages } from "../utils"
+import * as path from "path"
+import fs from "fs/promises"
+import { HistoryItem } from "../shared/HistoryItem"
+
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 
@@ -21,6 +26,7 @@ type GlobalStateKey =
 	| "approveReadFile"
 	| "approveListFilesTopLevel"
 	| "approveListFilesRecursively"
+	| "taskHistory"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -28,12 +34,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "aug-15-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "aug-17-2024" // update to some unique identifier when we add a new announcement
 
-	constructor(
-		private readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel
-	) {
+	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
 	}
 
@@ -152,6 +155,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			approveListFilesRecursively,			
 			task, 
 			images
+		)
+	}
+
+	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
+		await this.clearTask()
+		const { maxRequestsPerTask, apiConfiguration, customInstructions } = await this.getState()
+		this.claudeDev = new ClaudeDev(
+			this,
+			apiConfiguration,
+			maxRequestsPerTask,
+			customInstructions,
+			undefined,
+			undefined,
+			historyItem
 		)
 	}
 
@@ -332,12 +349,24 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
 						await this.postStateToWebview()
 						break
-					case "downloadTask":
-						downloadTask(this.claudeDev?.apiConversationHistory ?? [])
-						break
 					case "selectImages":
 						const images = await selectImages()
 						await this.postMessageToWebview({ type: "selectedImages", images })
+						break
+					case "exportCurrentTask":
+						const currentTaskId = this.claudeDev?.taskId
+						if (currentTaskId) {
+							this.exportTaskWithId(currentTaskId)
+						}
+						break
+					case "showTaskWithId":
+						this.showTaskWithId(message.text!)
+						break
+					case "deleteTaskWithId":
+						this.deleteTaskWithId(message.text!)
+						break
+					case "exportTaskWithId":
+						this.exportTaskWithId(message.text!)
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -346,6 +375,92 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	// Task history
+
+	async getTaskWithId(id: string): Promise<{
+		historyItem: HistoryItem
+		taskDirPath: string
+		apiConversationHistoryFilePath: string
+		claudeMessagesFilePath: string
+		apiConversationHistory: Anthropic.MessageParam[]
+	}> {
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const historyItem = history.find((item) => item.id === id)
+		if (historyItem) {
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
+			const apiConversationHistoryFilePath = path.join(taskDirPath, "api_conversation_history.json")
+			const claudeMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+			const fileExists = await fs
+				.access(apiConversationHistoryFilePath)
+				.then(() => true)
+				.catch(() => false)
+			if (fileExists) {
+				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
+				return {
+					historyItem,
+					taskDirPath,
+					apiConversationHistoryFilePath,
+					claudeMessagesFilePath,
+					apiConversationHistory,
+				}
+			}
+		}
+		// if we tried to get a task that doesn't exist, remove it from state
+		await this.deleteTaskFromState(id)
+		throw new Error("Task not found")
+	}
+
+	async showTaskWithId(id: string) {
+		if (id !== this.claudeDev?.taskId) {
+			// non-current task
+			const { historyItem } = await this.getTaskWithId(id)
+			await this.initClaudeDevWithHistoryItem(historyItem) // clears existing task
+		}
+		await this.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+	}
+
+	async exportTaskWithId(id: string) {
+		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
+		await downloadTask(historyItem.ts, apiConversationHistory)
+	}
+
+	async deleteTaskWithId(id: string) {
+		if (id === this.claudeDev?.taskId) {
+			await this.clearTask()
+		}
+
+		const { taskDirPath, apiConversationHistoryFilePath, claudeMessagesFilePath } = await this.getTaskWithId(id)
+
+		// Delete the task files
+		const apiConversationHistoryFileExists = await fs
+			.access(apiConversationHistoryFilePath)
+			.then(() => true)
+			.catch(() => false)
+		if (apiConversationHistoryFileExists) {
+			await fs.unlink(apiConversationHistoryFilePath)
+		}
+		const claudeMessagesFileExists = await fs
+			.access(claudeMessagesFilePath)
+			.then(() => true)
+			.catch(() => false)
+		if (claudeMessagesFileExists) {
+			await fs.unlink(claudeMessagesFilePath)
+		}
+		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
+
+		await this.deleteTaskFromState(id)
+	}
+
+	async deleteTaskFromState(id: string) {
+		// Remove the task from history
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
+		await this.updateGlobalState("taskHistory", updatedTaskHistory)
+
+		// Notify the webview that the task has been deleted
+		await this.postStateToWebview()
 	}
 
 	async postStateToWebview() {
@@ -358,6 +473,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			approveListFilesTopLevel,
 			approveListFilesRecursively,		  
 		} = await this.getState()
+		const { apiConfiguration, maxRequestsPerTask, lastShownAnnouncementId, customInstructions, taskHistory } =
+			await this.getState()
 		this.postMessageToWebview({
 			type: "state",
 			state: {
@@ -367,6 +484,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				customInstructions,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 				claudeMessages: this.claudeDev?.claudeMessages || [],
+				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 				approveReadFile,
 				approveListFilesTopLevel,
@@ -476,6 +594,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			approveReadFile,
 			approveListFilesTopLevel,
 			approveListFilesRecursively,
+			taskHistory,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
@@ -490,6 +609,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("approveReadFile") as Promise<boolean | undefined>,
 			this.getGlobalState("approveListFilesTopLevel") as Promise<boolean | undefined>,
 			this.getGlobalState("approveListFilesRecursively") as Promise<boolean | undefined>,			
+			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -522,7 +642,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			approveReadFile,
 			approveListFilesTopLevel,
 			approveListFilesRecursively,			
+			taskHistory,
 		}
+	}
+
+	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+		const existingItemIndex = history.findIndex((h) => h.id === item.id)
+		if (existingItemIndex !== -1) {
+			history[existingItemIndex] = item
+		} else {
+			history.push(item)
+		}
+		await this.updateGlobalState("taskHistory", history)
+		return history
 	}
 
 	// global

@@ -10,11 +10,14 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "clearTask"
 		| "didShowAnnouncement"
-		| "downloadTask"
 		| "selectImages"
 		| "approveReadFile"
 		| "approveListFilesTopLevel"
 		| "approveListFilesRecursively"		
+		| "exportCurrentTask"
+		| "showTaskWithId"
+		| "deleteTaskWithId"
+		| "exportTaskWithId"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

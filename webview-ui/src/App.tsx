@@ -8,10 +8,13 @@ import ChatView from "./components/ChatView"
 import SettingsView from "./components/SettingsView"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utils/vscode"
+import HistoryView from "./components/HistoryView"
+import { HistoryItem } from "../../src/shared/HistoryItem"
 
 const App: React.FC = () => {
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showSettings, setShowSettings] = useState(false)
+	const [showHistory, setShowHistory] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [version, setVersion] = useState<string>("")
 	const [apiConfiguration, setApiConfiguration] = useState<ApiConfiguration | undefined>(undefined)
@@ -19,6 +22,7 @@ const App: React.FC = () => {
 	const [customInstructions, setCustomInstructions] = useState<string>("")
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
+	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [approveReadFile, setApproveReadFile] = useState<boolean>(true)
 	const [approveListFilesTopLevel, setApproveListFilesTopLevel] = useState<boolean>(true)
@@ -48,6 +52,7 @@ const App: React.FC = () => {
 				setApproveReadFile(message.state!.approveReadFile ?? true)
 				setApproveListFilesTopLevel(message.state!.approveListFilesTopLevel ?? true)
 				setApproveListFilesRecursively(message.state!.approveListFilesRecursively ?? true)
+				setTaskHistory(message.state!.taskHistory)
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {
 					setShowAnnouncement(true)
@@ -59,9 +64,15 @@ const App: React.FC = () => {
 				switch (message.action!) {
 					case "settingsButtonTapped":
 						setShowSettings(true)
+						setShowHistory(false)
 						break
-					case "plusButtonTapped":
+					case "historyButtonTapped":
 						setShowSettings(false)
+						setShowHistory(true)
+						break
+					case "chatButtonTapped":
+						setShowSettings(false)
+						setShowHistory(false)
 						break
 				}
 				break
@@ -102,11 +113,17 @@ const App: React.FC = () => {
 							onDone={() => setShowSettings(false)}
 						/>
 					)}
+					{showHistory && <HistoryView taskHistory={taskHistory} onDone={() => setShowHistory(false)} />}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 					<ChatView
 						version={version}
 						messages={claudeMessages}
-						isHidden={showSettings}
+						taskHistory={taskHistory}
+						showHistoryView={() => {
+							setShowSettings(false)
+							setShowHistory(true)
+						}}
+						isHidden={showSettings || showHistory}
 						vscodeThemeName={vscodeThemeName}
 						showAnnouncement={showAnnouncement}
 						selectedModelSupportsImages={selectedModelInfo.supportsImages}

@@ -92,11 +92,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const toggleExpand = () => setIsExpanded(!isExpanded)
 
 	const handleDownload = () => {
-		vscode.postMessage({ type: "downloadTask" })
+		vscode.postMessage({ type: "exportCurrentTask" })
 	}
 
 	return (
-		<div style={{ padding: "15px 15px 10px 15px" }}>
+		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
@@ -118,7 +118,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<VSCodeButton
 						appearance="icon"
 						onClick={onClose}
-						style={{ marginTop: "-5px", marginRight: "-5px" }}>
+						style={{ marginTop: "-6px", marginRight: "-4px" }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -195,34 +195,34 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
 								className="codicon codicon-arrow-up"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1.5px" }}
+								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 							/>
-							{tokensIn.toLocaleString()}
+							{tokensIn?.toLocaleString()}
 						</span>
 						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 							<i
 								className="codicon codicon-arrow-down"
 								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 							/>
-							{tokensOut.toLocaleString()}
+							{tokensOut?.toLocaleString()}
 						</span>
 					</div>
 					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
 						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-							<span style={{ fontWeight: "bold" }}>Prompt Cache:</span>
+							<span style={{ fontWeight: "bold" }}>Cache:</span>
 							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 								<i
 									className="codicon codicon-database"
 									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
 								/>
-								+{(cacheWrites || 0).toLocaleString()}
+								+{(cacheWrites || 0)?.toLocaleString()}
 							</span>
 							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 								<i
 									className="codicon codicon-arrow-right"
 									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
 								/>
-								{(cacheReads || 0).toLocaleString()}
+								{(cacheReads || 0)?.toLocaleString()}
 							</span>
 						</div>
 					)}
@@ -234,7 +234,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						}}>
 						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
 							<span style={{ fontWeight: "bold" }}>API Cost:</span>
-							<span>${totalCost.toFixed(4)}</span>
+							<span>${totalCost?.toFixed(4)}</span>
 						</div>
 						<VSCodeButton
 							appearance="icon"
