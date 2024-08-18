@@ -301,16 +301,16 @@ export const customOpenAIModels = {
 
 // Gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-pro-latest"
+export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-pro"
 export const geminiModels = {
-    "gemini-1.5-flash-latest": {
+    "gemini-1.5-flash": {
         maxTokens: 8192, 
         supportsImages: true,
         supportsPromptCache: true,
         inputPrice: 0.15, 
         outputPrice: 0.60, 
     },
-    "gemini-1.5-pro-latest": {
+    "gemini-1.5-pro": {
         maxTokens: 8192, 
         supportsImages: true,
         supportsPromptCache: true,

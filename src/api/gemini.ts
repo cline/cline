@@ -7,15 +7,17 @@ import {
     GeminiModelId,
     geminiModels,
 } from "../shared/api"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from "@google/generative-ai"
 
 export class GeminiHandler implements ApiHandler {
     private options: ApiHandlerOptions
     private client: GoogleGenerativeAI
+    private model: GenerativeModel
 
     constructor(options: ApiHandlerOptions) {
         this.options = options
         this.client = new GoogleGenerativeAI(this.options.geminiApiKey!)
+        this.model = this.client.getGenerativeModel({ model: this.getModel().id })
     }
 
     async createMessage(
@@ -23,9 +25,7 @@ export class GeminiHandler implements ApiHandler {
         messages: Anthropic.Messages.MessageParam[],
         tools: Anthropic.Messages.Tool[]
     ): Promise<Anthropic.Messages.Message> {
-        const model = this.client.getGenerativeModel({ model: this.getModel().id })
-
-        const chat = model.startChat({
+        const chat = this.model.startChat({
             history: this.convertToGeminiMessages(messages),
             generationConfig: {
                 maxOutputTokens: this.getModel().info.maxTokens,
@@ -57,10 +57,9 @@ export class GeminiHandler implements ApiHandler {
     }
 
     getModel(): { id: GeminiModelId; info: ModelInfo } {
-        const modelId = this.options.apiModelId
-        if (modelId && modelId in geminiModels) {
-            const id = modelId as GeminiModelId
-            return { id, info: geminiModels[id] }
+        const modelId = this.options.apiModelId || geminiDefaultModelId
+        if (modelId in geminiModels) {
+            return { id: modelId as GeminiModelId, info: geminiModels[modelId as GeminiModelId] }
         }
         return { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
     }
