@@ -15,7 +15,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "vertexAccessToken" | "customOpenAIApiKey"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "vertexAccessToken" | "customOpenAIApiKey" | "geminiApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -287,6 +287,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								vertexAccessToken,
 								customOpenAIBaseUrl,
 								customOpenAIApiKey,
+								geminiApiKey,
 							} = message.apiConfiguration
 							
 							await this.updateGlobalState("apiProvider", apiProvider)
@@ -301,6 +302,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("vertexAccessToken", vertexAccessToken)
 							await this.updateGlobalState("customOpenAIBaseUrl", customOpenAIBaseUrl)
 							await this.storeSecret("customOpenAIApiKey", customOpenAIApiKey)
+							await this.storeSecret("geminiApiKey", geminiApiKey)
 					
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
@@ -572,6 +574,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
+			geminiApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
@@ -589,6 +592,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -619,6 +623,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				vertexAccessToken,
 				customOpenAIBaseUrl,
 				customOpenAIApiKey,
+				geminiApiKey,
 			},
 			maxRequestsPerTask,
 			lastShownAnnouncementId,

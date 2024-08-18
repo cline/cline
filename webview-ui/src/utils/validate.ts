@@ -14,6 +14,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 			vertexAccessToken: apiConfiguration.vertexAccessToken ? apiConfiguration.vertexAccessToken : undefined,
 			customOpenAIBaseUrl: apiConfiguration.customOpenAIBaseUrl,
 			customOpenAIApiKey: apiConfiguration.customOpenAIApiKey ? apiConfiguration.customOpenAIApiKey : undefined,
+			geminiApiKey: apiConfiguration.geminiApiKey ? apiConfiguration.geminiApiKey : undefined,
 		});
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
@@ -37,8 +38,13 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "customOpenAI":
-				if ( !apiConfiguration.customOpenAIBaseUrl || !apiConfiguration.vertexAccessToken ) {
+				if ( !apiConfiguration.customOpenAIBaseUrl || !apiConfiguration.customOpenAIApiKey ) {
 					return "You must provide a valid API key and base URL."
+				}
+				break
+			case "gemini":
+				if (!apiConfiguration.geminiApiKey) {
+					return "You must provide a valid Google Gemini API key."
 				}
 				break
 		}

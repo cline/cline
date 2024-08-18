@@ -12,6 +12,8 @@ import {
 	openRouterModels,
 	vertexDefaultModelId,
 	vertexModels,
+	geminiDefaultModelId,
+	geminiModels,
 	customOpenAIDefaultModelId,
 	customOpenAIModels,
 } from "../../../src/shared/api"
@@ -75,6 +77,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="vertex">Vertex AI</VSCodeOption>
 					<VSCodeOption value="customOpenAI">Custom OpenAI</VSCodeOption>
+					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -258,6 +261,29 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 				</div>
 			)}
 
+			{selectedProvider === "gemini" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.geminiApiKey || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("geminiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Google Gemini API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						<VSCodeLink href="https://makersuite.google.com/app/apikey" style={{ display: "inline" }}>
+							You can get a Google Gemini API key here.
+						</VSCodeLink>
+					</p>
+				</div>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="dropdown-container">
@@ -269,6 +295,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 						{selectedProvider === "vertex" && createDropdown(vertexModels)}
 						{selectedProvider === "customOpenAI" && createDropdown(customOpenAIModels)}
+						{selectedProvider === "gemini" && createDropdown(geminiModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -377,6 +404,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(vertexModels, vertexDefaultModelId)
 		case "customOpenAI":
 			return getProviderData(customOpenAIModels, customOpenAIDefaultModelId)
+		case "gemini":
+			return getProviderData(geminiModels, geminiDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
