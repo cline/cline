@@ -10,6 +10,8 @@ import {
 	bedrockModels,
 	openRouterDefaultModelId,
 	openRouterModels,
+	vertexDefaultModelId,
+	vertexModels,
 } from "../../../src/shared/api"
 
 interface ApiOptionsProps {
@@ -69,6 +71,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="vertex">Vertex AI</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -187,6 +190,45 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 				</div>
 			)}
 
+			{selectedProvider === "vertex" && (
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexProjectId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexProjectId")}
+						placeholder="Enter Project ID...">
+						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexRegion || "us-east5"}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexRegion")}
+						placeholder="Enter Region.(default: us-east5)">
+						<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexAccessToken || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexAccessToken")}
+						placeholder="Enter Access Token...">
+						<span style={{ fontWeight: 500 }}>Google Cloud Access Token</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						These details are stored locally and only used to make API requests from this extension.
+						<VSCodeLink
+							href="https://cloud.google.com/vertex-ai/docs/start/cloud-environment"
+							style={{ display: "inline" }}>
+							You can find your Google Cloud Project ID and Region here.
+						</VSCodeLink>
+					</p>
+				</div>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="dropdown-container">
@@ -196,6 +238,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
+						{selectedProvider === "vertex" && createDropdown(vertexModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -299,6 +342,11 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
+		case "vertex":
+			// Assuming you have vertexModels and vertexDefaultModelId defined
+			return getProviderData(vertexModels, vertexDefaultModelId)
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
 }
 

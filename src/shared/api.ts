@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,6 +7,9 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
+	vertexProjectId?: string
+	vertexRegion?: string
+	vertexAccessToken?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -25,7 +28,7 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
+export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | VertexModelId
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
@@ -100,6 +103,19 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Google Cloud Vertex AI
+export type VertexModelId = keyof typeof vertexModels
+export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620"
+export const vertexModels = {
+	"claude-3-5-sonnet@20240620": {
+		maxTokens: 4096,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
