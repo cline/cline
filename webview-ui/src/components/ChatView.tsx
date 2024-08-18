@@ -655,7 +655,7 @@ const ChatView = ({
 						style={{ marginRight: "2px" }}>
 						<span
 							className="codicon codicon-device-camera"
-							style={{ fontSize: 18, marginLeft: -2, marginTop: -0.5 }}></span>
+							style={{ fontSize: 18, marginLeft: -2, marginTop: -1 }}></span>
 					</VSCodeButton>
 					<VSCodeButton
 						disabled={textAreaDisabled}

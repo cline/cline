@@ -263,7 +263,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 										{icon}
 										{title}
-										{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
+										{cost && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
 									</div>
 									<VSCodeButton
 										appearance="icon"
