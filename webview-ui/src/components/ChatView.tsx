@@ -306,18 +306,14 @@ const ChatView = ({
 	}
 
 	const handlePaste = async (e: React.ClipboardEvent) => {
-		if (shouldDisableImages) {
-			e.preventDefault()
-			return
-		}
-
 		const items = e.clipboardData.items
-		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
+		const acceptedTypes = ["png", "jpeg", "webp"]
 		const imageItems = Array.from(items).filter((item) => {
 			const [type, subtype] = item.type.split("/")
 			return type === "image" && acceptedTypes.includes(subtype)
 		})
-		if (imageItems.length > 0) {
+
+		if (imageItems.length > 0 && !shouldDisableImages) {
 			e.preventDefault()
 			const imagePromises = imageItems.map((item) => {
 				return new Promise<string | null>((resolve) => {
@@ -341,7 +337,6 @@ const ChatView = ({
 			})
 			const imageDataArray = await Promise.all(imagePromises)
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-			//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 			if (dataUrls.length > 0) {
 				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
 			} else {
