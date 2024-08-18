@@ -4,6 +4,7 @@ import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import buildInfo from '../buildInfo.json'
 
 type SettingsViewProps = {
 	version: string
@@ -52,17 +53,7 @@ const SettingsView = ({
 		setMaxRequestsErrorMessage(undefined)
 	}, [maxRequestsPerTask])
 
-	// validate as soon as the component is mounted
-	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
+	const formattedBuildTimestamp = new Date(buildInfo.buildTimestamp).toLocaleString()
 
 	return (
 		<div
@@ -173,7 +164,9 @@ const SettingsView = ({
 							https://github.com/saoudrizwan/claude-dev
 						</VSCodeLink>
 					</p>
-					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
+					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>
+						v{version} (Build {buildInfo.buildNumber} - {formattedBuildTimestamp})
+					</p>
 				</div>
 			</div>
 		</div>

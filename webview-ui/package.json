@@ -25,9 +25,10 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "node ./scripts/build-react-no-split.js",
+    "build": "node ./scripts/generate-build-info.js && node ./scripts/build-react-no-split.js",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "package": "node ./scripts/generate-build-info.js && node ./scripts/build-react-no-split.js"
   },
   "eslintConfig": {
     "extends": [
