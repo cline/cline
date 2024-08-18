@@ -134,6 +134,7 @@
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.26.0",
+    "@anthropic-ai/vertex-sdk": "^0.4.1",
     "@vscode/codicons": "^0.0.36",
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",

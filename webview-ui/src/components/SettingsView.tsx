@@ -173,9 +173,7 @@ const SettingsView = ({
 							https://github.com/saoudrizwan/claude-dev
 						</VSCodeLink>
 					</p>
-					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>
-						v{version} (built {new Date().toISOString()})
-					</p>
+					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
 				</div>
 			</div>
 		</div>

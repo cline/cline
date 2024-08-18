@@ -12,6 +12,8 @@ import {
 	openRouterModels,
 	vertexDefaultModelId,
 	vertexModels,
+	customOpenAIDefaultModelId,
+	customOpenAIModels,
 } from "../../../src/shared/api"
 
 interface ApiOptionsProps {
@@ -72,6 +74,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="vertex">Vertex AI</VSCodeOption>
+					<VSCodeOption value="customOpenAI">Custom OpenAI</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -200,7 +203,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 					</VSCodeTextField>
 					<VSCodeTextField
-						value={apiConfiguration?.vertexRegion || "us-east5"}
+						value={apiConfiguration?.vertexRegion || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("vertexRegion")}
 						placeholder="Enter Region.(default: us-east5)">
@@ -229,6 +232,32 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 				</div>
 			)}
 
+			{selectedProvider === "customOpenAI" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.customOpenAIBaseUrl || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("customOpenAIBaseUrl")}
+						placeholder="Enter API Base URL...">
+						<span style={{ fontWeight: 500 }}>Custom OpenAI Base URL</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.customOpenAIApiKey || ""}
+						style={{ width: "100%", marginTop: "10px" }}
+						onInput={handleInputChange("customOpenAIApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Custom OpenAI API Key</span>
+					</VSCodeTextField>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						These settings are stored locally and only used to make API requests from this extension.
+					</p>
+				</div>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="dropdown-container">
@@ -239,6 +268,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 						{selectedProvider === "vertex" && createDropdown(vertexModels)}
+						{selectedProvider === "customOpenAI" && createDropdown(customOpenAIModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -345,6 +375,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		case "vertex":
 			// Assuming you have vertexModels and vertexDefaultModelId defined
 			return getProviderData(vertexModels, vertexDefaultModelId)
+		case "customOpenAI":
+			return getProviderData(customOpenAIModels, customOpenAIDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

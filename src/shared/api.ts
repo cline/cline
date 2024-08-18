@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "customOpenAI"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -10,6 +10,8 @@ export interface ApiHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
 	vertexAccessToken?: string
+	customOpenAIBaseUrl?: string
+	customOpenAIApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -28,7 +30,7 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | VertexModelId
+export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | VertexModelId | CustomOpenAIModelId
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
@@ -247,4 +249,45 @@ export const openRouterModels = {
 	// 	inputPrice: 0.5,
 	// 	outputPrice: 1.5,
 	// },
+} as const satisfies Record<string, ModelInfo>
+
+// Custom OpenAI Provider
+export type CustomOpenAIModelId = keyof typeof customOpenAIModels
+export const customOpenAIDefaultModelId: CustomOpenAIModelId = "gpt-4o"
+export const customOpenAIModels = {
+	"gpt-3.5-turbo": {
+		maxTokens: 4096,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0015,
+		outputPrice: 0.002,
+	},
+	"gpt-4o": {
+		maxTokens: 16384,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 10.0,
+	},
+	"gpt-4-32k": {
+		maxTokens: 16384,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.06,
+		outputPrice: 0.12,
+	},
+	"gpt-4o-mini": {
+		maxTokens: 16384,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.20,
+		outputPrice: 0.60,
+	},
+	"deepseek-coder": {
+		maxTokens: 8192,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.14,
+		outputPrice: 0.28,
+	},
 } as const satisfies Record<string, ModelInfo>
