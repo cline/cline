@@ -3,7 +3,7 @@ import React from "react"
 import Markdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
-import { COMMAND_OUTPUT_STRING } from "../utils/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock/CodeBlock"
 import Thumbnails from "./Thumbnails"
@@ -263,7 +263,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 										{icon}
 										{title}
-										{cost && <VSCodeBadge>${Number(cost).toFixed(4)}</VSCodeBadge>}
+										{cost && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
 									</div>
 									<VSCodeButton
 										appearance="icon"
