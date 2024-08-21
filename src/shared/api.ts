@@ -242,7 +242,7 @@ export type VertexModelId = keyof typeof vertexModels;
 export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620";
 export const vertexModels = {
 	"claude-3-5-sonnet@20240620": {
-		maxTokens: 4096,
+		maxTokens: 8192,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
