@@ -70,7 +70,7 @@ export class AnthropicHandler implements ApiHandler {
 							case "claude-3-5-sonnet-20240620":
 								return {
 									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31,max-tokens-3-5-sonnet-2024-07-15",
+										"anthropic-beta": "prompt-caching-2024-07-31",
 									},
 								}
 							case "claude-3-haiku-20240307":
