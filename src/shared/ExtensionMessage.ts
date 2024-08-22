@@ -2,6 +2,7 @@
 
 import { ApiConfiguration } from "./api"
 import { HistoryItem } from "./HistoryItem"
+import { MaestroUser } from "./maestro"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -21,6 +22,7 @@ export interface ExtensionState {
 	claudeMessages: ClaudeMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
+	maestroUser?: MaestroUser
 }
 
 export interface ClaudeMessage {

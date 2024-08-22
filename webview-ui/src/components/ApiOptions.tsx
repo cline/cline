@@ -1,4 +1,10 @@
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeDropdown,
+	VSCodeLink,
+	VSCodeOption,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
 import {
 	ApiConfiguration,
@@ -8,17 +14,27 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	maestroDefaultModelId,
+	maestroModels,
 	openRouterDefaultModelId,
 	openRouterModels,
 } from "../../../src/shared/api"
+import { vscode } from "../utils/vscode"
+import { MaestroUser } from "../../../src/shared/maestro"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
+	maestroUser?: MaestroUser
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfiguration, setApiConfiguration }) => {
+const ApiOptions: React.FC<ApiOptionsProps> = ({
+	showModelOptions,
+	apiConfiguration,
+	setApiConfiguration,
+	maestroUser,
+}) => {
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration((prev) => ({ ...prev, [field]: event.target.value }))
 	}
@@ -69,6 +85,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="maestro">Maestro</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -120,6 +137,48 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						</span>
 					</p>
 				</div>
+			)}
+
+			{selectedProvider === "maestro" && (
+				<>
+					{maestroUser ? (
+						<div>
+							<p
+								style={{
+									marginTop: 3,
+								}}>
+								<span style={{ fontWeight: 500 }}>Signed in as: </span>
+								<span style={{ color: "var(--vscode-testing-iconPassed)" }}>{maestroUser.email}</span>
+							</p>
+							<div style={{ margin: "4px 0px" }}>
+								<VSCodeButton
+									appearance="secondary"
+									onClick={() => vscode.postMessage({ type: "didClickMaestroSignOut" })}>
+									Sign out
+								</VSCodeButton>
+							</div>
+						</div>
+					) : (
+						<div>
+							<div style={{ margin: "4px 0px" }}>
+								<VSCodeButton
+									appearance="primary"
+									onClick={() => vscode.postMessage({ type: "didClickMaestroSignIn" })}>
+									Sign in to Maestro
+								</VSCodeButton>
+							</div>
+							<p
+								style={{
+									fontSize: 12,
+									marginTop: 5,
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								This will open your browser to sign in to Maestro. You will be redirected back to the
+								extension after signing in.
+							</p>
+						</div>
+					)}
+				</>
 			)}
 
 			{selectedProvider === "bedrock" && (
@@ -196,6 +255,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
+						{selectedProvider === "maestro" && createDropdown(maestroModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -299,6 +359,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
+		case "maestro":
+			return getProviderData(maestroModels, maestroDefaultModelId)
 	}
 }
 

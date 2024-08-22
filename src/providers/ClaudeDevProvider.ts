@@ -8,6 +8,8 @@ import { downloadTask, getNonce, getUri, selectImages } from "../utils"
 import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
+import { didClickMaestroSignIn, validateMaestroToken } from "../maestro"
+import { MaestroUser } from "../shared/maestro"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -15,7 +17,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "maestroToken"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -32,9 +34,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private latestAnnouncementId = "aug-17-2024" // update to some unique identifier when we add a new announcement
+	private maestroUser?: MaestroUser
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
+		this.fetchMaestroUser({})
 	}
 
 	/*
@@ -340,6 +344,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!)
 						break
+					case "didClickMaestroSignIn":
+						didClickMaestroSignIn()
+						break
+					case "didClickMaestroSignOut":
+						await this.signOutMaestro()
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -347,6 +357,36 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	// Maestro
+
+	async saveMaestroToken(token: string) {
+		await this.storeSecret("maestroToken", token)
+		await this.updateGlobalState("apiProvider", "maestro")
+		await this.fetchMaestroUser({ showError: true })
+		this.claudeDev?.updateApi({ apiProvider: "maestro", maestroToken: token })
+	}
+
+	async fetchMaestroUser({ showError = false }: { showError?: boolean }): Promise<MaestroUser | undefined> {
+		if (this.maestroUser) {
+			return this.maestroUser
+		}
+		const token = await this.getSecret("maestroToken")
+		if (!token) {
+			return undefined
+		}
+		const user = await validateMaestroToken({ token, showError })
+		this.maestroUser = user
+		await this.postStateToWebview()
+		return user
+	}
+
+	async signOutMaestro() {
+		await this.storeSecret("maestroToken", undefined)
+		this.claudeDev?.updateApi({ apiProvider: "maestro", maestroToken: undefined })
+		this.maestroUser = undefined
+		await this.postStateToWebview()
 	}
 
 	// Task history
@@ -449,6 +489,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				claudeMessages: this.claudeDev?.claudeMessages || [],
 				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+				maestroUser: this.maestroUser,
 			},
 		})
 	}

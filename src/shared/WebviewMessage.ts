@@ -15,6 +15,8 @@ export interface WebviewMessage {
 		| "showTaskWithId"
 		| "deleteTaskWithId"
 		| "exportTaskWithId"
+		| "didClickMaestroSignIn"
+		| "didClickMaestroSignOut"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

@@ -4,10 +4,12 @@ import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import { MaestroUser } from "../../../src/shared/maestro"
 
 type SettingsViewProps = {
 	version: string
 	apiConfiguration?: ApiConfiguration
+	maestroUser?: MaestroUser
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	maxRequestsPerTask: string
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
@@ -19,6 +21,7 @@ type SettingsViewProps = {
 const SettingsView = ({
 	version,
 	apiConfiguration,
+	maestroUser,
 	setApiConfiguration,
 	maxRequestsPerTask,
 	setMaxRequestsPerTask,
@@ -93,6 +96,7 @@ const SettingsView = ({
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						apiConfiguration={apiConfiguration}
+						maestroUser={maestroUser}
 						setApiConfiguration={setApiConfiguration}
 						showModelOptions={true}
 					/>
