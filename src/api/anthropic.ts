@@ -60,7 +60,6 @@ export class AnthropicHandler implements ApiHandler {
 						tool_choice: { type: "auto" },
 					},
 					(() => {
-						// 8192 tokens: https://x.com/alexalbert__/status/1812921642143900036
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
@@ -68,7 +67,7 @@ export class AnthropicHandler implements ApiHandler {
 							case "claude-3-5-sonnet-20240620":
 								return {
 									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31,max-tokens-3-5-sonnet-2024-07-15",
+										"anthropic-beta": "prompt-caching-2024-07-31",
 									},
 								}
 							case "claude-3-haiku-20240307":

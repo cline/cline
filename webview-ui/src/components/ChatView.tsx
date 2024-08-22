@@ -287,7 +287,8 @@ const ChatView = ({
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-		if (event.key === "Enter" && !event.shiftKey) {
+		const isComposing = event.nativeEvent?.isComposing ?? false
+		if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 			event.preventDefault()
 			handleSendMessage()
 		}
