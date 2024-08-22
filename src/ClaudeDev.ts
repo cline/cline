@@ -24,6 +24,7 @@ import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
+import { findLastIndex } from "./utils"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -452,7 +453,8 @@ export class ClaudeDev {
 
 	private async resumeTaskFromHistory() {
 		const modifiedClaudeMessages = await this.getSavedClaudeMessages()
-		// need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
+
+		// Need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
 		const lastApiReqStartedIndex = modifiedClaudeMessages.reduce(
 			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_started" ? index : lastIndex),
 			-1
@@ -464,6 +466,16 @@ export class ClaudeDev {
 		if (lastApiReqStartedIndex > lastApiReqFinishedIndex && lastApiReqStartedIndex !== -1) {
 			modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
 		}
+
+		// Remove any resume messages that may have been added before
+		const lastRelevantMessageIndex = findLastIndex(
+			modifiedClaudeMessages,
+			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+		)
+		if (lastRelevantMessageIndex !== -1) {
+			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
+		}
+
 		await this.overwriteClaudeMessages(modifiedClaudeMessages)
 		this.claudeMessages = await this.getSavedClaudeMessages()
 
