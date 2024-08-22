@@ -166,7 +166,7 @@ const tools: Tool[] = [
 	{
 		name: "write_to_file",
 		description:
-			"Write content to a file at the specified path. If the file exists, it will be completely overwritten with the provided content (so do NOT omit unmodified sections). If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.",
+			"Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -176,8 +176,7 @@ const tools: Tool[] = [
 				},
 				content: {
 					type: "string",
-					description:
-						"The full content to write to the file. Must be the full intended content of the file, without any omission or truncation.",
+					description: "The full content to write to the file.",
 				},
 			},
 			required: ["path", "content"],
