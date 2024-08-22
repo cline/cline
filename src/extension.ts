@@ -108,6 +108,20 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.workspace.registerTextDocumentContentProvider("claude-dev-diff", diffContentProvider)
 	)
+
+	// URI Handler
+	const handleUri = async (uri: vscode.Uri) => {
+		const query = new URLSearchParams(uri.query)
+		const token = query.get("token")
+		const fixedToken = token?.replaceAll("jwt?token=", "")
+		console.log(fixedToken)
+		console.log(uri)
+
+		if (fixedToken) {
+			await sidebarProvider.saveMaestroToken(fixedToken)
+		}
+	}
+	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 }
 
 // This method is called when your extension is deactivated

@@ -21,7 +21,8 @@
     "react-virtuoso": "^4.7.13",
     "rewire": "^7.0.0",
     "typescript": "^4.9.5",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "zod": "^3.23.8"
   },
   "scripts": {
     "start": "react-scripts start",
