@@ -143,14 +143,24 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 				<>
 					{maestroUser ? (
 						<div>
-							<p
+							<span
 								style={{
-									marginTop: 3,
+									fontWeight: 500,
+									color: "var(--vscode-testing-iconPassed)",
 								}}>
-								<span style={{ fontWeight: 500 }}>Signed in as: </span>
-								<span style={{ color: "var(--vscode-testing-iconPassed)" }}>{maestroUser.email}</span>
-							</p>
-							<div style={{ margin: "4px 0px" }}>
+								<i
+									className={`codicon codicon-check`}
+									style={{
+										marginRight: 4,
+										marginBottom: 1,
+										fontSize: 11,
+										fontWeight: 700,
+										display: "inline-block",
+										verticalAlign: "bottom",
+									}}></i>
+								Signed in as {maestroUser.email}
+							</span>
+							<div style={{ margin: "4px 0px 2px 0px" }}>
 								<VSCodeButton
 									appearance="secondary"
 									onClick={() => vscode.postMessage({ type: "didClickMaestroSignOut" })}>
@@ -361,6 +371,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "maestro":
 			return getProviderData(maestroModels, maestroDefaultModelId)
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
 }
 
