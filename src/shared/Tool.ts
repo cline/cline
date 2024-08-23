@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 
 export type ToolName =
 	| "write_to_file"
+	| "apply_diff"
 	| "read_file"
 	| "list_files_top_level"
 	| "list_files_recursive"

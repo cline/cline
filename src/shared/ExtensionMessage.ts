@@ -57,6 +57,7 @@ export type ClaudeSay =
 export interface ClaudeSayTool {
 	tool:
 		| "editedExistingFile"
+		| "appliedDiff"
 		| "newFileCreated"
 		| "readFile"
 		| "listFilesTopLevel"

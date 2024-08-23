@@ -38,7 +38,7 @@ CAPABILITIES
 - You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - You can use the list_files_recursive tool to get an overview of the project's file structure, which can provide key insights into the project from directory/file names (how developers conceptualize and organize their code) or file extensions (the language used). The list_files_top_level tool is better suited for generic directories you don't necessarily need the nested structure of, like the Desktop.
 - You can use the view_source_code_definitions_top_level tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
-	- For example, when asked to make edits or improvements you might use list_files_recursive to get an overview of the project's file structure, then view_source_code_definitions_top_level to get an overview of source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+	- For example, when asked to make edits or improvements you might use list_files_recursive to get an overview of the project's file structure, then view_source_code_definitions_top_level to get an overview of source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file or apply_diff tool to apply the changes.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
 
 ====
@@ -52,6 +52,7 @@ RULES
 - When editing files, always provide the complete file content in your response, regardless of the extent of changes. DO NOT use placeholder comments like '//rest of code unchanged' or '//code remains the same'. You MUST include all parts of the file, even if they haven't been modified.
 - If you need to read or edit a file you have already read or edited, you can assume its contents have not changed since then (unless specified otherwise by the user) and skip using the read_file tool before proceeding.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
+- Prefer to use apply_diff over write_to_file when making changes to existing files, as it allows you to apply specific modifications based on a set of changes provided in a diff. This is particularly useful when you need to make targeted edits or updates to a file without overwriting the entire content.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
@@ -167,7 +168,7 @@ const tools: Tool[] = [
 	{
 		name: "write_to_file",
 		description:
-			"Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
+			"Write full content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -182,6 +183,24 @@ const tools: Tool[] = [
 			},
 			required: ["path", "content"],
 		},
+	},
+	{
+		name: "apply_diff",
+		description:
+			"Apply a diff to a file at the specified path. The diff should be in unified format (diff -u) and can be used to apply changes to a file. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in a diff.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: `The path of the file to apply the diff to (relative to the current working directory ${cwd})`,
+				},
+				diff: {
+					type: "string",
+					description: "The diff in unified format (diff -u) to apply to the file.",
+				},
+			},
+		}
 	},
 	{
 		name: "ask_followup_question",
@@ -673,6 +692,8 @@ export class ClaudeDev {
 		switch (toolName) {
 			case "write_to_file":
 				return this.writeToFile(toolInput.path, toolInput.content, isLastWriteToFile)
+			case "apply_diff":
+				return this.applyDiff(toolInput.path, toolInput.diff, isLastWriteToFile)
 			case "read_file":
 				return this.readFile(toolInput.path)
 			case "list_files_top_level":
@@ -842,6 +863,108 @@ export class ClaudeDev {
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return errorString
+		}
+	}
+
+	async applyDiff(relPath: string, diffContent: string, isLastWriteToFile: boolean): Promise<ToolResponse> {
+		if (relPath === undefined) {
+			await this.say(
+				"error",
+				"Claude tried to use applyDiff without value for required parameter 'path'. Retrying..."
+			);
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response.";
+		}
+	
+		if (diffContent === undefined) {
+			await this.say(
+				"error",
+				`Claude tried to use applyDiff for '${relPath}' without value for required parameter 'diffContent'. This is likely due to output token limits. Retrying...`
+			);
+			return "Error: Missing value for required parameter 'diffContent'. Please retry with complete response.";
+		}
+	
+		try {
+			const absolutePath = path.resolve(cwd, relPath);
+			const fileExists = await fs
+				.access(absolutePath)
+				.then(() => true)
+				.catch(() => false);
+	
+			if (!fileExists) {
+				await this.say("error", `File does not exist at path: ${absolutePath}`);
+				return `Error: File does not exist at path: ${absolutePath}`;
+			}
+	
+			const originalContent = await fs.readFile(absolutePath, "utf-8");
+	
+			// Apply the diff to the original content
+			let newContent = diff.applyPatch(originalContent, diffContent);
+			if (newContent === false) {
+				await this.say("error", `Error applying diff to file: ${absolutePath}`);
+				return `Error applying diff to file: ${absolutePath}`;
+			}
+	
+			if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
+				newContent += "\n";
+			}
+	
+			// Create a diff for display purposes
+			const diffRepresentation = diff
+				.diffLines(originalContent, newContent)
+				.map((part) => {
+					const prefix = part.added ? "+" : part.removed ? "-" : " ";
+					return (part.value || "")
+						.split("\n")
+						.map((line) => (line ? prefix + line : ""))
+						.join("\n");
+				})
+				.join("");
+	
+			const fileName = path.basename(absolutePath);
+			vscode.commands.executeCommand(
+				"vscode.diff",
+				vscode.Uri.file(absolutePath),
+				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+					query: Buffer.from(newContent).toString("base64"),
+				}),
+				`${fileName}: Original ↔ Suggested Changes`
+			);
+	
+			const { response, text, images } = await this.ask(
+				"tool",
+				JSON.stringify({
+					tool: "appliedDiff",
+					path: this.getReadablePath(relPath),
+					diff: diffRepresentation,
+				} as ClaudeSayTool)
+			);
+	
+			if (response !== "yesButtonTapped") {
+				if (isLastWriteToFile) {
+					await this.closeDiffViews();
+				}
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images);
+					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images);
+				}
+				return "The user denied this operation.";
+			}
+	
+			await fs.writeFile(absolutePath, newContent);
+			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false });
+	
+			if (isLastWriteToFile) {
+				await this.closeDiffViews();
+			}
+	
+			return `Changes applied to ${path}:\n${diffRepresentation}`;
+		} catch (error) {
+			const errorString = `Error applying diff: ${JSON.stringify(serializeError(error))}`;
+			await this.say(
+				"error",
+				`Error applying diff:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			);
+			return errorString;
 		}
 	}
 

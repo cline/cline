@@ -34,6 +34,7 @@ Claude Dev has access to the following capabilities:
 4. **`view_source_code_definitions_top_level`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
 5. **`read_file`**: Read the contents of a file at the specified path
 6. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
+7. **`apply_diff`**: Apply a diff to file, more efficient that writing the whole content.
 7. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
 8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
 

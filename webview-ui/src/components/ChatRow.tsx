@@ -350,11 +350,12 @@ const ChatRow: React.FC<ChatRowProps> = ({
 
 						switch (tool.tool) {
 							case "editedExistingFile":
+							case "appliedDiff":
 								return (
 									<>
 										<div style={headerStyle}>
 											{toolIcon("edit")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
+											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file: {tool.tool}</span>
 										</div>
 										<CodeBlock
 											diff={tool.diff!}
