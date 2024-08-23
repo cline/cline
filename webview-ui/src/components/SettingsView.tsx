@@ -55,7 +55,7 @@ const SettingsView = ({
 	// validate as soon as the component is mounted
 	/*
 	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
+
 	useEffect(() => {
 		// uses someVar and anotherVar
 	// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +96,21 @@ const SettingsView = ({
 						setApiConfiguration={setApiConfiguration}
 						showModelOptions={true}
 					/>
+					<div style={{ marginBottom: 5 }}>
+						<VSCodeTextField
+							value={apiConfiguration?.apiModelId || ""}
+							style={{ width: "100%" }}
+							placeholder="e.g., gpt-3.5-turbo"
+							onInput={(e: any) =>
+								setApiConfiguration((prev) => ({
+									...prev,
+									apiModelId: e.target?.value,
+								}))
+							}
+						>
+							<span style={{ fontWeight: "500" }}>OpenAI Model ID</span>
+						</VSCodeTextField>
+					</div>
 					{apiErrorMessage && (
 						<p
 							style={{

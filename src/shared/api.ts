@@ -1,15 +1,17 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "openai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
+	openAiBaseUrl?: string
 	apiKey?: string // anthropic
 	openRouterApiKey?: string
+	openAiApiKey?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
 }
 
-export type ApiConfiguration = ApiHandlerOptions & {
+export interface ApiConfiguration extends ApiHandlerOptions {
 	apiProvider?: ApiProvider
 }
 
@@ -25,7 +27,7 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
+export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | OpenAiModelId
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
@@ -231,4 +233,33 @@ export const openRouterModels = {
 	// 	inputPrice: 0.5,
 	// 	outputPrice: 1.5,
 	// },
+} as const satisfies Record<string, ModelInfo>
+
+// OpenAI Compatible API
+export type OpenAiModelId = keyof typeof openAiModels
+export const openAiDefaultModelId: OpenAiModelId = "llama-3.1:8b-instruct-Q8_0"
+export const openAiModels = {
+	"llama-3.1:8b-instruct-Q8_0": {
+		maxTokens: 2048,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0001,
+		outputPrice: 0.0001,
+	},
+	// while deepseek coder can use tools, it may sometimes send tool invocation as a text block
+	"deepseek/deepseek-coder": {
+		maxTokens: 4096,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0001,
+		outputPrice: 0.0001,
+	},
+	// mistral models can use tools but aren't great at going step-by-step and proceeding to the next step
+	"mistralai/mistral-large": {
+		maxTokens: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0001,
+		outputPrice: 0.0001,
+	},
 } as const satisfies Record<string, ModelInfo>

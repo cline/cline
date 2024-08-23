@@ -1,13 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { ClaudeDev } from "../ClaudeDev"
-import { ApiModelId, ApiProvider } from "../shared/api"
+import { ApiModelId, ApiProvider, ApiConfiguration } from "../shared/api"
 import { ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
 import { downloadTask, getNonce, getUri, selectImages } from "../utils"
 import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
+import { OpenAIHandler } from "../api/openai";
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -15,7 +16,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "openAiApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -32,6 +33,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private latestAnnouncementId = "aug-17-2024" // update to some unique identifier when we add a new announcement
+
+	private async getEnvironmentVariables() {
+		const openAiApiKey = process.env.OPENAI_API_KEY
+		const openAiBaseUrl = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
+		return { openAiApiKey, openAiBaseUrl }
+	}
+
+	private async fetchAvailableModels(apiConfiguration: ApiConfiguration) {
+		if (apiConfiguration.apiProvider === 'openai') {
+			const handler = new OpenAIHandler(apiConfiguration)
+			return await handler.fetchAvailableModels()
+		}
+		return []
+	}
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
@@ -276,6 +291,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								apiModelId,
 								apiKey,
 								openRouterApiKey,
+								openAiApiKey,
 								awsAccessKey,
 								awsSecretKey,
 								awsRegion,
@@ -284,6 +300,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("apiModelId", apiModelId)
 							await this.storeSecret("apiKey", apiKey)
 							await this.storeSecret("openRouterApiKey", openRouterApiKey)
+							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.updateGlobalState("awsRegion", awsRegion)
@@ -339,6 +356,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!)
+						break
+					case 'getEnvironmentVariables':
+						const envVars = await this.getEnvironmentVariables()
+						await this.postMessageToWebview({
+							type: 'environmentVariables',
+							openAiApiKey: envVars.openAiApiKey,
+							openAiBaseUrl: envVars.openAiBaseUrl
+						})
+						break
+					case 'fetchAvailableModels':
+						if (message.apiConfiguration) {
+							const models = await this.fetchAvailableModels(message.apiConfiguration)
+							await this.postMessageToWebview({ type: 'availableModels', models })
+						}
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -545,6 +576,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
+			openAiApiKey,
 			awsAccessKey,
 			awsSecretKey,
 			awsRegion,
@@ -557,6 +589,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
@@ -586,6 +619,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				apiModelId,
 				apiKey,
 				openRouterApiKey,
+				openAiApiKey,
 				awsAccessKey,
 				awsSecretKey,
 				awsRegion,
