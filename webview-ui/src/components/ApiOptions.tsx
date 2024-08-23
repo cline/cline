@@ -31,7 +31,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
 	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
 
-	In our case, when the user switches between providers, we recalculate the selectedModelId depending on the provider, the default model for that provider, and a modelId that the user may have selected. Unfortunately, the VSCodeDropdown component wouldn't select this calculated value, and would default to the first "Select a model..." option instead, which makes it seem like the model was cleared out when it wasn't. 
+	In our case, when the user switches between providers, we recalculate the selectedModelId depending on the provider, the default model for that provider, and a modelId that the user may have selected. Unfortunately, the VSCodeDropdown component wouldn't select this calculated value, and would default to the first "Select a model..." option instead, which makes it seem like the model was cleared out when it wasn't.
 
 	As a workaround, we create separate instances of the dropdown for each provider, and then conditionally render the one that matches the current provider.
 	*/
@@ -292,13 +292,26 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		}
 		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
 	}
+
+	let result;
 	switch (provider) {
 		case "anthropic":
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
+			result = getProviderData(anthropicModels, anthropicDefaultModelId)
+			break;
 		case "openrouter":
-			return getProviderData(openRouterModels, openRouterDefaultModelId)
+			result = getProviderData(openRouterModels, openRouterDefaultModelId)
+			break;
 		case "bedrock":
-			return getProviderData(bedrockModels, bedrockDefaultModelId)
+			result = getProviderData(bedrockModels, bedrockDefaultModelId)
+			break;
+		default:
+			result = getProviderData(anthropicModels, anthropicDefaultModelId)
+	}
+
+	return {
+		selectedProvider: result.selectedProvider,
+		selectedModelId: result.selectedModelId,
+		selectedModelInfo: result.selectedModelInfo
 	}
 }
 

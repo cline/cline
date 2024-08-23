@@ -83,7 +83,8 @@ const App: React.FC = () => {
 	useEvent("message", handleMessage)
 
 	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
+		const result = normalizeApiConfiguration(apiConfiguration)
+		return result || { selectedModelInfo: undefined }
 	}, [apiConfiguration])
 
 	if (!didHydrateState) {
