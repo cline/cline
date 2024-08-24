@@ -134,6 +134,7 @@
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.26.0",
+    "@kodu-ai/cloud-api": "^1.0.1",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
     "default-shell": "^2.2.0",

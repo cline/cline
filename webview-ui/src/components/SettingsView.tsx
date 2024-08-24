@@ -4,13 +4,12 @@ import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
-import { MaestroUser } from "../../../src/shared/maestro"
 
 type SettingsViewProps = {
 	version: string
 	apiConfiguration?: ApiConfiguration
-	maestroUser?: MaestroUser
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
+	koduCredits?: number
 	maxRequestsPerTask: string
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
 	customInstructions: string
@@ -21,8 +20,8 @@ type SettingsViewProps = {
 const SettingsView = ({
 	version,
 	apiConfiguration,
-	maestroUser,
 	setApiConfiguration,
+	koduCredits,
 	maxRequestsPerTask,
 	setMaxRequestsPerTask,
 	customInstructions,
@@ -96,20 +95,11 @@ const SettingsView = ({
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						apiConfiguration={apiConfiguration}
-						maestroUser={maestroUser}
 						setApiConfiguration={setApiConfiguration}
 						showModelOptions={true}
+						koduCredits={koduCredits}
+						apiErrorMessage={apiErrorMessage}
 					/>
-					{apiErrorMessage && (
-						<p
-							style={{
-								margin: "-5px 0 12px 0",
-								fontSize: "12px",
-								color: "var(--vscode-errorForeground)",
-							}}>
-							{apiErrorMessage}
-						</p>
-					)}
 				</div>
 
 				<div style={{ marginBottom: 5 }}>

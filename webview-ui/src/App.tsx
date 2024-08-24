@@ -10,7 +10,6 @@ import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utils/vscode"
 import HistoryView from "./components/HistoryView"
 import { HistoryItem } from "../../src/shared/HistoryItem"
-import { MaestroUser } from "../../src/shared/maestro"
 
 /*
 The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
@@ -31,7 +30,7 @@ const App: React.FC = () => {
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [maestroUser, setMaestroUser] = useState<MaestroUser | undefined>(undefined)
+	const [koduCredits, setKoduCredits] = useState<number | undefined>(undefined)
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
@@ -45,7 +44,8 @@ const App: React.FC = () => {
 				const hasKey =
 					message.state!.apiConfiguration?.apiKey !== undefined ||
 					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined
+					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
+					message.state!.apiConfiguration?.koduApiKey !== undefined
 				setShowWelcome(!hasKey)
 				setApiConfiguration(message.state!.apiConfiguration)
 				setMaxRequestsPerTask(
@@ -55,12 +55,12 @@ const App: React.FC = () => {
 				setVscodeThemeName(message.state!.themeName)
 				setClaudeMessages(message.state!.claudeMessages)
 				setTaskHistory(message.state!.taskHistory)
+				setKoduCredits(message.state!.koduCredits)
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {
 					setShowAnnouncement(true)
 					vscode.postMessage({ type: "didShowAnnouncement" })
 				}
-				setMaestroUser(message.state!.maestroUser)
 				setDidHydrateState(true)
 				break
 			case "action":
@@ -103,8 +103,8 @@ const App: React.FC = () => {
 						<SettingsView
 							version={version}
 							apiConfiguration={apiConfiguration}
-							maestroUser={maestroUser}
 							setApiConfiguration={setApiConfiguration}
+							koduCredits={koduCredits}
 							maxRequestsPerTask={maxRequestsPerTask}
 							setMaxRequestsPerTask={setMaxRequestsPerTask}
 							customInstructions={customInstructions}

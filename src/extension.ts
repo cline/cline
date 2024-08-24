@@ -111,14 +111,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
-		const query = new URLSearchParams(uri.query)
+		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const token = query.get("token")
-		const fixedToken = token?.replaceAll("jwt?token=", "")
-		console.log(fixedToken)
-		console.log(uri)
-
-		if (fixedToken) {
-			await sidebarProvider.saveMaestroToken(fixedToken)
+		const email = query.get("email")
+		if (token) {
+			await sidebarProvider.saveKoduApiKey(token, email || undefined)
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
