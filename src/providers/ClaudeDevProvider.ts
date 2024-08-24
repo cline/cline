@@ -8,8 +8,7 @@ import { downloadTask, getNonce, getUri, selectImages } from "../utils"
 import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
-import { didClickMaestroSignIn, validateMaestroToken } from "../maestro"
-import { MaestroUser } from "../shared/maestro"
+import { didClickKoduAddCredits, didClickKoduSignIn, fetchKoduCredits } from "../api/kodu"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -17,11 +16,13 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "maestroToken"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "koduApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "koduEmail"
+	| "koduCredits"
 	| "maxRequestsPerTask"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
@@ -34,11 +35,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private latestAnnouncementId = "aug-17-2024" // update to some unique identifier when we add a new announcement
-	private maestroUser?: MaestroUser
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
-		this.fetchMaestroUser({})
 	}
 
 	/*
@@ -344,11 +343,23 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!)
 						break
-					case "didClickMaestroSignIn":
-						didClickMaestroSignIn()
+					case "didClickKoduSignIn":
+						didClickKoduSignIn()
 						break
-					case "didClickMaestroSignOut":
-						await this.signOutMaestro()
+					case "didClickKoduSignOut":
+						await this.signOutKodu()
+						break
+					case "didClickKoduAddCredits":
+						didClickKoduAddCredits()
+						break
+					case "fetchKoduCredits":
+						const koduApiKey = await this.getSecret("koduApiKey")
+						if (koduApiKey) {
+							const credits = await fetchKoduCredits({ apiKey: koduApiKey })
+							await this.updateGlobalState("koduCredits", credits)
+							await this.postStateToWebview()
+							await this.postMessageToWebview({ type: "action", action: "koduCreditsFetched" })
+						}
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -359,33 +370,21 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
-	// Maestro
+	// Kodu
 
-	async saveMaestroToken(token: string) {
-		await this.storeSecret("maestroToken", token)
-		await this.updateGlobalState("apiProvider", "maestro")
-		await this.fetchMaestroUser({ showError: true })
-		this.claudeDev?.updateApi({ apiProvider: "maestro", maestroToken: token })
-	}
-
-	async fetchMaestroUser({ showError = false }: { showError?: boolean }): Promise<MaestroUser | undefined> {
-		if (this.maestroUser) {
-			return this.maestroUser
-		}
-		const token = await this.getSecret("maestroToken")
-		if (!token) {
-			return undefined
-		}
-		const user = await validateMaestroToken({ token, showError })
-		this.maestroUser = user
+	async saveKoduApiKey(apiKey: string, email?: string) {
+		await this.storeSecret("koduApiKey", apiKey)
+		await this.updateGlobalState("koduEmail", email)
+		await this.updateGlobalState("apiProvider", "kodu")
 		await this.postStateToWebview()
-		return user
+		this.claudeDev?.updateApi({ apiProvider: "kodu", koduApiKey: apiKey })
 	}
 
-	async signOutMaestro() {
-		await this.storeSecret("maestroToken", undefined)
-		this.claudeDev?.updateApi({ apiProvider: "maestro", maestroToken: undefined })
-		this.maestroUser = undefined
+	async signOutKodu() {
+		await this.storeSecret("koduApiKey", undefined)
+		await this.updateGlobalState("koduEmail", undefined)
+		await this.updateGlobalState("koduCredits", undefined)
+		this.claudeDev?.updateApi({ apiProvider: "kodu", koduApiKey: undefined })
 		await this.postStateToWebview()
 	}
 
@@ -476,8 +475,14 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async postStateToWebview() {
-		const { apiConfiguration, maxRequestsPerTask, lastShownAnnouncementId, customInstructions, taskHistory } =
-			await this.getState()
+		const {
+			apiConfiguration,
+			maxRequestsPerTask,
+			lastShownAnnouncementId,
+			customInstructions,
+			taskHistory,
+			koduCredits,
+		} = await this.getState()
 		this.postMessageToWebview({
 			type: "state",
 			state: {
@@ -489,7 +494,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				claudeMessages: this.claudeDev?.claudeMessages || [],
 				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
-				maestroUser: this.maestroUser,
+				koduCredits,
 			},
 		})
 	}
@@ -589,6 +594,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			awsAccessKey,
 			awsSecretKey,
 			awsRegion,
+			koduApiKey,
+			koduEmail,
+			koduCredits,
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
@@ -601,6 +609,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
+			this.getSecret("koduApiKey") as Promise<string | undefined>,
+			this.getGlobalState("koduEmail") as Promise<string | undefined>,
+			this.getGlobalState("koduCredits") as Promise<number | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
@@ -616,8 +627,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to anthropic (openrouter has issues, bedrock is complicated)
-				apiProvider = "anthropic"
+				// New users should default to kodu
+				apiProvider = "kodu"
 			}
 		}
 
@@ -630,11 +641,14 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				awsAccessKey,
 				awsSecretKey,
 				awsRegion,
+				koduApiKey,
+				koduEmail,
 			},
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
+			koduCredits,
 		}
 	}
 

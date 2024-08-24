@@ -3,7 +3,7 @@ import { ApiConfiguration, ApiModelId, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./anthropic"
 import { AwsBedrockHandler } from "./bedrock"
 import { OpenRouterHandler } from "./openrouter"
-import { MaestroHandler } from "./maestro"
+import { KoduHandler } from "./kodu"
 
 export interface ApiHandler {
 	createMessage(
@@ -33,8 +33,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenRouterHandler(options)
 		case "bedrock":
 			return new AwsBedrockHandler(options)
-		case "maestro":
-			return new MaestroHandler(options)
+		case "kodu":
+			return new KoduHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

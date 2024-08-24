@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "maestro"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "kodu"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,7 +7,8 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
-	maestroToken?: string
+	koduApiKey?: string
+	koduEmail?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -234,9 +235,9 @@ export const openRouterModels = {
 	// },
 } as const satisfies Record<string, ModelInfo>
 
-// Maestro
-export type MaestroModelId = keyof typeof maestroModels
-export const maestroDefaultModelId: MaestroModelId = "claude-3-5-sonnet-20240620"
-export const maestroModels = {
+// Kodu
+export type KoduModelId = keyof typeof koduModels
+export const koduDefaultModelId: KoduModelId = "claude-3-5-sonnet-20240620"
+export const koduModels = {
 	...anthropicModels,
 } as const satisfies Record<string, ModelInfo>

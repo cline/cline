@@ -5,7 +5,7 @@ import {
 	VSCodeOption,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import React, { useMemo } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
 	ApiConfiguration,
 	ApiModelId,
@@ -14,27 +14,31 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
-	maestroDefaultModelId,
-	maestroModels,
+	koduDefaultModelId,
+	koduModels,
 	openRouterDefaultModelId,
 	openRouterModels,
 } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
-import { MaestroUser } from "../../../src/shared/maestro"
+import { useEvent } from "react-use"
+import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
-	maestroUser?: MaestroUser
+	koduCredits?: number
+	apiErrorMessage?: string
 }
 
 const ApiOptions: React.FC<ApiOptionsProps> = ({
 	showModelOptions,
 	apiConfiguration,
 	setApiConfiguration,
-	maestroUser,
+	koduCredits,
+	apiErrorMessage,
 }) => {
+	const [didFetchKoduCredits, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration((prev) => ({ ...prev, [field]: event.target.value }))
 	}
@@ -75,6 +79,27 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 		)
 	}
 
+	useEffect(() => {
+		if (selectedProvider === "kodu" && apiConfiguration?.koduApiKey) {
+			setDidFetchKoduCredits(false)
+			vscode.postMessage({ type: "fetchKoduCredits" })
+		}
+	}, [selectedProvider, apiConfiguration?.koduApiKey])
+
+	const handleMessage = useCallback((e: MessageEvent) => {
+		const message: ExtensionMessage = e.data
+		switch (message.type) {
+			case "action":
+				switch (message.action) {
+					case "koduCreditsFetched":
+						setDidFetchKoduCredits(true)
+						break
+				}
+				break
+		}
+	}, [])
+	useEvent("message", handleMessage)
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 			<div className="dropdown-container">
@@ -82,10 +107,10 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
+					<VSCodeOption value="kodu">Kodu</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="maestro">Maestro</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -139,42 +164,54 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 				</div>
 			)}
 
-			{selectedProvider === "maestro" && (
+			{selectedProvider === "kodu" && (
 				<>
-					{maestroUser ? (
+					{apiConfiguration?.koduApiKey !== undefined ? (
 						<div>
-							<span
-								style={{
-									fontWeight: 500,
-									color: "var(--vscode-testing-iconPassed)",
-								}}>
-								<i
-									className={`codicon codicon-check`}
-									style={{
-										marginRight: 4,
-										marginBottom: 1,
-										fontSize: 11,
-										fontWeight: 700,
-										display: "inline-block",
-										verticalAlign: "bottom",
-									}}></i>
-								Signed in as {maestroUser.email}
-							</span>
-							<div style={{ margin: "4px 0px 2px 0px" }}>
-								<VSCodeButton
-									appearance="secondary"
-									onClick={() => vscode.postMessage({ type: "didClickMaestroSignOut" })}>
-									Sign out
-								</VSCodeButton>
+							<div style={{ marginBottom: 5, marginTop: 3 }}>
+								<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+									Signed in as {apiConfiguration?.koduEmail || "Unknown"}
+								</span>{" "}
+								<VSCodeLink
+									style={{ display: "inline" }}
+									onClick={() => vscode.postMessage({ type: "didClickKoduSignOut" })}>
+									(sign out?)
+								</VSCodeLink>
 							</div>
+							<div style={{ marginBottom: 7 }}>
+								Credits remaining:{" "}
+								<span style={{ fontWeight: 500, opacity: didFetchKoduCredits ? 1 : 0.6 }}>
+									{formatPrice(koduCredits || 0)}
+								</span>
+							</div>
+							<VSCodeButton
+								appearance="primary"
+								onClick={() => vscode.postMessage({ type: "didClickKoduAddCredits" })}
+								style={{
+									width: "fit-content",
+								}}>
+								Add Credits
+							</VSCodeButton>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "7px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								Kodu is recommended for its high rate limits and access to the latest features like
+								prompt caching.
+								<VSCodeLink href="https://kodu.ai/" style={{ display: "inline", fontSize: "12px" }}>
+									Learn more about Kodu here.
+								</VSCodeLink>
+							</p>
 						</div>
 					) : (
 						<div>
 							<div style={{ margin: "4px 0px" }}>
 								<VSCodeButton
 									appearance="primary"
-									onClick={() => vscode.postMessage({ type: "didClickMaestroSignIn" })}>
-									Sign in to Maestro
+									onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
+									Sign in to Kodu
 								</VSCodeButton>
 							</div>
 							<p
@@ -183,7 +220,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 									marginTop: 5,
 									color: "var(--vscode-descriptionForeground)",
 								}}>
-								This will open your browser to sign in to Maestro. You will be redirected back to the
+								This will open your browser to sign in to Kodu. You will be redirected back to the
 								extension after signing in.
 							</p>
 						</div>
@@ -256,6 +293,17 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 				</div>
 			)}
 
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="dropdown-container">
@@ -265,7 +313,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
-						{selectedProvider === "maestro" && createDropdown(maestroModels)}
+						{selectedProvider === "kodu" && createDropdown(koduModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -275,16 +323,16 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	)
 }
 
-const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
-	const formatPrice = (price: number) => {
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: "USD",
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		}).format(price)
-	}
+const formatPrice = (price: number) => {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(price)
+}
 
+const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
@@ -369,8 +417,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
-		case "maestro":
-			return getProviderData(maestroModels, maestroDefaultModelId)
+		case "kodu":
+			return getProviderData(koduModels, koduDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
