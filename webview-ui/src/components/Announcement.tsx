@@ -33,7 +33,7 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration }: Announcem
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Excited to announce that{" "}
-					<VSCodeLink href="https://kodu.ai" style={{ display: "inline" }}>
+					<VSCodeLink href="https://claude-dev.com" style={{ display: "inline" }}>
 						Kodu
 					</VSCodeLink>{" "}
 					is offering $10 free credits to help new users get the most out of Claude Dev with high rate limits

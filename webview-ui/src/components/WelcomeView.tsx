@@ -59,7 +59,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 					}}></i>
 				<span>
 					Explore Claude's capabilities with $10 free credits from{" "}
-					<VSCodeLink href="https://kodu.ai" style={{ display: "inline" }}>
+					<VSCodeLink href="https://claude-dev.com" style={{ display: "inline" }}>
 						Kodu
 					</VSCodeLink>
 				</span>
