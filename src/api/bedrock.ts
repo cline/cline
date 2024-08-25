@@ -1,6 +1,6 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../shared/api"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
@@ -26,8 +26,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<Anthropic.Messages.Message> {
-		return await this.client.messages.create({
+	): Promise<ApiHandlerMessageResponse> {
+		const message = await this.client.messages.create({
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens,
 			system: systemPrompt,
@@ -35,6 +35,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			tools,
 			tool_choice: { type: "auto" },
 		})
+		return { message }
 	}
 
 	createUserReadableRequest(

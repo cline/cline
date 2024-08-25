@@ -1,4 +1,4 @@
-const KODU_BASE_URL = "https://claude-dev.com"
+const KODU_BASE_URL = "https://kodu.ai"
 
 export function getKoduSignInUrl(uriScheme?: string) {
 	return `${KODU_BASE_URL}/auth/login?redirectTo=${uriScheme}://saoudrizwan.claude-dev&ext=1`

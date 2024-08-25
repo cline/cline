@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import { ApiHandler, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
 import { ApiHandlerOptions, koduDefaultModelId, KoduModelId, koduModels, ModelInfo } from "../shared/api"
 import { getKoduCreditsUrl, getKoduInferenceUrl } from "../shared/kodu"
 
@@ -24,7 +24,7 @@ export class KoduHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<Anthropic.Messages.Message> {
+	): Promise<ApiHandlerMessageResponse> {
 		const modelId = this.getModel().id
 		let requestBody: Anthropic.Beta.PromptCaching.Messages.MessageCreateParamsNonStreaming
 		switch (modelId) {
@@ -82,7 +82,9 @@ export class KoduHandler implements ApiHandler {
 				"x-api-key": this.options.koduApiKey,
 			},
 		})
-		return response.data
+		const message = response.data
+		const userCredits = response.headers["user-credits"]
+		return { message, userCredits: userCredits !== undefined ? parseFloat(userCredits) : undefined }
 	}
 
 	createUserReadableRequest(

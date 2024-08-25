@@ -1251,7 +1251,12 @@ ${this.customInstructions.trim()}
 				this.apiConversationHistory,
 				tools
 			)
-			return await this.api.createMessage(systemPrompt, adjustedMessages, tools)
+			const { message, userCredits } = await this.api.createMessage(systemPrompt, adjustedMessages, tools)
+			if (userCredits !== undefined) {
+				console.log("Updating kodu credits", userCredits)
+				this.providerRef.deref()?.updateKoduCredits(userCredits)
+			}
+			return message
 		} catch (error) {
 			const { response } = await this.ask(
 				"api_req_failed",
