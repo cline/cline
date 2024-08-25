@@ -8,7 +8,7 @@ import { downloadTask, getNonce, getUri, selectImages } from "../utils"
 import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
-import { didClickKoduAddCredits, didClickKoduSignIn, fetchKoduCredits } from "../api/kodu"
+import { fetchKoduCredits } from "../api/kodu"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -358,14 +358,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!)
 						break
-					case "didClickKoduSignIn":
-						didClickKoduSignIn()
-						break
 					case "didClickKoduSignOut":
 						await this.signOutKodu()
-						break
-					case "didClickKoduAddCredits":
-						didClickKoduAddCredits()
 						break
 					case "fetchKoduCredits":
 						const koduApiKey = await this.getSecret("koduApiKey")
@@ -515,6 +509,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
+			uriScheme: vscode.env.uriScheme,
 			claudeMessages: this.claudeDev?.claudeMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,

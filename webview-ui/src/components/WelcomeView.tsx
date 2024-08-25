@@ -4,13 +4,15 @@ import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import { getKoduSignInUrl } from "../../../src/shared/kodu"
 
 interface WelcomeViewProps {
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
+	vscodeUriScheme?: string
 }
 
-const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfiguration }) => {
+const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfiguration, vscodeUriScheme }) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
 	const disableLetsGoButton = apiErrorMessage != null
@@ -59,7 +61,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 					}}></i>
 				<span>
 					Explore Claude's capabilities with $10 free credits from{" "}
-					<VSCodeLink href="https://claude-dev.com" style={{ display: "inline" }}>
+					<VSCodeLink href={getKoduSignInUrl(vscodeUriScheme)} style={{ display: "inline" }}>
 						Kodu
 					</VSCodeLink>
 				</span>
@@ -70,6 +72,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 					apiConfiguration={apiConfiguration}
 					setApiConfiguration={setApiConfiguration}
 					showModelOptions={false}
+					vscodeUriScheme={vscodeUriScheme}
 				/>
 				{apiConfiguration?.apiProvider !== "kodu" && (
 					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>

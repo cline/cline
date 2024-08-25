@@ -1,23 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import axios from "axios"
 import { ApiHandler, withoutImageData } from "."
 import { ApiHandlerOptions, koduDefaultModelId, KoduModelId, koduModels, ModelInfo } from "../shared/api"
-import axios from "axios"
-import * as vscode from "vscode"
-
-const KODU_BASE_URL = "https://claude-dev.com"
-
-export function didClickKoduSignIn() {
-	const loginUrl = `${KODU_BASE_URL}/auth/login?redirectTo=${vscode.env.uriScheme}://saoudrizwan.claude-dev&ext=1`
-	vscode.env.openExternal(vscode.Uri.parse(loginUrl))
-}
-
-export function didClickKoduAddCredits() {
-	const addCreditsUrl = `${KODU_BASE_URL}/user/addCredits?redirectTo=${vscode.env.uriScheme}://saoudrizwan.claude-dev&ext=1`
-	vscode.env.openExternal(vscode.Uri.parse(addCreditsUrl))
-}
+import { getKoduCreditsUrl, getKoduInferenceUrl } from "../shared/kodu"
 
 export async function fetchKoduCredits({ apiKey }: { apiKey: string }) {
-	const response = await axios.get(`${KODU_BASE_URL}/api/credits`, {
+	const response = await axios.get(getKoduCreditsUrl(), {
 		headers: {
 			"x-api-key": apiKey,
 		},
@@ -89,7 +77,7 @@ export class KoduHandler implements ApiHandler {
 					tool_choice: { type: "auto" },
 				}
 		}
-		const response = await axios.post(`${KODU_BASE_URL}/api/inference`, requestBody, {
+		const response = await axios.post(getKoduInferenceUrl(), requestBody, {
 			headers: {
 				"x-api-key": this.options.koduApiKey,
 			},

@@ -28,6 +28,7 @@ const App: React.FC = () => {
 	const [customInstructions, setCustomInstructions] = useState<string>("")
 	const [alwaysAllowReadOnly, setAlwaysAllowReadOnly] = useState<boolean>(false)
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
+	const [vscodeUriScheme, setVscodeUriScheme] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -62,6 +63,7 @@ const App: React.FC = () => {
 					setCustomInstructions(message.state!.customInstructions || "")
 					setAlwaysAllowReadOnly(message.state!.alwaysAllowReadOnly || false)
 					setVscodeThemeName(message.state!.themeName)
+					setVscodeUriScheme(message.state!.uriScheme)
 					setClaudeMessages(message.state!.claudeMessages)
 					setTaskHistory(message.state!.taskHistory)
 					setKoduCredits(message.state!.koduCredits)
@@ -121,7 +123,11 @@ const App: React.FC = () => {
 	return (
 		<>
 			{showWelcome ? (
-				<WelcomeView apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+				<WelcomeView
+					apiConfiguration={apiConfiguration}
+					setApiConfiguration={setApiConfiguration}
+					vscodeUriScheme={vscodeUriScheme}
+				/>
 			) : (
 				<>
 					{showSettings && (
@@ -137,6 +143,7 @@ const App: React.FC = () => {
 							alwaysAllowReadOnly={alwaysAllowReadOnly}
 							setAlwaysAllowReadOnly={setAlwaysAllowReadOnly}
 							onDone={() => setShowSettings(false)}
+							vscodeUriScheme={vscodeUriScheme}
 						/>
 					)}
 					{showHistory && <HistoryView taskHistory={taskHistory} onDone={() => setShowHistory(false)} />}
@@ -159,6 +166,7 @@ const App: React.FC = () => {
 							setShowAnnouncement(false)
 						}}
 						apiConfiguration={apiConfiguration}
+						vscodeUriScheme={vscodeUriScheme}
 					/>
 				</>
 			)}

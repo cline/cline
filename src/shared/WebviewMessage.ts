@@ -16,9 +16,7 @@ export interface WebviewMessage {
 		| "showTaskWithId"
 		| "deleteTaskWithId"
 		| "exportTaskWithId"
-		| "didClickKoduSignIn"
 		| "didClickKoduSignOut"
-		| "didClickKoduAddCredits"
 		| "fetchKoduCredits"
 	text?: string
 	askResponse?: ClaudeAskResponse
