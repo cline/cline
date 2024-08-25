@@ -5,7 +5,7 @@ export function getKoduSignInUrl(uriScheme?: string) {
 }
 
 export function getKoduAddCreditsUrl(uriScheme?: string) {
-	return `${KODU_BASE_URL}/user/addCredits?redirectTo=${uriScheme}://saoudrizwan.claude-dev&ext=1`
+	return `${KODU_BASE_URL}/cloud/plan`
 }
 
 export function getKoduCreditsUrl() {
