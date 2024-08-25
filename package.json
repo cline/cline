@@ -142,6 +142,7 @@
     "diff": "^5.2.0",
     "execa": "^9.3.0",
     "globby": "^14.0.2",
+    "gpt-tokenizer": "^2.2.1",
     "openai": "^4.54.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
