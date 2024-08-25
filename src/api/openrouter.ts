@@ -8,7 +8,7 @@ import {
 	OpenRouterModelId,
 	openRouterModels,
 } from "../shared/api"
-import { convertToOpenAiMessages } from "../utils/context-management"
+import { convertToOpenAiMessages } from "../utils/openai-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
