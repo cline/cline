@@ -9,7 +9,7 @@ export interface WebviewMessage {
 		| "newTask"
 		| "askResponse"
 		| "clearTask"
-		| "didShowAnnouncement"
+		| "didCloseAnnouncement"
 		| "selectImages"
 		| "exportCurrentTask"
 		| "showTaskWithId"

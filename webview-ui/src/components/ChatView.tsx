@@ -16,6 +16,7 @@ import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
 import { HistoryItem } from "../../../src/shared/HistoryItem"
+import { ApiConfiguration } from "../../../src/shared/api"
 
 interface ChatViewProps {
 	version: string
@@ -28,6 +29,7 @@ interface ChatViewProps {
 	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
+	apiConfiguration?: ApiConfiguration
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -43,6 +45,7 @@ const ChatView = ({
 	selectedModelSupportsPromptCache,
 	hideAnnouncement,
 	showHistoryView,
+	apiConfiguration,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -486,7 +489,13 @@ const ChatView = ({
 				/>
 			) : (
 				<>
-					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
+					{showAnnouncement && (
+						<Announcement
+							version={version}
+							hideAnnouncement={hideAnnouncement}
+							apiConfiguration={apiConfiguration}
+						/>
+					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>

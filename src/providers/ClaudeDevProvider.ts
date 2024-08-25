@@ -320,7 +320,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.clearTask()
 						await this.postStateToWebview()
 						break
-					case "didShowAnnouncement":
+					case "didCloseAnnouncement":
 						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
 						await this.postStateToWebview()
 						break
@@ -377,6 +377,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("koduEmail", email)
 		await this.updateGlobalState("apiProvider", "kodu")
 		await this.postStateToWebview()
+		await this.postMessageToWebview({ type: "action", action: "koduAuthenticated" })
 		this.claudeDev?.updateApi({ apiProvider: "kodu", koduApiKey: apiKey })
 	}
 

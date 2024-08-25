@@ -12,6 +12,7 @@ export interface ExtensionMessage {
 		| "settingsButtonTapped"
 		| "historyButtonTapped"
 		| "didBecomeVisible"
+		| "koduAuthenticated"
 		| "koduCreditsFetched"
 	state?: ExtensionState
 	images?: string[]

@@ -59,7 +59,6 @@ const App: React.FC = () => {
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {
 					setShowAnnouncement(true)
-					vscode.postMessage({ type: "didShowAnnouncement" })
 				}
 				setDidHydrateState(true)
 				break
@@ -75,6 +74,10 @@ const App: React.FC = () => {
 						break
 					case "chatButtonTapped":
 						setShowSettings(false)
+						setShowHistory(false)
+						break
+					case "koduAuthenticated":
+						setShowSettings(true)
 						setShowHistory(false)
 						break
 				}
@@ -127,7 +130,11 @@ const App: React.FC = () => {
 						showAnnouncement={showAnnouncement}
 						selectedModelSupportsImages={selectedModelInfo.supportsImages}
 						selectedModelSupportsPromptCache={selectedModelInfo.supportsPromptCache}
-						hideAnnouncement={() => setShowAnnouncement(false)}
+						hideAnnouncement={() => {
+							vscode.postMessage({ type: "didCloseAnnouncement" })
+							setShowAnnouncement(false)
+						}}
+						apiConfiguration={apiConfiguration}
 					/>
 				</>
 			)}

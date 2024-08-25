@@ -1,13 +1,16 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { vscode } from "../utils/vscode"
+import { ApiConfiguration } from "../../../src/shared/api"
 
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
+	apiConfiguration?: ApiConfiguration
 }
 /*
 You must update the latestAnnouncementId in ClaudeDevProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
-const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
+const Announcement = ({ version, hideAnnouncement, apiConfiguration }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
@@ -26,24 +29,34 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
+
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
-				<li>Task history is here! New tasks will automatically save so you can always resume them later</li>
 				<li>
-					Adds support for{" "}
-					<VSCodeLink href="https://www.anthropic.com/news/prompt-caching" style={{ display: "inline" }}>
-						Prompt Caching
+					Excited to announce that{" "}
+					<VSCodeLink href="https://kodu.ai" style={{ display: "inline" }}>
+						Kodu
 					</VSCodeLink>{" "}
-					to make requests up to 90% cheaper and 85% faster (currently only available through Anthropic API
-					for Claude 3.5 Sonnet and Claude 3.0 Haiku)
+					is offering $10 free credits to help new users get the most out of Claude Dev with high rate limits
+					and prompt caching! Stay tuned for some exciting updates like easier billing and deploying live
+					websites.
+					{apiConfiguration?.koduApiKey === undefined && (
+						<VSCodeButton
+							appearance="secondary"
+							onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}
+							style={{
+								transform: "scale(0.8)",
+								transformOrigin: "left center",
+								margin: "4px 0 2px 0",
+							}}>
+							Claim $10 Free Credits
+						</VSCodeButton>
+					)}
 				</li>
 				<li>
-					Paste images in chat and turn mockups into fully functional applications or fix bugs with
-					screenshots
+					Added "Always allow read-only operations" setting to let Claude read files and view directories
+					without needing to hit Allow.
 				</li>
-				<li>
-					You can now add custom instructions to the end of the system prompt (e.g. "Always use Python",
-					"Speak in Spanish")
-				</li>
+				<li>Added sliding window context management to keep tasks going past 200k tokens.</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
