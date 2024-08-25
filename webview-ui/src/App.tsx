@@ -91,6 +91,9 @@ const App: React.FC = () => {
 								setShowHistory(false)
 							}
 							break
+						case "koduCreditsFetched":
+							setKoduCredits(message.state!.koduCredits)
+							break
 					}
 					break
 			}
