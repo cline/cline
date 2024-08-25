@@ -165,10 +165,6 @@ const ChatView = ({
 				case "say":
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
-						case "task":
-							break
-						case "error":
-							break
 						case "api_req_started":
 							if (messages.at(-2)?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
@@ -179,13 +175,13 @@ const ChatView = ({
 								setEnableButtons(false)
 							}
 							break
+						case "task":
+						case "error":
 						case "api_req_finished":
-							break
 						case "text":
-							break
 						case "command_output":
-							break
 						case "completion_result":
+						case "tool":
 							break
 					}
 					break
