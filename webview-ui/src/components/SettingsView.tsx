@@ -98,26 +98,21 @@ const SettingsView = ({
 							display: "flex",
 							alignItems: "center",
 							backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-							color: "var(--vscode-editor-foreground)",
+							color: "var(--vscode-textLink-foreground)",
 							padding: "6px 8px",
 							borderRadius: "3px",
 							margin: "0 0 8px 0px",
 							fontSize: "12px",
-						}}>
+							cursor: "pointer",
+						}}
+						onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
 						<i
 							className="codicon codicon-info"
 							style={{
 								marginRight: 6,
 								fontSize: 16,
-								color: "var(--vscode-infoIcon-foreground)",
 							}}></i>
-						<span>
-							<VSCodeLink
-								onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}
-								style={{ display: "inline" }}>
-								Claim $10 free credits from Kodu
-							</VSCodeLink>
-						</span>
+						<span>Claim $10 free credits from Kodu</span>
 					</div>
 				)}
 				<div style={{ marginBottom: 5 }}>
