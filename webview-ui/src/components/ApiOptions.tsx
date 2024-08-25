@@ -15,7 +15,7 @@ import {
 	openRouterModels,
 } from "../../../src/shared/api"
 import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { getKoduAddCreditsUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
+import { getKoduAddCreditsUrl, getKoduHomepageUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
 import { vscode } from "../utils/vscode"
 import VSCodeButtonLink from "./VSCodeButtonLink"
 
@@ -205,7 +205,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						}}>
 						Kodu is recommended for its high rate limits and access to the latest features like prompt
 						caching.
-						<VSCodeLink href="https://kodu.ai" style={{ display: "inline", fontSize: "12px" }}>
+						<VSCodeLink href={getKoduHomepageUrl()} style={{ display: "inline", fontSize: "12px" }}>
 							Learn more about Kodu here.
 						</VSCodeLink>
 					</p>

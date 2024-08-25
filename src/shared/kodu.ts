@@ -15,3 +15,7 @@ export function getKoduCreditsUrl() {
 export function getKoduInferenceUrl() {
 	return `${KODU_BASE_URL}/api/inference`
 }
+
+export function getKoduHomepageUrl() {
+	return `${KODU_BASE_URL}`
+}
