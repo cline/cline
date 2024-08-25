@@ -7,6 +7,7 @@ import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequenc
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock/CodeBlock"
 import Thumbnails from "./Thumbnails"
+import { ApiProvider } from "../../../src/shared/api"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -15,6 +16,7 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
+	apiProvider?: ApiProvider
 }
 
 const ChatRow: React.FC<ChatRowProps> = ({
@@ -24,6 +26,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
+	apiProvider,
 }) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 	const apiRequestFailedMessage =
@@ -274,9 +277,43 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									</VSCodeButton>
 								</div>
 								{cost == null && apiRequestFailedMessage && (
-									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
-										{apiRequestFailedMessage}
-									</p>
+									<>
+										<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
+											{apiRequestFailedMessage}
+										</p>
+										{apiProvider === "kodu" && (
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													backgroundColor:
+														"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
+													color: "var(--vscode-editor-foreground)",
+													padding: "6px 8px",
+													borderRadius: "3px",
+													margin: "10px 0 0 0",
+													fontSize: "12px",
+												}}>
+												<i
+													className="codicon codicon-warning"
+													style={{
+														marginRight: 6,
+														fontSize: 16,
+														color: "var(--vscode-errorForeground)",
+													}}></i>
+												<span>
+													Uh-oh, this could be a problem on Kodu's end. We've been alerted and
+													will resolve this ASAP. You can also{" "}
+													<a
+														href="https://discord.gg/claudedev"
+														style={{ color: "inherit", textDecoration: "underline" }}>
+														contact us on discord
+													</a>
+													.
+												</span>
+											</div>
+										)}
+									</>
 								)}
 							</>
 						)
