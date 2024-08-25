@@ -372,8 +372,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						if (koduApiKey) {
 							const credits = await fetchKoduCredits({ apiKey: koduApiKey })
 							await this.updateGlobalState("koduCredits", credits)
-							await this.postStateToWebview()
-							await this.postMessageToWebview({ type: "action", action: "koduCreditsFetched" })
+							await this.postMessageToWebview({
+								type: "action",
+								action: "koduCreditsFetched",
+								state: await this.getStateToPostToWebview(),
+							})
 						}
 						break
 					// Add more switch case statements here as more webview message commands
@@ -491,6 +494,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async postStateToWebview() {
+		const state = await this.getStateToPostToWebview()
+		this.postMessageToWebview({ type: "state", state })
+	}
+
+	async getStateToPostToWebview() {
 		const {
 			apiConfiguration,
 			maxRequestsPerTask,
@@ -500,21 +508,18 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			koduCredits,
 		} = await this.getState()
-		this.postMessageToWebview({
-			type: "state",
-			state: {
-				version: this.context.extension?.packageJSON?.version ?? "",
-				apiConfiguration,
-				maxRequestsPerTask,
-				customInstructions,
-				alwaysAllowReadOnly,
-				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
-				claudeMessages: this.claudeDev?.claudeMessages || [],
-				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
-				shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
-				koduCredits,
-			},
-		})
+		return {
+			version: this.context.extension?.packageJSON?.version ?? "",
+			apiConfiguration,
+			maxRequestsPerTask,
+			customInstructions,
+			alwaysAllowReadOnly,
+			themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
+			claudeMessages: this.claudeDev?.claudeMessages || [],
+			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			koduCredits,
+		}
 	}
 
 	async clearTask() {
