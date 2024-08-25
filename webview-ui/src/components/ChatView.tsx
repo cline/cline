@@ -538,6 +538,7 @@ const ChatView = ({
 								onToggleExpand={() => toggleRowExpansion(message.ts)}
 								lastModifiedMessage={modifiedMessages.at(-1)}
 								isLast={index === visibleMessages.length - 1}
+								apiProvider={apiConfiguration?.apiProvider}
 							/>
 						)}
 					/>
