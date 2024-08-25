@@ -32,63 +32,80 @@ const App: React.FC = () => {
 	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [koduCredits, setKoduCredits] = useState<number | undefined>(undefined)
+	const [isNewUser, setIsNewUser] = useState(false)
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
 	}, [])
 
-	const handleMessage = useCallback((e: MessageEvent) => {
-		const message: ExtensionMessage = e.data
-		switch (message.type) {
-			case "state":
-				setVersion(message.state!.version)
-				const hasKey =
-					message.state!.apiConfiguration?.apiKey !== undefined ||
-					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
-					message.state!.apiConfiguration?.koduApiKey !== undefined
-				setShowWelcome(!hasKey)
-				setApiConfiguration(message.state!.apiConfiguration)
-				setMaxRequestsPerTask(
-					message.state!.maxRequestsPerTask !== undefined ? message.state!.maxRequestsPerTask.toString() : ""
-				)
-				setCustomInstructions(message.state!.customInstructions || "")
-				setAlwaysAllowReadOnly(message.state!.alwaysAllowReadOnly || false)
-				setVscodeThemeName(message.state!.themeName)
-				setClaudeMessages(message.state!.claudeMessages)
-				setTaskHistory(message.state!.taskHistory)
-				setKoduCredits(message.state!.koduCredits)
-				// don't update showAnnouncement to false if shouldShowAnnouncement is false
-				if (message.state!.shouldShowAnnouncement) {
-					setShowAnnouncement(true)
-				}
-				setDidHydrateState(true)
-				break
-			case "action":
-				switch (message.action!) {
-					case "settingsButtonTapped":
-						setShowSettings(true)
-						setShowHistory(false)
-						break
-					case "historyButtonTapped":
-						setShowSettings(false)
-						setShowHistory(true)
-						break
-					case "chatButtonTapped":
-						setShowSettings(false)
-						setShowHistory(false)
-						break
-					case "koduAuthenticated":
-						setShowSettings(true)
-						setShowHistory(false)
-						break
-				}
-				break
-		}
-		// we don't need to define any dependencies since we're not using any state in the callback. if you were to use state, you'd either have to include it in the dependency array or use the updater function `setUserText(prev => `${prev}${key}`);`. (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
-	}, [])
+	const handleMessage = useCallback(
+		(e: MessageEvent) => {
+			const message: ExtensionMessage = e.data
+			switch (message.type) {
+				case "state":
+					setVersion(message.state!.version)
+					const hasKey =
+						message.state!.apiConfiguration?.apiKey !== undefined ||
+						message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
+						message.state!.apiConfiguration?.awsAccessKey !== undefined ||
+						message.state!.apiConfiguration?.koduApiKey !== undefined
+					setShowWelcome(!hasKey)
+					if (!hasKey && !isNewUser) {
+						setIsNewUser(true)
+					}
+					setApiConfiguration(message.state!.apiConfiguration)
+					setMaxRequestsPerTask(
+						message.state!.maxRequestsPerTask !== undefined
+							? message.state!.maxRequestsPerTask.toString()
+							: ""
+					)
+					setCustomInstructions(message.state!.customInstructions || "")
+					setAlwaysAllowReadOnly(message.state!.alwaysAllowReadOnly || false)
+					setVscodeThemeName(message.state!.themeName)
+					setClaudeMessages(message.state!.claudeMessages)
+					setTaskHistory(message.state!.taskHistory)
+					setKoduCredits(message.state!.koduCredits)
+					// don't update showAnnouncement to false if shouldShowAnnouncement is false
+					if (message.state!.shouldShowAnnouncement) {
+						setShowAnnouncement(true)
+					}
+					setDidHydrateState(true)
+					break
+				case "action":
+					switch (message.action!) {
+						case "settingsButtonTapped":
+							setShowSettings(true)
+							setShowHistory(false)
+							break
+						case "historyButtonTapped":
+							setShowSettings(false)
+							setShowHistory(true)
+							break
+						case "chatButtonTapped":
+							setShowSettings(false)
+							setShowHistory(false)
+							break
+						case "koduAuthenticated":
+							if (!isNewUser) {
+								setShowSettings(true)
+								setShowHistory(false)
+							}
+							break
+					}
+					break
+			}
+			// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
+		},
+		[isNewUser]
+	)
 
 	useEvent("message", handleMessage)
+
+	useEffect(() => {
+		if (showWelcome === false) {
+			setIsNewUser(false)
+		}
+	}, [showWelcome])
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)

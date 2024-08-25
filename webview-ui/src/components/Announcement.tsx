@@ -54,9 +54,9 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration }: Announcem
 				</li>
 				<li>
 					Added "Always allow read-only operations" setting to let Claude read files and view directories
-					without needing to hit Allow.
+					without needing to approve (off by default)
 				</li>
-				<li>Added sliding window context management to keep tasks going past 200k tokens.</li>
+				<li>Added sliding window context management to keep tasks going past 200k tokens</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
