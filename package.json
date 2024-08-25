@@ -134,6 +134,7 @@
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.26.0",
+    "@anthropic-ai/tokenizer": "^0.0.4",
     "@kodu-ai/cloud-api": "^1.0.1",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
@@ -142,7 +143,6 @@
     "diff": "^5.2.0",
     "execa": "^9.3.0",
     "globby": "^14.0.2",
-    "gpt-tokenizer": "^2.2.1",
     "openai": "^4.54.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",

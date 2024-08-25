@@ -25,6 +25,7 @@ import { HistoryItem } from "./shared/HistoryItem"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
 import { findLastIndex } from "./utils"
+import { slidingWindowContextManagement } from "./utils/context-management"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -1217,7 +1218,13 @@ The following additional instructions are provided by the user. They should be f
 ${this.customInstructions.trim()}
 `
 			}
-			return await this.api.createMessage(systemPrompt, this.apiConversationHistory, tools)
+			const adjustedMessages = slidingWindowContextManagement(
+				this.api.getModel().info.contextWindow,
+				systemPrompt,
+				this.apiConversationHistory,
+				tools
+			)
+			return await this.api.createMessage(systemPrompt, adjustedMessages, tools)
 		} catch (error) {
 			const { response } = await this.ask(
 				"api_req_failed",
