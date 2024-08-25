@@ -1,11 +1,6 @@
-import {
-	VSCodeButton,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ApiModelId,
@@ -19,9 +14,10 @@ import {
 	openRouterDefaultModelId,
 	openRouterModels,
 } from "../../../src/shared/api"
-import { vscode } from "../utils/vscode"
-import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
+import { getKoduAddCreditsUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
+import { vscode } from "../utils/vscode"
+import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -29,6 +25,7 @@ interface ApiOptionsProps {
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	koduCredits?: number
 	apiErrorMessage?: string
+	vscodeUriScheme?: string
 }
 
 const ApiOptions: React.FC<ApiOptionsProps> = ({
@@ -37,6 +34,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	setApiConfiguration,
 	koduCredits,
 	apiErrorMessage,
+	vscodeUriScheme,
 }) => {
 	const [didFetchKoduCredits, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -184,22 +182,19 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 									{formatPrice(koduCredits || 0)}
 								</span>
 							</div>
-							<VSCodeButton
-								appearance="primary"
-								onClick={() => vscode.postMessage({ type: "didClickKoduAddCredits" })}
+							<VSCodeButtonLink
+								href={getKoduAddCreditsUrl(vscodeUriScheme)}
 								style={{
 									width: "fit-content",
 								}}>
 								Add Credits
-							</VSCodeButton>
+							</VSCodeButtonLink>
 						</>
 					) : (
 						<div style={{ margin: "4px 0px" }}>
-							<VSCodeButton
-								appearance="primary"
-								onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
+							<VSCodeButtonLink href={getKoduSignInUrl(vscodeUriScheme)}>
 								Sign in to Kodu
-							</VSCodeButton>
+							</VSCodeButtonLink>
 						</div>
 					)}
 					<p
@@ -210,7 +205,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						}}>
 						Kodu is recommended for its high rate limits and access to the latest features like prompt
 						caching.
-						<VSCodeLink href="https://claude-dev.com" style={{ display: "inline", fontSize: "12px" }}>
+						<VSCodeLink href="https://kodu.ai" style={{ display: "inline", fontSize: "12px" }}>
 							Learn more about Kodu here.
 						</VSCodeLink>
 					</p>

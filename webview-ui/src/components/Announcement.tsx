@@ -1,16 +1,18 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "../utils/vscode"
 import { ApiConfiguration } from "../../../src/shared/api"
+import { getKoduSignInUrl } from "../../../src/shared/kodu"
+import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
 	apiConfiguration?: ApiConfiguration
+	vscodeUriScheme?: string
 }
 /*
 You must update the latestAnnouncementId in ClaudeDevProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
-const Announcement = ({ version, hideAnnouncement, apiConfiguration }: AnnouncementProps) => {
+const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriScheme }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
@@ -33,23 +35,23 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration }: Announcem
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
 					Excited to announce that{" "}
-					<VSCodeLink href="https://claude-dev.com" style={{ display: "inline" }}>
+					<VSCodeLink href={getKoduSignInUrl(vscodeUriScheme)} style={{ display: "inline" }}>
 						Kodu
 					</VSCodeLink>{" "}
 					is offering $10 free credits to help new users get the most out of Claude Dev with high rate limits
 					and prompt caching! Stay tuned for some exciting updates like easier billing and deploying live
 					websites.
 					{apiConfiguration?.koduApiKey === undefined && (
-						<VSCodeButton
+						<VSCodeButtonLink
 							appearance="secondary"
-							onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}
+							href={getKoduSignInUrl(vscodeUriScheme)}
 							style={{
 								transform: "scale(0.8)",
 								transformOrigin: "left center",
 								margin: "4px 0 2px 0",
 							}}>
 							Claim $10 Free Credits
-						</VSCodeButton>
+						</VSCodeButtonLink>
 					)}
 				</li>
 				<li>

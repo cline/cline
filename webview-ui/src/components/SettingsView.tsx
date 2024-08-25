@@ -10,6 +10,7 @@ import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import { getKoduSignInUrl } from "../../../src/shared/kodu"
 
 type SettingsViewProps = {
 	version: string
@@ -23,6 +24,7 @@ type SettingsViewProps = {
 	onDone: () => void
 	alwaysAllowReadOnly: boolean
 	setAlwaysAllowReadOnly: React.Dispatch<React.SetStateAction<boolean>>
+	vscodeUriScheme?: string
 }
 
 const SettingsView = ({
@@ -37,6 +39,7 @@ const SettingsView = ({
 	onDone,
 	alwaysAllowReadOnly,
 	setAlwaysAllowReadOnly,
+	vscodeUriScheme,
 }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
@@ -104,27 +107,34 @@ const SettingsView = ({
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				{apiConfiguration?.koduApiKey === undefined && (
-					<div
+					<a
+						href={getKoduSignInUrl(vscodeUriScheme)}
 						style={{
-							display: "flex",
-							alignItems: "center",
-							backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-							color: "var(--vscode-textLink-foreground)",
-							padding: "6px 8px",
-							borderRadius: "3px",
-							margin: "0 0 8px 0px",
-							fontSize: "12px",
-							cursor: "pointer",
-						}}
-						onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
-						<i
-							className="codicon codicon-info"
+							textDecoration: "none",
+							color: "inherit",
+							outline: "none",
+						}}>
+						<div
 							style={{
-								marginRight: 6,
-								fontSize: 16,
-							}}></i>
-						<span>Claim $10 free credits from Kodu</span>
-					</div>
+								display: "flex",
+								alignItems: "center",
+								backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+								color: "var(--vscode-textLink-foreground)",
+								padding: "6px 8px",
+								borderRadius: "3px",
+								margin: "0 0 8px 0px",
+								fontSize: "12px",
+								cursor: "pointer",
+							}}>
+							<i
+								className="codicon codicon-info"
+								style={{
+									marginRight: 6,
+									fontSize: 16,
+								}}></i>
+							<span>Claim $10 free credits from Kodu</span>
+						</div>
+					</a>
 				)}
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
@@ -133,6 +143,7 @@ const SettingsView = ({
 						showModelOptions={true}
 						koduCredits={koduCredits}
 						apiErrorMessage={apiErrorMessage}
+						vscodeUriScheme={vscodeUriScheme}
 					/>
 				</div>
 
