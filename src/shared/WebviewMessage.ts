@@ -5,6 +5,7 @@ export interface WebviewMessage {
 		| "apiConfiguration"
 		| "maxRequestsPerTask"
 		| "customInstructions"
+		| "alwaysAllowReadOnly"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -23,6 +24,7 @@ export interface WebviewMessage {
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	bool?: boolean
 }
 
 export type ClaudeAskResponse = "yesButtonTapped" | "noButtonTapped" | "messageResponse"

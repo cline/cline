@@ -26,6 +26,7 @@ const App: React.FC = () => {
 	const [apiConfiguration, setApiConfiguration] = useState<ApiConfiguration | undefined>(undefined)
 	const [maxRequestsPerTask, setMaxRequestsPerTask] = useState<string>("")
 	const [customInstructions, setCustomInstructions] = useState<string>("")
+	const [alwaysAllowReadOnly, setAlwaysAllowReadOnly] = useState<boolean>(false)
 	const [vscodeThemeName, setVscodeThemeName] = useState<string | undefined>(undefined)
 	const [claudeMessages, setClaudeMessages] = useState<ClaudeMessage[]>([])
 	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
@@ -52,6 +53,7 @@ const App: React.FC = () => {
 					message.state!.maxRequestsPerTask !== undefined ? message.state!.maxRequestsPerTask.toString() : ""
 				)
 				setCustomInstructions(message.state!.customInstructions || "")
+				setAlwaysAllowReadOnly(message.state!.alwaysAllowReadOnly || false)
 				setVscodeThemeName(message.state!.themeName)
 				setClaudeMessages(message.state!.claudeMessages)
 				setTaskHistory(message.state!.taskHistory)
@@ -112,6 +114,8 @@ const App: React.FC = () => {
 							setMaxRequestsPerTask={setMaxRequestsPerTask}
 							customInstructions={customInstructions}
 							setCustomInstructions={setCustomInstructions}
+							alwaysAllowReadOnly={alwaysAllowReadOnly}
+							setAlwaysAllowReadOnly={setAlwaysAllowReadOnly}
 							onDone={() => setShowSettings(false)}
 						/>
 					)}

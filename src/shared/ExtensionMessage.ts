@@ -23,6 +23,7 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	maxRequestsPerTask?: number
 	customInstructions?: string
+	alwaysAllowReadOnly?: boolean
 	themeName?: string
 	claudeMessages: ClaudeMessage[]
 	taskHistory: HistoryItem[]
