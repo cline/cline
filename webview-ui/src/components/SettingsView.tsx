@@ -1,16 +1,15 @@
 import {
 	VSCodeButton,
+	VSCodeCheckbox,
 	VSCodeLink,
 	VSCodeTextArea,
 	VSCodeTextField,
-	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
-import { getKoduSignInUrl } from "../../../src/shared/kodu"
 
 type SettingsViewProps = {
 	version: string
@@ -106,36 +105,6 @@ const SettingsView = ({
 			</div>
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
-				{apiConfiguration?.koduApiKey === undefined && (
-					<a
-						href={getKoduSignInUrl(vscodeUriScheme)}
-						style={{
-							textDecoration: "none",
-							color: "inherit",
-							outline: "none",
-						}}>
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-								color: "var(--vscode-textLink-foreground)",
-								padding: "6px 8px",
-								borderRadius: "3px",
-								margin: "0 0 8px 0px",
-								fontSize: "12px",
-								cursor: "pointer",
-							}}>
-							<i
-								className="codicon codicon-info"
-								style={{
-									marginRight: 6,
-									fontSize: 16,
-								}}></i>
-							<span>Claim $10 free credits from Kodu</span>
-						</div>
-					</a>
-				)}
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						apiConfiguration={apiConfiguration}

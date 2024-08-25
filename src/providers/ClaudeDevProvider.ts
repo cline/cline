@@ -28,6 +28,7 @@ type GlobalStateKey =
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
 	| "taskHistory"
+	| "shouldShowKoduPromo"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -373,6 +374,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							})
 						}
 						break
+					case "didDismissKoduPromo":
+						await this.updateGlobalState("shouldShowKoduPromo", false)
+						await this.postStateToWebview()
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -388,6 +393,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("koduApiKey", apiKey)
 		await this.updateGlobalState("koduEmail", email)
 		await this.updateGlobalState("apiProvider", "kodu")
+		await this.updateGlobalState("shouldShowKoduPromo", false)
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "koduAuthenticated" })
 		this.claudeDev?.updateApi({ apiProvider: "kodu", koduApiKey: apiKey })
@@ -501,6 +507,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			taskHistory,
 			koduCredits,
+			shouldShowKoduPromo,
 		} = await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -514,6 +521,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			koduCredits,
+			shouldShowKoduPromo,
 		}
 	}
 
@@ -620,6 +628,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			taskHistory,
+			shouldShowKoduPromo,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
@@ -636,6 +645,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getGlobalState("shouldShowKoduPromo") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -670,6 +680,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			taskHistory,
 			koduCredits,
+			shouldShowKoduPromo: shouldShowKoduPromo ?? true,
 		}
 	}
 

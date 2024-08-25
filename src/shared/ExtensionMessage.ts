@@ -30,6 +30,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 	koduCredits?: number
+	shouldShowKoduPromo: boolean
 }
 
 export interface ClaudeMessage {
