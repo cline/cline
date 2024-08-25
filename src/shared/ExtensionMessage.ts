@@ -61,6 +61,7 @@ export type ClaudeSay =
 	| "user_feedback"
 	| "api_req_retried"
 	| "command_output"
+	| "tool"
 
 export interface ClaudeSayTool {
 	tool:

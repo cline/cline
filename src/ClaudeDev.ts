@@ -877,17 +877,25 @@ export class ClaudeDev {
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const content = await fs.readFile(absolutePath, "utf-8")
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({ tool: "readFile", path: this.getReadablePath(relPath), content } as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "readFile",
+				path: this.getReadablePath(relPath),
+				content,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
@@ -911,21 +919,25 @@ export class ClaudeDev {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, false)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "listFilesTopLevel",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "listFilesTopLevel",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
@@ -951,21 +963,25 @@ export class ClaudeDev {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, true)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "listFilesRecursive",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "listFilesRecursive",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error listing files recursively: ${JSON.stringify(serializeError(error))}`
@@ -1037,21 +1053,25 @@ export class ClaudeDev {
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "viewSourceCodeDefinitionsTopLevel",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "viewSourceCodeDefinitionsTopLevel",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
