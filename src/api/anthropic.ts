@@ -19,6 +19,7 @@ export class AnthropicHandler implements ApiHandler {
 		const modelId = this.getModel().id
 		switch (modelId) {
 			case "claude-3-5-sonnet-20240620":
+			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307":
 				/*
 				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..

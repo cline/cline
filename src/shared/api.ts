@@ -46,7 +46,7 @@ export const anthropicModels = {
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,

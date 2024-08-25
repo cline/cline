@@ -41,6 +41,7 @@ export class KoduHandler implements ApiHandler {
 		let requestBody: Anthropic.Beta.PromptCaching.Messages.MessageCreateParamsNonStreaming
 		switch (modelId) {
 			case "claude-3-5-sonnet-20240620":
+			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307":
 				const userMsgIndices = messages.reduce(
 					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
