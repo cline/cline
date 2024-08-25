@@ -1,4 +1,10 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodeTextArea,
+	VSCodeTextField,
+	VSCodeCheckbox,
+} from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
@@ -15,6 +21,8 @@ type SettingsViewProps = {
 	customInstructions: string
 	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
 	onDone: () => void
+	alwaysAllowReadOnly: boolean
+	setAlwaysAllowReadOnly: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const SettingsView = ({
@@ -27,6 +35,8 @@ const SettingsView = ({
 	customInstructions,
 	setCustomInstructions,
 	onDone,
+	alwaysAllowReadOnly,
+	setAlwaysAllowReadOnly,
 }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
@@ -42,6 +52,7 @@ const SettingsView = ({
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
 		}
 	}
@@ -123,6 +134,23 @@ const SettingsView = ({
 						koduCredits={koduCredits}
 						apiErrorMessage={apiErrorMessage}
 					/>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowReadOnly}
+						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Claude will automatically read files and view directories without requiring you to
+						click the Allow button.
+					</p>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>

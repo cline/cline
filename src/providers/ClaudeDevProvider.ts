@@ -26,6 +26,7 @@ type GlobalStateKey =
 	| "maxRequestsPerTask"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
+	| "alwaysAllowReadOnly"
 	| "taskHistory"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
@@ -144,18 +145,27 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { maxRequestsPerTask, apiConfiguration, customInstructions } = await this.getState()
-		this.claudeDev = new ClaudeDev(this, apiConfiguration, maxRequestsPerTask, customInstructions, task, images)
-	}
-
-	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
-		await this.clearTask()
-		const { maxRequestsPerTask, apiConfiguration, customInstructions } = await this.getState()
+		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
 			maxRequestsPerTask,
 			customInstructions,
+			alwaysAllowReadOnly,
+			task,
+			images
+		)
+	}
+
+	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
+		await this.clearTask()
+		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		this.claudeDev = new ClaudeDev(
+			this,
+			apiConfiguration,
+			maxRequestsPerTask,
+			customInstructions,
+			alwaysAllowReadOnly,
 			undefined,
 			undefined,
 			historyItem
@@ -310,6 +320,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						// User may be clearing the field
 						await this.updateGlobalState("customInstructions", message.text || undefined)
 						this.claudeDev?.updateCustomInstructions(message.text || undefined)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowReadOnly":
+						await this.updateGlobalState("alwaysAllowReadOnly", message.bool || undefined)
+						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool || undefined)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -481,6 +496,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
+			alwaysAllowReadOnly,
 			taskHistory,
 			koduCredits,
 		} = await this.getState()
@@ -491,6 +507,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				apiConfiguration,
 				maxRequestsPerTask,
 				customInstructions,
+				alwaysAllowReadOnly,
 				themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 				claudeMessages: this.claudeDev?.claudeMessages || [],
 				taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
@@ -601,6 +618,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
+			alwaysAllowReadOnly,
 			taskHistory,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -616,6 +634,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
+			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 		])
 
@@ -648,6 +667,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
+			alwaysAllowReadOnly,
 			taskHistory,
 			koduCredits,
 		}

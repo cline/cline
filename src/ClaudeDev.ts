@@ -233,6 +233,7 @@ export class ClaudeDev {
 	private api: ApiHandler
 	private maxRequestsPerTask: number
 	private customInstructions?: string
+	private alwaysAllowReadOnly: boolean
 	private requestCount = 0
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
@@ -249,6 +250,7 @@ export class ClaudeDev {
 		apiConfiguration: ApiConfiguration,
 		maxRequestsPerTask?: number,
 		customInstructions?: string,
+		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem
@@ -257,6 +259,7 @@ export class ClaudeDev {
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 		this.customInstructions = customInstructions
+		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -279,6 +282,10 @@ export class ClaudeDev {
 
 	updateCustomInstructions(customInstructions: string | undefined) {
 		this.customInstructions = customInstructions
+	}
+
+	updateAlwaysAllowReadOnly(alwaysAllowReadOnly: boolean | undefined) {
+		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 	}
 
 	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
