@@ -696,6 +696,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		return history
 	}
 
+	async updateKoduCredits(credits: number) {
+		await this.updateGlobalState("koduCredits", credits)
+	}
+
 	// global
 
 	private async updateGlobalState(key: GlobalStateKey, value: any) {

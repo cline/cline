@@ -169,6 +169,7 @@ const App: React.FC = () => {
 						apiConfiguration={apiConfiguration}
 						vscodeUriScheme={vscodeUriScheme}
 						shouldShowKoduPromo={shouldShowKoduPromo}
+						koduCredits={koduCredits}
 					/>
 				</>
 			)}

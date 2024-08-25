@@ -33,6 +33,7 @@ interface ChatViewProps {
 	apiConfiguration?: ApiConfiguration
 	vscodeUriScheme?: string
 	shouldShowKoduPromo: boolean
+	koduCredits?: number
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -51,6 +52,7 @@ const ChatView = ({
 	apiConfiguration,
 	vscodeUriScheme,
 	shouldShowKoduPromo,
+	koduCredits,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -487,6 +489,9 @@ const ChatView = ({
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
+					koduCredits={koduCredits}
+					vscodeUriScheme={vscodeUriScheme}
+					apiProvider={apiConfiguration?.apiProvider}
 				/>
 			) : (
 				<>

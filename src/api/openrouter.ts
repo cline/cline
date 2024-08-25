@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
 import {
 	ApiHandlerOptions,
 	ModelInfo,
@@ -30,7 +30,7 @@ export class OpenRouterHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<Anthropic.Messages.Message> {
+	): Promise<ApiHandlerMessageResponse> {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -120,7 +120,7 @@ export class OpenRouterHandler implements ApiHandler {
 			)
 		}
 
-		return anthropicMessage
+		return { message: anthropicMessage }
 	}
 
 	/*

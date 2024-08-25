@@ -36,7 +36,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	apiErrorMessage,
 	vscodeUriScheme,
 }) => {
-	const [didFetchKoduCredits, setDidFetchKoduCredits] = useState(false)
+	const [, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration((prev) => ({ ...prev, [field]: event.target.value }))
 	}
@@ -78,11 +78,11 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	}
 
 	useEffect(() => {
-		if (selectedProvider === "kodu" && apiConfiguration?.koduApiKey) {
+		if (selectedProvider === "kodu" && apiConfiguration?.koduApiKey && koduCredits === undefined) {
 			setDidFetchKoduCredits(false)
 			vscode.postMessage({ type: "fetchKoduCredits" })
 		}
-	}, [selectedProvider, apiConfiguration?.koduApiKey])
+	}, [selectedProvider, apiConfiguration?.koduApiKey, koduCredits])
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
@@ -178,7 +178,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 							</div>
 							<div style={{ marginBottom: 7 }}>
 								Credits remaining:{" "}
-								<span style={{ fontWeight: 500, opacity: didFetchKoduCredits ? 1 : 0.6 }}>
+								<span style={{ fontWeight: 500, opacity: koduCredits !== undefined ? 1 : 0.6 }}>
 									{formatPrice(koduCredits || 0)}
 								</span>
 							</div>
@@ -307,7 +307,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	)
 }
 
-const formatPrice = (price: number) => {
+export const formatPrice = (price: number) => {
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency: "USD",

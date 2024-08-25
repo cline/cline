@@ -5,12 +5,17 @@ import { AwsBedrockHandler } from "./bedrock"
 import { OpenRouterHandler } from "./openrouter"
 import { KoduHandler } from "./kodu"
 
+export interface ApiHandlerMessageResponse {
+	message: Anthropic.Messages.Message
+	userCredits?: number
+}
+
 export interface ApiHandler {
 	createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<Anthropic.Messages.Message>
+	): Promise<ApiHandlerMessageResponse>
 
 	createUserReadableRequest(
 		userContent: Array<
