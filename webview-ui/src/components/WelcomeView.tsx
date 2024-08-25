@@ -60,7 +60,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 						color: "var(--vscode-infoIcon-foreground)",
 					}}></i>
 				<span>
-					Explore Claude's capabilities with $10 free credits from{" "}
+					Explore Claude's capabilities with $20 free credits from{" "}
 					<VSCodeLink href={getKoduSignInUrl(vscodeUriScheme)} style={{ display: "inline" }}>
 						Kodu
 					</VSCodeLink>

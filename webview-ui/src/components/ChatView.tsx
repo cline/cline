@@ -17,6 +17,7 @@ import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
 import { HistoryItem } from "../../../src/shared/HistoryItem"
 import { ApiConfiguration } from "../../../src/shared/api"
+import KoduPromo from "./KoduPromo"
 
 interface ChatViewProps {
 	version: string
@@ -31,6 +32,7 @@ interface ChatViewProps {
 	showHistoryView: () => void
 	apiConfiguration?: ApiConfiguration
 	vscodeUriScheme?: string
+	shouldShowKoduPromo: boolean
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -48,6 +50,7 @@ const ChatView = ({
 	showHistoryView,
 	apiConfiguration,
 	vscodeUriScheme,
+	shouldShowKoduPromo,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -494,6 +497,9 @@ const ChatView = ({
 							apiConfiguration={apiConfiguration}
 							vscodeUriScheme={vscodeUriScheme}
 						/>
+					)}
+					{apiConfiguration?.koduApiKey === undefined && !showAnnouncement && shouldShowKoduPromo && (
+						<KoduPromo vscodeUriScheme={vscodeUriScheme} style={{ margin: "10px 15px -10px 15px" }} />
 					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>

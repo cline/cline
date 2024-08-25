@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { ApiConfiguration } from "../../src/shared/api"
 import { ClaudeMessage, ExtensionMessage } from "../../src/shared/ExtensionMessage"
+import { HistoryItem } from "../../src/shared/HistoryItem"
 import "./App.css"
 import { normalizeApiConfiguration } from "./components/ApiOptions"
 import ChatView from "./components/ChatView"
+import HistoryView from "./components/HistoryView"
 import SettingsView from "./components/SettingsView"
 import WelcomeView from "./components/WelcomeView"
 import { vscode } from "./utils/vscode"
-import HistoryView from "./components/HistoryView"
-import { HistoryItem } from "../../src/shared/HistoryItem"
 
 /*
 The contents of webviews however are created when the webview becomes visible and destroyed when the webview is moved into the background. Any state inside the webview will be lost when the webview is moved to a background tab.
@@ -34,7 +34,7 @@ const App: React.FC = () => {
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [koduCredits, setKoduCredits] = useState<number | undefined>(undefined)
 	const [isNewUser, setIsNewUser] = useState(false)
-
+	const [shouldShowKoduPromo, setShouldShowKoduPromo] = useState(true)
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
 	}, [])
@@ -71,6 +71,7 @@ const App: React.FC = () => {
 					if (message.state!.shouldShowAnnouncement) {
 						setShowAnnouncement(true)
 					}
+					setShouldShowKoduPromo(message.state!.shouldShowKoduPromo)
 					setDidHydrateState(true)
 					break
 				case "action":
@@ -167,6 +168,7 @@ const App: React.FC = () => {
 						}}
 						apiConfiguration={apiConfiguration}
 						vscodeUriScheme={vscodeUriScheme}
+						shouldShowKoduPromo={shouldShowKoduPromo}
 					/>
 				</>
 			)}

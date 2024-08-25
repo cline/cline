@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ApiConfiguration } from "../../../src/shared/api"
-import { getKoduHomepageUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
+import { getKoduSignInUrl } from "../../../src/shared/kodu"
 import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface AnnouncementProps {
@@ -34,25 +34,19 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 
 			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 				<li>
-					Excited to announce that{" "}
-					<VSCodeLink
-						href={apiConfiguration?.koduApiKey ? getKoduHomepageUrl() : getKoduSignInUrl(vscodeUriScheme)}
-						style={{ display: "inline" }}>
-						Kodu
-					</VSCodeLink>{" "}
-					is offering $10 free credits to help new users get the most out of Claude Dev with high rate limits
-					and prompt caching! Stay tuned for some exciting updates like easier billing and deploying live
-					websites.
+					Excited to announce that we've partnered with Anthropic and are offering $20 free credits to help
+					users get the most out of Claude Dev with high rate limits and prompt caching! Stay tuned for some
+					exciting updates like easier billing, voice mode and one click deployment.
 					{apiConfiguration?.koduApiKey === undefined && (
 						<VSCodeButtonLink
 							appearance="secondary"
 							href={getKoduSignInUrl(vscodeUriScheme)}
 							style={{
-								transform: "scale(0.8)",
+								transform: "scale(0.85)",
 								transformOrigin: "left center",
 								margin: "4px 0 2px 0",
 							}}>
-							Claim $10 Free Credits
+							Claim $20 Free Credits with Kodu
 						</VSCodeButtonLink>
 					)}
 				</li>
