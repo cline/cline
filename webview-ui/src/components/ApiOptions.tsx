@@ -165,9 +165,9 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 			)}
 
 			{selectedProvider === "kodu" && (
-				<>
+				<div>
 					{apiConfiguration?.koduApiKey !== undefined ? (
-						<div>
+						<>
 							<div style={{ marginBottom: 5, marginTop: 3 }}>
 								<span style={{ color: "var(--vscode-descriptionForeground)" }}>
 									Signed in as {apiConfiguration?.koduEmail || "Unknown"}
@@ -192,40 +192,29 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 								}}>
 								Add Credits
 							</VSCodeButton>
-							<p
-								style={{
-									fontSize: "12px",
-									marginTop: "7px",
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								Kodu is recommended for its high rate limits and access to the latest features like
-								prompt caching.
-								<VSCodeLink href="https://kodu.ai/" style={{ display: "inline", fontSize: "12px" }}>
-									Learn more about Kodu here.
-								</VSCodeLink>
-							</p>
-						</div>
+						</>
 					) : (
-						<div>
-							<div style={{ margin: "4px 0px" }}>
-								<VSCodeButton
-									appearance="primary"
-									onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
-									Sign in to Kodu
-								</VSCodeButton>
-							</div>
-							<p
-								style={{
-									fontSize: 12,
-									marginTop: 5,
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								This will open your browser to sign in to Kodu. You will be redirected back to the
-								extension after signing in.
-							</p>
+						<div style={{ margin: "4px 0px" }}>
+							<VSCodeButton
+								appearance="primary"
+								onClick={() => vscode.postMessage({ type: "didClickKoduSignIn" })}>
+								Sign in to Kodu
+							</VSCodeButton>
 						</div>
 					)}
-				</>
+					<p
+						style={{
+							fontSize: 12,
+							marginTop: 6,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Kodu is recommended for its high rate limits and access to the latest features like prompt
+						caching.
+						<VSCodeLink href="https://kodu.ai/" style={{ display: "inline", fontSize: "12px" }}>
+							Learn more about Kodu here.
+						</VSCodeLink>
+					</p>
+				</div>
 			)}
 
 			{selectedProvider === "bedrock" && (

@@ -31,23 +31,51 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 				<VSCodeLink
 					href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
 					style={{ display: "inline" }}>
-					Claude 3.5 Sonnet's agentic coding capabilities.
+					Claude 3.5 Sonnet's agentic coding capabilities
 				</VSCodeLink>{" "}
-				I am prompted to think through tasks step-by-step and have access to tools that let me create & edit
-				files, explore complex projects, and execute terminal commands (with your permission, of course).
+				and access to tools that let me create & edit files, explore complex projects, and execute terminal
+				commands (with your permission, of course).
 			</p>
 
-			<b>To get started, this extension needs an API key for Claude 3.5 Sonnet:</b>
+			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
 
-			<div style={{ marginTop: "15px" }}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+					color: "var(--vscode-editor-foreground)",
+					padding: "6px 8px",
+					borderRadius: "3px",
+					margin: "8px 0px",
+					fontSize: "12px",
+				}}>
+				<i
+					className="codicon codicon-info"
+					style={{
+						marginRight: "6px",
+						fontSize: "16px",
+						color: "var(--vscode-infoIcon-foreground)",
+					}}></i>
+				<span>
+					Explore Claude's capabilities with $10 free credits from{" "}
+					<VSCodeLink href="https://kodu.ai" style={{ display: "inline" }}>
+						Kodu
+					</VSCodeLink>
+				</span>
+			</div>
+
+			<div style={{ marginTop: "10px" }}>
 				<ApiOptions
 					apiConfiguration={apiConfiguration}
 					setApiConfiguration={setApiConfiguration}
 					showModelOptions={false}
 				/>
-				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
-					Let's go!
-				</VSCodeButton>
+				{apiConfiguration?.apiProvider !== "kodu" && (
+					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+						Let's go!
+					</VSCodeButton>
+				)}
 			</div>
 		</div>
 	)
