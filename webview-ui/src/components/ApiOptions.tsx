@@ -210,7 +210,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						}}>
 						Kodu is recommended for its high rate limits and access to the latest features like prompt
 						caching.
-						<VSCodeLink href="https://kodu.ai/" style={{ display: "inline", fontSize: "12px" }}>
+						<VSCodeLink href="https://claude-dev.com" style={{ display: "inline", fontSize: "12px" }}>
 							Learn more about Kodu here.
 						</VSCodeLink>
 					</p>
