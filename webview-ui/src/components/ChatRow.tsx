@@ -479,7 +479,9 @@ const ChatRow: React.FC<ChatRowProps> = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
-							<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
+							</span>
 						</div>
 						<CodeBlock
 							code={tool.content!}
@@ -496,7 +498,9 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
-								Claude wants to view the top level files in this directory:
+								{message.type === "ask"
+									? "Claude wants to view the top level files in this directory:"
+									: "Claude viewed the top level files in this directory:"}
 							</span>
 						</div>
 						<CodeBlock
@@ -515,7 +519,9 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
-								Claude wants to recursively view all files in this directory:
+								{message.type === "ask"
+									? "Claude wants to recursively view all files in this directory:"
+									: "Claude recursively viewed all files in this directory:"}
 							</span>
 						</div>
 						<CodeBlock
@@ -534,8 +540,9 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								Claude wants to view source code definitions in files at the top level of this
-								directory:
+								{message.type === "ask"
+									? "Claude wants to view source code definitions in files at the top level of this directory:"
+									: "Claude viewed source code definitions in files at the top level of this directory:"}
 							</span>
 						</div>
 						<CodeBlock
