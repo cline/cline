@@ -13,7 +13,7 @@ export function getKoduCreditsUrl() {
 }
 
 export function getKoduInferenceUrl() {
-	return `${KODU_BASE_URL}/api/inference`
+	return `${KODU_BASE_URL}/api/inference-stream`
 }
 
 export function getKoduHomepageUrl() {

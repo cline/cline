@@ -77,14 +77,84 @@ export class KoduHandler implements ApiHandler {
 					tool_choice: { type: "auto" },
 				}
 		}
+
+		// const response = await axios.post(getKoduInferenceUrl(), requestBody, {
+		// 	headers: {
+		// 		"x-api-key": this.options.koduApiKey,
+		// 	},
+		// })
+		// const message = response.data
+		// const userCredits = response.headers["user-credits"]
+		// return { message, userCredits: userCredits !== undefined ? parseFloat(userCredits) : undefined }
+		// const thing = {
+		// 	method: "POST",
+		// 	headers: {
+		// 		"Content-Type": "application/json",
+		// 		"x-api-key": this.options.koduApiKey || "",
+		// 	},
+		// 	body: JSON.stringify(requestBody),
+		// }
+
 		const response = await axios.post(getKoduInferenceUrl(), requestBody, {
 			headers: {
-				"x-api-key": this.options.koduApiKey,
+				"Content-Type": "application/json",
+				"x-api-key": this.options.koduApiKey || "",
 			},
+			responseType: "stream",
 		})
-		const message = response.data
-		const userCredits = response.headers["user-credits"]
-		return { message, userCredits: userCredits !== undefined ? parseFloat(userCredits) : undefined }
+
+		if (response.data) {
+			const reader = response.data
+			const decoder = new TextDecoder("utf-8")
+			let finalResponse: any = null
+			let buffer = ""
+
+			for await (const chunk of reader) {
+				buffer += decoder.decode(chunk, { stream: true })
+				const lines = buffer.split("\n\n")
+				buffer = lines.pop() || ""
+
+				for (const line of lines) {
+					if (line.startsWith("data: ")) {
+						const eventData = JSON.parse(line.slice(6))
+
+						console.log("eventData", eventData)
+
+						if (eventData.code === 0) {
+							console.log("Health check received")
+						} else if (eventData.code === 1) {
+							finalResponse = eventData.body
+							console.log("finalResponse", finalResponse)
+							break
+						} else if (eventData.code === -1) {
+							throw new Error(`Error in SSE stream: ${JSON.stringify(eventData.json)}`)
+						}
+					}
+				}
+
+				if (finalResponse) {
+					break
+				}
+			}
+
+			if (!finalResponse) {
+				throw new Error("No final response received from the SSE stream")
+			}
+
+			const message: {
+				anthropic: Anthropic.Messages.Message
+				internal: {
+					userCredits: number
+				}
+			} = finalResponse
+			console.log("message", message)
+			return {
+				message: message.anthropic,
+				userCredits: message.internal?.userCredits,
+			}
+		} else {
+			throw new Error("No response data received")
+		}
 	}
 
 	createUserReadableRequest(
