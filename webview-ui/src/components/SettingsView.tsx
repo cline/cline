@@ -11,7 +11,7 @@ import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/v
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
-const IS_DEV = true
+const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
 	version: string

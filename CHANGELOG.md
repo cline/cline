@@ -4,6 +4,12 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.4.0]
+
+- Add Kodu provider with credit tracking (+ $20 free credits!)
+- Add "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
+- Implement sliding window context management to keep tasks going past 200k tokens
+
 ## [1.3.0]
 
 - Add task history
