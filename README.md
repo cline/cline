@@ -77,19 +77,72 @@ To build Claude Dev locally, follow these steps:
 
 ## Reviews
 
--   ["Claude Sonnet 3.5 Artifacts in VSCode With This Extension"](https://www.youtube.com/watch?v=5FbZ8ALfSTs) by [CoderOne](https://www.youtube.com/@CoderOne)
--   ["ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!"](https://www.youtube.com/watch?v=UNsQHosbIoE) by [WorldofAI](https://www.youtube.com/@intheworldofai)
--   ["ClaudeDev: This Mind-Blowing Coding Agent Can Build SaaS Apps in Minutes!"](https://www.youtube.com/watch?v=Ki0nuOeUpT0) by [AI for Devs](https://www.youtube.com/@ai-for-devs)
--   ["Claude Dev: This Coding Agent can Generate Applications Within VS Code!"](https://www.youtube.com/watch?v=ufq6sHGe0zs) by [AICodeKing](https://www.youtube.com/@AICodeKing)
--   ["ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet"](https://www.youtube.com/watch?v=GeZBfO1kxA4) by [AICodeKing](https://www.youtube.com/@AICodeKing)
--   ["Meet Claude Dev — An Open-Source AI Programmer In VS Code"](https://generativeai.pub/meet-claude-dev-an-open-source-autonomous-ai-programmer-in-vs-code-f457f9821b7b) and ["Build games with zero code using Claude Dev in VS Code"](https://www.youtube.com/watch?v=VT-JYVi81ew) by [Jim Clyde Monge](https://jimclydemonge.medium.com/)
--   ["Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative"](https://www.youtube.com/watch?v=Rv0wJZRpnCQ) by [Josh Pocock](https://www.youtube.com/@joshfpocock)
--   ["Claude Dev Is Mindblowing. The Best Coding Assistant tool?"](https://www.youtube.com/watch?v=Vp1Z3VGZroA), ["Combining Claude Dev With Google Gemini To Build Fast With Low Effort"](https://www.youtube.com/watch?v=cAfunEHLees), and ["Browser Automation Made Easy With Claude Dev"](https://www.youtube.com/watch?v=EQ4O8rUOqZs) by [Yaron Been](https://www.youtube.com/@ecomxfactor-YaronBeen)
--   ["ClaudeDev: The Ultimate Coding Agent for VS Code"](https://www.youtube.com/watch?v=aq0yw_DtphQ) by [Blas](https://www.youtube.com/@blascerecer)
--   ["I Built My First Web App in One Day Using Claude Dev Extension – Mind Blown!"](https://www.reddit.com/r/ClaudeAI/comments/1eqo3nk/i_built_my_first_web_app_in_one_day_using_claude/)
--   ["AI Development with Claude Dev"](https://www.linkedin.com/pulse/ai-development-claude-dev-shannon-lal-3ql3e/) by Shannon Lal
--   ["Code Smarter with Claude Dev: An AI Programmer for Your Projects"](https://www.linkedin.com/pulse/code-smarter-claude-dev-ai-programmer-your-projects-iana-detochka-jiqpe) by Iana D.
--   [Claude Dev also hit top 10 posts of all time on r/ClaudeAI](https://www.reddit.com/r/ClaudeAI/comments/1e3h0f1/my_submission_to_anthropics_build_with_claude/)
+<table>
+  <tr>
+    <th>Video</th>
+    <th>Author</th>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=5FbZ8ALfSTs"><img src="http://img.youtube.com/vi/5FbZ8ALfSTs/0.jpg" alt="Claude Sonnet 3.5 Artifacts in VSCode With This Extension"></a></td>
+    <td><a href="https://www.youtube.com/@CoderOne">CoderOne</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=UNsQHosbIoE"><img src="http://img.youtube.com/vi/UNsQHosbIoE/0.jpg" alt="ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!"></a></td>
+    <td><a href="https://www.youtube.com/@intheworldofai">WorldofAI</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=Ki0nuOeUpT0"><img src="http://img.youtube.com/vi/Ki0nuOeUpT0/0.jpg" alt="ClaudeDev: This Mind-Blowing Coding Agent Can Build SaaS Apps in Minutes!"></a></td>
+    <td><a href="https://www.youtube.com/@ai-for-devs">AI for Devs</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=ufq6sHGe0zs"><img src="http://img.youtube.com/vi/ufq6sHGe0zs/0.jpg" alt="Claude Dev: This Coding Agent can Generate Applications Within VS Code!"></a></td>
+    <td><a href="https://www.youtube.com/@AICodeKing">AICodeKing</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=GeZBfO1kxA4"><img src="http://img.youtube.com/vi/GeZBfO1kxA4/0.jpg" alt="ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet"></a></td>
+    <td><a href="https://www.youtube.com/@AICodeKing">AICodeKing</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=VT-JYVi81ew"><img src="http://img.youtube.com/vi/VT-JYVi81ew/0.jpg" alt="Build games with zero code using Claude Dev in VS Code"></a></td>
+    <td><a href="https://jimclydemonge.medium.com/">Jim Clyde Monge</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=Rv0wJZRpnCQ"><img src="http://img.youtube.com/vi/Rv0wJZRpnCQ/0.jpg" alt="Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative"></a></td>
+    <td><a href="https://www.youtube.com/@joshfpocock">Josh Pocock</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=Vp1Z3VGZroA"><img src="http://img.youtube.com/vi/Vp1Z3VGZroA/0.jpg" alt="Claude Dev Is Mindblowing. The Best Coding Assistant tool?"></a></td>
+    <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen">Yaron Been</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=cAfunEHLees"><img src="http://img.youtube.com/vi/cAfunEHLees/0.jpg" alt="Combining Claude Dev With Google Gemini To Build Fast With Low Effort"></a></td>
+    <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen">Yaron Been</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=EQ4O8rUOqZs"><img src="http://img.youtube.com/vi/EQ4O8rUOqZs/0.jpg" alt="Browser Automation Made Easy With Claude Dev"></a></td>
+    <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen">Yaron Been</a></td>
+  </tr>
+  <tr>
+    <td><a href="http://www.youtube.com/watch?v=aq0yw_DtphQ"><img src="http://img.youtube.com/vi/aq0yw_DtphQ/0.jpg" alt="ClaudeDev: The Ultimate Coding Agent for VS Code"></a></td>
+    <td><a href="https://www.youtube.com/@blascerecer">Blas</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://www.reddit.com/r/ClaudeAI/comments/1eqo3nk/i_built_my_first_web_app_in_one_day_using_claude/">I Built My First Web App in One Day Using Claude Dev Extension - Mind Blown!</a></td>
+    <td><a href="https://www.reddit.com/user/No_Order_1065/">@No_Order_1065</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://www.linkedin.com/pulse/ai-development-claude-dev-shannon-lal-3ql3e/">AI Development with Claude Dev</a></td>
+    <td><a href="https://www.linkedin.com/in/shannonlal">Shannon Lal</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://www.linkedin.com/pulse/code-smarter-claude-dev-ai-programmer-your-projects-iana-detochka-jiqpe/">Code Smarter with Claude Dev: An AI Programmer for Your Projects</a></td>
+    <td><a href="https://www.linkedin.com/in/detochkaiana/">Iana D.</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://www.reddit.com/r/ClaudeAI/comments/1e3h0f1/my_submission_to_anthropics_build_with_claude/">"My Submission to Anthropic's Build with Claude"></td>
+    <td><a href="https://www.reddit.com/user/saoudriz/">u/saoudriz/</a></td>
+  </tr>
+</table>
 
 ## License
 
