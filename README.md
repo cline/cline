@@ -88,37 +88,37 @@ Bonus points if you can make the PR yourself! 🚀
     <th>Author</th>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=5FbZ8ALfSTs" target="_blank"><img src="http://img.youtube.com/vi/5FbZ8ALfSTs/0.jpg" alt="Claude Sonnet 3.5 Artifacts in VSCode With This Extension" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=5FbZ8ALfSTs" target="_blank"><img src="http://img.youtube.com/vi/5FbZ8ALfSTs/0.jpg" alt="Claude Sonnet 3.5 Artifacts in VSCode With This Extension" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@CoderOne" target="_blank">CoderOne</a></td>
-    <td><a href="http://www.youtube.com/watch?v=UNsQHosbIoE" target="_blank"><img src="http://img.youtube.com/vi/UNsQHosbIoE/0.jpg" alt="ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=UNsQHosbIoE" target="_blank"><img src="http://img.youtube.com/vi/UNsQHosbIoE/0.jpg" alt="ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@intheworldofai" target="_blank">WorldofAI</a></td>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=Ki0nuOeUpT0" target="_blank"><img src="http://img.youtube.com/vi/Ki0nuOeUpT0/0.jpg" alt="ClaudeDev: This Mind-Blowing Coding Agent Can Build SaaS Apps in Minutes!" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=Ki0nuOeUpT0" target="_blank"><img src="http://img.youtube.com/vi/Ki0nuOeUpT0/0.jpg" alt="ClaudeDev: This Mind-Blowing Coding Agent Can Build SaaS Apps in Minutes!" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@ai-for-devs" target="_blank">AI for Devs</a></td>
-    <td><a href="http://www.youtube.com/watch?v=ufq6sHGe0zs" target="_blank"><img src="http://img.youtube.com/vi/ufq6sHGe0zs/0.jpg" alt="Claude Dev: This Coding Agent can Generate Applications Within VS Code!" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=ufq6sHGe0zs" target="_blank"><img src="http://img.youtube.com/vi/ufq6sHGe0zs/0.jpg" alt="Claude Dev: This Coding Agent can Generate Applications Within VS Code!" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@AICodeKing" target="_blank">AICodeKing</a></td>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=GeZBfO1kxA4" target="_blank"><img src="http://img.youtube.com/vi/GeZBfO1kxA4/0.jpg" alt="ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=GeZBfO1kxA4" target="_blank"><img src="http://img.youtube.com/vi/GeZBfO1kxA4/0.jpg" alt="ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@AICodeKing" target="_blank">AICodeKing</a></td>
-    <td><a href="http://www.youtube.com/watch?v=VT-JYVi81ew" target="_blank"><img src="http://img.youtube.com/vi/VT-JYVi81ew/0.jpg" alt="Build games with zero code using Claude Dev in VS Code" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=VT-JYVi81ew" target="_blank"><img src="http://img.youtube.com/vi/VT-JYVi81ew/0.jpg" alt="Build games with zero code using Claude Dev in VS Code" width="256px"></a></td>
     <td><a href="https://jimclydemonge.medium.com/" target="_blank">Jim Clyde Monge</a></td>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=Rv0wJZRpnCQ" target="_blank"><img src="http://img.youtube.com/vi/Rv0wJZRpnCQ/0.jpg" alt="Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=Rv0wJZRpnCQ" target="_blank"><img src="http://img.youtube.com/vi/Rv0wJZRpnCQ/0.jpg" alt="Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@joshfpocock" target="_blank">Josh Pocock</a></td>
-    <td><a href="http://www.youtube.com/watch?v=Vp1Z3VGZroA" target="_blank"><img src="http://img.youtube.com/vi/Vp1Z3VGZroA/0.jpg" alt="Claude Dev Is Mindblowing. The Best Coding Assistant tool?" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=Vp1Z3VGZroA" target="_blank"><img src="http://img.youtube.com/vi/Vp1Z3VGZroA/0.jpg" alt="Claude Dev Is Mindblowing. The Best Coding Assistant tool?" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen" target="_blank">Yaron Been</a></td>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=cAfunEHLees" target="_blank"><img src="http://img.youtube.com/vi/cAfunEHLees/0.jpg" alt="Combining Claude Dev With Google Gemini To Build Fast With Low Effort" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=cAfunEHLees" target="_blank"><img src="http://img.youtube.com/vi/cAfunEHLees/0.jpg" alt="Combining Claude Dev With Google Gemini To Build Fast With Low Effort" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen" target="_blank">Yaron Been</a></td>
-    <td><a href="http://www.youtube.com/watch?v=EQ4O8rUOqZs" target="_blank"><img src="http://img.youtube.com/vi/EQ4O8rUOqZs/0.jpg" alt="Browser Automation Made Easy With Claude Dev" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=EQ4O8rUOqZs" target="_blank"><img src="http://img.youtube.com/vi/EQ4O8rUOqZs/0.jpg" alt="Browser Automation Made Easy With Claude Dev" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@ecomxfactor-YaronBeen" target="_blank">Yaron Been</a></td>
   </tr>
   <tr>
-    <td><a href="http://www.youtube.com/watch?v=aq0yw_DtphQ" target="_blank"><img src="http://img.youtube.com/vi/aq0yw_DtphQ/0.jpg" alt="ClaudeDev: The Ultimate Coding Agent for VS Code" width="128px"></a></td>
+    <td><a href="http://www.youtube.com/watch?v=aq0yw_DtphQ" target="_blank"><img src="http://img.youtube.com/vi/aq0yw_DtphQ/0.jpg" alt="ClaudeDev: The Ultimate Coding Agent for VS Code" width="256px"></a></td>
     <td><a href="https://www.youtube.com/@blascerecer" target="_blank">Blas</a></td>
     <td><a href="https://www.reddit.com/r/ClaudeAI/comments/1eqo3nk/i_built_my_first_web_app_in_one_day_using_claude/" target="_blank">I Built My First Web App in One Day Using Claude Dev Extension - Mind Blown!</a></td>
     <td><a href="https://www.reddit.com/user/No_Order_1065/" target="_blank">u/No_Order_1065</a></td>
