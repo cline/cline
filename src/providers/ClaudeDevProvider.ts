@@ -403,6 +403,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("koduApiKey", undefined)
 		await this.updateGlobalState("koduEmail", undefined)
 		await this.updateGlobalState("koduCredits", undefined)
+		await this.updateGlobalState("apiProvider", "kodu")
 		this.claudeDev?.updateApi({ apiProvider: "kodu", koduApiKey: undefined })
 		await this.postStateToWebview()
 	}
