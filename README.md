@@ -76,6 +76,9 @@ To build Claude Dev locally, follow these steps:
 4. Launch by pressing `F5` to open a new VSCode window with the extension loaded
 
 ## Reviews
+### Want to add your own review here?
+Reach out on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a> or on the discord server to share your review of Claude Dev and we'll add it here!
+Bonus points if you can make the PR yourself! 🚀
 
 <table>
   <tr>
@@ -131,10 +134,6 @@ To build Claude Dev locally, follow these steps:
     <td><a href="https://www.reddit.com/user/saoudriz/" target="_blank">u/saoudriz/</a></td>
   </tr>
 </table>
-
-### Want to add your own review here?
-Reach out on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a> or on the discord server to share your review of Claude Dev and we'll add it here!
-Bonus points if you can make the PR yourself! 🚀
 
 ## License
 
