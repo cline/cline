@@ -324,8 +324,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowReadOnly":
-						await this.updateGlobalState("alwaysAllowReadOnly", message.bool || undefined)
-						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool || undefined)
+						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
+						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -681,7 +681,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
-			alwaysAllowReadOnly,
+			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
 			taskHistory,
 			koduCredits,
 			shouldShowKoduPromo: shouldShowKoduPromo ?? true,
