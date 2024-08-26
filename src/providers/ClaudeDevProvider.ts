@@ -378,6 +378,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("shouldShowKoduPromo", false)
 						await this.postStateToWebview()
 						break
+					case "resetState":
+						await this.resetState()
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -743,5 +746,25 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	private async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
+	}
+
+	// dev
+
+	async resetState() {
+		vscode.window.showInformationMessage("Resetting state...")
+		for (const key of this.context.globalState.keys()) {
+			await this.context.globalState.update(key, undefined)
+		}
+		const secretKeys: SecretKey[] = ["apiKey", "openRouterApiKey", "awsAccessKey", "awsSecretKey", "koduApiKey"]
+		for (const key of secretKeys) {
+			await this.storeSecret(key, undefined)
+		}
+		if (this.claudeDev) {
+			this.claudeDev.abortTask()
+			this.claudeDev = undefined
+		}
+		vscode.window.showInformationMessage("State reset")
+		await this.postStateToWebview()
+		await this.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
 	}
 }

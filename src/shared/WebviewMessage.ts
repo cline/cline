@@ -19,6 +19,7 @@ export interface WebviewMessage {
 		| "didClickKoduSignOut"
 		| "fetchKoduCredits"
 		| "didDismissKoduPromo"
+		| "resetState"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

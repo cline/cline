@@ -11,6 +11,8 @@ import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/v
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
+const IS_DEV = true
+
 type SettingsViewProps = {
 	version: string
 	apiConfiguration?: ApiConfiguration
@@ -78,6 +80,10 @@ const SettingsView = ({
 
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
+
+	const handleResetState = () => {
+		vscode.postMessage({ type: "resetState" })
+	}
 
 	return (
 		<div
@@ -182,6 +188,23 @@ const SettingsView = ({
 						</p>
 					)}
 				</div>
+
+				{IS_DEV && (
+					<>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
+						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+							Reset State
+						</VSCodeButton>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							This will reset all global state and secret storage in the extension.
+						</p>
+					</>
+				)}
 
 				<div
 					style={{

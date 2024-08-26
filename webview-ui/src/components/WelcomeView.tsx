@@ -10,9 +10,15 @@ interface WelcomeViewProps {
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
 	vscodeUriScheme?: string
+	setDidAuthKoduFromWelcome: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfiguration, vscodeUriScheme }) => {
+const WelcomeView: React.FC<WelcomeViewProps> = ({
+	apiConfiguration,
+	setApiConfiguration,
+	vscodeUriScheme,
+	setDidAuthKoduFromWelcome,
+}) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
 	const disableLetsGoButton = apiErrorMessage != null
@@ -73,6 +79,7 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ apiConfiguration, setApiConfi
 					setApiConfiguration={setApiConfiguration}
 					showModelOptions={false}
 					vscodeUriScheme={vscodeUriScheme}
+					setDidAuthKodu={setDidAuthKoduFromWelcome}
 				/>
 				{apiConfiguration?.apiProvider !== "kodu" && (
 					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>

@@ -26,6 +26,7 @@ interface ApiOptionsProps {
 	koduCredits?: number
 	apiErrorMessage?: string
 	vscodeUriScheme?: string
+	setDidAuthKodu?: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const ApiOptions: React.FC<ApiOptionsProps> = ({
@@ -35,6 +36,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 	koduCredits,
 	apiErrorMessage,
 	vscodeUriScheme,
+	setDidAuthKodu,
 }) => {
 	const [, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -192,7 +194,9 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						</>
 					) : (
 						<div style={{ margin: "4px 0px" }}>
-							<VSCodeButtonLink href={getKoduSignInUrl(vscodeUriScheme)}>
+							<VSCodeButtonLink
+								href={getKoduSignInUrl(vscodeUriScheme)}
+								onClick={() => setDidAuthKodu?.(true)}>
 								Sign in to Kodu
 							</VSCodeButtonLink>
 						</div>
