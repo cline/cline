@@ -79,7 +79,9 @@ To build Claude Dev locally, follow these steps:
 
 <table>
   <tr>
-    <th>Video</th>
+    <th>Testimonial</th>
+    <th>Author</th>
+    <th>Testimonial</th>
     <th>Author</th>
   </tr>
   <tr>
@@ -128,11 +130,11 @@ To build Claude Dev locally, follow these steps:
     <td><a href="https://www.reddit.com/r/ClaudeAI/comments/1e3h0f1/my_submission_to_anthropics_build_with_claude/" target="_blank">My Submission to Anthropic's Build with Claude</td>
     <td><a href="https://www.reddit.com/user/saoudriz/" target="_blank">u/saoudriz/</a></td>
   </tr>
-  <tr>
-  <td><h3>Want to add your own review here?</h3>
-  <td>Reach out on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a> or create an issue about it ! </td>
-  </tr>
 </table>
+
+### Want to add your own review here?
+Reach out on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a> or on the discord server to share your review of Claude Dev and we'll add it here!
+Bonus points if you can make the PR yourself! 🚀
 
 ## License
 
