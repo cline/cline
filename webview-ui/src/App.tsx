@@ -33,8 +33,9 @@ const App: React.FC = () => {
 	const [taskHistory, setTaskHistory] = useState<HistoryItem[]>([])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [koduCredits, setKoduCredits] = useState<number | undefined>(undefined)
-	const [isNewUser, setIsNewUser] = useState(false)
 	const [shouldShowKoduPromo, setShouldShowKoduPromo] = useState(true)
+	const [didAuthKoduFromWelcome, setDidAuthKoduFromWelcome] = useState<boolean>(false)
+
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
 	}, [])
@@ -51,8 +52,8 @@ const App: React.FC = () => {
 						message.state!.apiConfiguration?.awsAccessKey !== undefined ||
 						message.state!.apiConfiguration?.koduApiKey !== undefined
 					setShowWelcome(!hasKey)
-					if (!hasKey && !isNewUser) {
-						setIsNewUser(true)
+					if (!hasKey) {
+						setDidAuthKoduFromWelcome(false)
 					}
 					setApiConfiguration(message.state!.apiConfiguration)
 					setMaxRequestsPerTask(
@@ -88,30 +89,24 @@ const App: React.FC = () => {
 							setShowSettings(false)
 							setShowHistory(false)
 							break
+						case "koduCreditsFetched":
+							setKoduCredits(message.state!.koduCredits)
+							break
 						case "koduAuthenticated":
-							if (!isNewUser) {
+							if (!didAuthKoduFromWelcome) {
 								setShowSettings(true)
 								setShowHistory(false)
 							}
-							break
-						case "koduCreditsFetched":
-							setKoduCredits(message.state!.koduCredits)
 							break
 					}
 					break
 			}
 			// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
 		},
-		[isNewUser]
+		[didAuthKoduFromWelcome]
 	)
 
 	useEvent("message", handleMessage)
-
-	useEffect(() => {
-		if (showWelcome === false) {
-			setIsNewUser(false)
-		}
-	}, [showWelcome])
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
@@ -128,6 +123,7 @@ const App: React.FC = () => {
 					apiConfiguration={apiConfiguration}
 					setApiConfiguration={setApiConfiguration}
 					vscodeUriScheme={vscodeUriScheme}
+					setDidAuthKoduFromWelcome={setDidAuthKoduFromWelcome}
 				/>
 			) : (
 				<>

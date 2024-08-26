@@ -32,11 +32,11 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 				🎉{"  "}New in v{version}
 			</h3>
 
-			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Excited to announce that we've partnered with Anthropic and are offering $20 free credits to help
-					users get the most out of Claude Dev with high rate limits and prompt caching! Stay tuned for some
-					exciting updates like easier billing, voice mode and one click deployment.
+					Excited to announce that we've partnered with Anthropic and are offering <b>$20 free credits</b> to
+					help users get the most out of Claude Dev with increased rate limits and prompt caching! Stay tuned
+					for some exciting updates like easier billing, voice mode and one click deployment!
 					{apiConfiguration?.koduApiKey === undefined && (
 						<VSCodeButtonLink
 							appearance="secondary"
@@ -44,17 +44,17 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 							style={{
 								transform: "scale(0.85)",
 								transformOrigin: "left center",
-								margin: "4px 0 2px 0",
+								margin: "4px -30px 2px 0",
 							}}>
-							Claim $20 Free Credits with Kodu
+							Claim $20 Credits on Kodu
 						</VSCodeButtonLink>
 					)}
 				</li>
 				<li>
 					Added "Always allow read-only operations" setting to let Claude read files and view directories
-					without needing to approve (off by default)
+					without needing to approve (off by default).
 				</li>
-				<li>Added sliding window context management to keep tasks going past 200k tokens</li>
+				<li>Added sliding window context management to keep tasks going past 200k tokens.</li>
 			</ul>
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
