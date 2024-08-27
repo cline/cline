@@ -306,7 +306,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.updateGlobalState("awsRegion", awsRegion)
-							await this.updateGlobalState("gcProjectId", gcProjectId);
+							await this.updateGlobalState("gcProjectId", gcProjectId)
 							await this.updateGlobalState("gcRegion", gcRegion)
 							await this.storeSecret("gcServiceAccountKey", gcServiceAccountKey)
 							this.claudeDev?.updateApi(message.apiConfiguration)

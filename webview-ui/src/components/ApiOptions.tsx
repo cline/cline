@@ -326,7 +326,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						For security reasons, it is recommended to use Application Default Credentials (ADC) instead of Service Account Keys. If you want to use ADC, leave empty.
+						For security reasons, it is recommended to use Application Default Credentials (ADC) instead of
+						Service Account Keys. If you want to use ADC, leave empty.
 						<VSCodeLink
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc"
 							style={{ display: "inline" }}>

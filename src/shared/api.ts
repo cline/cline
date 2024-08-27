@@ -265,8 +265,8 @@ export const koduModels = {
 
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
-export type VertexModelId = keyof typeof vertexModels;
-export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620";
+export type VertexModelId = keyof typeof vertexModels
+export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620"
 export const vertexModels = {
 	"claude-3-5-sonnet@20240620": {
 		maxTokens: 8192,
@@ -300,4 +300,4 @@ export const vertexModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
-} as const satisfies Record<string, ModelInfo>;
+} as const satisfies Record<string, ModelInfo>
