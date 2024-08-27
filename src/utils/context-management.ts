@@ -59,7 +59,7 @@ export function slidingWindowContextManagement(
 										? { type: "text", text: "(image removed due to context limits)" }
 										: contentItem
 							  )
-							: "",
+							: "(truncated due to context limits)",
 					} as Anthropic.Messages.ToolResultBlockParam
 				}
 				return item
