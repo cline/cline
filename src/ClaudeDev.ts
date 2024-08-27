@@ -632,9 +632,10 @@ export class ClaudeDev {
 				: "") +
 			`\n\n${this.getPotentiallyRelevantDetails()}`
 
+		const newUserContentImages = newUserContent.filter((block) => block.type === "image")
 		const combinedModifiedOldUserContentWithNewUserContent: UserContent = (
 			modifiedOldUserContent.filter((block) => block.type !== "text") as UserContent
-		).concat([{ type: "text", text: combinedText }])
+		).concat([{ type: "text", text: combinedText }, ...newUserContentImages])
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
 		await this.initiateTaskLoop(combinedModifiedOldUserContentWithNewUserContent)
