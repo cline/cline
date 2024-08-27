@@ -70,7 +70,7 @@ const HistoryPreview = ({ taskHistory, showHistoryView }: HistoryPreviewProps) =
 
 			<div style={{ padding: "0px 20px 0 20px" }}>
 				{taskHistory
-					.filter((item) => item.ts && item.task && item.totalCost)
+					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (
 						<div

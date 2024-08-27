@@ -1,30 +1,46 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeCheckbox,
+	VSCodeLink,
+	VSCodeTextArea,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
+const IS_DEV = false // FIXME: use flags when packaging
+
 type SettingsViewProps = {
 	version: string
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
+	koduCredits?: number
 	maxRequestsPerTask: string
 	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
 	customInstructions: string
 	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
 	onDone: () => void
+	alwaysAllowReadOnly: boolean
+	setAlwaysAllowReadOnly: React.Dispatch<React.SetStateAction<boolean>>
+	vscodeUriScheme?: string
 }
 
 const SettingsView = ({
 	version,
 	apiConfiguration,
 	setApiConfiguration,
+	koduCredits,
 	maxRequestsPerTask,
 	setMaxRequestsPerTask,
 	customInstructions,
 	setCustomInstructions,
 	onDone,
+	alwaysAllowReadOnly,
+	setAlwaysAllowReadOnly,
+	vscodeUriScheme,
 }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
@@ -40,6 +56,7 @@ const SettingsView = ({
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
 		}
 	}
@@ -63,6 +80,10 @@ const SettingsView = ({
 
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
+
+	const handleResetState = () => {
+		vscode.postMessage({ type: "resetState" })
+	}
 
 	return (
 		<div
@@ -95,17 +116,27 @@ const SettingsView = ({
 						apiConfiguration={apiConfiguration}
 						setApiConfiguration={setApiConfiguration}
 						showModelOptions={true}
+						koduCredits={koduCredits}
+						apiErrorMessage={apiErrorMessage}
+						vscodeUriScheme={vscodeUriScheme}
 					/>
-					{apiErrorMessage && (
-						<p
-							style={{
-								margin: "-5px 0 12px 0",
-								fontSize: "12px",
-								color: "var(--vscode-errorForeground)",
-							}}>
-							{apiErrorMessage}
-						</p>
-					)}
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowReadOnly}
+						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Claude will automatically read files and view directories without requiring you to
+						click the Allow button.
+					</p>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
@@ -157,6 +188,23 @@ const SettingsView = ({
 						</p>
 					)}
 				</div>
+
+				{IS_DEV && (
+					<>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
+						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+							Reset State
+						</VSCodeButton>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							This will reset all global state and secret storage in the extension.
+						</p>
+					</>
+				)}
 
 				<div
 					style={{

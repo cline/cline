@@ -99,7 +99,7 @@ const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
 					)}
 
 					{taskHistory
-						.filter((item) => item.ts && item.task && item.totalCost)
+						.filter((item) => item.ts && item.task)
 						.map((item, index) => (
 							<div
 								key={item.id}

@@ -1,6 +1,6 @@
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { Anthropic } from "@anthropic-ai/sdk";
-import { ApiHandler, withoutImageData } from ".";
+import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from ".";
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../shared/api";
 import { GoogleAuth } from "google-auth-library";
 
@@ -29,8 +29,8 @@ export class VertexHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<Anthropic.Messages.Message> {
-		return await this.client.messages.create({
+	): Promise<ApiHandlerMessageResponse> {
+		const message = await this.client.messages.create({
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens,
 			system: systemPrompt,
@@ -38,6 +38,8 @@ export class VertexHandler implements ApiHandler {
 			tools,
 			tool_choice: { type: "auto" },
 		});
+
+		return { message };
 	}
 
 	createUserReadableRequest(

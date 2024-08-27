@@ -1,5 +1,6 @@
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useMemo } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ApiModelId,
@@ -8,19 +9,38 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	koduDefaultModelId,
+	koduModels,
 	openRouterDefaultModelId,
 	openRouterModels,
 	vertexDefaultModelId,
 	vertexModels,
 } from "../../../src/shared/api"
+import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
+import { getKoduAddCreditsUrl, getKoduHomepageUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
+import { vscode } from "../utils/vscode"
+import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiConfiguration?: ApiConfiguration
 	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
+	koduCredits?: number
+	apiErrorMessage?: string
+	vscodeUriScheme?: string
+	setDidAuthKodu?: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfiguration, setApiConfiguration }) => {
+const ApiOptions: React.FC<ApiOptionsProps> = ({
+	showModelOptions,
+	apiConfiguration,
+	setApiConfiguration,
+	koduCredits,
+	apiErrorMessage,
+	vscodeUriScheme,
+	setDidAuthKodu,
+}) => {
+	const [, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration((prev) => ({ ...prev, [field]: event.target.value }))
 	}
@@ -61,6 +81,27 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 		)
 	}
 
+	useEffect(() => {
+		if (selectedProvider === "kodu" && apiConfiguration?.koduApiKey && koduCredits === undefined) {
+			setDidFetchKoduCredits(false)
+			vscode.postMessage({ type: "fetchKoduCredits" })
+		}
+	}, [selectedProvider, apiConfiguration?.koduApiKey, koduCredits])
+
+	const handleMessage = useCallback((e: MessageEvent) => {
+		const message: ExtensionMessage = e.data
+		switch (message.type) {
+			case "action":
+				switch (message.action) {
+					case "koduCreditsFetched":
+						setDidFetchKoduCredits(true)
+						break
+				}
+				break
+		}
+	}, [])
+	useEvent("message", handleMessage)
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 			<div className="dropdown-container">
@@ -68,6 +109,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
+					<VSCodeOption value="kodu">Kodu</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
@@ -121,6 +163,58 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 							(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter support is experimental and may
 							not work well with large files.)
 						</span>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "kodu" && (
+				<div>
+					{apiConfiguration?.koduApiKey !== undefined ? (
+						<>
+							<div style={{ marginBottom: 5, marginTop: 3 }}>
+								<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+									Signed in as {apiConfiguration?.koduEmail || "Unknown"}
+								</span>{" "}
+								<VSCodeLink
+									style={{ display: "inline" }}
+									onClick={() => vscode.postMessage({ type: "didClickKoduSignOut" })}>
+									(sign out?)
+								</VSCodeLink>
+							</div>
+							<div style={{ marginBottom: 7 }}>
+								Credits remaining:{" "}
+								<span style={{ fontWeight: 500, opacity: koduCredits !== undefined ? 1 : 0.6 }}>
+									{formatPrice(koduCredits || 0)}
+								</span>
+							</div>
+							<VSCodeButtonLink
+								href={getKoduAddCreditsUrl(vscodeUriScheme)}
+								style={{
+									width: "fit-content",
+								}}>
+								Add Credits
+							</VSCodeButtonLink>
+						</>
+					) : (
+						<div style={{ margin: "4px 0px" }}>
+							<VSCodeButtonLink
+								href={getKoduSignInUrl(vscodeUriScheme)}
+								onClick={() => setDidAuthKodu?.(true)}>
+								Sign in to Kodu
+							</VSCodeButtonLink>
+						</div>
+					)}
+					<p
+						style={{
+							fontSize: 12,
+							marginTop: 6,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Kodu is recommended for its high rate limits and access to the latest features like prompt
+						caching.
+						<VSCodeLink href={getKoduHomepageUrl()} style={{ display: "inline", fontSize: "12px" }}>
+							Learn more about Kodu here.
+						</VSCodeLink>
 					</p>
 				</div>
 			)}
@@ -242,6 +336,17 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 				</div>
 			)}
 
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
 			{showModelOptions && (
 				<>
 					<div className="dropdown-container">
@@ -251,6 +356,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
+						{selectedProvider === "kodu" && createDropdown(koduModels)}
 						{selectedProvider === "vertex" && createDropdown(vertexModels)}
 					</div>
 
@@ -261,16 +367,16 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 	)
 }
 
-const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
-	const formatPrice = (price: number) => {
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: "USD",
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		}).format(price)
-	}
+export const formatPrice = (price: number) => {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(price)
+}
 
+const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
@@ -355,8 +461,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
+		case "kodu":
+			return getProviderData(koduModels, koduDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
 }
 

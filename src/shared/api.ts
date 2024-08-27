@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "kodu" | "vertex"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,6 +7,8 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
+	koduApiKey?: string
+	koduEmail?: string
 	gcRegion?: string
 	gcProjectId?: string
 	gcServiceAccountKey?: string
@@ -20,6 +22,7 @@ export type ApiConfiguration = ApiHandlerOptions & {
 
 export interface ModelInfo {
 	maxTokens: number
+	contextWindow: number
 	supportsImages: boolean
 	supportsPromptCache: boolean
 	inputPrice: number
@@ -37,6 +40,7 @@ export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-2024
 export const anthropicModels = {
 	"claude-3-5-sonnet-20240620": {
 		maxTokens: 8192,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
@@ -46,8 +50,9 @@ export const anthropicModels = {
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -55,6 +60,7 @@ export const anthropicModels = {
 	},
 	"claude-3-sonnet-20240229": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -62,6 +68,7 @@ export const anthropicModels = {
 	},
 	"claude-3-haiku-20240307": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.25,
@@ -78,6 +85,7 @@ export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonne
 export const bedrockModels = {
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -85,6 +93,7 @@ export const bedrockModels = {
 	},
 	"anthropic.claude-3-opus-20240229-v1:0": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 15.0,
@@ -92,6 +101,7 @@ export const bedrockModels = {
 	},
 	"anthropic.claude-3-sonnet-20240229-v1:0": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -99,6 +109,7 @@ export const bedrockModels = {
 	},
 	"anthropic.claude-3-haiku-20240307-v1:0": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.25,
@@ -113,6 +124,7 @@ export const openRouterDefaultModelId: OpenRouterModelId = "anthropic/claude-3.5
 export const openRouterModels = {
 	"anthropic/claude-3.5-sonnet:beta": {
 		maxTokens: 8192,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -120,6 +132,7 @@ export const openRouterModels = {
 	},
 	"anthropic/claude-3-opus:beta": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 15,
@@ -127,6 +140,7 @@ export const openRouterModels = {
 	},
 	"anthropic/claude-3-sonnet:beta": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3,
@@ -134,6 +148,7 @@ export const openRouterModels = {
 	},
 	"anthropic/claude-3-haiku:beta": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.25,
@@ -141,6 +156,7 @@ export const openRouterModels = {
 	},
 	"openai/gpt-4o-2024-08-06": {
 		maxTokens: 16384,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 2.5,
@@ -148,6 +164,7 @@ export const openRouterModels = {
 	},
 	"openai/gpt-4o-mini-2024-07-18": {
 		maxTokens: 16384,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
@@ -155,6 +172,7 @@ export const openRouterModels = {
 	},
 	"openai/gpt-4-turbo": {
 		maxTokens: 4096,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 10,
@@ -201,6 +219,7 @@ export const openRouterModels = {
 	// while deepseek coder can use tools, it may sometimes send tool invocation as a text block
 	"deepseek/deepseek-coder": {
 		maxTokens: 4096,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.14,
@@ -209,6 +228,7 @@ export const openRouterModels = {
 	// mistral models can use tools but aren't great at going step-by-step and proceeding to the next step
 	"mistralai/mistral-large": {
 		maxTokens: 8192,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 3,
@@ -236,6 +256,13 @@ export const openRouterModels = {
 	// },
 } as const satisfies Record<string, ModelInfo>
 
+// Kodu
+export type KoduModelId = keyof typeof koduModels
+export const koduDefaultModelId: KoduModelId = "claude-3-5-sonnet-20240620"
+export const koduModels = {
+	...anthropicModels,
+} as const satisfies Record<string, ModelInfo>
+
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 export type VertexModelId = keyof typeof vertexModels;
@@ -243,6 +270,7 @@ export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620";
 export const vertexModels = {
 	"claude-3-5-sonnet@20240620": {
 		maxTokens: 8192,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -250,6 +278,7 @@ export const vertexModels = {
 	},
 	"claude-3-opus@20240229": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 15.0,
@@ -257,6 +286,7 @@ export const vertexModels = {
 	},
 	"claude-3-sonnet@20240229": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
@@ -264,6 +294,7 @@ export const vertexModels = {
 	},
 	"claude-3-haiku@20240307": {
 		maxTokens: 4096,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.25,

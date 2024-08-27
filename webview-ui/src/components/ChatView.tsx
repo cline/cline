@@ -16,6 +16,8 @@ import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
 import { HistoryItem } from "../../../src/shared/HistoryItem"
+import { ApiConfiguration } from "../../../src/shared/api"
+import KoduPromo from "./KoduPromo"
 
 interface ChatViewProps {
 	version: string
@@ -28,6 +30,10 @@ interface ChatViewProps {
 	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
+	apiConfiguration?: ApiConfiguration
+	vscodeUriScheme?: string
+	shouldShowKoduPromo: boolean
+	koduCredits?: number
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -43,6 +49,10 @@ const ChatView = ({
 	selectedModelSupportsPromptCache,
 	hideAnnouncement,
 	showHistoryView,
+	apiConfiguration,
+	vscodeUriScheme,
+	shouldShowKoduPromo,
+	koduCredits,
 }: ChatViewProps) => {
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -162,10 +172,6 @@ const ChatView = ({
 				case "say":
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
-						case "task":
-							break
-						case "error":
-							break
 						case "api_req_started":
 							if (messages.at(-2)?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
@@ -176,13 +182,13 @@ const ChatView = ({
 								setEnableButtons(false)
 							}
 							break
+						case "task":
+						case "error":
 						case "api_req_finished":
-							break
 						case "text":
-							break
 						case "command_output":
-							break
 						case "completion_result":
+						case "tool":
 							break
 					}
 					break
@@ -287,7 +293,8 @@ const ChatView = ({
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-		if (event.key === "Enter" && !event.shiftKey) {
+		const isComposing = event.nativeEvent?.isComposing ?? false
+		if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 			event.preventDefault()
 			handleSendMessage()
 		}
@@ -482,10 +489,23 @@ const ChatView = ({
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
+					koduCredits={koduCredits}
+					vscodeUriScheme={vscodeUriScheme}
+					apiProvider={apiConfiguration?.apiProvider}
 				/>
 			) : (
 				<>
-					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
+					{showAnnouncement && (
+						<Announcement
+							version={version}
+							hideAnnouncement={hideAnnouncement}
+							apiConfiguration={apiConfiguration}
+							vscodeUriScheme={vscodeUriScheme}
+						/>
+					)}
+					{apiConfiguration?.koduApiKey === undefined && !showAnnouncement && shouldShowKoduPromo && (
+						<KoduPromo vscodeUriScheme={vscodeUriScheme} style={{ margin: "10px 15px -10px 15px" }} />
+					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>
@@ -532,6 +552,7 @@ const ChatView = ({
 								onToggleExpand={() => toggleRowExpansion(message.ts)}
 								lastModifiedMessage={modifiedMessages.at(-1)}
 								isLast={index === visibleMessages.length - 1}
+								apiProvider={apiConfiguration?.apiProvider}
 							/>
 						)}
 					/>
@@ -655,14 +676,14 @@ const ChatView = ({
 						style={{ marginRight: "2px" }}>
 						<span
 							className="codicon codicon-device-camera"
-							style={{ fontSize: 18, marginLeft: -2, marginTop: -1 }}></span>
+							style={{ fontSize: 18, marginLeft: -2, marginTop: -3 }}></span>
 					</VSCodeButton>
 					<VSCodeButton
 						disabled={textAreaDisabled}
 						appearance="icon"
 						aria-label="Send Message"
 						onClick={handleSendMessage}>
-						<span className="codicon codicon-send" style={{ fontSize: 16 }}></span>
+						<span className="codicon codicon-send" style={{ fontSize: 16, marginTop: 2 }}></span>
 					</VSCodeButton>
 				</div>
 			</div>

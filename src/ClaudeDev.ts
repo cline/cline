@@ -24,6 +24,8 @@ import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
+import { findLastIndex } from "./utils"
+import { slidingWindowContextManagement } from "./utils/context-management"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -166,7 +168,7 @@ const tools: Tool[] = [
 	{
 		name: "write_to_file",
 		description:
-			"Write content to a file at the specified path. If the file exists, it will be completely overwritten with the provided content (so do NOT omit unmodified sections). If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.",
+			"Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -176,8 +178,7 @@ const tools: Tool[] = [
 				},
 				content: {
 					type: "string",
-					description:
-						"The full content to write to the file. Must be the full intended content of the file, without any omission or truncation.",
+					description: "The full content to write to the file.",
 				},
 			},
 			required: ["path", "content"],
@@ -232,6 +233,7 @@ export class ClaudeDev {
 	private api: ApiHandler
 	private maxRequestsPerTask: number
 	private customInstructions?: string
+	private alwaysAllowReadOnly: boolean
 	private requestCount = 0
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
@@ -248,6 +250,7 @@ export class ClaudeDev {
 		apiConfiguration: ApiConfiguration,
 		maxRequestsPerTask?: number,
 		customInstructions?: string,
+		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem
@@ -256,6 +259,7 @@ export class ClaudeDev {
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 		this.customInstructions = customInstructions
+		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -278,6 +282,10 @@ export class ClaudeDev {
 
 	updateCustomInstructions(customInstructions: string | undefined) {
 		this.customInstructions = customInstructions
+	}
+
+	updateAlwaysAllowReadOnly(alwaysAllowReadOnly: boolean | undefined) {
+		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 	}
 
 	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
@@ -453,7 +461,8 @@ export class ClaudeDev {
 
 	private async resumeTaskFromHistory() {
 		const modifiedClaudeMessages = await this.getSavedClaudeMessages()
-		// need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
+
+		// Need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
 		const lastApiReqStartedIndex = modifiedClaudeMessages.reduce(
 			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_started" ? index : lastIndex),
 			-1
@@ -465,6 +474,16 @@ export class ClaudeDev {
 		if (lastApiReqStartedIndex > lastApiReqFinishedIndex && lastApiReqStartedIndex !== -1) {
 			modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
 		}
+
+		// Remove any resume messages that may have been added before
+		const lastRelevantMessageIndex = findLastIndex(
+			modifiedClaudeMessages,
+			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+		)
+		if (lastRelevantMessageIndex !== -1) {
+			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
+		}
+
 		await this.overwriteClaudeMessages(modifiedClaudeMessages)
 		this.claudeMessages = await this.getSavedClaudeMessages()
 
@@ -858,17 +877,25 @@ export class ClaudeDev {
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const content = await fs.readFile(absolutePath, "utf-8")
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({ tool: "readFile", path: this.getReadablePath(relPath), content } as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "readFile",
+				path: this.getReadablePath(relPath),
+				content,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return content
 		} catch (error) {
 			const errorString = `Error reading file: ${JSON.stringify(serializeError(error))}`
@@ -892,21 +919,25 @@ export class ClaudeDev {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, false)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "listFilesTopLevel",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "listFilesTopLevel",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
@@ -932,21 +963,25 @@ export class ClaudeDev {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const files = await listFiles(absolutePath, true)
 			const result = this.formatFilesList(absolutePath, files)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "listFilesRecursive",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "listFilesRecursive",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error listing files recursively: ${JSON.stringify(serializeError(error))}`
@@ -1018,21 +1053,25 @@ export class ClaudeDev {
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
-			const { response, text, images } = await this.ask(
-				"tool",
-				JSON.stringify({
-					tool: "viewSourceCodeDefinitionsTopLevel",
-					path: this.getReadablePath(relDirPath),
-					content: result,
-				} as ClaudeSayTool)
-			)
-			if (response !== "yesButtonTapped") {
-				if (response === "messageResponse") {
-					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+
+			const message = JSON.stringify({
+				tool: "viewSourceCodeDefinitionsTopLevel",
+				path: this.getReadablePath(relDirPath),
+				content: result,
+			} as ClaudeSayTool)
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
 				}
-				return "The user denied this operation."
 			}
+
 			return result
 		} catch (error) {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
@@ -1206,7 +1245,18 @@ The following additional instructions are provided by the user. They should be f
 ${this.customInstructions.trim()}
 `
 			}
-			return await this.api.createMessage(systemPrompt, this.apiConversationHistory, tools)
+			const adjustedMessages = slidingWindowContextManagement(
+				this.api.getModel().info.contextWindow,
+				systemPrompt,
+				this.apiConversationHistory,
+				tools
+			)
+			const { message, userCredits } = await this.api.createMessage(systemPrompt, adjustedMessages, tools)
+			if (userCredits !== undefined) {
+				console.log("Updating kodu credits", userCredits)
+				this.providerRef.deref()?.updateKoduCredits(userCredits)
+			}
+			return message
 		} catch (error) {
 			const { response } = await this.ask(
 				"api_req_failed",
