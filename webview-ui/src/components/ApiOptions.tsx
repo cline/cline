@@ -18,29 +18,19 @@ import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { getKoduAddCreditsUrl, getKoduHomepageUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
 import { vscode } from "../utils/vscode"
 import VSCodeButtonLink from "./VSCodeButtonLink"
+import { useExtensionState } from "../context/ExtensionStateContext"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
-	apiConfiguration?: ApiConfiguration
-	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
-	koduCredits?: number
 	apiErrorMessage?: string
-	vscodeUriScheme?: string
 	setDidAuthKodu?: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({
-	showModelOptions,
-	apiConfiguration,
-	setApiConfiguration,
-	koduCredits,
-	apiErrorMessage,
-	vscodeUriScheme,
-	setDidAuthKodu,
-}) => {
+const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage, setDidAuthKodu }) => {
+	const { apiConfiguration, setApiConfiguration, koduCredits, uriScheme } = useExtensionState()
 	const [, setDidFetchKoduCredits] = useState(false)
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration((prev) => ({ ...prev, [field]: event.target.value }))
+		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -185,7 +175,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 								</span>
 							</div>
 							<VSCodeButtonLink
-								href={getKoduAddCreditsUrl(vscodeUriScheme)}
+								href={getKoduAddCreditsUrl(uriScheme)}
 								style={{
 									width: "fit-content",
 								}}>
@@ -194,9 +184,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({
 						</>
 					) : (
 						<div style={{ margin: "4px 0px" }}>
-							<VSCodeButtonLink
-								href={getKoduSignInUrl(vscodeUriScheme)}
-								onClick={() => setDidAuthKodu?.(true)}>
+							<VSCodeButtonLink href={getKoduSignInUrl(uriScheme)} onClick={() => setDidAuthKodu?.(true)}>
 								Sign in to Kodu
 							</VSCodeButtonLink>
 						</div>

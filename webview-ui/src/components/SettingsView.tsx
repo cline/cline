@@ -5,8 +5,8 @@ import {
 	VSCodeTextArea,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
-import { ApiConfiguration } from "../../../src/shared/api"
+import { useEffect, useState } from "react"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
@@ -14,47 +14,35 @@ import ApiOptions from "./ApiOptions"
 const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
-	version: string
-	apiConfiguration?: ApiConfiguration
-	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
-	koduCredits?: number
-	maxRequestsPerTask: string
-	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
-	customInstructions: string
-	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
 	onDone: () => void
-	alwaysAllowReadOnly: boolean
-	setAlwaysAllowReadOnly: React.Dispatch<React.SetStateAction<boolean>>
-	vscodeUriScheme?: string
 }
 
-const SettingsView = ({
-	version,
-	apiConfiguration,
-	setApiConfiguration,
-	koduCredits,
-	maxRequestsPerTask,
-	setMaxRequestsPerTask,
-	customInstructions,
-	setCustomInstructions,
-	onDone,
-	alwaysAllowReadOnly,
-	setAlwaysAllowReadOnly,
-	vscodeUriScheme,
-}: SettingsViewProps) => {
+const SettingsView = ({ onDone }: SettingsViewProps) => {
+	const {
+		apiConfiguration,
+		version,
+		maxRequestsPerTask,
+		customInstructions,
+		setCustomInstructions,
+		alwaysAllowReadOnly,
+		setAlwaysAllowReadOnly,
+	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
+	const [maxRequestsPerTaskString, setMaxRequestsPerTaskString] = useState<string>(
+		maxRequestsPerTask?.toString() || ""
+	)
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTask)
+		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTaskString)
 
 		setApiErrorMessage(apiValidationResult)
 		setMaxRequestsErrorMessage(maxRequestsValidationResult)
 
 		if (!apiValidationResult && !maxRequestsValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
+			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTaskString })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
@@ -112,14 +100,7 @@ const SettingsView = ({
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
-					<ApiOptions
-						apiConfiguration={apiConfiguration}
-						setApiConfiguration={setApiConfiguration}
-						showModelOptions={true}
-						koduCredits={koduCredits}
-						apiErrorMessage={apiErrorMessage}
-						vscodeUriScheme={vscodeUriScheme}
-					/>
+					<ApiOptions showModelOptions={true} apiErrorMessage={apiErrorMessage} />
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
@@ -141,13 +122,13 @@ const SettingsView = ({
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
-						value={customInstructions}
+						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
 						rows={4}
 						placeholder={
 							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
 						}
-						onInput={(e: any) => setCustomInstructions(e.target?.value || "")}>
+						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
 					</VSCodeTextArea>
 					<p
@@ -162,10 +143,10 @@ const SettingsView = ({
 
 				<div>
 					<VSCodeTextField
-						value={maxRequestsPerTask}
+						value={maxRequestsPerTaskString}
 						style={{ width: "100%" }}
 						placeholder="20"
-						onInput={(e: any) => setMaxRequestsPerTask(e.target?.value)}>
+						onInput={(e: any) => setMaxRequestsPerTaskString(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Maximum # Requests Per Task</span>
 					</VSCodeTextField>
 					<p

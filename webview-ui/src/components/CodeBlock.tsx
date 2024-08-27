@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { getLanguageFromPath } from "../../utils/getLanguageFromPath"
-import { SyntaxHighlighterStyle } from "../../utils/getSyntaxHighlighterStyleFromTheme"
+import { getLanguageFromPath } from "../utils/getLanguageFromPath"
+import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 
 /*
 const vscodeSyntaxStyle: React.CSSProperties = {

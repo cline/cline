@@ -5,7 +5,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
-import CodeBlock from "./CodeBlock/CodeBlock"
+import CodeBlock from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
 import { ApiProvider } from "../../../src/shared/api"
 

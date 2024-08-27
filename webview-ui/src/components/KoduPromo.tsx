@@ -1,13 +1,15 @@
 import React from "react"
 import { getKoduSignInUrl } from "../../../src/shared/kodu"
 import { vscode } from "../utils/vscode"
+import { useExtensionState } from "../context/ExtensionStateContext"
 
 interface KoduPromoProps {
-	vscodeUriScheme?: string
 	style?: React.CSSProperties
 }
 
-const KoduPromo: React.FC<KoduPromoProps> = ({ vscodeUriScheme, style }) => {
+const KoduPromo: React.FC<KoduPromoProps> = ({ style }) => {
+	const { uriScheme } = useExtensionState()
+
 	function onClose() {
 		vscode.postMessage({ type: "didDismissKoduPromo" })
 	}
@@ -28,7 +30,7 @@ const KoduPromo: React.FC<KoduPromoProps> = ({ vscodeUriScheme, style }) => {
 					cursor: "pointer",
 				}}>
 				<a
-					href={getKoduSignInUrl(vscodeUriScheme)}
+					href={getKoduSignInUrl(uriScheme)}
 					style={{
 						textDecoration: "none",
 						color: "inherit",

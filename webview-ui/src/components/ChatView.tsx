@@ -4,56 +4,50 @@ import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { getApiMetrics } from "../../../src/shared/getApiMetrics"
+import { ClaudeAsk, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
+import { getApiMetrics } from "../../../src/shared/getApiMetrics"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
 import HistoryPreview from "./HistoryPreview"
+import KoduPromo from "./KoduPromo"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
-import { HistoryItem } from "../../../src/shared/HistoryItem"
-import { ApiConfiguration } from "../../../src/shared/api"
-import KoduPromo from "./KoduPromo"
 
 interface ChatViewProps {
-	version: string
-	messages: ClaudeMessage[]
-	taskHistory: HistoryItem[]
 	isHidden: boolean
-	vscodeThemeName?: string
 	showAnnouncement: boolean
 	selectedModelSupportsImages: boolean
 	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
-	apiConfiguration?: ApiConfiguration
-	vscodeUriScheme?: string
-	shouldShowKoduPromo: boolean
-	koduCredits?: number
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({
-	version,
-	messages,
-	taskHistory,
 	isHidden,
-	vscodeThemeName,
 	showAnnouncement,
 	selectedModelSupportsImages,
 	selectedModelSupportsPromptCache,
 	hideAnnouncement,
 	showHistoryView,
-	apiConfiguration,
-	vscodeUriScheme,
-	shouldShowKoduPromo,
-	koduCredits,
 }: ChatViewProps) => {
+	const {
+		version,
+		claudeMessages: messages,
+		taskHistory,
+		themeName: vscodeThemeName,
+		apiConfiguration,
+		uriScheme,
+		shouldShowKoduPromo,
+		koduCredits,
+	} = useExtensionState()
+
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -490,7 +484,7 @@ const ChatView = ({
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
 					koduCredits={koduCredits}
-					vscodeUriScheme={vscodeUriScheme}
+					vscodeUriScheme={uriScheme}
 					apiProvider={apiConfiguration?.apiProvider}
 				/>
 			) : (
@@ -500,11 +494,11 @@ const ChatView = ({
 							version={version}
 							hideAnnouncement={hideAnnouncement}
 							apiConfiguration={apiConfiguration}
-							vscodeUriScheme={vscodeUriScheme}
+							vscodeUriScheme={uriScheme}
 						/>
 					)}
 					{apiConfiguration?.koduApiKey === undefined && !showAnnouncement && shouldShowKoduPromo && (
-						<KoduPromo vscodeUriScheme={vscodeUriScheme} style={{ margin: "10px 15px -10px 15px" }} />
+						<KoduPromo style={{ margin: "10px 15px -10px 15px" }} />
 					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
@@ -520,9 +514,7 @@ const ChatView = ({
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
 						</p>
 					</div>
-					{taskHistory.length > 0 && (
-						<HistoryPreview taskHistory={taskHistory} showHistoryView={showHistoryView} />
-					)}
+					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</>
 			)}
 			{task && (

@@ -1,13 +1,13 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
-import { HistoryItem } from "../../../src/shared/HistoryItem"
 
 type HistoryViewProps = {
-	taskHistory: HistoryItem[]
 	onDone: () => void
 }
 
-const HistoryView = ({ taskHistory, onDone }: HistoryViewProps) => {
+const HistoryView = ({ onDone }: HistoryViewProps) => {
+	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
