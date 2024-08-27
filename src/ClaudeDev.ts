@@ -367,9 +367,16 @@ export class ClaudeDev {
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.claudeMessages.slice(1))))
 			const taskMessage = this.claudeMessages[0] // first message is always the task say
+			const lastRelevantMessage =
+				this.claudeMessages[
+					findLastIndex(
+						this.claudeMessages,
+						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+					)
+				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
-				ts: taskMessage.ts,
+				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
 				tokensIn: apiMetrics.totalTokensIn,
 				tokensOut: apiMetrics.totalTokensOut,
