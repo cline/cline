@@ -20,11 +20,14 @@ const AppContent = () => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
 			case "state":
-				const hasKey =
-					message.state!.apiConfiguration?.apiKey !== undefined ||
-					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
-					message.state!.apiConfiguration?.vertexProjectId !== undefined
+				let hasKey = false
+				const config = message.state?.apiConfiguration
+				if (config) {
+					const { apiKey, openRouterApiKey, awsAccessKey, vertexProjectId } = config
+					hasKey = [apiKey, openRouterApiKey, awsAccessKey, vertexProjectId].some((key) => key !== undefined)
+				} else {
+					hasKey = false
+				}
 				setShowWelcome(!hasKey)
 				break
 			case "action":
@@ -44,7 +47,6 @@ const AppContent = () => {
 				}
 				break
 		}
-		// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
 	}, [])
 
 	useEvent("message", handleMessage)
