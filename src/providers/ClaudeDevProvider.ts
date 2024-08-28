@@ -354,7 +354,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.clearTask()
 						await this.postStateToWebview()
 						break
-					case "didCloseAnnouncement":
+					case "didShowAnnouncement":
 						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
 						await this.postStateToWebview()
 						break

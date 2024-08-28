@@ -28,6 +28,7 @@ const AppContent = () => {
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {
 					setShowAnnouncement(true)
+					vscode.postMessage({ type: "didShowAnnouncement" })
 				}
 				break
 			case "action":
@@ -75,7 +76,6 @@ const AppContent = () => {
 						selectedModelSupportsImages={selectedModelInfo.supportsImages}
 						selectedModelSupportsPromptCache={selectedModelInfo.supportsPromptCache}
 						hideAnnouncement={() => {
-							vscode.postMessage({ type: "didCloseAnnouncement" })
 							setShowAnnouncement(false)
 						}}
 					/>
