@@ -23,6 +23,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid Google Cloud Project ID and Region."
 				}
 				break
+			case "local":
+				if (!apiConfiguration.localApiPort) {
+					return "You must provide a valid API PORT or choose a different provider."
+				}
+				break
 		}
 	}
 	return undefined

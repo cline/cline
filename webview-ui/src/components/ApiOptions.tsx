@@ -69,6 +69,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
+					<VSCodeOption value="local">Local</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
@@ -125,6 +126,18 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							not work well with large files.)
 						</span>
 					</p>
+				</div>
+			)}
+
+			{selectedProvider === "local" && (
+				<div>
+					<VSCodeTextField
+						style={{ width: "100%" }}
+						value={apiConfiguration?.localApiPort || ""}
+						onInput={handleInputChange("localApiPort")}
+						placeholder="Enter API Port...">
+						<span style={{ fontWeight: 500 }}>JAN API Key</span>
+					</VSCodeTextField>
 				</div>
 			)}
 
@@ -265,6 +278,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 						{selectedProvider === "vertex" && createDropdown(vertexModels)}
+						{selectedProvider === "local" && createDropdown(openRouterModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -370,6 +384,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
+		case "local":
+			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

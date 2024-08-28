@@ -17,6 +17,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey"
 type GlobalStateKey =
+	| "localApiPort"
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
@@ -315,7 +316,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								awsRegion,
 								vertexProjectId,
 								vertexRegion,
+								localApiPort
 							} = message.apiConfiguration
+							await this.updateGlobalState("localApiPort", localApiPort)
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
 							await this.storeSecret("apiKey", apiKey)

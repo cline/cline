@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
@@ -14,9 +14,9 @@ const WelcomeView: React.FC<WelcomeViewProps> = () => {
 
 	const disableLetsGoButton = apiErrorMessage != null
 
-	const handleSubmit = () => {
+	const handleSubmit = useCallback(() => {
 		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-	}
+	}, [apiConfiguration])
 
 	useEffect(() => {
 		setApiErrorMessage(validateApiConfiguration(apiConfiguration))

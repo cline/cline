@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "local" 
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -9,6 +9,7 @@ export interface ApiHandlerOptions {
 	awsRegion?: string
 	vertexProjectId?: string
 	vertexRegion?: string
+	localApiPort?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

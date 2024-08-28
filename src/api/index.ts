@@ -4,6 +4,7 @@ import { AnthropicHandler } from "./anthropic"
 import { AwsBedrockHandler } from "./bedrock"
 import { OpenRouterHandler } from "./openrouter"
 import { VertexHandler } from "./vertex"
+import { LocalHandler } from "./local"
 
 export interface ApiHandlerMessageResponse {
 	message: Anthropic.Messages.Message
@@ -40,6 +41,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new AwsBedrockHandler(options)
 		case "vertex":
 			return new VertexHandler(options)
+		case "local":
+			return new LocalHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

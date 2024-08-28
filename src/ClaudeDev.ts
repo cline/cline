@@ -1318,6 +1318,8 @@ ${this.customInstructions.trim()}
 			const response = await this.attemptApiRequest()
 			this.requestCount++
 
+			console.log({ response })
+
 			if (this.abort) {
 				throw new Error("ClaudeDev instance aborted")
 			}
