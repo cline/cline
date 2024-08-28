@@ -139,6 +139,13 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter Secret Key...">
 						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.awsSessionToken || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("awsSessionToken")}
+						placeholder="Enter Session Token (optional)...">
+						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
+					</VSCodeTextField>
 					<div className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
