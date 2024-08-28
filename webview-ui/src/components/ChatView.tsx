@@ -648,7 +648,7 @@ const ChatView = ({
 					style={{
 						position: "absolute",
 						right: 20,
-						bottom: 14.5, // Align with the bottom padding of the container
+						bottom: 14, // Align with the bottom padding of the container
 						display: "flex",
 						alignItems: "flex-end",
 						height: "calc(100% - 20px)", // Full height minus top and bottom padding
@@ -661,14 +661,14 @@ const ChatView = ({
 						style={{ marginRight: "2px" }}>
 						<span
 							className="codicon codicon-device-camera"
-							style={{ fontSize: 18.5, marginLeft: -2, marginBottom: 0.5 }}></span>
+							style={{ fontSize: 18.5, marginLeft: -2, marginBottom: 1 }}></span>
 					</VSCodeButton>
 					<VSCodeButton
 						disabled={textAreaDisabled}
 						appearance="icon"
 						aria-label="Send Message"
 						onClick={handleSendMessage}>
-						<span className="codicon codicon-send" style={{ fontSize: 16.5, marginTop: 2 }}></span>
+						<span className="codicon codicon-send" style={{ fontSize: 16, marginTop: 2.5 }}></span>
 					</VSCodeButton>
 				</div>
 			</div>
