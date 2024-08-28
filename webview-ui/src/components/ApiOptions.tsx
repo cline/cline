@@ -81,6 +81,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<VSCodeTextField
 						value={apiConfiguration?.apiKey || ""}
 						style={{ width: "100%" }}
+						type="password"
 						onInput={handleInputChange("apiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
@@ -104,6 +105,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<VSCodeTextField
 						value={apiConfiguration?.openRouterApiKey || ""}
 						style={{ width: "100%" }}
+						type="password"
 						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
@@ -131,6 +133,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<VSCodeTextField
 						value={apiConfiguration?.awsAccessKey || ""}
 						style={{ width: "100%" }}
+						type="password"
 						onInput={handleInputChange("awsAccessKey")}
 						placeholder="Enter Access Key...">
 						<span style={{ fontWeight: 500 }}>AWS Access Key</span>
@@ -138,6 +141,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<VSCodeTextField
 						value={apiConfiguration?.awsSecretKey || ""}
 						style={{ width: "100%" }}
+						type="password"
 						onInput={handleInputChange("awsSecretKey")}
 						placeholder="Enter Secret Key...">
 						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
@@ -228,13 +232,13 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
 							style={{ display: "inline" }}>
 							{
-								"1) create a Google Cloud account > enable the Vertex AI API > enable the desired Claude models,"
+								"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"
 							}
 						</VSCodeLink>{" "}
 						<VSCodeLink
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
 							style={{ display: "inline" }}>
-							{"2) install the Google Cloud CLI > configure Application Default Credentials."}
+							{"2) install the Google Cloud CLI › configure Application Default Credentials."}
 						</VSCodeLink>
 					</p>
 				</div>
