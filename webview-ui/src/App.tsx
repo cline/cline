@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
 import { normalizeApiConfiguration } from "./components/ApiOptions"
@@ -10,7 +10,7 @@ import { ExtensionStateContextProvider, useExtensionState } from "./context/Exte
 import { vscode } from "./utils/vscode"
 
 const AppContent = () => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, shouldShowAnnouncement } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
@@ -26,11 +26,6 @@ const AppContent = () => {
 					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
 					message.state!.apiConfiguration?.vertexProjectId !== undefined
 				setShowWelcome(!hasKey)
-				// don't update showAnnouncement to false if shouldShowAnnouncement is false
-				if (message.state!.shouldShowAnnouncement) {
-					setShowAnnouncement(true)
-					vscode.postMessage({ type: "didShowAnnouncement" })
-				}
 				break
 			case "action":
 				switch (message.action!) {
@@ -57,6 +52,13 @@ const AppContent = () => {
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
+
+	useEffect(() => {
+		if (shouldShowAnnouncement) {
+			setShowAnnouncement(true)
+			vscode.postMessage({ type: "didShowAnnouncement" })
+		}
+	}, [shouldShowAnnouncement])
 
 	return (
 		<>
