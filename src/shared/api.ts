@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "kodu"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,8 +7,6 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
-	koduApiKey?: string
-	koduEmail?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -251,11 +249,4 @@ export const openRouterModels = {
 	// 	inputPrice: 0.5,
 	// 	outputPrice: 1.5,
 	// },
-} as const satisfies Record<string, ModelInfo>
-
-// Kodu
-export type KoduModelId = keyof typeof koduModels
-export const koduDefaultModelId: KoduModelId = "claude-3-5-sonnet-20240620"
-export const koduModels = {
-	...anthropicModels,
 } as const satisfies Record<string, ModelInfo>

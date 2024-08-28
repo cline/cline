@@ -1261,8 +1261,8 @@ ${this.customInstructions.trim()}
 			)
 			const { message, userCredits } = await this.api.createMessage(systemPrompt, adjustedMessages, tools)
 			if (userCredits !== undefined) {
-				console.log("Updating kodu credits", userCredits)
-				this.providerRef.deref()?.updateKoduCredits(userCredits)
+				console.log("Updating credits", userCredits)
+				// TODO: update credits
 			}
 			return message
 		} catch (error) {

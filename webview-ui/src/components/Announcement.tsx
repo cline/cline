@@ -1,7 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ApiConfiguration } from "../../../src/shared/api"
-import { getKoduSignInUrl } from "../../../src/shared/kodu"
-import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface AnnouncementProps {
 	version: string
@@ -33,23 +31,6 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			</h3>
 
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				<li>
-					Excited to announce that we've partnered with Anthropic and are offering <b>$20 free credits</b> to
-					help users get the most out of Claude Dev with increased rate limits and prompt caching! Stay tuned
-					for some exciting updates like easier billing, voice mode and one click deployment!
-					{apiConfiguration?.koduApiKey === undefined && (
-						<VSCodeButtonLink
-							appearance="secondary"
-							href={getKoduSignInUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Claim $20 Credits on Kodu
-						</VSCodeButtonLink>
-					)}
-				</li>
 				<li>
 					Added "Always allow read-only operations" setting to let Claude read files and view directories
 					without needing to approve (off by default).

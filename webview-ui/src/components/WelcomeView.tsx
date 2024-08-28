@@ -1,17 +1,14 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
-import { getKoduSignInUrl } from "../../../src/shared/kodu"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
-interface WelcomeViewProps {
-	setDidAuthKoduFromWelcome: React.Dispatch<React.SetStateAction<boolean>>
-}
+interface WelcomeViewProps {}
 
-const WelcomeView: React.FC<WelcomeViewProps> = ({ setDidAuthKoduFromWelcome }) => {
-	const { apiConfiguration, uriScheme } = useExtensionState()
+const WelcomeView: React.FC<WelcomeViewProps> = () => {
+	const { apiConfiguration } = useExtensionState()
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
@@ -41,39 +38,11 @@ const WelcomeView: React.FC<WelcomeViewProps> = ({ setDidAuthKoduFromWelcome }) 
 
 			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
 
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-					color: "var(--vscode-editor-foreground)",
-					padding: "6px 8px",
-					borderRadius: "3px",
-					margin: "8px 0px",
-					fontSize: "12px",
-				}}>
-				<i
-					className="codicon codicon-info"
-					style={{
-						marginRight: "6px",
-						fontSize: "16px",
-						color: "var(--vscode-infoIcon-foreground)",
-					}}></i>
-				<span>
-					Explore Claude's capabilities with $20 free credits from{" "}
-					<VSCodeLink href={getKoduSignInUrl(uriScheme)} style={{ display: "inline" }}>
-						Kodu
-					</VSCodeLink>
-				</span>
-			</div>
-
 			<div style={{ marginTop: "10px" }}>
-				<ApiOptions showModelOptions={false} setDidAuthKodu={setDidAuthKoduFromWelcome} />
-				{apiConfiguration?.apiProvider !== "kodu" && (
-					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
-						Let's go!
-					</VSCodeButton>
-				)}
+				<ApiOptions showModelOptions={false} />
+				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+					Let's go!
+				</VSCodeButton>
 			</div>
 		</div>
 	)

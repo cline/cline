@@ -1,12 +1,10 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
+import { ApiProvider } from "../../../src/shared/api"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { vscode } from "../utils/vscode"
 import Thumbnails from "./Thumbnails"
-import { formatPrice } from "./ApiOptions"
-import { getKoduAddCreditsUrl } from "../../../src/shared/kodu"
-import { ApiProvider } from "../../../src/shared/api"
 
 interface TaskHeaderProps {
 	task: ClaudeMessage
@@ -18,7 +16,6 @@ interface TaskHeaderProps {
 	totalCost: number
 	onClose: () => void
 	isHidden: boolean
-	koduCredits?: number
 	vscodeUriScheme?: string
 	apiProvider?: ApiProvider
 }
@@ -33,7 +30,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	onClose,
 	isHidden,
-	koduCredits,
 	vscodeUriScheme,
 	apiProvider,
 }) => {
@@ -258,7 +254,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 			</div>
-			{apiProvider === "kodu" && (
+			{/* {apiProvider === "kodu" && (
 				<div
 					style={{
 						backgroundColor: "color-mix(in srgb, var(--vscode-badge-background) 50%, transparent)",
@@ -285,7 +281,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 					</div>
 				</div>
-			)}
+			)} */}
 		</div>
 	)
 }

@@ -1,6 +1,5 @@
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { useEvent } from "react-use"
+import React, { useMemo } from "react"
 import {
 	ApiConfiguration,
 	ApiModelId,
@@ -9,26 +8,18 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
-	koduDefaultModelId,
-	koduModels,
 	openRouterDefaultModelId,
 	openRouterModels,
 } from "../../../src/shared/api"
-import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { getKoduAddCreditsUrl, getKoduHomepageUrl, getKoduSignInUrl } from "../../../src/shared/kodu"
-import { vscode } from "../utils/vscode"
-import VSCodeButtonLink from "./VSCodeButtonLink"
 import { useExtensionState } from "../context/ExtensionStateContext"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
-	setDidAuthKodu?: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage, setDidAuthKodu }) => {
-	const { apiConfiguration, setApiConfiguration, koduCredits, uriScheme } = useExtensionState()
-	const [, setDidFetchKoduCredits] = useState(false)
+const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage }) => {
+	const { apiConfiguration, setApiConfiguration } = useExtensionState()
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
@@ -69,27 +60,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 		)
 	}
 
-	useEffect(() => {
-		if (selectedProvider === "kodu" && apiConfiguration?.koduApiKey && koduCredits === undefined) {
-			setDidFetchKoduCredits(false)
-			vscode.postMessage({ type: "fetchKoduCredits" })
-		}
-	}, [selectedProvider, apiConfiguration?.koduApiKey, koduCredits])
-
-	const handleMessage = useCallback((e: MessageEvent) => {
-		const message: ExtensionMessage = e.data
-		switch (message.type) {
-			case "action":
-				switch (message.action) {
-					case "koduCreditsFetched":
-						setDidFetchKoduCredits(true)
-						break
-				}
-				break
-		}
-	}, [])
-	useEvent("message", handleMessage)
-
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 			<div className="dropdown-container">
@@ -97,7 +67,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
-					<VSCodeOption value="kodu">Kodu</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
@@ -150,56 +119,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter support is experimental and may
 							not work well with large files.)
 						</span>
-					</p>
-				</div>
-			)}
-
-			{selectedProvider === "kodu" && (
-				<div>
-					{apiConfiguration?.koduApiKey !== undefined ? (
-						<>
-							<div style={{ marginBottom: 5, marginTop: 3 }}>
-								<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-									Signed in as {apiConfiguration?.koduEmail || "Unknown"}
-								</span>{" "}
-								<VSCodeLink
-									style={{ display: "inline" }}
-									onClick={() => vscode.postMessage({ type: "didClickKoduSignOut" })}>
-									(sign out?)
-								</VSCodeLink>
-							</div>
-							<div style={{ marginBottom: 7 }}>
-								Credits remaining:{" "}
-								<span style={{ fontWeight: 500, opacity: koduCredits !== undefined ? 1 : 0.6 }}>
-									{formatPrice(koduCredits || 0)}
-								</span>
-							</div>
-							<VSCodeButtonLink
-								href={getKoduAddCreditsUrl(uriScheme)}
-								style={{
-									width: "fit-content",
-								}}>
-								Add Credits
-							</VSCodeButtonLink>
-						</>
-					) : (
-						<div style={{ margin: "4px 0px" }}>
-							<VSCodeButtonLink href={getKoduSignInUrl(uriScheme)} onClick={() => setDidAuthKodu?.(true)}>
-								Sign in to Kodu
-							</VSCodeButtonLink>
-						</div>
-					)}
-					<p
-						style={{
-							fontSize: 12,
-							marginTop: 6,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Kodu is recommended for its high rate limits and access to the latest features like prompt
-						caching.
-						<VSCodeLink href={getKoduHomepageUrl()} style={{ display: "inline", fontSize: "12px" }}>
-							Learn more about Kodu here.
-						</VSCodeLink>
 					</p>
 				</div>
 			)}
@@ -289,7 +208,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
-						{selectedProvider === "kodu" && createDropdown(koduModels)}
 					</div>
 
 					<ModelInfoView modelInfo={selectedModelInfo} />
@@ -393,8 +311,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
-		case "kodu":
-			return getProviderData(koduModels, koduDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

@@ -14,7 +14,6 @@ import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
 import HistoryPreview from "./HistoryPreview"
-import KoduPromo from "./KoduPromo"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
 
@@ -44,8 +43,6 @@ const ChatView = ({
 		themeName: vscodeThemeName,
 		apiConfiguration,
 		uriScheme,
-		shouldShowKoduPromo,
-		koduCredits,
 	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -483,7 +480,6 @@ const ChatView = ({
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
-					koduCredits={koduCredits}
 					vscodeUriScheme={uriScheme}
 					apiProvider={apiConfiguration?.apiProvider}
 				/>
@@ -496,9 +492,6 @@ const ChatView = ({
 							apiConfiguration={apiConfiguration}
 							vscodeUriScheme={uriScheme}
 						/>
-					)}
-					{apiConfiguration?.koduApiKey === undefined && !showAnnouncement && shouldShowKoduPromo && (
-						<KoduPromo style={{ margin: "10px 15px -10px 15px" }} />
 					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>

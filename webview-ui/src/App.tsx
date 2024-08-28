@@ -15,54 +15,40 @@ const AppContent = () => {
 	const [showHistory, setShowHistory] = useState(false)
 	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [didAuthKoduFromWelcome, setDidAuthKoduFromWelcome] = useState<boolean>(false)
 
-	const handleMessage = useCallback(
-		(e: MessageEvent) => {
-			const message: ExtensionMessage = e.data
-			switch (message.type) {
-				case "state":
-					const hasKey =
-						message.state!.apiConfiguration?.apiKey !== undefined ||
-						message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-						message.state!.apiConfiguration?.awsAccessKey !== undefined ||
-						message.state!.apiConfiguration?.koduApiKey !== undefined
-					setShowWelcome(!hasKey)
-					if (!hasKey) {
-						setDidAuthKoduFromWelcome(false)
-					}
-					// don't update showAnnouncement to false if shouldShowAnnouncement is false
-					if (message.state!.shouldShowAnnouncement) {
-						setShowAnnouncement(true)
-					}
-					break
-				case "action":
-					switch (message.action!) {
-						case "settingsButtonTapped":
-							setShowSettings(true)
-							setShowHistory(false)
-							break
-						case "historyButtonTapped":
-							setShowSettings(false)
-							setShowHistory(true)
-							break
-						case "chatButtonTapped":
-							setShowSettings(false)
-							setShowHistory(false)
-							break
-						case "koduAuthenticated":
-							if (!didAuthKoduFromWelcome) {
-								setShowSettings(true)
-								setShowHistory(false)
-							}
-							break
-					}
-					break
-			}
-			// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
-		},
-		[didAuthKoduFromWelcome]
-	)
+	const handleMessage = useCallback((e: MessageEvent) => {
+		const message: ExtensionMessage = e.data
+		switch (message.type) {
+			case "state":
+				const hasKey =
+					message.state!.apiConfiguration?.apiKey !== undefined ||
+					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
+					message.state!.apiConfiguration?.awsAccessKey !== undefined
+				setShowWelcome(!hasKey)
+				// don't update showAnnouncement to false if shouldShowAnnouncement is false
+				if (message.state!.shouldShowAnnouncement) {
+					setShowAnnouncement(true)
+				}
+				break
+			case "action":
+				switch (message.action!) {
+					case "settingsButtonTapped":
+						setShowSettings(true)
+						setShowHistory(false)
+						break
+					case "historyButtonTapped":
+						setShowSettings(false)
+						setShowHistory(true)
+						break
+					case "chatButtonTapped":
+						setShowSettings(false)
+						setShowHistory(false)
+						break
+				}
+				break
+		}
+		// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
+	}, [])
 
 	useEvent("message", handleMessage)
 
@@ -73,7 +59,7 @@ const AppContent = () => {
 	return (
 		<>
 			{showWelcome ? (
-				<WelcomeView setDidAuthKoduFromWelcome={setDidAuthKoduFromWelcome} />
+				<WelcomeView />
 			) : (
 				<>
 					{showSettings && <SettingsView onDone={() => setShowSettings(false)} />}

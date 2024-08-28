@@ -7,13 +7,7 @@ import { HistoryItem } from "./HistoryItem"
 export interface ExtensionMessage {
 	type: "action" | "state" | "selectedImages"
 	text?: string
-	action?:
-		| "chatButtonTapped"
-		| "settingsButtonTapped"
-		| "historyButtonTapped"
-		| "didBecomeVisible"
-		| "koduAuthenticated"
-		| "koduCreditsFetched"
+	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	state?: ExtensionState
 	images?: string[]
 }
@@ -29,8 +23,6 @@ export interface ExtensionState {
 	claudeMessages: ClaudeMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
-	koduCredits?: number
-	shouldShowKoduPromo: boolean
 }
 
 export interface ClaudeMessage {

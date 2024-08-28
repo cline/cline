@@ -20,7 +20,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		claudeMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,
-		shouldShowKoduPromo: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 
@@ -29,14 +28,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		if (message.type === "state" && message.state) {
 			setState(message.state)
 			setDidHydrateState(true)
-		}
-		if (message.type === "action" && message.action) {
-			switch (message.action) {
-				case "koduCreditsFetched":
-					// special case where we only want to update one part of state in case user is in the middle of modifying settings
-					setState((prevState) => ({ ...prevState, koduCredits: message.state?.koduCredits }))
-					break
-			}
 		}
 	}, [])
 

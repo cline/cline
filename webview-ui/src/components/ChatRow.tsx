@@ -281,7 +281,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
 											{apiRequestFailedMessage}
 										</p>
-										{apiProvider === "kodu" && (
+										{/* {apiProvider === "kodu" && (
 											<div
 												style={{
 													display: "flex",
@@ -312,7 +312,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 													.
 												</span>
 											</div>
-										)}
+										)} */}
 									</>
 								)}
 							</>
