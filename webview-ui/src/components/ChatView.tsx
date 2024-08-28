@@ -648,7 +648,7 @@ const ChatView = ({
 					style={{
 						position: "absolute",
 						right: 20,
-						bottom: 14, // Align with the bottom padding of the container
+						bottom: 13.5, // Align with the bottom padding of the container
 						display: "flex",
 						alignItems: "flex-end",
 						height: "calc(100% - 20px)", // Full height minus top and bottom padding
