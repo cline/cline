@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex"
 
 export interface ApiHandlerOptions {
 	apiModelId?: ApiModelId
@@ -7,6 +7,8 @@ export interface ApiHandlerOptions {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsRegion?: string
+	vertexProjectId?: string
+	vertexRegion?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -26,7 +28,7 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId
+export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | VertexModelId
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
@@ -249,4 +251,43 @@ export const openRouterModels = {
 	// 	inputPrice: 0.5,
 	// 	outputPrice: 1.5,
 	// },
+} as const satisfies Record<string, ModelInfo>
+
+// Vertex AI
+// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
+export type VertexModelId = keyof typeof vertexModels
+export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620"
+export const vertexModels = {
+	"claude-3-5-sonnet@20240620": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"claude-3-opus@20240229": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+	},
+	"claude-3-sonnet@20240229": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"claude-3-haiku@20240307": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 1.25,
+	},
 } as const satisfies Record<string, ModelInfo>

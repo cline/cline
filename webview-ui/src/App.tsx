@@ -23,7 +23,8 @@ const AppContent = () => {
 				const hasKey =
 					message.state!.apiConfiguration?.apiKey !== undefined ||
 					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined
+					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
+					message.state!.apiConfiguration?.vertexProjectId !== undefined
 				setShowWelcome(!hasKey)
 				// don't update showAnnouncement to false if shouldShowAnnouncement is false
 				if (message.state!.shouldShowAnnouncement) {

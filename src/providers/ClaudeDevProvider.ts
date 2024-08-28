@@ -20,6 +20,8 @@ type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "vertexProjectId"
+	| "vertexRegion"
 	| "maxRequestsPerTask"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
@@ -311,6 +313,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								awsAccessKey,
 								awsSecretKey,
 								awsRegion,
+								vertexProjectId,
+								vertexRegion,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -319,6 +323,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.updateGlobalState("awsRegion", awsRegion)
+							await this.updateGlobalState("vertexProjectId", vertexProjectId)
+							await this.updateGlobalState("vertexRegion", vertexRegion)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -598,6 +604,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			awsAccessKey,
 			awsSecretKey,
 			awsRegion,
+			vertexProjectId,
+			vertexRegion,
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
@@ -611,6 +619,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
+			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
+			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
@@ -641,6 +651,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				awsAccessKey,
 				awsSecretKey,
 				awsRegion,
+				vertexProjectId,
+				vertexRegion,
 			},
 			maxRequestsPerTask,
 			lastShownAnnouncementId,
