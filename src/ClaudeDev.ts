@@ -50,7 +50,6 @@ RULES
 - You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${cwd}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '${cwd}', and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${cwd}'). For example, if you needed to run \`npm install\` in a project outside of '${cwd}', you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
-- When editing files, always provide the complete file content in your response, regardless of the extent of changes. DO NOT use placeholder comments like '//rest of code unchanged' or '//code remains the same'. You MUST include all parts of the file, even if they haven't been modified.
 - If you need to read or edit a file you have already read or edited, you can assume its contents have not changed since then (unless specified otherwise by the user) and skip using the read_file tool before proceeding.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
@@ -63,6 +62,7 @@ RULES
 - NEVER start your responses with affirmations like "Certainly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
+- CRITICAL: When editing files with write_to_file, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 
 ====
 
@@ -459,7 +459,7 @@ export class ClaudeDev {
 
 		let textBlock: Anthropic.TextBlockParam = {
 			type: "text",
-			text: `<task>\n${task}\n</task>\n\n${this.getPotentiallyRelevantDetails()}`, // cannot be sent with system prompt since it's cached and these details can change
+			text: `<task>\n${task}\n</task>\n\n${await this.getPotentiallyRelevantDetails(true)}`, // cannot be sent with system prompt since it's cached and these details can change
 		}
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 		await this.say("text", task, images)
@@ -637,7 +637,7 @@ export class ClaudeDev {
 			(newUserContentText
 				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>\n`
 				: "") +
-			`\n\n${this.getPotentiallyRelevantDetails()}`
+			`\n\n${await this.getPotentiallyRelevantDetails()}`
 
 		const newUserContentImages = newUserContent.filter((block) => block.type === "image")
 		const combinedModifiedOldUserContentWithNewUserContent: UserContent = (
@@ -802,7 +802,7 @@ export class ClaudeDev {
 					}
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -839,7 +839,7 @@ export class ClaudeDev {
 					}
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -898,7 +898,7 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -940,7 +940,7 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -984,7 +984,7 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -1074,7 +1074,7 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 					}
 					return "The user denied this operation."
 				}
@@ -1105,7 +1105,7 @@ export class ClaudeDev {
 		if (response !== "yesButtonTapped") {
 			if (response === "messageResponse") {
 				await this.say("user_feedback", text, images)
-				return this.formatIntoToolResponse(this.formatGenericToolFeedback(text), images)
+				return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 			}
 			return "The user denied this operation."
 		}
@@ -1454,26 +1454,39 @@ ${this.customInstructions.trim()}
 
 	// Prompts
 
-	getPotentiallyRelevantDetails() {
-		// TODO: add more details
-		return `<potentially_relevant_details>
-VSCode Visible Files: ${
-			vscode.window.visibleTextEditors
-				?.map((editor) => editor.document?.uri?.fsPath)
-				.filter(Boolean)
-				.join(", ") || "(No files open)"
+	async getPotentiallyRelevantDetails(verbose: boolean = false) {
+		let details = `<potentially_relevant_details>
+# VSCode Visible Files:
+${
+	vscode.window.visibleTextEditors
+		?.map((editor) => editor.document?.uri?.fsPath)
+		.filter(Boolean)
+		.map((absolutePath) => path.relative(cwd, absolutePath))
+		.join("\n") || "(No files open)"
+}
+
+# VSCode Opened Tabs:
+${
+	vscode.window.tabGroups.all
+		.flatMap((group) => group.tabs)
+		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+		.filter(Boolean)
+		.map((absolutePath) => path.relative(cwd, absolutePath))
+		.join("\n") || "(No tabs open)"
+}
+`
+
+		if (verbose) {
+			const files = await listFiles(cwd, true)
+			const result = this.formatFilesList(cwd, files)
+			details += `\n# Current Working Directory Project Structure:\n${result}\n`
 		}
-VSCode Opened Tabs: ${
-			vscode.window.tabGroups.all
-				.flatMap((group) => group.tabs)
-				.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-				.filter(Boolean)
-				.join(", ") || "(No tabs open)"
-		}
-</potentially_relevant_details>`
+
+		details += "</potentially_relevant_details>"
+		return details
 	}
 
-	formatGenericToolFeedback(feedback?: string) {
-		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>\n\n${this.getPotentiallyRelevantDetails()}`
+	async formatGenericToolFeedback(feedback?: string) {
+		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`
 	}
 }
