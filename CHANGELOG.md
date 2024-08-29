@@ -6,16 +6,18 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.4.0]
 
-- Add "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
+- Adds "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
 - Implement sliding window context management to keep tasks going past 200k tokens
+- Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all providers.
+- Improves system prompt to gaurd against lazy edits (less "//rest of code here")
 
 ## [1.3.0]
 
-- Add task history
+- Adds task history
 
 ## [1.2.0]
 
-- Add support for Prompt Caching to significantly reduce costs and response times (currently only available through Anthropic API for Claude 3.5 Sonnet and Claude 3.0 Haiku)
+- Adds support for Prompt Caching to significantly reduce costs and response times (currently only available through Anthropic API for Claude 3.5 Sonnet and Claude 3.0 Haiku)
 
 ## [1.1.1]
 

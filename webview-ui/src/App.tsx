@@ -10,23 +10,14 @@ import { ExtensionStateContextProvider, useExtensionState } from "./context/Exte
 import { vscode } from "./utils/vscode"
 
 const AppContent = () => {
-	const { apiConfiguration, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, apiConfiguration, shouldShowAnnouncement } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
-	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
-			case "state":
-				const hasKey =
-					message.state!.apiConfiguration?.apiKey !== undefined ||
-					message.state!.apiConfiguration?.openRouterApiKey !== undefined ||
-					message.state!.apiConfiguration?.awsAccessKey !== undefined ||
-					message.state!.apiConfiguration?.vertexProjectId !== undefined
-				setShowWelcome(!hasKey)
-				break
 			case "action":
 				switch (message.action!) {
 					case "settingsButtonTapped":
@@ -44,7 +35,6 @@ const AppContent = () => {
 				}
 				break
 		}
-		// (react-use takes care of not registering the same listener multiple times even if this callback is updated.)
 	}, [])
 
 	useEvent("message", handleMessage)
@@ -59,6 +49,10 @@ const AppContent = () => {
 			vscode.postMessage({ type: "didShowAnnouncement" })
 		}
 	}, [shouldShowAnnouncement])
+
+	if (!didHydrateState) {
+		return null
+	}
 
 	return (
 		<>

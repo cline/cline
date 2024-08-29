@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
@@ -55,6 +55,8 @@ const ChatView = ({
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+	const textAreaContainerRef = useRef<HTMLDivElement>(null)
+	const [textAreaContainerHeight, setTextAreaContainerHeight] = useState(51)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 
@@ -457,6 +459,17 @@ const ChatView = ({
 		selectedImages.length >= MAX_IMAGES_PER_MESSAGE ||
 		isInputPipingToStdin
 
+	useLayoutEffect(() => {
+		if (textAreaContainerRef.current) {
+			let height = textAreaContainerRef.current.clientHeight
+			// some browsers return 0 for clientHeight
+			if (!height) {
+				height = textAreaContainerRef.current.getBoundingClientRect().height
+			}
+			setTextAreaContainerHeight(height)
+		}
+	}, [])
+
 	return (
 		<div
 			style={{
@@ -573,6 +586,7 @@ const ChatView = ({
 			)}
 
 			<div
+				ref={textAreaContainerRef}
 				style={{
 					padding: "10px 15px",
 					opacity: textAreaDisabled ? 0.5 : 1,
@@ -648,28 +662,30 @@ const ChatView = ({
 					style={{
 						position: "absolute",
 						right: 20,
-						bottom: 14, // Align with the bottom padding of the container
 						display: "flex",
-						alignItems: "flex-end",
-						height: "calc(100% - 20px)", // Full height minus top and bottom padding
+						alignItems: "flex-center",
+						height: textAreaContainerHeight - 20,
+						bottom: 10,
 					}}>
-					<VSCodeButton
-						disabled={shouldDisableImages}
-						appearance="icon"
-						aria-label="Attach Images"
-						onClick={selectImages}
-						style={{ marginRight: "2px" }}>
-						<span
-							className="codicon codicon-device-camera"
-							style={{ fontSize: 18.5, marginLeft: -2, marginBottom: 1 }}></span>
-					</VSCodeButton>
-					<VSCodeButton
-						disabled={textAreaDisabled}
-						appearance="icon"
-						aria-label="Send Message"
-						onClick={handleSendMessage}>
-						<span className="codicon codicon-send" style={{ fontSize: 16, marginTop: 2.5 }}></span>
-					</VSCodeButton>
+					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
+						<VSCodeButton
+							disabled={shouldDisableImages}
+							appearance="icon"
+							aria-label="Attach Images"
+							onClick={selectImages}
+							style={{ marginRight: "2px" }}>
+							<span
+								className="codicon codicon-device-camera"
+								style={{ fontSize: 18, marginLeft: -2 }}></span>
+						</VSCodeButton>
+						<VSCodeButton
+							disabled={textAreaDisabled}
+							appearance="icon"
+							aria-label="Send Message"
+							onClick={handleSendMessage}>
+							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
+						</VSCodeButton>
+					</div>
 				</div>
 			</div>
 		</div>
