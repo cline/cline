@@ -10,26 +10,14 @@ import { ExtensionStateContextProvider, useExtensionState } from "./context/Exte
 import { vscode } from "./utils/vscode"
 
 const AppContent = () => {
-	const { apiConfiguration, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, apiConfiguration, shouldShowAnnouncement } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
-	const [showWelcome, setShowWelcome] = useState<boolean>(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
 		switch (message.type) {
-			case "state":
-				let hasKey = false
-				const config = message.state?.apiConfiguration
-				if (config) {
-					const { apiKey, openRouterApiKey, awsAccessKey, vertexProjectId } = config
-					hasKey = [apiKey, openRouterApiKey, awsAccessKey, vertexProjectId].some((key) => key !== undefined)
-				} else {
-					hasKey = false
-				}
-				setShowWelcome(!hasKey)
-				break
 			case "action":
 				switch (message.action!) {
 					case "settingsButtonTapped":
@@ -61,6 +49,10 @@ const AppContent = () => {
 			vscode.postMessage({ type: "didShowAnnouncement" })
 		}
 	}, [shouldShowAnnouncement])
+
+	if (!didHydrateState) {
+		return null
+	}
 
 	return (
 		<>
