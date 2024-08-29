@@ -33,20 +33,15 @@ context limits, not as a continuous process.
 export function truncateHalfConversation(
 	messages: Anthropic.Messages.MessageParam[]
 ): Anthropic.Messages.MessageParam[] {
-	// Anthropic expects messages to be in user-assistant order, and tool use messages must be followed by tool results. We need to maintain this structure while truncating.
+	// API expects messages to be in user-assistant order, and tool use messages must be followed by tool results. We need to maintain this structure while truncating.
 
 	// Keep the first Task message (likely the most important)
 	const truncatedMessages = [messages[0]]
 
 	// Remove half of user-assistant pairs
 	const messagesToRemove = Math.floor(messages.length / 4) * 2 // has to be even number
-	const summaryMessage: Anthropic.Messages.MessageParam = {
-		role: "assistant",
-		content: `(${messagesToRemove} messages were truncated to fit within context limits)`,
-	}
-	truncatedMessages.push(summaryMessage)
 
-	const remainingMessages = messages.slice(messagesToRemove)
+	const remainingMessages = messages.slice(messagesToRemove + 1) // has to start with assistant message since tool result cannot follow assistant message with no tool use
 	truncatedMessages.push(...remainingMessages)
 
 	return truncatedMessages
