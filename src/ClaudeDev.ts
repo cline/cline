@@ -25,7 +25,7 @@ import { HistoryItem } from "./shared/HistoryItem"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
 import { findLastIndex } from "./utils"
-import { slidingWindowContextManagement } from "./utils/context-management"
+import { isWithinContextWindow, truncateHalfConversation } from "./utils/context-management"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -1253,13 +1253,21 @@ The following additional instructions are provided by the user. They should be f
 ${this.customInstructions.trim()}
 `
 			}
-			const adjustedMessages = slidingWindowContextManagement(
+			const isPromptWithinContextWindow = isWithinContextWindow(
 				this.api.getModel().info.contextWindow,
+				systemPrompt,
+				tools,
+				this.apiConversationHistory
+			)
+			if (!isPromptWithinContextWindow) {
+				const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+				await this.overwriteApiConversationHistory(truncatedMessages)
+			}
+			const { message, userCredits } = await this.api.createMessage(
 				systemPrompt,
 				this.apiConversationHistory,
 				tools
 			)
-			const { message, userCredits } = await this.api.createMessage(systemPrompt, adjustedMessages, tools)
 			if (userCredits !== undefined) {
 				console.log("Updating credits", userCredits)
 				// TODO: update credits
