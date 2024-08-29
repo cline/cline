@@ -108,7 +108,7 @@ const tools: Tool[] = [
 	{
 		name: "list_files",
 		description:
-			"List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively, providing a comprehensive view of the directory's structure. If recursive is false or not provided, it will only list the top-level contents.",
+			"List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents.",
 		input_schema: {
 			type: "object",
 			properties: {
