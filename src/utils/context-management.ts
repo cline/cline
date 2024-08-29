@@ -35,7 +35,7 @@ export function truncateHalfConversation(
 ): Anthropic.Messages.MessageParam[] {
 	// API expects messages to be in user-assistant order, and tool use messages must be followed by tool results. We need to maintain this structure while truncating.
 
-	// Keep the first Task message (likely the most important)
+	// Always keep the first Task message (this includes the project's file structure in potentially_relevant_details)
 	const truncatedMessages = [messages[0]]
 
 	// Remove half of user-assistant pairs
