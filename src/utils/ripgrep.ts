@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as fs from "fs"
+import * as readline from "readline"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -57,6 +58,8 @@ interface SearchResult {
 	afterContext: string[]
 }
 
+const MAX_RESULTS = 300
+
 async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
 	const checkPath = async (pkgFolder: string) => {
 		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
@@ -81,24 +84,40 @@ async function pathExists(path: string): Promise<boolean> {
 
 async function execRipgrep(bin: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const process = childProcess.spawn(bin, args)
-		let output = ""
-		let errorOutput = ""
-
-		process.stdout.on("data", (data) => {
-			output += data.toString()
+		const rgProcess = childProcess.spawn(bin, args)
+		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
+		const rl = readline.createInterface({
+			input: rgProcess.stdout,
+			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
 		})
 
-		process.stderr.on("data", (data) => {
+		let output = ""
+		let lineCount = 0
+		const maxLines = MAX_RESULTS * 10 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 10 lines.
+
+		rl.on("line", (line) => {
+			if (lineCount < maxLines) {
+				output += line + "\n"
+				lineCount++
+			} else {
+				rl.close()
+				rgProcess.kill()
+			}
+		})
+
+		let errorOutput = ""
+		rgProcess.stderr.on("data", (data) => {
 			errorOutput += data.toString()
 		})
-
-		process.on("close", (code) => {
-			if (code === 0) {
-				resolve(output)
+		rl.on("close", () => {
+			if (errorOutput) {
+				reject(new Error(`ripgrep process error: ${errorOutput}`))
 			} else {
-				reject(new Error(`ripgrep process exited with code ${code}: ${errorOutput}`))
+				resolve(output)
 			}
+		})
+		rgProcess.on("error", (error) => {
+			reject(new Error(`ripgrep process error: ${error.message}`))
 		})
 	})
 }
@@ -167,14 +186,14 @@ function formatResults(results: SearchResult[], cwd: string): string {
 	const groupedResults: { [key: string]: SearchResult[] } = {}
 
 	let output = ""
-	if (results.length >= 300) {
-		output += `Showing first 300 of ${results.length.toLocaleString()} results, use a more specific search if necessary...\n\n`
+	if (results.length >= MAX_RESULTS) {
+		output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary...\n\n`
 	} else {
 		output += `Found ${results.length.toLocaleString()} results...\n\n`
 	}
 
 	// Group results by file name
-	results.slice(0, 300).forEach((result) => {
+	results.slice(0, MAX_RESULTS).forEach((result) => {
 		const relativeFilePath = path.relative(cwd, result.file)
 		if (!groupedResults[relativeFilePath]) {
 			groupedResults[relativeFilePath] = []
