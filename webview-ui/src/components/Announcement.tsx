@@ -1,13 +1,16 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { ApiConfiguration } from "../../../src/shared/api"
 
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
+	apiConfiguration?: ApiConfiguration
+	vscodeUriScheme?: string
 }
 /*
 You must update the latestAnnouncementId in ClaudeDevProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
-const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
+const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriScheme }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
@@ -26,23 +29,22 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
-				<li>Task history is here! New tasks will automatically save so you can always resume them later</li>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Adds support for{" "}
-					<VSCodeLink href="https://www.anthropic.com/news/prompt-caching" style={{ display: "inline" }}>
-						Prompt Caching
-					</VSCodeLink>{" "}
-					to make requests up to 90% cheaper and 85% faster (currently only available through Anthropic API
-					for Claude 3.5 Sonnet and Claude 3.0 Haiku)
+					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
+					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
 				</li>
 				<li>
-					Paste images in chat and turn mockups into fully functional applications or fix bugs with
-					screenshots
+					Adds "Always allow read-only operations" setting to let Claude read files and view directories
+					without needing to approve (<b>off</b> by default).
+				</li>
+				<li>Adds sliding window context management to keep tasks going past 200k tokens.</li>
+				<li>
+					Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all
+					providers.
 				</li>
 				<li>
-					You can now add custom instructions to the end of the system prompt (e.g. "Always use Python",
-					"Speak in Spanish")
+					Improves system prompt to guard against lazy edits (less "<code>{"//rest of code here"}</code>")
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>

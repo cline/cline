@@ -5,8 +5,9 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
-import CodeBlock from "./CodeBlock/CodeBlock"
+import CodeBlock from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
+import { ApiProvider } from "../../../src/shared/api"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -15,6 +16,7 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
+	apiProvider?: ApiProvider
 }
 
 const ChatRow: React.FC<ChatRowProps> = ({
@@ -24,6 +26,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
+	apiProvider,
 }) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 	const apiRequestFailedMessage =
@@ -274,9 +277,43 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									</VSCodeButton>
 								</div>
 								{cost == null && apiRequestFailedMessage && (
-									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
-										{apiRequestFailedMessage}
-									</p>
+									<>
+										<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
+											{apiRequestFailedMessage}
+										</p>
+										{/* {apiProvider === "kodu" && (
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													backgroundColor:
+														"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
+													color: "var(--vscode-editor-foreground)",
+													padding: "6px 8px",
+													borderRadius: "3px",
+													margin: "10px 0 0 0",
+													fontSize: "12px",
+												}}>
+												<i
+													className="codicon codicon-warning"
+													style={{
+														marginRight: 6,
+														fontSize: 16,
+														color: "var(--vscode-errorForeground)",
+													}}></i>
+												<span>
+													Uh-oh, this could be a problem on Kodu's end. We've been alerted and
+													will resolve this ASAP. You can also{" "}
+													<a
+														href="https://discord.gg/claudedev"
+														style={{ color: "inherit", textDecoration: "underline" }}>
+														contact us on discord
+													</a>
+													.
+												</span>
+											</div>
+										)} */}
+									</>
 								)}
 							</>
 						)
@@ -325,6 +362,8 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								</div>
 							</>
 						)
+					case "tool":
+						return renderTool(message, headerStyle)
 					default:
 						return (
 							<>
@@ -341,123 +380,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 			case "ask":
 				switch (message.ask) {
 					case "tool":
-						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
-						const toolIcon = (name: string) => (
-							<span
-								className={`codicon codicon-${name}`}
-								style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
-						)
-
-						switch (tool.tool) {
-							case "editedExistingFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("edit")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
-										</div>
-										<CodeBlock
-											diff={tool.diff!}
-											path={tool.path!}
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-							case "newFileCreated":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("new-file")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to create a new file:
-											</span>
-										</div>
-										<CodeBlock
-											code={tool.content!}
-											path={tool.path!}
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-							case "readFile":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("file-code")}
-											<span style={{ fontWeight: "bold" }}>Claude wants to read this file:</span>
-										</div>
-										<CodeBlock
-											code={tool.content!}
-											path={tool.path!}
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-							case "listFilesTopLevel":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("folder-opened")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to view the top level files in this directory:
-											</span>
-										</div>
-										<CodeBlock
-											code={tool.content!}
-											path={tool.path!}
-											language="shell-session"
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-							case "listFilesRecursive":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("folder-opened")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to recursively view all files in this directory:
-											</span>
-										</div>
-										<CodeBlock
-											code={tool.content!}
-											path={tool.path!}
-											language="shell-session"
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-							case "viewSourceCodeDefinitionsTopLevel":
-								return (
-									<>
-										<div style={headerStyle}>
-											{toolIcon("file-code")}
-											<span style={{ fontWeight: "bold" }}>
-												Claude wants to view source code definitions in files at the top level
-												of this directory:
-											</span>
-										</div>
-										<CodeBlock
-											code={tool.content!}
-											path={tool.path!}
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</>
-								)
-						}
-						break
+						return renderTool(message, headerStyle)
 					case "request_limit_reached":
 						return (
 							<>
@@ -544,6 +467,159 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							</>
 						)
 				}
+		}
+	}
+
+	const renderTool = (message: ClaudeMessage, headerStyle: React.CSSProperties) => {
+		const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+		const toolIcon = (name: string) => (
+			<span
+				className={`codicon codicon-${name}`}
+				style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+		)
+
+		switch (tool.tool) {
+			case "editedExistingFile":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("edit")}
+							<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
+						</div>
+						<CodeBlock
+							diff={tool.diff!}
+							path={tool.path!}
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "newFileCreated":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("new-file")}
+							<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path!}
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "readFile":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("file-code")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path!}
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "listFilesTopLevel":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("folder-opened")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Claude wants to view the top level files in this directory:"
+									: "Claude viewed the top level files in this directory:"}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path!}
+							language="shell-session"
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "listFilesRecursive":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("folder-opened")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Claude wants to recursively view all files in this directory:"
+									: "Claude recursively viewed all files in this directory:"}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path!}
+							language="shell-session"
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "listCodeDefinitionNames":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("file-code")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Claude wants to view source code definition names used in this directory:"
+									: "Claude viewed source code definition names used in this directory:"}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path!}
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			case "searchFiles":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("search")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>
+										Claude wants to search this directory for <code>{tool.regex}</code>:
+									</>
+								) : (
+									<>
+										Claude searched this directory for <code>{tool.regex}</code>:
+									</>
+								)}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
+							language="plaintext"
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
+			default:
+				return null
 		}
 	}
 
