@@ -4,7 +4,7 @@ import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
-export const LIST_FILES_LIMIT = 1000
+export const LIST_FILES_LIMIT = 500
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
