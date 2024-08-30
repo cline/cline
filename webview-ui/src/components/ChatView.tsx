@@ -1,13 +1,14 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import { ClaudeAsk, ClaudeMessage, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { getApiMetrics } from "../../../src/shared/getApiMetrics"
+import { ClaudeAsk, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
+import { getApiMetrics } from "../../../src/shared/getApiMetrics"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
@@ -15,14 +16,9 @@ import ChatRow from "./ChatRow"
 import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
-import { HistoryItem } from "../../../src/shared/HistoryItem"
 
 interface ChatViewProps {
-	version: string
-	messages: ClaudeMessage[]
-	taskHistory: HistoryItem[]
 	isHidden: boolean
-	vscodeThemeName?: string
 	showAnnouncement: boolean
 	selectedModelSupportsImages: boolean
 	selectedModelSupportsPromptCache: boolean
@@ -33,17 +29,22 @@ interface ChatViewProps {
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({
-	version,
-	messages,
-	taskHistory,
 	isHidden,
-	vscodeThemeName,
 	showAnnouncement,
 	selectedModelSupportsImages,
 	selectedModelSupportsPromptCache,
 	hideAnnouncement,
 	showHistoryView,
 }: ChatViewProps) => {
+	const {
+		version,
+		claudeMessages: messages,
+		taskHistory,
+		themeName: vscodeThemeName,
+		apiConfiguration,
+		uriScheme,
+	} = useExtensionState()
+
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -54,6 +55,8 @@ const ChatView = ({
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+	const textAreaContainerRef = useRef<HTMLDivElement>(null)
+	const [textAreaContainerHeight, setTextAreaContainerHeight] = useState(51)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 
@@ -162,10 +165,6 @@ const ChatView = ({
 				case "say":
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
-						case "task":
-							break
-						case "error":
-							break
 						case "api_req_started":
 							if (messages.at(-2)?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
@@ -176,13 +175,13 @@ const ChatView = ({
 								setEnableButtons(false)
 							}
 							break
+						case "task":
+						case "error":
 						case "api_req_finished":
-							break
 						case "text":
-							break
 						case "command_output":
-							break
 						case "completion_result":
+						case "tool":
 							break
 					}
 					break
@@ -307,18 +306,13 @@ const ChatView = ({
 	}
 
 	const handlePaste = async (e: React.ClipboardEvent) => {
-		if (shouldDisableImages) {
-			e.preventDefault()
-			return
-		}
-
 		const items = e.clipboardData.items
 		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
 		const imageItems = Array.from(items).filter((item) => {
 			const [type, subtype] = item.type.split("/")
 			return type === "image" && acceptedTypes.includes(subtype)
 		})
-		if (imageItems.length > 0) {
+		if (!shouldDisableImages && imageItems.length > 0) {
 			e.preventDefault()
 			const imagePromises = imageItems.map((item) => {
 				return new Promise<string | null>((resolve) => {
@@ -460,6 +454,17 @@ const ChatView = ({
 		selectedImages.length >= MAX_IMAGES_PER_MESSAGE ||
 		isInputPipingToStdin
 
+	useLayoutEffect(() => {
+		if (textAreaContainerRef.current) {
+			let height = textAreaContainerRef.current.clientHeight
+			// some browsers return 0 for clientHeight
+			if (!height) {
+				height = textAreaContainerRef.current.getBoundingClientRect().height
+			}
+			setTextAreaContainerHeight(height)
+		}
+	}, [])
+
 	return (
 		<div
 			style={{
@@ -483,10 +488,19 @@ const ChatView = ({
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
 					isHidden={isHidden}
+					vscodeUriScheme={uriScheme}
+					apiProvider={apiConfiguration?.apiProvider}
 				/>
 			) : (
 				<>
-					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
+					{showAnnouncement && (
+						<Announcement
+							version={version}
+							hideAnnouncement={hideAnnouncement}
+							apiConfiguration={apiConfiguration}
+							vscodeUriScheme={uriScheme}
+						/>
+					)}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>
@@ -501,9 +515,7 @@ const ChatView = ({
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
 						</p>
 					</div>
-					{taskHistory.length > 0 && (
-						<HistoryPreview taskHistory={taskHistory} showHistoryView={showHistoryView} />
-					)}
+					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</>
 			)}
 			{task && (
@@ -533,6 +545,7 @@ const ChatView = ({
 								onToggleExpand={() => toggleRowExpansion(message.ts)}
 								lastModifiedMessage={modifiedMessages.at(-1)}
 								isLast={index === visibleMessages.length - 1}
+								apiProvider={apiConfiguration?.apiProvider}
 							/>
 						)}
 					/>
@@ -568,6 +581,7 @@ const ChatView = ({
 			)}
 
 			<div
+				ref={textAreaContainerRef}
 				style={{
 					padding: "10px 15px",
 					opacity: textAreaDisabled ? 0.5 : 1,
@@ -643,28 +657,30 @@ const ChatView = ({
 					style={{
 						position: "absolute",
 						right: 20,
-						bottom: 14.5, // Align with the bottom padding of the container
 						display: "flex",
-						alignItems: "flex-end",
-						height: "calc(100% - 20px)", // Full height minus top and bottom padding
+						alignItems: "flex-center",
+						height: textAreaContainerHeight - 20,
+						bottom: 10,
 					}}>
-					<VSCodeButton
-						disabled={shouldDisableImages}
-						appearance="icon"
-						aria-label="Attach Images"
-						onClick={selectImages}
-						style={{ marginRight: "2px" }}>
-						<span
-							className="codicon codicon-device-camera"
-							style={{ fontSize: 18, marginLeft: -2, marginTop: -1 }}></span>
-					</VSCodeButton>
-					<VSCodeButton
-						disabled={textAreaDisabled}
-						appearance="icon"
-						aria-label="Send Message"
-						onClick={handleSendMessage}>
-						<span className="codicon codicon-send" style={{ fontSize: 16 }}></span>
-					</VSCodeButton>
+					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
+						<VSCodeButton
+							disabled={shouldDisableImages}
+							appearance="icon"
+							aria-label="Attach Images"
+							onClick={selectImages}
+							style={{ marginRight: "2px" }}>
+							<span
+								className="codicon codicon-device-camera"
+								style={{ fontSize: 18, marginLeft: -2 }}></span>
+						</VSCodeButton>
+						<VSCodeButton
+							disabled={textAreaDisabled}
+							appearance="icon"
+							aria-label="Send Message"
+							onClick={handleSendMessage}>
+							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
+						</VSCodeButton>
+					</div>
 				</div>
 			</div>
 		</div>

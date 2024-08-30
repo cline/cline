@@ -1,45 +1,50 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
-import { ApiConfiguration } from "../../../src/shared/api"
+import {
+	VSCodeButton,
+	VSCodeCheckbox,
+	VSCodeLink,
+	VSCodeTextArea,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
+const IS_DEV = false // FIXME: use flags when packaging
+
 type SettingsViewProps = {
-	version: string
-	apiConfiguration?: ApiConfiguration
-	setApiConfiguration: React.Dispatch<React.SetStateAction<ApiConfiguration | undefined>>
-	maxRequestsPerTask: string
-	setMaxRequestsPerTask: React.Dispatch<React.SetStateAction<string>>
-	customInstructions: string
-	setCustomInstructions: React.Dispatch<React.SetStateAction<string>>
 	onDone: () => void
 }
 
-const SettingsView = ({
-	version,
-	apiConfiguration,
-	setApiConfiguration,
-	maxRequestsPerTask,
-	setMaxRequestsPerTask,
-	customInstructions,
-	setCustomInstructions,
-	onDone,
-}: SettingsViewProps) => {
+const SettingsView = ({ onDone }: SettingsViewProps) => {
+	const {
+		apiConfiguration,
+		version,
+		maxRequestsPerTask,
+		customInstructions,
+		setCustomInstructions,
+		alwaysAllowReadOnly,
+		setAlwaysAllowReadOnly,
+	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
+	const [maxRequestsPerTaskString, setMaxRequestsPerTaskString] = useState<string>(
+		maxRequestsPerTask?.toString() || ""
+	)
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTask)
+		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTaskString)
 
 		setApiErrorMessage(apiValidationResult)
 		setMaxRequestsErrorMessage(maxRequestsValidationResult)
 
 		if (!apiValidationResult && !maxRequestsValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTask })
+			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTaskString })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
 		}
 	}
@@ -63,6 +68,10 @@ const SettingsView = ({
 
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
+
+	const handleResetState = () => {
+		vscode.postMessage({ type: "resetState" })
+	}
 
 	return (
 		<div
@@ -91,32 +100,35 @@ const SettingsView = ({
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
-					<ApiOptions
-						apiConfiguration={apiConfiguration}
-						setApiConfiguration={setApiConfiguration}
-						showModelOptions={true}
-					/>
-					{apiErrorMessage && (
-						<p
-							style={{
-								margin: "-5px 0 12px 0",
-								fontSize: "12px",
-								color: "var(--vscode-errorForeground)",
-							}}>
-							{apiErrorMessage}
-						</p>
-					)}
+					<ApiOptions showModelOptions={true} apiErrorMessage={apiErrorMessage} />
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowReadOnly}
+						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Claude will automatically read files and view directories without requiring you to
+						click the Allow button.
+					</p>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
-						value={customInstructions}
+						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
 						rows={4}
 						placeholder={
 							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
 						}
-						onInput={(e: any) => setCustomInstructions(e.target?.value || "")}>
+						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
 					</VSCodeTextArea>
 					<p
@@ -131,10 +143,10 @@ const SettingsView = ({
 
 				<div>
 					<VSCodeTextField
-						value={maxRequestsPerTask}
+						value={maxRequestsPerTaskString}
 						style={{ width: "100%" }}
 						placeholder="20"
-						onInput={(e: any) => setMaxRequestsPerTask(e.target?.value)}>
+						onInput={(e: any) => setMaxRequestsPerTaskString(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Maximum # Requests Per Task</span>
 					</VSCodeTextField>
 					<p
@@ -157,6 +169,23 @@ const SettingsView = ({
 						</p>
 					)}
 				</div>
+
+				{IS_DEV && (
+					<>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
+						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+							Reset State
+						</VSCodeButton>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							This will reset all global state and secret storage in the extension.
+						</p>
+					</>
+				)}
 
 				<div
 					style={{
