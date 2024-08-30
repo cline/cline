@@ -1,8 +1,10 @@
 import * as fs from "fs/promises"
-import { globby } from "globby"
+import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+
+export const LIST_FILES_LIMIT = 1000
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
@@ -96,8 +98,40 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 		onlyFiles: false, // true by default, false means it will list directories on their own too
 	}
 	// * globs all files in one dir, ** globs files in nested directories
-	const files = await globby(recursive ? "**" : "*", options)
+	const files = recursive ? await globbyLevelByLevel(options) : await globby("*", options)
 	return files
+}
+
+// globby doesnt natively support top down level by level globbing, so we implement it ourselves
+async function globbyLevelByLevel(options?: Options) {
+	let results: string[] = []
+	let currentLevel = 1
+	while (results.length < LIST_FILES_LIMIT) {
+		// Construct the glob pattern for the current level
+		const pattern = `${"*/".repeat(currentLevel)}*`
+
+		// Get files and directories at the current level
+		const filesAtLevel = await globby(pattern, options)
+
+		// If no more files found at this level, break the loop
+		if (filesAtLevel.length === 0) {
+			break
+		}
+
+		// Add the files found at this level to the result
+		results.push(...filesAtLevel)
+
+		// If we have reached the max limit, slice the array to the limit and break
+		if (results.length >= LIST_FILES_LIMIT) {
+			results = results.slice(0, LIST_FILES_LIMIT)
+			break
+		}
+
+		// Move to the next level
+		currentLevel++
+	}
+
+	return results
 }
 
 function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingFiles: string[] } {

@@ -12,7 +12,7 @@ import { serializeError } from "serialize-error"
 import treeKill from "tree-kill"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "./api"
-import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
+import { LIST_FILES_LIMIT, listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
@@ -1016,10 +1016,9 @@ export class ClaudeDev {
 				return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
 			})
 
-		if (sorted.length > 1000) {
-			const truncatedList = sorted.slice(0, 1000).join("\n")
-			const remainingCount = sorted.length - 1000
-			return `${truncatedList}\n\n(${remainingCount} files not listed due to automatic truncation. Try listing files in subdirectories if you need to explore further.)`
+		if (sorted.length >= LIST_FILES_LIMIT) {
+			const truncatedList = sorted.slice(0, LIST_FILES_LIMIT).join("\n")
+			return `${truncatedList}\n\n(Truncated at ${LIST_FILES_LIMIT} results. Try listing files in subdirectories if you need to explore further.)`
 		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
 			return "No files found or you do not have permission to view this directory."
 		} else {
