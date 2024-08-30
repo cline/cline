@@ -93,7 +93,7 @@ async function execRipgrep(bin: string, args: string[]): Promise<string> {
 
 		let output = ""
 		let lineCount = 0
-		const maxLines = MAX_RESULTS * 10 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 10 lines.
+		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
 
 		rl.on("line", (line) => {
 			if (lineCount < maxLines) {
@@ -187,9 +187,9 @@ function formatResults(results: SearchResult[], cwd: string): string {
 
 	let output = ""
 	if (results.length >= MAX_RESULTS) {
-		output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary...\n\n`
+		output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary.\n\n`
 	} else {
-		output += `Found ${results.length.toLocaleString()} results...\n\n`
+		output += `Found ${results.length.toLocaleString()} results.\n\n`
 	}
 
 	// Group results by file name
