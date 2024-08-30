@@ -31,6 +31,10 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
+					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
+					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
+				</li>
+				<li>
 					Adds "Always allow read-only operations" setting to let Claude read files and view directories
 					without needing to approve (<b>off</b> by default).
 				</li>
