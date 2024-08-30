@@ -65,7 +65,10 @@ export interface ClaudeSayTool {
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
+		| "searchFiles"
 	path?: string
 	diff?: string
 	content?: string
+	regex?: string
+	filePattern?: string
 }

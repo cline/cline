@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import defaultShell from "default-shell"
+import delay from "delay"
 import * as diff from "diff"
 import { execa, ExecaError, ResultPromise } from "execa"
 import fs from "fs/promises"
@@ -15,17 +16,17 @@ import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
-import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
-import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
-import { Tool, ToolName } from "./shared/Tool"
-import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import delay from "delay"
-import { getApiMetrics } from "./shared/getApiMetrics"
-import { HistoryItem } from "./shared/HistoryItem"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
+import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
+import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
+import { getApiMetrics } from "./shared/getApiMetrics"
+import { HistoryItem } from "./shared/HistoryItem"
+import { Tool, ToolName } from "./shared/Tool"
+import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { findLastIndex } from "./utils"
 import { isWithinContextWindow, truncateHalfConversation } from "./utils/context-management"
+import { regexSearchFiles } from "./utils/ripgrep"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -38,8 +39,9 @@ CAPABILITIES
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
 - You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('${cwd}') will be included in potentially_relevant_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
+- You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
-	- For example, when asked to make edits or improvements you might analyze the file structure in the initial potentially_relevant_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes.
+	- For example, when asked to make edits or improvements you might analyze the file structure in the initial potentially_relevant_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
 
 ====
@@ -51,6 +53,7 @@ RULES
 - Do not use the ~ character or $HOME to refer to the home directory.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '${cwd}', and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${cwd}'). For example, if you needed to run \`npm install\` in a project outside of '${cwd}', you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
 - If you need to read or edit a file you have already read or edited, you can assume its contents have not changed since then (unless specified otherwise by the user) and skip using the read_file tool before proceeding.
+- When using the search_files tool, craft your regex patterns carefully to balance specificity and flexibility. Based on the user's task you may use it to find code patterns, TODO comments, function definitions, or any text-based information across the project. The results include context, so analyze the surrounding code to better understand the matches. Leverage the search_files tool in combination with other tools for more comprehensive analysis. For example, use it to find specific code patterns, then use read_file to examine the full context of interesting matches before using write_to_file to make informed changes.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
@@ -139,6 +142,30 @@ const tools: Tool[] = [
 				},
 			},
 			required: ["path"],
+		},
+	},
+	{
+		name: "search_files",
+		description:
+			"Perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: `The path of the directory to search in (relative to the current working directory ${cwd}). This directory will be recursively searched.`,
+				},
+				regex: {
+					type: "string",
+					description: "The regular expression pattern to search for. Uses Rust regex syntax.",
+				},
+				filePattern: {
+					type: "string",
+					description:
+						"Optional glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
+				},
+			},
+			required: ["path", "regex"],
 		},
 	},
 	{
@@ -686,6 +713,8 @@ export class ClaudeDev {
 				return this.listFiles(toolInput.path, toolInput.recursive)
 			case "list_code_definition_names":
 				return this.listCodeDefinitionNames(toolInput.path)
+			case "search_files":
+				return this.searchFiles(toolInput.path, toolInput.regex, toolInput.filePattern)
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
 			case "ask_followup_question":
@@ -1036,6 +1065,59 @@ export class ClaudeDev {
 				`Error parsing source code definitions:\n${
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
+			)
+			return errorString
+		}
+	}
+
+	async searchFiles(relDirPath: string, regex: string, filePattern?: string): Promise<ToolResponse> {
+		if (relDirPath === undefined) {
+			await this.say(
+				"error",
+				"Claude tried to use search_files without value for required parameter 'path'. Retrying..."
+			)
+			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+		}
+
+		if (regex === undefined) {
+			await this.say(
+				"error",
+				`Claude tried to use search_files without value for required parameter 'regex'. Retrying...`
+			)
+			return "Error: Missing value for required parameter 'regex'. Please retry with complete response."
+		}
+
+		try {
+			const absolutePath = path.resolve(cwd, relDirPath)
+			const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
+
+			const message = JSON.stringify({
+				tool: "searchFiles",
+				path: this.getReadablePath(relDirPath),
+				regex: regex,
+				filePattern: filePattern,
+				content: results,
+			} as ClaudeSayTool)
+
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+					}
+					return "The user denied this operation."
+				}
+			}
+
+			return results
+		} catch (error) {
+			const errorString = `Error searching files: ${JSON.stringify(serializeError(error))}`
+			await this.say(
+				"error",
+				`Error searching files:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return errorString
 		}

@@ -591,6 +591,33 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						/>
 					</>
 				)
+			case "searchFiles":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("search")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>
+										Claude wants to search this directory for <code>{tool.regex}</code>:
+									</>
+								) : (
+									<>
+										Claude searched this directory for <code>{tool.regex}</code>:
+									</>
+								)}
+							</span>
+						</div>
+						<CodeBlock
+							code={tool.content!}
+							path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
+							language="plaintext"
+							syntaxHighlighterStyle={syntaxHighlighterStyle}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
 			default:
 				return null
 		}
