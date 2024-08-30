@@ -306,18 +306,13 @@ const ChatView = ({
 	}
 
 	const handlePaste = async (e: React.ClipboardEvent) => {
-		if (shouldDisableImages) {
-			e.preventDefault()
-			return
-		}
-
 		const items = e.clipboardData.items
 		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
 		const imageItems = Array.from(items).filter((item) => {
 			const [type, subtype] = item.type.split("/")
 			return type === "image" && acceptedTypes.includes(subtype)
 		})
-		if (imageItems.length > 0) {
+		if (!shouldDisableImages && imageItems.length > 0) {
 			e.preventDefault()
 			const imagePromises = imageItems.map((item) => {
 				return new Promise<string | null>((resolve) => {
