@@ -4,7 +4,7 @@ export type ToolName =
 	| "write_to_file"
 	| "read_file"
 	| "list_files"
-	| "view_source_code_definitions_top_level"
+	| "list_code_definition_names"
 	| "execute_command"
 	| "ask_followup_question"
 	| "attempt_completion"

@@ -571,15 +571,15 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						/>
 					</>
 				)
-			case "viewSourceCodeDefinitionsTopLevel":
+			case "listCodeDefinitionNames":
 				return (
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to view source code definitions in files at the top level of this directory:"
-									: "Claude viewed source code definitions in files at the top level of this directory:"}
+									? "Claude wants to view source code definition names used in this directory:"
+									: "Claude viewed source code definition names used in this directory:"}
 							</span>
 						</div>
 						<CodeBlock

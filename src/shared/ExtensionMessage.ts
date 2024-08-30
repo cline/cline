@@ -64,7 +64,7 @@ export interface ClaudeSayTool {
 		| "readFile"
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
-		| "viewSourceCodeDefinitionsTopLevel"
+		| "listCodeDefinitionNames"
 	path?: string
 	diff?: string
 	content?: string
