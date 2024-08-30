@@ -9,7 +9,7 @@ export function isWithinContextWindow(
 	tools: Anthropic.Messages.Tool[],
 	messages: Anthropic.Messages.MessageParam[]
 ): boolean {
-	const adjustedContextWindow = contextWindow - 10_000 // Buffer to account for tokenizer differences
+	const adjustedContextWindow = contextWindow * 0.75 // Buffer to account for tokenizer differences
 	// counting tokens is expensive, so we first try to estimate before doing a more accurate calculation
 	const estimatedTotalMessageTokens = countTokens(systemPrompt + JSON.stringify(tools) + JSON.stringify(messages))
 	if (estimatedTotalMessageTokens <= adjustedContextWindow) {
