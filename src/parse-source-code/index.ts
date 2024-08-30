@@ -98,7 +98,9 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 		onlyFiles: false, // true by default, false means it will list directories on their own too
 	}
 	// * globs all files in one dir, ** globs files in nested directories
-	const files = recursive ? await globbyLevelByLevel(options) : await globby("*", options)
+	const files = recursive
+		? await globbyLevelByLevel(options)
+		: (await globby("*", options)).slice(0, LIST_FILES_LIMIT)
 	return files
 }
 
