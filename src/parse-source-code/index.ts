@@ -105,10 +105,10 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 // globby doesnt natively support top down level by level globbing, so we implement it ourselves
 async function globbyLevelByLevel(options?: Options) {
 	let results: string[] = []
-	let currentLevel = 1
+	let currentLevel = 0
 	while (results.length < LIST_FILES_LIMIT) {
 		// Construct the glob pattern for the current level
-		const pattern = `${"*/".repeat(currentLevel)}*`
+		const pattern = currentLevel === 0 ? "*" : `${"*/".repeat(currentLevel)}*`
 
 		// Get files and directories at the current level
 		const filesAtLevel = await globby(pattern, options)

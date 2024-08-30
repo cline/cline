@@ -260,6 +260,7 @@ export class ClaudeDev {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private executeCommandRunningProcess?: ResultPromise
+	private shouldSkipNextApiReqStartedMessage = false
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
 
@@ -475,13 +476,34 @@ export class ClaudeDev {
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
-		let textBlock: Anthropic.TextBlockParam = {
-			type: "text",
-			text: `<task>\n${task}\n</task>\n\n${await this.getPotentiallyRelevantDetails(true)}`, // cannot be sent with system prompt since it's cached and these details can change
-		}
-		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
 		await this.say("text", task, images)
-		await this.initiateTaskLoop([textBlock, ...imageBlocks])
+
+		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
+		// for the best UX we show a loading spinner as this happens
+		const taskText = `<task>\n${task}\n</task>`
+		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
+		await this.say(
+			"api_req_started",
+			JSON.stringify({
+				request: this.api.createUserReadableRequest([
+					{
+						type: "text",
+						text: `${taskText}\n\n<potentially_relevant_details>(see getPotentiallyRelevantDetails in src/ClaudeDev.ts)</potentially_relevant_details>`,
+					},
+					...imageBlocks,
+				]),
+			})
+		)
+		this.shouldSkipNextApiReqStartedMessage = true
+		this.getPotentiallyRelevantDetails(true).then(async (verboseDetails) => {
+			await this.initiateTaskLoop([
+				{
+					type: "text",
+					text: `${taskText}\n\n${verboseDetails}`, // cannot be sent with system prompt since it's cached and these details can change
+				},
+				...imageBlocks,
+			])
+		})
 	}
 
 	private async resumeTaskFromHistory() {
@@ -1344,13 +1366,17 @@ ${this.customInstructions.trim()}
 			}
 		}
 
-		// what the user sees in the webview
-		await this.say(
-			"api_req_started",
-			JSON.stringify({
-				request: this.api.createUserReadableRequest(userContent),
-			})
-		)
+		if (!this.shouldSkipNextApiReqStartedMessage) {
+			await this.say(
+				"api_req_started",
+				// what the user sees in the webview
+				JSON.stringify({
+					request: this.api.createUserReadableRequest(userContent),
+				})
+			)
+		} else {
+			this.shouldSkipNextApiReqStartedMessage = false
+		}
 		try {
 			const response = await this.attemptApiRequest()
 			this.requestCount++
