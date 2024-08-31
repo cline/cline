@@ -796,77 +796,51 @@ export class ClaudeDev {
 				.then(() => true)
 				.catch(() => false)
 
+			let originalContent: string
 			if (fileExists) {
-				const originalContent = await fs.readFile(absolutePath, "utf-8")
+				originalContent = await fs.readFile(absolutePath, "utf-8")
 				// fix issue where claude always removes newline from the file
-				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
-					newContent += "\n"
+				const eol = originalContent.includes("\r\n") ? "\r\n" : "\n"
+				if (originalContent.endsWith(eol) && !newContent.endsWith(eol)) {
+					newContent += eol
 				}
-				// condensed patch to return to claude
-				const diffResult = diff.createPatch(absolutePath, originalContent, newContent)
-				// full diff representation for webview
-				const diffRepresentation = diff
-					.diffLines(originalContent, newContent)
-					.map((part) => {
-						const prefix = part.added ? "+" : part.removed ? "-" : " "
-						return (part.value || "")
-							.split("\n")
-							.map((line) => (line ? prefix + line : ""))
-							.join("\n")
-					})
-					.join("")
+			} else {
+				originalContent = ""
+			}
 
-				// Create virtual document with new file, then open diff editor
-				const fileName = path.basename(absolutePath)
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.file(absolutePath),
-					// to create a virtual doc we use a uri scheme registered in extension.ts, which then converts this base64 content into a text document
-					// (providing file name with extension in the uri lets vscode know the language of the file and apply syntax highlighting)
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from(newContent).toString("base64"),
-					}),
-					`${fileName}: Original ↔ Suggested Changes`
-				)
+			// Create a temporary file with the new content
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
+			const tempFilePath = path.join(tempDir, path.basename(absolutePath))
+			await fs.writeFile(tempFilePath, newContent)
 
-				const { response, text, images } = await this.ask(
+			vscode.commands.executeCommand(
+				"vscode.diff",
+				fileExists
+					? vscode.Uri.file(absolutePath)
+					: vscode.Uri.parse(`claude-dev-diff:${path.basename(absolutePath)}`).with({
+							query: Buffer.from("").toString("base64"),
+					  }),
+				vscode.Uri.file(tempFilePath),
+				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Suggested Changes" : "New File"} (Editable)`
+			)
+
+			let userResponse: {
+				response: ClaudeAskResponse
+				text?: string
+				images?: string[]
+			}
+			if (fileExists) {
+				const suggestedDiff = diff.createPatch(relPath, originalContent, newContent)
+				userResponse = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
 						path: this.getReadablePath(relPath),
-						diff: diffRepresentation,
+						diff: suggestedDiff,
 					} as ClaudeSayTool)
 				)
-				if (response !== "yesButtonTapped") {
-					if (isLast) {
-						await this.closeDiffViews()
-					}
-					if (response === "messageResponse") {
-						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
-					}
-					return "The user denied this operation."
-				}
-				await fs.writeFile(absolutePath, newContent)
-				// Finish by opening the edited file in the editor
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-				if (isLast) {
-					await this.closeDiffViews()
-				}
-				return `Changes applied to ${relPath}:\n${diffResult}`
 			} else {
-				const fileName = path.basename(absolutePath)
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from("").toString("base64"),
-					}),
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from(newContent).toString("base64"),
-					}),
-					`${fileName}: New File`
-				)
-				const { response, text, images } = await this.ask(
+				userResponse = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "newFileCreated",
@@ -874,23 +848,62 @@ export class ClaudeDev {
 						content: newContent,
 					} as ClaudeSayTool)
 				)
-				if (response !== "yesButtonTapped") {
-					if (isLast) {
-						await this.closeDiffViews()
-					}
-					if (response === "messageResponse") {
-						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
-					}
-					return "The user denied this operation."
-				}
-				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
-				await fs.writeFile(absolutePath, newContent)
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			}
+			const { response, text, images } = userResponse
+
+			if (response !== "yesButtonTapped") {
 				if (isLast) {
 					await this.closeDiffViews()
 				}
-				return `New file created and content written to ${relPath}`
+				// Clean up the temporary file
+				await fs.rm(tempDir, { recursive: true, force: true })
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+				}
+				return "The user denied this operation."
+			}
+
+			// Save any unsaved changes in the diff editor
+			const diffDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === tempFilePath)
+			if (diffDocument && diffDocument.isDirty) {
+				console.log("saving diff document")
+				await diffDocument.save()
+			}
+
+			// Read the potentially edited content from the temp file
+			const editedContent = await fs.readFile(tempFilePath, "utf-8")
+			if (!fileExists) {
+				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
+			}
+			await fs.writeFile(absolutePath, editedContent)
+
+			// Clean up the temporary file
+			await fs.rm(tempDir, { recursive: true, force: true })
+
+			// Finish by opening the edited file in the editor
+			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			if (isLast) {
+				await this.closeDiffViews()
+			}
+
+			if (editedContent !== newContent) {
+				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
+				const userDiff = diff.createPatch(relPath, newContent, editedContent)
+				await this.say(
+					"user_feedback_diff",
+					JSON.stringify({
+						tool: fileExists ? "editedExistingFile" : "newFileCreated",
+						path: this.getReadablePath(relPath),
+						diff: userDiff,
+					} as ClaudeSayTool)
+				)
+				return `${
+					fileExists ? "Changes applied" : "New file written"
+				} to ${relPath}:\n${diffResult}, the user applied these changes:\n${userDiff}`
+			} else {
+				const diffResult = diff.createPatch(relPath, originalContent, newContent)
+				return `${fileExists ? "Changes applied" : "New file written"} to ${relPath}:\n${diffResult}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
@@ -906,10 +919,15 @@ export class ClaudeDev {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
-			.filter(
-				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff && tab.input?.modified?.scheme === "claude-dev-diff"
-			)
+			.filter((tab) => {
+				if (tab.input instanceof vscode.TabInputTextDiff) {
+					const originalPath = (tab.input.original as vscode.Uri).toString()
+					const modifiedPath = (tab.input.modified as vscode.Uri).toString()
+					return originalPath.includes("claude-dev-") || modifiedPath.includes("claude-dev-")
+				}
+				return false
+			})
+
 		for (const tab of tabs) {
 			await vscode.window.tabGroups.close(tab)
 		}

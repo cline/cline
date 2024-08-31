@@ -4,7 +4,7 @@ import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import { ClaudeAsk, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
+import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../src/shared/getApiMetrics"
@@ -121,8 +121,21 @@ const ChatView = ({
 							setTextAreaDisabled(false)
 							setClaudeAsk("tool")
 							setEnableButtons(true)
-							setPrimaryButtonText("Approve")
-							setSecondaryButtonText("Reject")
+							const tool = JSON.parse(lastMessage.text || "{}") as ClaudeSayTool
+							switch (tool.tool) {
+								case "editedExistingFile":
+									setPrimaryButtonText("Save")
+									setSecondaryButtonText("Reject")
+									break
+								case "newFileCreated":
+									setPrimaryButtonText("Create")
+									setSecondaryButtonText("Reject")
+									break
+								default:
+									setPrimaryButtonText("Approve")
+									setSecondaryButtonText("Reject")
+									break
+							}
 							break
 						case "command":
 							setTextAreaDisabled(false)

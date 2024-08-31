@@ -338,6 +338,35 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								)}
 							</div>
 						)
+					case "user_feedback_diff":
+						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+						return (
+							<div
+								style={{
+									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+									borderRadius: "3px",
+									padding: "8px",
+									whiteSpace: "pre-line",
+									wordWrap: "break-word",
+								}}>
+								<span
+									style={{
+										display: "block",
+										fontStyle: "italic",
+										marginBottom: "8px",
+										opacity: 0.8,
+									}}>
+									The user made the following changes:
+								</span>
+								<CodeBlock
+									diff={tool.diff!}
+									path={tool.path!}
+									syntaxHighlighterStyle={syntaxHighlighterStyle}
+									isExpanded={isExpanded}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						)
 					case "error":
 						return (
 							<>

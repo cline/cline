@@ -53,6 +53,7 @@ export type ClaudeSay =
 	| "text"
 	| "completion_result"
 	| "user_feedback"
+	| "user_feedback_diff"
 	| "api_req_retried"
 	| "command_output"
 	| "tool"
