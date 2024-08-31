@@ -39,7 +39,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, JSX.Element | null] => {
 		const normalColor = "var(--vscode-foreground)"
 		const errorColor = "var(--vscode-errorForeground)"
-		const successColor = "var(--vscode-testing-iconPassed)"
+		const successColor = "var(--vscode-charts-green)"
 
 		const ProgressIndicator = (
 			<div
@@ -338,6 +338,35 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								)}
 							</div>
 						)
+					case "user_feedback_diff":
+						const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+						return (
+							<div
+								style={{
+									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+									borderRadius: "3px",
+									padding: "8px",
+									whiteSpace: "pre-line",
+									wordWrap: "break-word",
+								}}>
+								<span
+									style={{
+										display: "block",
+										fontStyle: "italic",
+										marginBottom: "8px",
+										opacity: 0.8,
+									}}>
+									The user made the following changes:
+								</span>
+								<CodeBlock
+									diff={tool.diff!}
+									path={tool.path!}
+									syntaxHighlighterStyle={syntaxHighlighterStyle}
+									isExpanded={isExpanded}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						)
 					case "error":
 						return (
 							<>
@@ -357,7 +386,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									{icon}
 									{title}
 								</div>
-								<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+								<div style={{ color: "var(--vscode-charts-green)" }}>
 									{renderMarkdown(message.text)}
 								</div>
 							</>
@@ -446,7 +475,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										{icon}
 										{title}
 									</div>
-									<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+									<div style={{ color: "var(--vscode-charts-green)" }}>
 										{renderMarkdown(message.text)}
 									</div>
 								</div>

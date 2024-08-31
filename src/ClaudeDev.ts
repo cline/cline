@@ -24,9 +24,10 @@ import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import { findLastIndex } from "./utils"
-import { isWithinContextWindow, truncateHalfConversation } from "./utils/context-management"
+import { findLast, findLastIndex } from "./utils"
+import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
+import { extractTextFromFile } from "./utils/extract-text"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -59,7 +60,7 @@ RULES
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
 - NEVER end completion_attempt with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user. 
 - NEVER start your responses with affirmations like "Certainly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
@@ -171,7 +172,7 @@ const tools: Tool[] = [
 	{
 		name: "read_file",
 		description:
-			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Be aware that this tool may not be suitable for very large files or binary files, as it returns the raw content as a string.",
+			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.",
 		input_schema: {
 			type: "object",
 			properties: {
@@ -725,10 +726,10 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeTool(toolName: ToolName, toolInput: any, isLastWriteToFile: boolean = false): Promise<ToolResponse> {
+	async executeTool(toolName: ToolName, toolInput: any): Promise<ToolResponse> {
 		switch (toolName) {
 			case "write_to_file":
-				return this.writeToFile(toolInput.path, toolInput.content, isLastWriteToFile)
+				return this.writeToFile(toolInput.path, toolInput.content)
 			case "read_file":
 				return this.readFile(toolInput.path)
 			case "list_files":
@@ -770,7 +771,7 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(relPath?: string, newContent?: string, isLast: boolean = true): Promise<ToolResponse> {
+	async writeToFile(relPath?: string, newContent?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
 			await this.say(
 				"error",
@@ -795,77 +796,48 @@ export class ClaudeDev {
 				.then(() => true)
 				.catch(() => false)
 
+			let originalContent: string
 			if (fileExists) {
-				const originalContent = await fs.readFile(absolutePath, "utf-8")
+				originalContent = await fs.readFile(absolutePath, "utf-8")
 				// fix issue where claude always removes newline from the file
-				if (originalContent.endsWith("\n") && !newContent.endsWith("\n")) {
-					newContent += "\n"
+				const eol = originalContent.includes("\r\n") ? "\r\n" : "\n"
+				if (originalContent.endsWith(eol) && !newContent.endsWith(eol)) {
+					newContent += eol
 				}
-				// condensed patch to return to claude
-				const diffResult = diff.createPatch(absolutePath, originalContent, newContent)
-				// full diff representation for webview
-				const diffRepresentation = diff
-					.diffLines(originalContent, newContent)
-					.map((part) => {
-						const prefix = part.added ? "+" : part.removed ? "-" : " "
-						return (part.value || "")
-							.split("\n")
-							.map((line) => (line ? prefix + line : ""))
-							.join("\n")
-					})
-					.join("")
+			} else {
+				originalContent = ""
+			}
 
-				// Create virtual document with new file, then open diff editor
-				const fileName = path.basename(absolutePath)
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.file(absolutePath),
-					// to create a virtual doc we use a uri scheme registered in extension.ts, which then converts this base64 content into a text document
-					// (providing file name with extension in the uri lets vscode know the language of the file and apply syntax highlighting)
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from(newContent).toString("base64"),
-					}),
-					`${fileName}: Original ↔ Suggested Changes`
-				)
+			// Create a temporary file with the new content
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
+			const tempFilePath = path.join(tempDir, path.basename(absolutePath))
+			await fs.writeFile(tempFilePath, newContent)
 
-				const { response, text, images } = await this.ask(
+			vscode.commands.executeCommand(
+				"vscode.diff",
+				vscode.Uri.parse(`claude-dev-diff:${path.basename(absolutePath)}`).with({
+					query: Buffer.from(originalContent).toString("base64"),
+				}),
+				vscode.Uri.file(tempFilePath),
+				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
+			)
+
+			let userResponse: {
+				response: ClaudeAskResponse
+				text?: string
+				images?: string[]
+			}
+			if (fileExists) {
+				userResponse = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
 						path: this.getReadablePath(relPath),
-						diff: diffRepresentation,
+						diff: this.createPrettyPatch(relPath, originalContent, newContent),
 					} as ClaudeSayTool)
 				)
-				if (response !== "yesButtonTapped") {
-					if (isLast) {
-						await this.closeDiffViews()
-					}
-					if (response === "messageResponse") {
-						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
-					}
-					return "The user denied this operation."
-				}
-				await fs.writeFile(absolutePath, newContent)
-				// Finish by opening the edited file in the editor
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-				if (isLast) {
-					await this.closeDiffViews()
-				}
-				return `Changes applied to ${relPath}:\n${diffResult}`
 			} else {
-				const fileName = path.basename(absolutePath)
-				vscode.commands.executeCommand(
-					"vscode.diff",
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from("").toString("base64"),
-					}),
-					vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-						query: Buffer.from(newContent).toString("base64"),
-					}),
-					`${fileName}: New File`
-				)
-				const { response, text, images } = await this.ask(
+				userResponse = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "newFileCreated",
@@ -873,23 +845,69 @@ export class ClaudeDev {
 						content: newContent,
 					} as ClaudeSayTool)
 				)
-				if (response !== "yesButtonTapped") {
-					if (isLast) {
-						await this.closeDiffViews()
-					}
-					if (response === "messageResponse") {
-						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
-					}
-					return "The user denied this operation."
+			}
+			const { response, text, images } = userResponse
+
+			// Save any unsaved changes in the diff editor
+			const diffDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === tempFilePath)
+			if (diffDocument && diffDocument.isDirty) {
+				console.log("saving diff document")
+				await diffDocument.save()
+			}
+
+			if (response !== "yesButtonTapped") {
+				await this.closeDiffViews()
+				// Clean up the temporary file
+				try {
+					await fs.rm(tempDir, { recursive: true, force: true })
+				} catch (error) {
+					// deleting temp file failed (seems to happen on some windows machines), which is okay since system will clean it up anyways
+					console.error(`Error deleting temporary directory: ${error}`)
 				}
+				if (response === "messageResponse") {
+					await this.say("user_feedback", text, images)
+					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+				}
+				return "The user denied this operation."
+			}
+
+			// Read the potentially edited content from the temp file
+			const editedContent = await fs.readFile(tempFilePath, "utf-8")
+			if (!fileExists) {
 				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
-				await fs.writeFile(absolutePath, newContent)
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-				if (isLast) {
-					await this.closeDiffViews()
-				}
-				return `New file created and content written to ${relPath}`
+			}
+			await fs.writeFile(absolutePath, editedContent)
+
+			// Clean up the temporary file
+			try {
+				await fs.rm(tempDir, { recursive: true, force: true })
+			} catch (error) {
+				console.error(`Error deleting temporary directory: ${error}`)
+			}
+
+			// Finish by opening the edited file in the editor
+			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			await this.closeDiffViews()
+
+			if (editedContent !== newContent) {
+				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
+				const userDiff = diff.createPatch(relPath, newContent, editedContent)
+				await this.say(
+					"user_feedback_diff",
+					JSON.stringify({
+						tool: fileExists ? "editedExistingFile" : "newFileCreated",
+						path: this.getReadablePath(relPath),
+						diff: this.createPrettyPatch(relPath, newContent, editedContent),
+					} as ClaudeSayTool)
+				)
+				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${
+					fileExists ? "applied to" : "written as new file"
+				} ${relPath}:\n\n${diffResult}`
+			} else {
+				const diffResult = diff.createPatch(relPath, originalContent, newContent)
+				return `${
+					fileExists ? `Changes applied to ${relPath}:\n\n${diffResult}` : `New file written to ${relPath}`
+				}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
@@ -901,14 +919,26 @@ export class ClaudeDev {
 		}
 	}
 
+	createPrettyPatch(filename = "file", oldStr: string, newStr: string) {
+		const patch = diff.createPatch(filename, oldStr, newStr)
+		const lines = patch.split("\n")
+		const prettyPatchLines = lines.slice(4)
+		return prettyPatchLines.join("\n")
+	}
+
 	async closeDiffViews() {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
-			.filter(
-				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff && tab.input?.modified?.scheme === "claude-dev-diff"
-			)
+			.filter((tab) => {
+				if (tab.input instanceof vscode.TabInputTextDiff) {
+					const originalPath = (tab.input.original as vscode.Uri).toString()
+					const modifiedPath = (tab.input.modified as vscode.Uri).toString()
+					return originalPath.includes("claude-dev-") || modifiedPath.includes("claude-dev-")
+				}
+				return false
+			})
+
 		for (const tab of tabs) {
 			await vscode.window.tabGroups.close(tab)
 		}
@@ -924,7 +954,7 @@ export class ClaudeDev {
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
-			const content = await fs.readFile(absolutePath, "utf-8")
+			const content = await extractTextFromFile(absolutePath)
 
 			const message = JSON.stringify({
 				tool: "readFile",
@@ -1028,16 +1058,27 @@ export class ClaudeDev {
 				const relativePath = path.relative(absolutePath, file)
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			})
+			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that claude can then explore further.
 			.sort((a, b) => {
-				// sort directories before files
-				const aIsDir = a.endsWith("/")
-				const bIsDir = b.endsWith("/")
-				if (aIsDir !== bIsDir) {
-					return aIsDir ? -1 : 1
+				const aParts = a.split("/")
+				const bParts = b.split("/")
+				for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
+					if (aParts[i] !== bParts[i]) {
+						// If one is a directory and the other isn't at this level, sort the directory first
+						if (i + 1 === aParts.length && i + 1 < bParts.length) {
+							return -1
+						}
+						if (i + 1 === bParts.length && i + 1 < aParts.length) {
+							return 1
+						}
+						// Otherwise, sort alphabetically
+						return aParts[i].localeCompare(bParts[i], undefined, { numeric: true, sensitivity: "base" })
+					}
 				}
-				return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+				// If all parts are the same up to the length of the shorter path,
+				// the shorter one comes first
+				return aParts.length - bParts.length
 			})
-
 		if (sorted.length >= LIST_FILES_LIMIT) {
 			const truncatedList = sorted.slice(0, LIST_FILES_LIMIT).join("\n")
 			return `${truncatedList}\n\n(Truncated at ${LIST_FILES_LIMIT} results. Try listing files in subdirectories if you need to explore further.)`
@@ -1304,15 +1345,25 @@ The following additional instructions are provided by the user. They should be f
 ${this.customInstructions.trim()}
 `
 			}
-			const isPromptWithinContextWindow = isWithinContextWindow(
-				this.api.getModel().info.contextWindow,
-				systemPrompt,
-				tools,
-				this.apiConversationHistory
-			)
-			if (!isPromptWithinContextWindow) {
-				const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-				await this.overwriteApiConversationHistory(truncatedMessages)
+
+			// If the last API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+			const lastApiReqFinished = findLast(this.claudeMessages, (m) => m.say === "api_req_finished")
+			if (lastApiReqFinished && lastApiReqFinished.text) {
+				const {
+					tokensIn,
+					tokensOut,
+					cacheWrites,
+					cacheReads,
+				}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } = JSON.parse(
+					lastApiReqFinished.text
+				)
+				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+				const contextWindow = this.api.getModel().info.contextWindow
+				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+				if (totalTokens >= maxAllowedSize) {
+					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+					await this.overwriteApiConversationHistory(truncatedMessages)
+				}
 			}
 			const { message, userCredits } = await this.api.createMessage(
 				systemPrompt,
@@ -1420,10 +1471,6 @@ ${this.customInstructions.trim()}
 
 			let toolResults: Anthropic.ToolResultBlockParam[] = []
 			let attemptCompletionBlock: Anthropic.Messages.ToolUseBlock | undefined
-			const writeToFileCount = response.content.filter(
-				(block) => block.type === "tool_use" && (block.name as ToolName) === "write_to_file"
-			).length
-			let currentWriteToFile = 0
 			for (const contentBlock of response.content) {
 				if (contentBlock.type === "tool_use") {
 					assistantResponses.push(contentBlock)
@@ -1433,15 +1480,8 @@ ${this.customInstructions.trim()}
 					if (toolName === "attempt_completion") {
 						attemptCompletionBlock = contentBlock
 					} else {
-						if (toolName === "write_to_file") {
-							currentWriteToFile++
-						}
 						// NOTE: while anthropic sdk accepts string or array of string/image, openai sdk (openrouter) only accepts a string
-						const result = await this.executeTool(
-							toolName,
-							toolInput,
-							currentWriteToFile === writeToFileCount
-						)
+						const result = await this.executeTool(toolName, toolInput)
 						// this.say(
 						// 	"tool",
 						// 	`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}\nTool Result: ${result}`

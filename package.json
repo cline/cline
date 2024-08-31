@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.5.3",
+  "version": "1.5.11",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -134,9 +134,9 @@
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.26.0",
-    "@anthropic-ai/tokenizer": "^0.0.4",
     "@anthropic-ai/vertex-sdk": "^0.4.1",
     "@types/clone-deep": "^4.0.4",
+    "@types/pdf-parse": "^1.1.4",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
     "clone-deep": "^4.0.1",
@@ -145,10 +145,12 @@
     "diff": "^5.2.0",
     "execa": "^9.3.0",
     "globby": "^14.0.2",
-    "image-size": "^1.1.1",
+    "isbinaryfile": "^5.0.2",
+    "mammoth": "^1.8.0",
     "openai": "^4.54.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
+    "pdf-parse": "^1.1.1",
     "serialize-error": "^11.0.3",
     "tree-kill": "^1.2.2",
     "tree-sitter-wasms": "^0.1.11",
