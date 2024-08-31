@@ -39,7 +39,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	const getIconAndTitle = (type: ClaudeAsk | ClaudeSay | undefined): [JSX.Element | null, JSX.Element | null] => {
 		const normalColor = "var(--vscode-foreground)"
 		const errorColor = "var(--vscode-errorForeground)"
-		const successColor = "var(--vscode-testing-iconPassed)"
+		const successColor = "var(--vscode-charts-green)"
 
 		const ProgressIndicator = (
 			<div
@@ -357,7 +357,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									{icon}
 									{title}
 								</div>
-								<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+								<div style={{ color: "var(--vscode-charts-green)" }}>
 									{renderMarkdown(message.text)}
 								</div>
 							</>
@@ -446,7 +446,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 										{icon}
 										{title}
 									</div>
-									<div style={{ color: "var(--vscode-testing-iconPassed)" }}>
+									<div style={{ color: "var(--vscode-charts-green)" }}>
 										{renderMarkdown(message.text)}
 									</div>
 								</div>
