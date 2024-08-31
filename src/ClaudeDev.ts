@@ -24,8 +24,8 @@ import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import { findLastIndex } from "./utils"
-import { isWithinContextWindow, truncateHalfConversation } from "./utils/context-management"
+import { findLast, findLastIndex } from "./utils"
+import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
 
 const SYSTEM_PROMPT =
@@ -1304,15 +1304,24 @@ The following additional instructions are provided by the user. They should be f
 ${this.customInstructions.trim()}
 `
 			}
-			const isPromptWithinContextWindow = isWithinContextWindow(
-				this.api.getModel().info.contextWindow,
-				systemPrompt,
-				tools,
-				this.apiConversationHistory
-			)
-			if (!isPromptWithinContextWindow) {
-				const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-				await this.overwriteApiConversationHistory(truncatedMessages)
+
+			// Check last API request metrics to see if we need to truncate
+			const lastApiReqFinished = findLast(this.claudeMessages, (m) => m.say === "api_req_finished")
+			if (lastApiReqFinished && lastApiReqFinished.text) {
+				const {
+					tokensIn,
+					tokensOut,
+					cacheWrites,
+					cacheReads,
+				}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } = JSON.parse(
+					lastApiReqFinished.text
+				)
+				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+				const isCloseToContextWindowLimit = totalTokens >= this.api.getModel().info.contextWindow * 0.8
+				if (isCloseToContextWindowLimit) {
+					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+					await this.overwriteApiConversationHistory(truncatedMessages)
+				}
 			}
 			const { message, userCredits } = await this.api.createMessage(
 				systemPrompt,

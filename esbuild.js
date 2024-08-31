@@ -29,12 +29,6 @@ const copyWasmFiles = {
 	name: "copy-wasm-files",
 	setup(build) {
 		build.onEnd(() => {
-			// tiktoken
-			fs.copyFileSync(
-				path.join(__dirname, "node_modules", "tiktoken", "tiktoken_bg.wasm"),
-				path.join(__dirname, "dist", "tiktoken_bg.wasm")
-			)
-
 			// tree sitter
 			const sourceDir = path.join(__dirname, "node_modules", "web-tree-sitter")
 			const targetDir = path.join(__dirname, "dist")
