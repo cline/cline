@@ -27,6 +27,7 @@ import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { findLast, findLastIndex } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
+import { extractTextFromFile } from "./utils/extract-text"
 
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -924,7 +925,7 @@ export class ClaudeDev {
 		}
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
-			const content = await fs.readFile(absolutePath, "utf-8")
+			const content = await extractTextFromFile(absolutePath)
 
 			const message = JSON.stringify({
 				tool: "readFile",
