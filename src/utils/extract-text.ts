@@ -1,5 +1,6 @@
 import * as path from "path"
-import pdf from "pdf-parse"
+// @ts-ignore-next-line
+import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import { isBinaryFile } from "isbinaryfile"
 import fs from "fs/promises"
