@@ -679,7 +679,7 @@ const ChatView = ({
 							appearance="icon"
 							aria-label="Send Message"
 							onClick={handleSendMessage}>
-							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -0.5 }}></span>
+							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
 						</VSCodeButton>
 					</div>
 				</div>
