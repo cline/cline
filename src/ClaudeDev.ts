@@ -1305,7 +1305,7 @@ ${this.customInstructions.trim()}
 `
 			}
 
-			// Check last API request metrics to see if we need to truncate
+			// If the last API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 			const lastApiReqFinished = findLast(this.claudeMessages, (m) => m.say === "api_req_finished")
 			if (lastApiReqFinished && lastApiReqFinished.text) {
 				const {
@@ -1317,8 +1317,9 @@ ${this.customInstructions.trim()}
 					lastApiReqFinished.text
 				)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const isCloseToContextWindowLimit = totalTokens >= this.api.getModel().info.contextWindow * 0.8
-				if (isCloseToContextWindowLimit) {
+				const contextWindow = this.api.getModel().info.contextWindow
+				const maxAllowedSize = Math.max(contextWindow - 20_000, contextWindow * 0.8)
+				if (totalTokens >= maxAllowedSize) {
 					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
 					await this.overwriteApiConversationHistory(truncatedMessages)
 				}
