@@ -329,7 +329,7 @@ const ModelInfoSupportsItem = ({
 	<span
 		style={{
 			fontWeight: 500,
-			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
+			color: isSupported ? "var(--vscode-terminal-ansiGreen)" : "var(--vscode-errorForeground)",
 		}}>
 		<i
 			className={`codicon codicon-${isSupported ? "check" : "x"}`}

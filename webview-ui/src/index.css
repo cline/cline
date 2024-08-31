@@ -21,8 +21,9 @@ body {
 	margin: 0;
 	font-size: var(--vscode-font-size);
 }
-body, body * {
-	line-height: 1.5;
+body,
+body * {
+	line-height: 1.6;
 }
 
 body.scrollable,
@@ -129,4 +130,80 @@ vscode-dropdown::part(listbox) {
 	border-color: var(--vscode-scrollbarSlider-background);
 	transition: none;
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+/* common styles */
+
+section {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px;
+	overflow-y: auto;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+}
+.flex-1 {
+	flex: 1 1 0%;
+}
+.text-light {
+	color: var(--vscode-breadcrumb-foreground);
+}
+.text-alt {
+	color: var(--vscode-terminal-ansiBlue);
+}
+.text-success {
+	color: var(--vscode-terminal-ansiGreen);
+}
+.text-error {
+	color: var(--vscode-terminal-ansiRed);
+}
+h3 {
+	color: var(--vscode-sideBarSectionHeader-foreground);
+	font-size: var(--vscode-editor-font-size);
+	font-weight: 600;
+	margin: 0;
+}
+.uppercase {
+	text-transform: uppercase;
+}
+.task-card {
+	border: 1px solid var(--vscode-menu-separatorBackground);
+	padding: 16px;
+	display: grid;
+	grid-auto-rows: min-content;
+	gap: 4px;
+}
+.task-card.is-clickable:hover {
+	cursor: pointer;
+	background-color: var(--vscode-tab-activeBackground) !important;
+}
+.flex-line {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+	justify-content: baseline;
+}
+.flex-line.wrap {
+	flex-wrap: wrap;
+}
+.flex-line.nowrap {
+	flex-wrap: nowrap;
+}
+.mini-badge {
+	font-family: var(--vscode-editor-font-family, "monospace");
+	font-size: var(--vscode-editor-font-size);
+	line-height: 1em;
+	border: 1px solid var(--vscode-menu-separatorBackground);
+	display: inline-flex;
+	gap: 2px;
+	align-items: center;
+	padding: 1px 4px;
+	border-radius: 2px;
+}
+p {
+	margin: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }

@@ -468,6 +468,7 @@ const ChatView = ({
 	return (
 		<div
 			style={{
+				borderTop: "1px solid var(--vscode-menu-separatorBackground)",
 				position: "fixed",
 				top: 0,
 				left: 0,
@@ -501,9 +502,11 @@ const ChatView = ({
 							vscodeUriScheme={uriScheme}
 						/>
 					)}
-					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
-						<h2>What can I do for you?</h2>
-						<p>
+					<section>
+						<h3 className="flex-line uppercase text-alt">
+							<span className="codicon text-alt codicon-robot"></span>What can I do for you?
+						</h3>
+						<div>
 							Thanks to{" "}
 							<VSCodeLink
 								href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
@@ -513,8 +516,8 @@ const ChatView = ({
 							I can handle complex software development tasks step-by-step. With tools that let me create
 							& edit files, explore complex projects, and execute terminal commands (after you grant
 							permission), I can assist you in ways that go beyond simple code completion or tech support.
-						</p>
-					</div>
+						</div>
+					</section>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</>
 			)}
@@ -553,7 +556,7 @@ const ChatView = ({
 						style={{
 							opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
 							display: "flex",
-							padding: "10px 15px 0px 15px",
+							padding: "8px 16px 0px 15px",
 						}}>
 						{primaryButtonText && (
 							<VSCodeButton
@@ -580,10 +583,12 @@ const ChatView = ({
 				</>
 			)}
 
+			<div className="flex-1" />
+
 			<div
 				ref={textAreaContainerRef}
 				style={{
-					padding: "10px 15px",
+					padding: "8px 16px",
 					opacity: textAreaDisabled ? 0.5 : 1,
 					position: "relative",
 					display: "flex",
@@ -592,7 +597,7 @@ const ChatView = ({
 					<div
 						style={{
 							position: "absolute",
-							inset: "10px 15px",
+							inset: "8px 16px",
 							border: "1px solid var(--vscode-input-border)",
 							borderRadius: 2,
 							pointerEvents: "none",

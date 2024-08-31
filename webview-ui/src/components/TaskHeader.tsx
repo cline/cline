@@ -1,4 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { ApiProvider } from "../../../src/shared/api"
@@ -101,30 +101,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}
 
 	return (
-		<div style={{ padding: "10px 13px 10px 13px" }}>
-			<div
-				style={{
-					backgroundColor: "var(--vscode-badge-background)",
-					color: "var(--vscode-badge-foreground)",
-					borderRadius: "3px",
-					padding: "12px",
-					display: "flex",
-					flexDirection: "column",
-					gap: "8px",
-					position: "relative",
-					zIndex: 1,
-				}}>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-					}}>
-					<span style={{ fontWeight: "bold", fontSize: "16px" }}>Task</span>
-					<VSCodeButton
-						appearance="icon"
-						onClick={onClose}
-						style={{ marginTop: "-6px", marginRight: "-4px" }}>
+		<>
+			<section>
+				<div className="flex-line">
+					<span className="codicon codicon-robot"></span>
+					<h3 className="uppercase">Task</h3>
+					<div style={{ flex: "1 1 0%" }}></div>
+					<VSCodeButton appearance="icon" onClick={handleDownload}>
+						Export
+					</VSCodeButton>
+					<VSCodeButton appearance="icon" onClick={onClose}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -164,7 +150,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									width: 30,
 									height: "1.2em",
 									background:
-										"linear-gradient(to right, transparent, var(--vscode-badge-background))",
+										"linear-gradient(to right, transparent, var(--vscode-activityBar-background))",
 								}}
 							/>
 							<div
@@ -173,7 +159,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									color: "var(--vscode-textLink-foreground)",
 									paddingRight: 0,
 									paddingLeft: 3,
-									backgroundColor: "var(--vscode-badge-background)",
+									backgroundColor: "var(--vscode-activityBar-background)",
 								}}
 								onClick={toggleExpand}>
 								See more
@@ -195,70 +181,45 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				)}
 				{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
-				<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-					<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-						<span style={{ fontWeight: "bold" }}>Tokens:</span>
-						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-							<i
-								className="codicon codicon-arrow-up"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
-							/>
+				<div className="text-light flex-line wrap" style={{ justifyContent: "space-between" }}>
+					<div className="flex-line nowrap">
+						Tokens:
+						<div className="mini-badge">
+							<span>↑</span>
 							{tokensIn?.toLocaleString()}
-						</span>
-						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-							<i
-								className="codicon codicon-arrow-down"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
-							/>
+						</div>
+						<div className="mini-badge">
+							<span>↓</span>
 							{tokensOut?.toLocaleString()}
-						</span>
+						</div>
 					</div>
-					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
-						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-							<span style={{ fontWeight: "bold" }}>Cache:</span>
-							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-								<i
-									className="codicon codicon-database"
-									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
-								/>
-								+{(cacheWrites || 0)?.toLocaleString()}
-							</span>
-							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-								<i
-									className="codicon codicon-arrow-right"
-									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
-								/>
-								{(cacheReads || 0)?.toLocaleString()}
-							</span>
+					{cacheWrites && cacheReads && (
+						<div className="flex-line nowrap">
+							Cache:
+							<div className="mini-badge">
+								<span>+</span>
+								{cacheWrites?.toLocaleString()}
+							</div>
+							<div className="mini-badge">
+								<span>→</span>
+								{cacheReads?.toLocaleString()}
+							</div>
 						</div>
 					)}
-					<div
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: "center",
-						}}>
-						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-							<span style={{ fontWeight: "bold" }}>API Cost:</span>
-							<span>${totalCost?.toFixed(4)}</span>
-						</div>
-						<VSCodeButton
-							appearance="icon"
-							onClick={handleDownload}
-							style={{
-								marginBottom: "-2px",
-								marginRight: "-2.5px",
-							}}>
-							<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
-						</VSCodeButton>
+					<div className="flex-line nowrap">
+						API Cost:
+						<span className="mini-badge">
+							<span>$</span>
+							{totalCost?.toFixed(4)}
+						</span>
 					</div>
 				</div>
-			</div>
+			</section>
 			{/* {apiProvider === "kodu" && (
 				<div
 					style={{
-						backgroundColor: "color-mix(in srgb, var(--vscode-badge-background) 50%, transparent)",
-						color: "var(--vscode-badge-foreground)",
+						backgroundColor: "color-mix(in srgb, var(--vscode-activityBar-background) 50%, transparent)",
+						color: "var(--vscode-activityBar-foreground)",
 						borderRadius: "0 0 3px 3px",
 						display: "flex",
 						justifyContent: "space-between",
@@ -282,7 +243,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 			)} */}
-		</div>
+		</>
 	)
 }
 

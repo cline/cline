@@ -12,14 +12,7 @@ You must update the latestAnnouncementId in ClaudeDevProvider for new announceme
 */
 const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriScheme }: AnnouncementProps) => {
 	return (
-		<div
-			style={{
-				backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-				borderRadius: "3px",
-				padding: "12px 16px",
-				margin: "5px 15px 5px 15px",
-				position: "relative",
-			}}>
+		<section>
 			<VSCodeButton
 				appearance="icon"
 				onClick={hideAnnouncement}
@@ -54,7 +47,7 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 					@sdrzn
 				</VSCodeLink>
 			</p>
-		</div>
+		</section>
 	)
 }
 
