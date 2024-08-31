@@ -238,7 +238,7 @@ export class OpenRouterHandler implements ApiHandler {
 		return {
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens,
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
+			system: "(see getSystemPrompt in src/systemPromp.ts)",
 			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
 			tools: "(see tools in src/ClaudeDev.ts)",
 			tool_choice: "auto",
