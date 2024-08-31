@@ -815,11 +815,9 @@ export class ClaudeDev {
 
 			vscode.commands.executeCommand(
 				"vscode.diff",
-				fileExists
-					? vscode.Uri.file(absolutePath)
-					: vscode.Uri.parse(`claude-dev-diff:${path.basename(absolutePath)}`).with({
-							query: Buffer.from("").toString("base64"),
-					  }),
+				vscode.Uri.parse(`claude-dev-diff:${path.basename(absolutePath)}`).with({
+					query: Buffer.from(originalContent).toString("base64"),
+				}),
 				vscode.Uri.file(tempFilePath),
 				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
 			)
