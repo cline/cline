@@ -140,23 +140,22 @@ section {
 	flex-direction: column;
 	gap: 8px;
 	padding: 16px;
-	overflow-y: auto;
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 }
 .flex-1 {
 	flex: 1 1 0%;
 }
 .text-light {
-	color: var(--vscode-breadcrumb-foreground);
+	color: var(--vscode-breadcrumb-foreground) !important;
 }
 .text-alt {
-	color: var(--vscode-terminal-ansiBlue);
+	color: var(--vscode-terminal-ansiBlue) !important;
 }
 .text-success {
-	color: var(--vscode-terminal-ansiGreen);
+	color: var(--vscode-terminal-ansiGreen) !important;
 }
 .text-error {
-	color: var(--vscode-terminal-ansiRed);
+	color: var(--vscode-terminal-ansiRed) !important;
 }
 h3 {
 	color: var(--vscode-sideBarSectionHeader-foreground);
@@ -190,16 +189,21 @@ h3 {
 .flex-line.nowrap {
 	flex-wrap: nowrap;
 }
-.mini-badge {
+code:not([class*="language-"]) {
+	color: var(--vscode-foreground);
 	font-family: var(--vscode-editor-font-family, "monospace");
 	font-size: var(--vscode-editor-font-size);
-	line-height: 1em;
+	line-height: 1.5em;
 	border: 1px solid var(--vscode-menu-separatorBackground);
+	background-color: var(--vscode-editor-background);
 	display: inline-flex;
 	gap: 2px;
 	align-items: center;
 	padding: 1px 4px;
 	border-radius: 2px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 p {
 	margin: 0;

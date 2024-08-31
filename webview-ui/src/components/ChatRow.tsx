@@ -219,7 +219,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								<div className="flex-line">
 									{icon}
 									{title}
-									{cost && <span className="mini-badge text-light">${Number(cost)?.toFixed(4)}</span>}
+									{cost && <code className="text-light">${Number(cost)?.toFixed(4)}</code>}
 									<div className="flex-1" />
 									<VSCodeButton
 										appearance="icon"
@@ -230,7 +230,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								</div>
 								{cost == null && apiRequestFailedMessage && (
 									<>
-										<p className="text-error">{apiRequestFailedMessage}</p>
+										<div className="text-error">{apiRequestFailedMessage}</div>
 										{/* {apiProvider === "kodu" && (
 											<div
 												style={{
@@ -273,19 +273,14 @@ const ChatRow: React.FC<ChatRowProps> = ({
 						return <div>{renderMarkdown(message.text)}</div>
 					case "user_feedback":
 						return (
-							<div
-								style={{
-									backgroundColor: "var(--vscode-badge-background)",
-									color: "var(--vscode-badge-foreground)",
-									borderRadius: "3px",
-									padding: "8px",
-									whiteSpace: "pre-line",
-									wordWrap: "break-word",
-								}}>
-								<span style={{ display: "block" }}>{message.text}</span>
-								{message.images && message.images.length > 0 && (
-									<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
-								)}
+							<div style={{ display: "flex", alignItems: "start", gap: "8px" }}>
+								<span className="codicon codicon-account" style={{marginTop:"2px"}} />
+								<div style={{ display: "grid", gap: "8px" }}>
+									<div>{message.text}</div>
+									{message.images && message.images.length > 0 && (
+										<Thumbnails images={message.images} />
+									)}
+								</div>
 							</div>
 						)
 					case "error":
@@ -336,7 +331,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									{icon}
 									{title}
 								</h3>
-								<p className="text-error">{message.text}</p>
+								<div className="text-error">{message.text}</div>
 							</>
 						)
 					case "command":
@@ -371,7 +366,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 
 									{output && (
 										<>
-											<p style={{ margin: "10px 0 10px 0" }}>{COMMAND_OUTPUT_STRING}</p>
+											<div style={{ margin: "10px 0 10px 0" }}>{COMMAND_OUTPUT_STRING}</div>
 											<CodeBlock
 												code={output}
 												language="shell-session"

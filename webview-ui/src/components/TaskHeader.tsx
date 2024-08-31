@@ -184,34 +184,34 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				<div className="text-light flex-line wrap" style={{ justifyContent: "space-between" }}>
 					<div className="flex-line nowrap">
 						Tokens:
-						<div className="mini-badge">
+						<code>
 							<span>↑</span>
 							{tokensIn?.toLocaleString()}
-						</div>
-						<div className="mini-badge">
+						</code>
+						<code>
 							<span>↓</span>
 							{tokensOut?.toLocaleString()}
-						</div>
+						</code>
 					</div>
 					{cacheWrites && cacheReads && (
 						<div className="flex-line nowrap">
 							Cache:
-							<div className="mini-badge">
+							<code>
 								<span>+</span>
 								{cacheWrites?.toLocaleString()}
-							</div>
-							<div className="mini-badge">
+							</code>
+							<code>
 								<span>→</span>
 								{cacheReads?.toLocaleString()}
-							</div>
+							</code>
 						</div>
 					)}
 					<div className="flex-line nowrap">
 						API Cost:
-						<span className="mini-badge">
+						<code>
 							<span>$</span>
 							{totalCost?.toFixed(4)}
-						</span>
+						</code>
 					</div>
 				</div>
 			</section>

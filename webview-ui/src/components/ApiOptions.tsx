@@ -86,7 +86,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
-					<p
+					<div
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
@@ -96,7 +96,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
 							You can get an Anthropic API key by signing up here.
 						</VSCodeLink>
-					</p>
+					</div>
 				</div>
 			)}
 
@@ -110,7 +110,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
-					<p
+					<div
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
@@ -124,7 +124,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter support is experimental and may
 							not work well with large files.)
 						</span>
-					</p>
+					</div>
 				</div>
 			)}
 
@@ -179,7 +179,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
 						</VSCodeDropdown>
 					</div>
-					<p
+					<div
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
@@ -191,7 +191,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							style={{ display: "inline" }}>
 							You can find your AWS access key and secret key here.
 						</VSCodeLink>
-					</p>
+					</div>
 				</div>
 			)}
 
@@ -221,7 +221,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
 						</VSCodeDropdown>
 					</div>
-					<p
+					<div
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
@@ -240,19 +240,19 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							style={{ display: "inline" }}>
 							{"2) install the Google Cloud CLI › configure Application Default Credentials."}
 						</VSCodeLink>
-					</p>
+					</div>
 				</div>
 			)}
 
 			{apiErrorMessage && (
-				<p
+				<div
 					style={{
 						margin: "-10px 0 4px 0",
 						fontSize: 12,
 						color: "var(--vscode-errorForeground)",
 					}}>
 					{apiErrorMessage}
-				</p>
+				</div>
 			)}
 
 			{showModelOptions && (
@@ -285,7 +285,7 @@ export const formatPrice = (price: number) => {
 
 const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 	return (
-		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
+		<div style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
 				isSupported={modelInfo.supportsImages}
 				supportsLabel="Supports images"
@@ -313,7 +313,7 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 			)}
 			<br />
 			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-		</p>
+		</div>
 	)
 }
 

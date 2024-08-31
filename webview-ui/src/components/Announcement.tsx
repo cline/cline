@@ -13,15 +13,15 @@ You must update the latestAnnouncementId in ClaudeDevProvider for new announceme
 const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriScheme }: AnnouncementProps) => {
 	return (
 		<section>
-			<VSCodeButton
-				appearance="icon"
-				onClick={hideAnnouncement}
-				style={{ position: "absolute", top: "8px", right: "8px" }}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in v{version}
-			</h3>
+			<div className="flex-line">
+				<h3 className="flex-line uppercase text-alt">
+					<span className="codicon text-alt codicon-bell-dot"></span>New in v{version}
+				</h3>
+				<div className="flex-1" />
+				<VSCodeButton appearance="icon" onClick={hideAnnouncement}>
+					<span className="codicon codicon-close"></span>
+				</VSCodeButton>
+			</div>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
 					Adds support for reading .pdf and .docx files (try "turn my business_plan.docx into a company
@@ -41,12 +41,12 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 					providers.
 				</li>
 			</ul>
-			<p style={{ margin: "0" }}>
+			<div>
 				Follow me for more updates!{" "}
 				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
 					@sdrzn
 				</VSCodeLink>
-			</p>
+			</div>
 		</section>
 	)
 }

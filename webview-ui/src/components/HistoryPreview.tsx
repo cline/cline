@@ -54,34 +54,34 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						<div className="text-light flex-line wrap" style={{ justifyContent: "space-between" }}>
 							<div className="flex-line nowrap">
 								Tokens:
-								<div className="mini-badge">
+								<code>
 									<span>↑</span>
 									{item.tokensIn?.toLocaleString()}
-								</div>
-								<div className="mini-badge">
+								</code>
+								<code>
 									<span>↓</span>
 									{item.tokensOut?.toLocaleString()}
-								</div>
+								</code>
 							</div>
 							{item.cacheWrites && item.cacheReads && (
 								<div className="flex-line nowrap">
 									Cache:
-									<div className="mini-badge">
+									<code>
 										<span>+</span>
 										{item.cacheWrites?.toLocaleString()}
-									</div>
-									<div className="mini-badge">
+									</code>
+									<code>
 										<span>→</span>
 										{item.cacheReads?.toLocaleString()}
-									</div>
+									</code>
 								</div>
 							)}
 							<div className="flex-line nowrap">
 								API Cost:
-								<span className="mini-badge">
+								<code>
 									<span>$</span>
 									{item.totalCost?.toFixed(4)}
-								</span>
+								</code>
 							</div>
 						</div>
 					</div>

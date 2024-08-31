@@ -268,13 +268,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												marginTop: -2,
 											}}>
 											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
+												<code>
 													API Cost:
-												</span>
+												</code>
 												<span style={{ color: "var(--vscode-descriptionForeground)" }}>
 													${item.totalCost?.toFixed(4)}
 												</span>

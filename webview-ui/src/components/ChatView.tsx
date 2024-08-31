@@ -468,7 +468,6 @@ const ChatView = ({
 	return (
 		<div
 			style={{
-				borderTop: "1px solid var(--vscode-menu-separatorBackground)",
 				position: "fixed",
 				top: 0,
 				left: 0,
@@ -478,112 +477,120 @@ const ChatView = ({
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
-			{task ? (
-				<TaskHeader
-					task={task}
-					tokensIn={apiMetrics.totalTokensIn}
-					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelSupportsPromptCache}
-					cacheWrites={apiMetrics.totalCacheWrites}
-					cacheReads={apiMetrics.totalCacheReads}
-					totalCost={apiMetrics.totalCost}
-					onClose={handleTaskCloseButtonClick}
-					isHidden={isHidden}
-					vscodeUriScheme={uriScheme}
-					apiProvider={apiConfiguration?.apiProvider}
-				/>
-			) : (
-				<>
-					{showAnnouncement && (
-						<Announcement
-							version={version}
-							hideAnnouncement={hideAnnouncement}
-							apiConfiguration={apiConfiguration}
-							vscodeUriScheme={uriScheme}
-						/>
-					)}
-					<section>
-						<h3 className="flex-line uppercase text-alt">
-							<span className="codicon text-alt codicon-robot"></span>What can I do for you?
-						</h3>
-						<div>
-							Thanks to{" "}
-							<VSCodeLink
-								href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
-								style={{ display: "inline" }}>
-								Claude 3.5 Sonnet's agentic coding capabilities,
-							</VSCodeLink>{" "}
-							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, explore complex projects, and execute terminal commands (after you grant
-							permission), I can assist you in ways that go beyond simple code completion or tech support.
-						</div>
-					</section>
-					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-				</>
-			)}
-			{task && (
-				<>
-					<Virtuoso
-						ref={virtuosoRef}
-						className="scrollable"
-						style={{
-							flexGrow: 1,
-							overflowY: "scroll", // always show scrollbar
-						}}
-						// followOutput={(isAtBottom) => {
-						// 	const lastMessage = modifiedMessages.at(-1)
-						// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
-						// 		return "smooth"
-						// 	}
-						// 	return false
-						// }}
-						increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
-						itemContent={(index, message) => (
-							<ChatRow
-								key={message.ts}
-								message={message}
-								syntaxHighlighterStyle={syntaxHighlighterStyle}
-								isExpanded={expandedRows[message.ts] || false}
-								onToggleExpand={() => toggleRowExpansion(message.ts)}
-								lastModifiedMessage={modifiedMessages.at(-1)}
-								isLast={index === visibleMessages.length - 1}
-								apiProvider={apiConfiguration?.apiProvider}
+			<div
+				style={{
+					borderTop: "1px solid var(--vscode-menu-separatorBackground)",
+					flex: "1 1 0%",
+					display: "flex",
+					flexDirection: "column",
+					overflowY: "auto",
+				}}>
+				{task ? (
+					<TaskHeader
+						task={task}
+						tokensIn={apiMetrics.totalTokensIn}
+						tokensOut={apiMetrics.totalTokensOut}
+						doesModelSupportPromptCache={selectedModelSupportsPromptCache}
+						cacheWrites={apiMetrics.totalCacheWrites}
+						cacheReads={apiMetrics.totalCacheReads}
+						totalCost={apiMetrics.totalCost}
+						onClose={handleTaskCloseButtonClick}
+						isHidden={isHidden}
+						vscodeUriScheme={uriScheme}
+						apiProvider={apiConfiguration?.apiProvider}
+					/>
+				) : (
+					<>
+						{showAnnouncement && (
+							<Announcement
+								version={version}
+								hideAnnouncement={hideAnnouncement}
+								apiConfiguration={apiConfiguration}
+								vscodeUriScheme={uriScheme}
 							/>
 						)}
-					/>
-					<div
-						style={{
-							opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
-							display: "flex",
-							padding: "8px 16px 0px 15px",
-						}}>
-						{primaryButtonText && (
-							<VSCodeButton
-								appearance="primary"
-								disabled={!enableButtons}
-								style={{
-									flex: secondaryButtonText ? 1 : 2,
-									marginRight: secondaryButtonText ? "6px" : "0",
-								}}
-								onClick={handlePrimaryButtonClick}>
-								{primaryButtonText}
-							</VSCodeButton>
-						)}
-						{secondaryButtonText && (
-							<VSCodeButton
-								appearance="secondary"
-								disabled={!enableButtons}
-								style={{ flex: 1, marginLeft: "6px" }}
-								onClick={handleSecondaryButtonClick}>
-								{secondaryButtonText}
-							</VSCodeButton>
-						)}
-					</div>
-				</>
-			)}
-
-			<div className="flex-1" />
+						<section>
+							<h3 className="flex-line uppercase text-alt">
+								<span className="codicon text-alt codicon-robot"></span>What can I do for you?
+							</h3>
+							<div>
+								Thanks to{" "}
+								<VSCodeLink
+									href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
+									style={{ display: "inline" }}>
+									Claude 3.5 Sonnet's agentic coding capabilities,
+								</VSCodeLink>{" "}
+								I can handle complex software development tasks step-by-step. With tools that let me
+								create & edit files, explore complex projects, and execute terminal commands (after you
+								grant permission), I can assist you in ways that go beyond simple code completion or
+								tech support.
+							</div>
+						</section>
+						{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+					</>
+				)}
+				{task && (
+					<>
+						<Virtuoso
+							ref={virtuosoRef}
+							className="scrollable"
+							style={{
+								flexGrow: 1,
+								overflowY: "scroll", // always show scrollbar
+							}}
+							// followOutput={(isAtBottom) => {
+							// 	const lastMessage = modifiedMessages.at(-1)
+							// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
+							// 		return "smooth"
+							// 	}
+							// 	return false
+							// }}
+							increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+							data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
+							itemContent={(index, message) => (
+								<ChatRow
+									key={message.ts}
+									message={message}
+									syntaxHighlighterStyle={syntaxHighlighterStyle}
+									isExpanded={expandedRows[message.ts] || false}
+									onToggleExpand={() => toggleRowExpansion(message.ts)}
+									lastModifiedMessage={modifiedMessages.at(-1)}
+									isLast={index === visibleMessages.length - 1}
+									apiProvider={apiConfiguration?.apiProvider}
+								/>
+							)}
+						/>
+						<div
+							style={{
+								opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
+								display: "flex",
+								padding: "8px 16px 0px 15px",
+							}}>
+							{primaryButtonText && (
+								<VSCodeButton
+									appearance="primary"
+									disabled={!enableButtons}
+									style={{
+										flex: secondaryButtonText ? 1 : 2,
+										marginRight: secondaryButtonText ? "6px" : "0",
+									}}
+									onClick={handlePrimaryButtonClick}>
+									{primaryButtonText}
+								</VSCodeButton>
+							)}
+							{secondaryButtonText && (
+								<VSCodeButton
+									appearance="secondary"
+									disabled={!enableButtons}
+									style={{ flex: 1, marginLeft: "6px" }}
+									onClick={handleSecondaryButtonClick}>
+									{secondaryButtonText}
+								</VSCodeButton>
+							)}
+						</div>
+					</>
+				)}
+			</div>
 
 			<div
 				ref={textAreaContainerRef}
