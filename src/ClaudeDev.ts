@@ -726,10 +726,10 @@ export class ClaudeDev {
 		}
 	}
 
-	async executeTool(toolName: ToolName, toolInput: any, isLastWriteToFile: boolean = false): Promise<ToolResponse> {
+	async executeTool(toolName: ToolName, toolInput: any): Promise<ToolResponse> {
 		switch (toolName) {
 			case "write_to_file":
-				return this.writeToFile(toolInput.path, toolInput.content, isLastWriteToFile)
+				return this.writeToFile(toolInput.path, toolInput.content)
 			case "read_file":
 				return this.readFile(toolInput.path)
 			case "list_files":
@@ -771,7 +771,7 @@ export class ClaudeDev {
 		return totalCost
 	}
 
-	async writeToFile(relPath?: string, newContent?: string, isLast: boolean = true): Promise<ToolResponse> {
+	async writeToFile(relPath?: string, newContent?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
 			await this.say(
 				"error",
@@ -821,7 +821,7 @@ export class ClaudeDev {
 							query: Buffer.from("").toString("base64"),
 					  }),
 				vscode.Uri.file(tempFilePath),
-				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Suggested Changes" : "New File"} (Editable)`
+				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
 			)
 
 			let userResponse: {
@@ -830,13 +830,12 @@ export class ClaudeDev {
 				images?: string[]
 			}
 			if (fileExists) {
-				const suggestedDiff = diff.createPatch(relPath, originalContent, newContent)
 				userResponse = await this.ask(
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
 						path: this.getReadablePath(relPath),
-						diff: suggestedDiff,
+						diff: this.createPrettyPatch(relPath, originalContent, newContent),
 					} as ClaudeSayTool)
 				)
 			} else {
@@ -851,10 +850,15 @@ export class ClaudeDev {
 			}
 			const { response, text, images } = userResponse
 
+			// Save any unsaved changes in the diff editor
+			const diffDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === tempFilePath)
+			if (diffDocument && diffDocument.isDirty) {
+				console.log("saving diff document")
+				await diffDocument.save()
+			}
+
 			if (response !== "yesButtonTapped") {
-				if (isLast) {
-					await this.closeDiffViews()
-				}
+				await this.closeDiffViews()
 				// Clean up the temporary file
 				await fs.rm(tempDir, { recursive: true, force: true })
 				if (response === "messageResponse") {
@@ -862,13 +866,6 @@ export class ClaudeDev {
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
-			}
-
-			// Save any unsaved changes in the diff editor
-			const diffDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === tempFilePath)
-			if (diffDocument && diffDocument.isDirty) {
-				console.log("saving diff document")
-				await diffDocument.save()
 			}
 
 			// Read the potentially edited content from the temp file
@@ -883,9 +880,7 @@ export class ClaudeDev {
 
 			// Finish by opening the edited file in the editor
 			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-			if (isLast) {
-				await this.closeDiffViews()
-			}
+			await this.closeDiffViews()
 
 			if (editedContent !== newContent) {
 				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
@@ -895,7 +890,7 @@ export class ClaudeDev {
 					JSON.stringify({
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: this.getReadablePath(relPath),
-						diff: userDiff,
+						diff: this.createPrettyPatch(relPath, newContent, editedContent),
 					} as ClaudeSayTool)
 				)
 				return `${
@@ -913,6 +908,13 @@ export class ClaudeDev {
 			)
 			return errorString
 		}
+	}
+
+	createPrettyPatch(filename = "file", oldStr: string, newStr: string) {
+		const patch = diff.createPatch(filename, oldStr, newStr)
+		const lines = patch.split("\n")
+		const prettyPatchLines = lines.slice(4)
+		return prettyPatchLines.join("\n")
 	}
 
 	async closeDiffViews() {
@@ -1460,10 +1462,6 @@ ${this.customInstructions.trim()}
 
 			let toolResults: Anthropic.ToolResultBlockParam[] = []
 			let attemptCompletionBlock: Anthropic.Messages.ToolUseBlock | undefined
-			const writeToFileCount = response.content.filter(
-				(block) => block.type === "tool_use" && (block.name as ToolName) === "write_to_file"
-			).length
-			let currentWriteToFile = 0
 			for (const contentBlock of response.content) {
 				if (contentBlock.type === "tool_use") {
 					assistantResponses.push(contentBlock)
@@ -1473,15 +1471,8 @@ ${this.customInstructions.trim()}
 					if (toolName === "attempt_completion") {
 						attemptCompletionBlock = contentBlock
 					} else {
-						if (toolName === "write_to_file") {
-							currentWriteToFile++
-						}
 						// NOTE: while anthropic sdk accepts string or array of string/image, openai sdk (openrouter) only accepts a string
-						const result = await this.executeTool(
-							toolName,
-							toolInput,
-							currentWriteToFile === writeToFileCount
-						)
+						const result = await this.executeTool(toolName, toolInput)
 						// this.say(
 						// 	"tool",
 						// 	`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}\nTool Result: ${result}`
