@@ -19,6 +19,10 @@ html {
 
 body {
 	margin: 0;
+	font-size: var(--vscode-font-size);
+}
+body, body * {
+	line-height: 1.5;
 }
 
 body.scrollable,
@@ -114,6 +118,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#wi
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	font-size: var(--vscode-font-size);
+	line-height: 2.02rem;
 	line-height: normal;
 	margin-bottom: 2px;
 }
