@@ -480,7 +480,7 @@ const ChatView = ({
 			}}>
 			<div
 				style={{
-					borderTop: "1px solid var(--vscode-menu-separatorBackground)",
+					borderTop: "1px solid var(--section-border)",
 					flex: "1 1 0%",
 					display: "flex",
 					flexDirection: "column",

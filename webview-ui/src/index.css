@@ -133,14 +133,16 @@ vscode-dropdown::part(listbox) {
 }
 
 /* common styles */
-
+:root {
+	--section-border: var(--vscode-panel-border, var(--vscode-editorGroup-border, var(--vscode-menu-separatorBackground, var(--vscode-menu-border, var(--vscode-activityBar-background)))))
+}
 section {
 	position: relative;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	padding: 16px;
-	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+	border-bottom: 1px solid var(--section-border);
 }
 .flex-1 {
 	flex: 1 1 0%;
@@ -167,7 +169,7 @@ h3 {
 	text-transform: uppercase;
 }
 .task-card {
-	border: 1px solid var(--vscode-menu-separatorBackground);
+	border: 1px solid var(--section-border);
 	padding: 16px;
 	display: grid;
 	grid-auto-rows: min-content;
@@ -194,7 +196,7 @@ code:not([class*="language-"]) {
 	font-family: var(--vscode-editor-font-family, "monospace");
 	font-size: var(--vscode-editor-font-size);
 	line-height: 1.5em;
-	border: 1px solid var(--vscode-menu-separatorBackground);
+	border: 1px solid var(--section-border);
 	background-color: var(--vscode-editor-background);
 	display: inline-flex;
 	gap: 2px;

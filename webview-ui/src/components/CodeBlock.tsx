@@ -96,7 +96,7 @@ const CodeBlock = ({
 				borderRadius: "3px",
 				backgroundColor: "var(--vscode-editor-background)",
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
-				border: "1px solid var(--vscode-editorGroup-border)",
+				border: "1px solid var(--section-border)",
 			}}>
 			{path && (
 				<div

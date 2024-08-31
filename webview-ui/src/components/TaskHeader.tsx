@@ -150,7 +150,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									width: 30,
 									height: "1.2em",
 									background:
-										"linear-gradient(to right, transparent, var(--vscode-activityBar-background))",
+										"linear-gradient(to right, transparent, var(--section-border))",
 								}}
 							/>
 							<div
@@ -159,7 +159,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									color: "var(--vscode-textLink-foreground)",
 									paddingRight: 0,
 									paddingLeft: 3,
-									backgroundColor: "var(--vscode-activityBar-background)",
+									backgroundColor: "var(--section-border)",
 								}}
 								onClick={toggleExpand}>
 								See more
@@ -218,7 +218,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* {apiProvider === "kodu" && (
 				<div
 					style={{
-						backgroundColor: "color-mix(in srgb, var(--vscode-activityBar-background) 50%, transparent)",
+						backgroundColor: "color-mix(in srgb, var(--section-border) 50%, transparent)",
 						color: "var(--vscode-activityBar-foreground)",
 						borderRadius: "0 0 3px 3px",
 						display: "flex",
