@@ -1,8 +1,8 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
-import { useEvent, useMount } from "react-use"
+import { useEvent, useMeasure, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
@@ -55,8 +55,7 @@ const ChatView = ({
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
-	const textAreaContainerRef = useRef<HTMLDivElement>(null)
-	const [textAreaContainerHeight, setTextAreaContainerHeight] = useState(51)
+	const [textAreaContainerRef, { height: textAreaContainerHeight }] = useMeasure<HTMLDivElement>()
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 
@@ -467,17 +466,6 @@ const ChatView = ({
 		selectedImages.length >= MAX_IMAGES_PER_MESSAGE ||
 		isInputPipingToStdin
 
-	useLayoutEffect(() => {
-		if (textAreaContainerRef.current) {
-			let height = textAreaContainerRef.current.clientHeight
-			// some browsers return 0 for clientHeight
-			if (!height) {
-				height = textAreaContainerRef.current.getBoundingClientRect().height
-			}
-			setTextAreaContainerHeight(height)
-		}
-	}, [])
-
 	return (
 		<div
 			style={{
@@ -672,7 +660,7 @@ const ChatView = ({
 						right: 20,
 						display: "flex",
 						alignItems: "flex-center",
-						height: textAreaContainerHeight - 20,
+						height: textAreaContainerHeight || 31,
 						bottom: 10,
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
@@ -691,7 +679,7 @@ const ChatView = ({
 							appearance="icon"
 							aria-label="Send Message"
 							onClick={handleSendMessage}>
-							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
+							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: 0 }}></span>
 						</VSCodeButton>
 					</div>
 				</div>
