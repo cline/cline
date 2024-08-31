@@ -31,7 +31,7 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Adds support for reading PDF and DOCX files (try "turn my business_plan.docx into a company
+					Adds support for reading .pdf and .docx files (try "turn my business_plan.docx into a company
 					website")
 				</li>
 				<li>

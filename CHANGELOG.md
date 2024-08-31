@@ -6,7 +6,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.5.4]
 
-- Adds support for reading PDF and DOCX files (try "turn my business_plan.docx into a company website")
+- Adds support for reading .pdf and .docx files (try "turn my business_plan.docx into a company website")
 
 ## [1.5.0]
 
