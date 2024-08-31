@@ -893,12 +893,14 @@ export class ClaudeDev {
 						diff: this.createPrettyPatch(relPath, newContent, editedContent),
 					} as ClaudeSayTool)
 				)
-				return `${
-					fileExists ? "Changes applied" : "New file written"
-				} to ${relPath}:\n${diffResult}, the user applied these changes:\n${userDiff}`
+				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${
+					fileExists ? "applied to" : "written as new file"
+				} ${relPath}:\n\n${diffResult}`
 			} else {
 				const diffResult = diff.createPatch(relPath, originalContent, newContent)
-				return `${fileExists ? "Changes applied" : "New file written"} to ${relPath}:\n${diffResult}`
+				return `${
+					fileExists ? `Changes applied to ${relPath}:\n\n${diffResult}` : `New file written to ${relPath}`
+				}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
