@@ -858,7 +858,12 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				await this.closeDiffViews()
 				// Clean up the temporary file
-				await fs.rm(tempDir, { recursive: true, force: true })
+				try {
+					await fs.rm(tempDir, { recursive: true, force: true })
+				} catch (error) {
+					// deleting temp file failed (seems to happen on some windows machines), which is okay since system will clean it up anyways
+					console.error(`Error deleting temporary directory: ${error}`)
+				}
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
@@ -874,7 +879,11 @@ export class ClaudeDev {
 			await fs.writeFile(absolutePath, editedContent)
 
 			// Clean up the temporary file
-			await fs.rm(tempDir, { recursive: true, force: true })
+			try {
+				await fs.rm(tempDir, { recursive: true, force: true })
+			} catch (error) {
+				console.error(`Error deleting temporary directory: ${error}`)
+			}
 
 			// Finish by opening the edited file in the editor
 			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
