@@ -1028,16 +1028,27 @@ export class ClaudeDev {
 				const relativePath = path.relative(absolutePath, file)
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			})
+			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that claude can then explore further.
 			.sort((a, b) => {
-				// sort directories before files
-				const aIsDir = a.endsWith("/")
-				const bIsDir = b.endsWith("/")
-				if (aIsDir !== bIsDir) {
-					return aIsDir ? -1 : 1
+				const aParts = a.split("/")
+				const bParts = b.split("/")
+				for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
+					if (aParts[i] !== bParts[i]) {
+						// If one is a directory and the other isn't at this level, sort the directory first
+						if (i + 1 === aParts.length && i + 1 < bParts.length) {
+							return -1
+						}
+						if (i + 1 === bParts.length && i + 1 < aParts.length) {
+							return 1
+						}
+						// Otherwise, sort alphabetically
+						return aParts[i].localeCompare(bParts[i], undefined, { numeric: true, sensitivity: "base" })
+					}
 				}
-				return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+				// If all parts are the same up to the length of the shorter path,
+				// the shorter one comes first
+				return aParts.length - bParts.length
 			})
-
 		if (sorted.length >= LIST_FILES_LIMIT) {
 			const truncatedList = sorted.slice(0, LIST_FILES_LIMIT).join("\n")
 			return `${truncatedList}\n\n(Truncated at ${LIST_FILES_LIMIT} results. Try listing files in subdirectories if you need to explore further.)`
