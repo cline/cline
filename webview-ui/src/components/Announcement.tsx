@@ -31,6 +31,10 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
+					Adds support for reading PDF and DOCX files (try "turn my business_plan.docx into a company
+					website")
+				</li>
+				<li>
 					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
 					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
 				</li>
@@ -42,9 +46,6 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 				<li>
 					Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all
 					providers.
-				</li>
-				<li>
-					Improves system prompt to guard against lazy edits (less "<code>{"//rest of code here"}</code>")
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>
