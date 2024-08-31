@@ -25,7 +25,8 @@ const ModuleScopePlugin = require("react-dev-utils/ModuleScopePlugin")
 const path = require("path")
 const fs = require("fs")
 // Get all files in the shared directory
-const sharedDir = path.resolve(__dirname, "../../src/shared")
+const sharedDir = path.resolve(__dirname, "..", "..", "src", "shared")
+
 function getAllFiles(dir) {
 	let files = []
 	fs.readdirSync(dir).forEach((file) => {
@@ -33,7 +34,7 @@ function getAllFiles(dir) {
 		if (fs.statSync(filePath).isDirectory()) {
 			files = files.concat(getAllFiles(filePath))
 		} else {
-			const withoutExtension = filePath.split(".")[0]
+			const withoutExtension = path.join(dir, path.parse(file).name)
 			files.push(withoutExtension)
 		}
 	})

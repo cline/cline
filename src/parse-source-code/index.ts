@@ -107,33 +107,33 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 // globby doesnt natively support top down level by level globbing, so we implement it ourselves
 async function globbyLevelByLevel(options?: Options) {
 	let results: string[] = []
-	let currentLevel = 0
-	while (results.length < LIST_FILES_LIMIT) {
-		// Construct the glob pattern for the current level
-		const pattern = currentLevel === 0 ? "*" : `${"*/".repeat(currentLevel)}*`
-
-		// Get files and directories at the current level
-		const filesAtLevel = await globby(pattern, options)
-
-		// If no more files found at this level, break the loop
-		if (filesAtLevel.length === 0) {
-			break
+	const globbingProcess = async () => {
+		let currentLevel = 0
+		while (results.length < LIST_FILES_LIMIT) {
+			const pattern = currentLevel === 0 ? "*" : `${"*/".repeat(currentLevel)}*`
+			const filesAtLevel = await globby(pattern, options)
+			if (filesAtLevel.length === 0) {
+				break
+			}
+			results.push(...filesAtLevel)
+			if (results.length >= LIST_FILES_LIMIT) {
+				results = results.slice(0, LIST_FILES_LIMIT)
+				break
+			}
+			currentLevel++
 		}
-
-		// Add the files found at this level to the result
-		results.push(...filesAtLevel)
-
-		// If we have reached the max limit, slice the array to the limit and break
-		if (results.length >= LIST_FILES_LIMIT) {
-			results = results.slice(0, LIST_FILES_LIMIT)
-			break
-		}
-
-		// Move to the next level
-		currentLevel++
+		return results
 	}
-
-	return results
+	// Timeout after 10 seconds and return partial results
+	const timeoutPromise = new Promise<string[]>((_, reject) => {
+		setTimeout(() => reject(new Error("Globbing timeout")), 10_000)
+	})
+	try {
+		return await Promise.race([globbingProcess(), timeoutPromise])
+	} catch (error) {
+		console.warn("Globbing timed out, returning partial results")
+		return results
+	}
 }
 
 function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingFiles: string[] } {
