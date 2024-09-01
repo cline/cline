@@ -2,7 +2,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
-import { useEvent, useMeasure, useMount } from "react-use"
+import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
@@ -55,7 +55,6 @@ const ChatView = ({
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
-	const [textAreaContainerRef, { height: textAreaContainerHeight }] = useMeasure<HTMLDivElement>()
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 
@@ -573,7 +572,6 @@ const ChatView = ({
 			)}
 
 			<div
-				ref={textAreaContainerRef}
 				style={{
 					padding: "10px 15px",
 					opacity: textAreaDisabled ? 0.5 : 1,
@@ -651,7 +649,7 @@ const ChatView = ({
 						right: 20,
 						display: "flex",
 						alignItems: "flex-center",
-						height: textAreaContainerHeight || 31,
+						height: 31,
 						bottom: 10,
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
