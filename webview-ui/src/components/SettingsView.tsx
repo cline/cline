@@ -91,23 +91,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Claude will automatically read files and view directories without requiring you to
-						click the Allow button.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
@@ -125,6 +108,23 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowReadOnly}
+						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Claude will automatically read files and view directories without requiring you to
+						click the Allow button.
 					</p>
 				</div>
 
