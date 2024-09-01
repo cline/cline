@@ -34,23 +34,7 @@ export function convertToOpenAiMessages(
 					{ nonToolMessages: [], toolMessages: [] }
 				)
 
-				// Process non-tool messages
-				if (nonToolMessages.length > 0) {
-					openAiMessages.push({
-						role: "user",
-						content: nonToolMessages.map((part) => {
-							if (part.type === "image") {
-								return {
-									type: "image_url",
-									image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
-								}
-							}
-							return { type: "text", text: part.text }
-						}),
-					})
-				}
-
-				// Process tool result messages
+				// Process tool result messages FIRST since they must follow the tool use messages
 				let toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
@@ -90,6 +74,22 @@ export function convertToOpenAiMessages(
 						})),
 					})
 				}
+
+				// Process non-tool messages
+				if (nonToolMessages.length > 0) {
+					openAiMessages.push({
+						role: "user",
+						content: nonToolMessages.map((part) => {
+							if (part.type === "image") {
+								return {
+									type: "image_url",
+									image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+								}
+							}
+							return { type: "text", text: part.text }
+						}),
+					})
+				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
@@ -106,7 +106,7 @@ export function convertToOpenAiMessages(
 					{ nonToolMessages: [], toolMessages: [] }
 				)
 
-				// Process non-tool messages
+				// Process non-tool messages FIRST
 				let content: string | undefined
 				if (nonToolMessages.length > 0) {
 					content = nonToolMessages
