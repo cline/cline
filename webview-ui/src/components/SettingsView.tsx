@@ -2,12 +2,11 @@ import {
 	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeLink,
-	VSCodeTextArea,
-	VSCodeTextField,
+	VSCodeTextArea
 } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "../context/ExtensionStateContext"
-import { validateApiConfiguration, validateMaxRequestsPerTask } from "../utils/validate"
+import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
@@ -21,28 +20,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const {
 		apiConfiguration,
 		version,
-		maxRequestsPerTask,
 		customInstructions,
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
-	const [maxRequestsPerTaskString, setMaxRequestsPerTaskString] = useState<string>(
-		maxRequestsPerTask?.toString() || ""
-	)
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const maxRequestsValidationResult = validateMaxRequestsPerTask(maxRequestsPerTaskString)
 
 		setApiErrorMessage(apiValidationResult)
-		setMaxRequestsErrorMessage(maxRequestsValidationResult)
 
-		if (!apiValidationResult && !maxRequestsValidationResult) {
+		if (!apiValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTaskString })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
@@ -52,10 +43,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	useEffect(() => {
 		setApiErrorMessage(undefined)
 	}, [apiConfiguration])
-
-	useEffect(() => {
-		setMaxRequestsErrorMessage(undefined)
-	}, [maxRequestsPerTask])
 
 	// validate as soon as the component is mounted
 	/*
@@ -139,35 +126,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
 					</p>
-				</div>
-
-				<div>
-					<VSCodeTextField
-						value={maxRequestsPerTaskString}
-						style={{ width: "100%" }}
-						placeholder="20"
-						onInput={(e: any) => setMaxRequestsPerTaskString(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Maximum # Requests Per Task</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						If Claude Dev reaches this limit, it will pause and ask for your permission before making
-						additional requests.
-					</p>
-					{maxRequestsErrorMessage && (
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-errorForeground)",
-							}}>
-							{maxRequestsErrorMessage}
-						</p>
-					)}
 				</div>
 
 				{IS_DEV && (

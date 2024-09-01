@@ -27,13 +27,3 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 	}
 	return undefined
 }
-
-export function validateMaxRequestsPerTask(maxRequestsPerTask?: string): string | undefined {
-	if (maxRequestsPerTask && maxRequestsPerTask.trim()) {
-		const num = Number(maxRequestsPerTask)
-		if (isNaN(num) || num < 3 || num > 100) {
-			return "Maximum requests must be between 3 and 100"
-		}
-	}
-	return undefined
-}

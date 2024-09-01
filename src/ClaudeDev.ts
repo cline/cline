@@ -18,7 +18,6 @@ import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { combineApiRequests } from "./shared/combineApiRequests"
 import { combineCommandSequences } from "./shared/combineCommandSequences"
-import { DEFAULT_MAX_REQUESTS_PER_TASK } from "./shared/Constants"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
@@ -250,10 +249,8 @@ type UserContent = Array<
 export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
-	private maxRequestsPerTask: number
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
-	private requestCount = 0
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
 	private askResponse?: ClaudeAskResponse
@@ -268,7 +265,6 @@ export class ClaudeDev {
 	constructor(
 		provider: ClaudeDevProvider,
 		apiConfiguration: ApiConfiguration,
-		maxRequestsPerTask?: number,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
 		task?: string,
@@ -277,7 +273,6 @@ export class ClaudeDev {
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
-		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -294,10 +289,6 @@ export class ClaudeDev {
 
 	updateApi(apiConfiguration: ApiConfiguration) {
 		this.api = buildApiHandler(apiConfiguration)
-	}
-
-	updateMaxRequestsPerTask(maxRequestsPerTask: number | undefined) {
-		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 	}
 
 	updateCustomInstructions(customInstructions: string | undefined) {
@@ -1395,27 +1386,6 @@ ${this.customInstructions.trim()}
 		}
 
 		await this.addToApiConversationHistory({ role: "user", content: userContent })
-		if (this.requestCount >= this.maxRequestsPerTask) {
-			const { response } = await this.ask(
-				"request_limit_reached",
-				`Claude Dev has reached the maximum number of requests for this task. Would you like to reset the count and allow him to proceed?`
-			)
-
-			if (response === "yesButtonTapped") {
-				this.requestCount = 0
-			} else {
-				await this.addToApiConversationHistory({
-					role: "assistant",
-					content: [
-						{
-							type: "text",
-							text: "Failure: I have reached the request limit for this task. Do you have a new task for me?",
-						},
-					],
-				})
-				return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
-			}
-		}
 
 		if (!this.shouldSkipNextApiReqStartedMessage) {
 			await this.say(
@@ -1430,7 +1400,6 @@ ${this.customInstructions.trim()}
 		}
 		try {
 			const response = await this.attemptApiRequest()
-			this.requestCount++
 
 			if (this.abort) {
 				throw new Error("ClaudeDev instance aborted")

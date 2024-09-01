@@ -57,13 +57,6 @@ const ChatRow: React.FC<ChatRowProps> = ({
 		)
 
 		switch (type) {
-			case "request_limit_reached":
-				return [
-					<span
-						className="codicon codicon-error"
-						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>Max Requests Reached</span>,
-				]
 			case "error":
 				return [
 					<span
@@ -410,16 +403,6 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				switch (message.ask) {
 					case "tool":
 						return renderTool(message, headerStyle)
-					case "request_limit_reached":
-						return (
-							<>
-								<div style={headerStyle}>
-									{icon}
-									{title}
-								</div>
-								<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
-							</>
-						)
 					case "command":
 						const splitMessage = (text: string) => {
 							const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)

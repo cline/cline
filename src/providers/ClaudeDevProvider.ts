@@ -22,7 +22,6 @@ type GlobalStateKey =
 	| "awsRegion"
 	| "vertexProjectId"
 	| "vertexRegion"
-	| "maxRequestsPerTask"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
@@ -166,11 +165,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
-			maxRequestsPerTask,
 			customInstructions,
 			alwaysAllowReadOnly,
 			task,
@@ -180,11 +178,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
-			maxRequestsPerTask,
 			customInstructions,
 			alwaysAllowReadOnly,
 			undefined,
@@ -327,18 +324,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
-						await this.postStateToWebview()
-						break
-					case "maxRequestsPerTask":
-						let result: number | undefined = undefined
-						if (message.text && message.text.trim()) {
-							const num = Number(message.text)
-							if (!isNaN(num)) {
-								result = num
-							}
-						}
-						await this.updateGlobalState("maxRequestsPerTask", result)
-						this.claudeDev?.updateMaxRequestsPerTask(result)
 						await this.postStateToWebview()
 						break
 					case "customInstructions":
@@ -489,7 +474,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	async getStateToPostToWebview() {
 		const {
 			apiConfiguration,
-			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -498,7 +482,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
-			maxRequestsPerTask,
 			customInstructions,
 			alwaysAllowReadOnly,
 			themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
@@ -606,7 +589,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			awsRegion,
 			vertexProjectId,
 			vertexRegion,
-			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -621,7 +603,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
-			this.getGlobalState("maxRequestsPerTask") as Promise<number | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -654,7 +635,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				vertexProjectId,
 				vertexRegion,
 			},
-			maxRequestsPerTask,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,

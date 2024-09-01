@@ -95,13 +95,6 @@ const ChatView = ({
 			switch (lastMessage.type) {
 				case "ask":
 					switch (lastMessage.ask) {
-						case "request_limit_reached":
-							setTextAreaDisabled(true)
-							setClaudeAsk("request_limit_reached")
-							setEnableButtons(true)
-							setPrimaryButtonText("Proceed")
-							setSecondaryButtonText("Start New Task")
-							break
 						case "api_req_failed":
 							setTextAreaDisabled(true)
 							setClaudeAsk("api_req_failed")
@@ -257,7 +250,6 @@ const ChatView = ({
 	*/
 	const handlePrimaryButtonClick = () => {
 		switch (claudeAsk) {
-			case "request_limit_reached":
 			case "api_req_failed":
 			case "command":
 			case "command_output":
@@ -280,7 +272,6 @@ const ChatView = ({
 
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
-			case "request_limit_reached":
 			case "api_req_failed":
 				startNewTask()
 				break
