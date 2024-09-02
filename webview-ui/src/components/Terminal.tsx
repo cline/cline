@@ -100,7 +100,17 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 		const resizeObserver = new ResizeObserver(updateSize)
 		resizeObserver.observe(textarea)
 
-		return () => resizeObserver.disconnect()
+		// Add window resize event listener
+		const handleWindowResize = () => {
+			hiddenTextarea.style.width = `${textarea.clientWidth}px`
+			updateSize()
+		}
+		window.addEventListener("resize", handleWindowResize)
+
+		return () => {
+			resizeObserver.disconnect()
+			window.removeEventListener("resize", handleWindowResize)
+		}
 	}, [])
 
 	useEffect(() => {
@@ -318,7 +328,6 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 					position: "absolute",
 					top: 0,
 					left: 0,
-					right: 0,
 					opacity: 0,
 					...(textAreaStyle as any),
 				}}
