@@ -657,7 +657,7 @@ const ChatView = ({
 						right: 20,
 						display: "flex",
 						alignItems: "flex-center",
-						height: 31,
+						top: 10,
 						bottom: 10,
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
