@@ -3,15 +3,15 @@ import DynamicTextArea from "react-textarea-autosize"
 
 interface TerminalProps {
 	output: string
-	shouldAllowInput: boolean
 	handleSendStdin: (text: string) => void
+	shouldAllowInput: boolean
 }
 
 /*
 Inspired by https://phuoc.ng/collection/mirror-a-text-area/create-your-own-custom-cursor-in-a-text-area/
 */
 
-const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSendStdin }) => {
+const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllowInput }) => {
 	const [userInput, setUserInput] = useState("")
 	const [isFocused, setIsFocused] = useState(false) // Initially not focused
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -27,7 +27,6 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 	}, [output, lastProcessedOutput])
 
 	const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (!shouldAllowInput) return
 		if (e.key === "Enter") {
 			e.preventDefault()
 			handleSendStdin(userInput)
@@ -130,7 +129,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 
 			const caretEle = document.createElement("span")
 			caretEle.classList.add("terminal-cursor")
-			if (isFocused && shouldAllowInput) {
+			if (isFocused) {
 				caretEle.classList.add("terminal-cursor-focused")
 			}
 			if (!shouldAllowInput) {
@@ -159,7 +158,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 
 			const caretEle = document.createElement("span")
 			caretEle.classList.add("terminal-cursor")
-			if (isFocused && shouldAllowInput) {
+			if (isFocused) {
 				caretEle.classList.add("terminal-cursor-focused")
 			}
 			if (!shouldAllowInput) {
@@ -171,7 +170,6 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 	}, [output, userInput, isFocused, shouldAllowInput])
 
 	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-		if (!shouldAllowInput) return
 		const newValue = e.target.value
 		if (newValue.startsWith(output)) {
 			setUserInput(newValue.slice(output.length))
@@ -190,7 +188,6 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (!shouldAllowInput) return
 		const textarea = e.target as HTMLTextAreaElement
 		const cursorPosition = textarea.selectionStart
 
@@ -212,6 +209,9 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 			caretEle.classList.add("terminal-cursor")
 			if (isFocused) {
 				caretEle.classList.add("terminal-cursor-focused")
+			}
+			if (!shouldAllowInput) {
+				caretEle.classList.add("terminal-cursor-hidden")
 			}
 			caretEle.innerHTML = "&nbsp;"
 			mirrorRef.current!.appendChild(caretEle)
@@ -291,9 +291,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSen
 					color: "var(--vscode-terminal-foreground)",
 					borderRadius: "3px",
 					...(textAreaStyle as any),
-					//pointerEvents: shouldAllowInput ? "auto" : "none",
 				}}
-				readOnly={!shouldAllowInput}
 				minRows={1}
 			/>
 			<div ref={mirrorRef} className="terminal-mirror"></div>
