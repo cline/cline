@@ -7,6 +7,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 ## [1.5.13]
 
 - New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+ support for Python environments)
+- Adds search to Task History
 
 ## [1.5.6]
 
