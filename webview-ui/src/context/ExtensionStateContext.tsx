@@ -12,6 +12,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
+	setGoogleApiKey: (apiKey: string) => void
+	setGoogleSearchEngineId: (searchEngineId: string) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -33,8 +35,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			const config = message.state?.apiConfiguration
 			const hasKey = config
 				? [config.apiKey, config.openRouterApiKey, config.awsAccessKey, config.vertexProjectId].some(
-						(key) => key !== undefined
-				  )
+					(key) => key !== undefined
+				)
 				: false
 			setShowWelcome(!hasKey)
 			setDidHydrateState(true)
@@ -56,6 +58,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setGoogleApiKey: (value) => setState((prevState) => ({ ...prevState, googleApiKey: value })),
+		setGoogleSearchEngineId: (value) => setState((prevState) => ({ ...prevState, googleSearchEngineId: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

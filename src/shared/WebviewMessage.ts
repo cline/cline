@@ -17,6 +17,8 @@ export interface WebviewMessage {
 		| "deleteTaskWithId"
 		| "exportTaskWithId"
 		| "resetState"
+		| "googleApiKey"
+        | "googleSearchEngineId"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

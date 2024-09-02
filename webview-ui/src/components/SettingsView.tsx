@@ -26,6 +26,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		googleApiKey,
+		setGoogleApiKey,
+		googleSearchEngineId,
+		setGoogleSearchEngineId,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [maxRequestsErrorMessage, setMaxRequestsErrorMessage] = useState<string | undefined>(undefined)
@@ -45,6 +49,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "maxRequestsPerTask", text: maxRequestsPerTaskString })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "googleApiKey", text: googleApiKey })
+			vscode.postMessage({ type: "googleSearchEngineId", text: googleSearchEngineId })
 			onDone()
 		}
 	}
@@ -168,6 +174,40 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							{maxRequestsErrorMessage}
 						</p>
 					)}
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeTextField
+						value={googleApiKey ?? ""}
+						style={{ width: "100%" }}
+						placeholder="Enter your Google Custom Search API Key"
+						onInput={(e: any) => setGoogleApiKey(e.target?.value ?? "")}>
+						<span style={{ fontWeight: "500" }}>Google Custom Search API Key</span>
+					</VSCodeTextField>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						Enter your Google Custom Search API Key for web search functionality.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeTextField
+						value={googleSearchEngineId ?? ""}
+						style={{ width: "100%" }}
+						placeholder="Enter your Google Search Engine ID"
+						onInput={(e: any) => setGoogleSearchEngineId(e.target?.value ?? "")}>
+						<span style={{ fontWeight: "500" }}>Google Search Engine ID</span>
+					</VSCodeTextField>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						Enter your Google Search Engine ID for web search functionality.
+					</p>
 				</div>
 
 				{IS_DEV && (

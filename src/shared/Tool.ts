@@ -6,6 +6,8 @@ export type ToolName =
 	| "list_files"
 	| "list_code_definition_names"
 	| "search_files"
+	| "search_google"
+	| "fetch_webpage_content"
 	| "execute_command"
 	| "ask_followup_question"
 	| "attempt_completion"

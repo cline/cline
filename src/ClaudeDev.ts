@@ -29,6 +29,17 @@ import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { extractTextFromFile } from "./utils/extract-text"
 
+
+import axios from "axios";
+import * as cheerio from 'cheerio';
+
+interface SearchResult {
+	title: string;
+	link: string;
+	snippet: string;
+}
+
+
 const SYSTEM_PROMPT =
 	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -37,13 +48,15 @@ const SYSTEM_PROMPT =
 CAPABILITIES
 
 - You can read and analyze code in various programming languages, and can write clean, efficient, and well-documented code.
-- You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
-- You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
+- You can debug complex issues and provide detailed explanations, offering architectural insights and design patterns.
+- You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, ask follow-up questions, perform Google searches, and fetch webpage content. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, gathering information from the web, and much more.
 - When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('${cwd}') will be included in potentially_relevant_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
 	- For example, when asked to make edits or improvements you might analyze the file structure in the initial potentially_relevant_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
 - The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
+- The search_google tool allows you to perform Google Custom Search queries to gather information from the web. This can be particularly useful when you need to find up-to-date information, documentation, or examples related to the user's task. Use this tool to supplement your knowledge or to find specific resources that can help in completing the task at hand.
+- The fetch_webpage_content tool enables you to retrieve the HTML content of a specific webpage. This is valuable when you need to analyze or extract information from a particular web page, such as documentation, tutorials, or other online resources. You can use this in conjunction with the searchGoogle tool to dive deeper into relevant web content and provide more comprehensive assistance to the user.
 
 ====
 
@@ -61,6 +74,9 @@ RULES
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
 - You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- The search_google tool allows you to perform Google Custom Search using a specified query. Use this tool to gather information from Google search results based on user input. The search results will be formatted and displayed to the user, enabling further actions or decisions based on the findings. When using this tool, ensure that your search query is well-formulated to return relevant results.
+- The fetch_webpage_content tool enables you to fetch the HTML content of a webpage from a specified URL. This tool retrieves the webpage's contents and presents it to the user for further actions or analysis. When using this tool, ensure that the URL provided is valid and points to a reachable website.
+- When working on tasks that require external information or web content, consider using the search_google tool to find relevant resources, and then use the fetch_webpage_content tool to retrieve specific webpage contents for more detailed analysis or integration into the project.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
 - NEVER end completion_attempt with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user. 
 - NEVER start your responses with affirmations like "Certainly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
@@ -170,6 +186,38 @@ const tools: Tool[] = [
 		},
 	},
 	{
+		name: "search_google",
+		description:
+			"Perform a Google Custom Search using the specified query. This tool allows you to gather information from Google search results based on user input. The search results will be formatted and displayed to the user, enabling further actions or decisions based on the findings.",
+		input_schema: {
+			type: "object",
+			properties: {
+				query: {
+					type: "string",
+					description:
+						"The search query to be sent to Google Custom Search API. This should be a well-formulated search string that returns relevant results.",
+				},
+			},
+			required: ["query"],
+		},
+	},
+	{
+		name: "fetch_webpage_content",
+		description:
+			"Fetch the HTML content of a webpage from a specified URL. This tool retrieves the webpage's contents and presents it to the user for further actions or analysis.",
+		input_schema: {
+			type: "object",
+			properties: {
+				url: {
+					type: "string",
+					description:
+						"The URL of the webpage to fetch content from. Ensure that the URL is valid and points to a reachable website.",
+				},
+			},
+			required: ["url"],
+		},
+	},
+	{
 		name: "read_file",
 		description:
 			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.",
@@ -264,6 +312,8 @@ export class ClaudeDev {
 	private shouldSkipNextApiReqStartedMessage = false
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
+	private googleApiKey: string | undefined;
+    private googleSearchEngineId: string | undefined;
 
 	constructor(
 		provider: ClaudeDevProvider,
@@ -273,13 +323,17 @@ export class ClaudeDev {
 		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
-		historyItem?: HistoryItem
+		googleApiKey?: string,
+		googleSearchEngineId?: string,
+		historyItem?: HistoryItem,
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.maxRequestsPerTask = maxRequestsPerTask ?? DEFAULT_MAX_REQUESTS_PER_TASK
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.googleApiKey = googleApiKey;
+        this.googleSearchEngineId = googleSearchEngineId;
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -307,6 +361,11 @@ export class ClaudeDev {
 	updateAlwaysAllowReadOnly(alwaysAllowReadOnly: boolean | undefined) {
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 	}
+
+	updateGoogleApiSettings(apiKey: string | undefined, searchEngineId: string | undefined) {
+        this.googleApiKey = apiKey;
+        this.googleSearchEngineId = searchEngineId;
+    }
 
 	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
@@ -389,10 +448,10 @@ export class ClaudeDev {
 			const taskMessage = this.claudeMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.claudeMessages[
-					findLastIndex(
-						this.claudeMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-					)
+				findLastIndex(
+					this.claudeMessages,
+					(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+				)
 				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
@@ -448,14 +507,14 @@ export class ClaudeDev {
 	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
 		return images
 			? images.map((dataUrl) => {
-					// data:image/png;base64,base64string
-					const [rest, base64] = dataUrl.split(",")
-					const mimeType = rest.split(":")[1].split(";")[0]
-					return {
-						type: "image",
-						source: { type: "base64", media_type: mimeType, data: base64 },
-					} as Anthropic.ImageBlockParam
-			  })
+				// data:image/png;base64,base64string
+				const [rest, base64] = dataUrl.split(",")
+				const mimeType = rest.split(":")[1].split(";")[0]
+				return {
+					type: "image",
+					source: { type: "base64", media_type: mimeType, data: base64 },
+				} as Anthropic.ImageBlockParam
+			})
 			: []
 	}
 
@@ -744,6 +803,10 @@ export class ClaudeDev {
 				return this.askFollowupQuestion(toolInput.question)
 			case "attempt_completion":
 				return this.attemptCompletion(toolInput.result, toolInput.command)
+			case "search_google":
+				return this.searchGoogle(toolInput.query)
+			case "fetch_webpage_content":
+				return this.fetchWebpageContent(toolInput.url)
 			default:
 				return `Unknown tool: ${toolName}`
 		}
@@ -900,14 +963,12 @@ export class ClaudeDev {
 						diff: this.createPrettyPatch(relPath, newContent, editedContent),
 					} as ClaudeSayTool)
 				)
-				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${
-					fileExists ? "applied to" : "written as new file"
-				} ${relPath}:\n\n${diffResult}`
+				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${fileExists ? "applied to" : "written as new file"
+					} ${relPath}:\n\n${diffResult}`
 			} else {
 				const diffResult = diff.createPatch(relPath, originalContent, newContent)
-				return `${
-					fileExists ? `Changes applied to ${relPath}:\n\n${diffResult}` : `New file written to ${relPath}`
-				}`
+				return `${fileExists ? `Changes applied to ${relPath}:\n\n${diffResult}` : `New file written to ${relPath}`
+					}`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
@@ -916,6 +977,83 @@ export class ClaudeDev {
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return errorString
+		}
+	}
+
+	async searchGoogle(query: string): Promise<ToolResponse> {
+		if (!query) {
+			await this.say(
+				"error",
+				"Claude tried to use search_google without value for required parameter 'query'. Retrying..."
+			);
+			return "Error: Missing value for required parameter 'query'. Please retry with a complete query.";
+		}
+
+		try {
+			const apiKey = this.googleApiKey; // Use the stored API key
+			const searchEngineId = this.googleSearchEngineId; // Use the stored Search Engine ID
+			if (!apiKey || !searchEngineId) {
+				return "Error: Google Custom Search API key or Search Engine ID is not set. Please configure these in the settings.";
+			}
+
+			const apiUrl = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${apiKey}&cx=${searchEngineId}`;
+
+			const response = await axios.get(apiUrl);
+
+			if (response.data.items && response.data.items.length > 0) {
+				// Format the search results into a string or other usable format
+				const formattedResults = response.data.items.map((item: any) => ({
+					title: item.title,
+					link: item.link,
+					snippet: item.snippet,
+				})).map((result: SearchResult) => `Title: ${result.title}\nLink: ${result.link}\nSnippet: ${result.snippet}\n`).join("\n");
+
+				await this.say("user_feedback", formattedResults);
+				return this.formatIntoToolResponse(formattedResults);
+			} else {
+				return "No results found.";
+			}
+		} catch (error) {
+			const errorMessage = error.message || JSON.stringify(serializeError(error), null, 2);
+			await this.say("error", `Error searching Google:\n${errorMessage}`);
+			return `Error searching Google:\n${errorMessage}`;
+		}
+	}
+
+	async fetchWebpageContent(url: string): Promise<ToolResponse> {
+		if (!url) {
+			await this.say(
+				"error",
+				"Claude tried to use fetch_webpage_content without value for required parameter 'url'. Retrying..."
+			);
+			return "Error: Missing value for required parameter 'url'. Please retry with a complete URL.";
+		}
+
+		try {
+			// Fetch the webpage content
+			const response = await axios.get(url);
+			const htmlContent = response.data;
+
+			// Use cheerio to parse the HTML and extract the content you need
+			const $ = cheerio.load(htmlContent);
+
+			// For this example, let's extract the text of all paragraphs <p>
+			const pageContent = $("p").map((_, element) => $(element).text()).get().join("\n\n");
+
+			// Check if the content is too long to send as-is
+			const maxLength = 4000; // Example max length, adjust as needed
+			let truncatedContent = pageContent;
+			if (pageContent.length > maxLength) {
+				truncatedContent = pageContent.substring(0, maxLength) + "\n\n[Content truncated...]";
+			}
+
+			// Send the content to the chat
+			await this.say("user_feedback", truncatedContent);
+			return this.formatIntoToolResponse(`Webpage Content:\n${truncatedContent}`);
+		} catch (error) {
+			const errorMessage = error.message || JSON.stringify(serializeError(error), null, 2);
+			await this.say("error", `Error fetching webpage content:\n${errorMessage}`);
+			return `Error fetching webpage content:\n${errorMessage}`;
 		}
 	}
 
@@ -1022,8 +1160,7 @@ export class ClaudeDev {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
 			await this.say(
 				"error",
-				`Error listing files and directories:\n${
-					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				`Error listing files and directories:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
 			return errorString
@@ -1124,8 +1261,7 @@ export class ClaudeDev {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
 			await this.say(
 				"error",
-				`Error parsing source code definitions:\n${
-					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				`Error parsing source code definitions:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
 			return errorString
@@ -1560,34 +1696,31 @@ ${this.customInstructions.trim()}
 	async getPotentiallyRelevantDetails(verbose: boolean = false) {
 		let details = `<potentially_relevant_details>
 # VSCode Visible Files:
-${
-	vscode.window.visibleTextEditors
-		?.map((editor) => editor.document?.uri?.fsPath)
-		.filter(Boolean)
-		.map((absolutePath) => path.relative(cwd, absolutePath))
-		.join("\n") || "(No files open)"
-}
+${vscode.window.visibleTextEditors
+				?.map((editor) => editor.document?.uri?.fsPath)
+				.filter(Boolean)
+				.map((absolutePath) => path.relative(cwd, absolutePath))
+				.join("\n") || "(No files open)"
+			}
 
 # VSCode Opened Tabs:
-${
-	vscode.window.tabGroups.all
-		.flatMap((group) => group.tabs)
-		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-		.filter(Boolean)
-		.map((absolutePath) => path.relative(cwd, absolutePath))
-		.join("\n") || "(No tabs open)"
-}
+${vscode.window.tabGroups.all
+				.flatMap((group) => group.tabs)
+				.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+				.filter(Boolean)
+				.map((absolutePath) => path.relative(cwd, absolutePath))
+				.join("\n") || "(No tabs open)"
+			}
 `
 
 		if (verbose) {
 			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
 			const files = await listFiles(cwd, !isDesktop)
 			const result = this.formatFilesList(cwd, files)
-			details += `\n# Current Working Directory ('${cwd}') File Structure:${
-				isDesktop
+			details += `\n# Current Working Directory ('${cwd}') File Structure:${isDesktop
 					? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
 					: ""
-			}:\n${result}\n`
+				}:\n${result}\n`
 		}
 
 		details += "</potentially_relevant_details>"

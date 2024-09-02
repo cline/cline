@@ -34,8 +34,10 @@ Claude Dev has access to the following capabilities:
 4. **`list_files`**: List all paths for files in the specified directory. When `recursive = true`, it recursively lists all files in the directory and its nested folders (excludes files in .gitignore). When `recursive = false`, it lists only top-level files (useful for generic file operations like retrieving a file from your Desktop).
 5. **`list_code_definition_names`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
 6. **`search_files`**: Search files in a specified directory for text that matches a given regex pattern (useful for refactoring code, addressing TODOs and FIXMEs, removing dead code, etc.)
-7. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
-8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
+7. **`search_google`**: Perform a Google Custom Search using the specified query. This tool allows gathering information from Google search results based on user input. The search results will be formatted and displayed to the user, enabling further actions or decisions based on the findings.
+8.  **`fetch_webpage_content`**: Fetch the HTML content of a webpage from a specified URL. This tool retrieves the webpage's contents and presents it to the user for further actions or analysis.
+9. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
+10. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
 
 ### Working in Existing Projects
 

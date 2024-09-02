@@ -139,6 +139,7 @@
     "@types/pdf-parse": "^1.1.4",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
+    "cheerio": "^1.0.0",
     "clone-deep": "^4.0.1",
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",

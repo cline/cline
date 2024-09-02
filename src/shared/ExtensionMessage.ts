@@ -23,6 +23,8 @@ export interface ExtensionState {
 	claudeMessages: ClaudeMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
+	googleApiKey?: string
+    googleSearchEngineId?: string
 }
 
 export interface ClaudeMessage {

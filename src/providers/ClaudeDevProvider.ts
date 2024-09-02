@@ -27,6 +27,8 @@ type GlobalStateKey =
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
 	| "taskHistory"
+	| "googleApiKey"
+	| "googleSearchEngineId"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -166,7 +168,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly, googleApiKey, googleSearchEngineId } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
@@ -174,13 +176,15 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			task,
-			images
+			images,
+			googleApiKey,
+			googleSearchEngineId
 		)
 	}
 
 	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { maxRequestsPerTask, apiConfiguration, customInstructions, alwaysAllowReadOnly, googleApiKey, googleSearchEngineId } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
@@ -189,6 +193,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			undefined,
 			undefined,
+			googleApiKey,
+			googleSearchEngineId,
 			historyItem
 		)
 	}
@@ -352,6 +358,14 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
+					case "googleApiKey":
+						await this.updateGlobalState("googleApiKey", message.text);
+						await this.postStateToWebview();
+						break;
+					case "googleSearchEngineId":
+						await this.updateGlobalState("googleSearchEngineId", message.text);
+						await this.postStateToWebview();
+						break;
 					case "askResponse":
 						this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -495,6 +509,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			taskHistory,
 		} = await this.getState()
+		const googleApiKey = await this.getGlobalState("googleApiKey") as string | undefined;
+		const googleSearchEngineId = await this.getGlobalState("googleSearchEngineId") as string | undefined;
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -506,6 +522,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			claudeMessages: this.claudeDev?.claudeMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			googleApiKey,
+			googleSearchEngineId,
 		}
 	}
 
@@ -611,6 +629,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			taskHistory,
+			googleApiKey,
+			googleSearchEngineId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<ApiModelId | undefined>,
@@ -626,6 +646,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getGlobalState("googleApiKey") as Promise<string | undefined>,
+			this.getGlobalState("googleSearchEngineId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -659,6 +681,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
 			taskHistory,
+			googleApiKey,
+			googleSearchEngineId,
 		}
 	}
 
