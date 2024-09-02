@@ -425,6 +425,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								<Terminal
 									output={command + (output ? "\n" + output : "")}
 									handleSendStdin={handleSendStdin}
+									shouldAllowInput={!!isCommandExecuting && output.length > 0}
 								/>
 							</>
 						)

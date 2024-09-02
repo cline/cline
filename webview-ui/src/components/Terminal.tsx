@@ -3,6 +3,7 @@ import DynamicTextArea from "react-textarea-autosize"
 
 interface TerminalProps {
 	output: string
+	shouldAllowInput: boolean
 	handleSendStdin: (text: string) => void
 }
 
@@ -10,7 +11,7 @@ interface TerminalProps {
 Inspired by https://phuoc.ng/collection/mirror-a-text-area/create-your-own-custom-cursor-in-a-text-area/
 */
 
-const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
+const Terminal: React.FC<TerminalProps> = ({ output, shouldAllowInput, handleSendStdin }) => {
 	const [userInput, setUserInput] = useState("")
 	const [isFocused, setIsFocused] = useState(false) // Initially not focused
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -26,6 +27,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 	}, [output, lastProcessedOutput])
 
 	const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (!shouldAllowInput) return
 		if (e.key === "Enter") {
 			e.preventDefault()
 			handleSendStdin(userInput)
@@ -128,8 +130,11 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 
 			const caretEle = document.createElement("span")
 			caretEle.classList.add("terminal-cursor")
-			if (isFocused) {
+			if (isFocused && shouldAllowInput) {
 				caretEle.classList.add("terminal-cursor-focused")
+			}
+			if (!shouldAllowInput) {
+				caretEle.classList.add("terminal-cursor-hidden")
 			}
 			caretEle.innerHTML = "&nbsp;"
 			mirror.appendChild(caretEle)
@@ -142,7 +147,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 
 		document.addEventListener("selectionchange", updateMirror)
 		return () => document.removeEventListener("selectionchange", updateMirror)
-	}, [userInput, isFocused])
+	}, [userInput, isFocused, shouldAllowInput])
 
 	useEffect(() => {
 		// Position the dummy caret at the end of the text on initial render
@@ -154,15 +159,19 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 
 			const caretEle = document.createElement("span")
 			caretEle.classList.add("terminal-cursor")
-			if (isFocused) {
+			if (isFocused && shouldAllowInput) {
 				caretEle.classList.add("terminal-cursor-focused")
+			}
+			if (!shouldAllowInput) {
+				caretEle.classList.add("terminal-cursor-hidden")
 			}
 			caretEle.innerHTML = "&nbsp;"
 			mirror.appendChild(caretEle)
 		}
-	}, [output, userInput, isFocused])
+	}, [output, userInput, isFocused, shouldAllowInput])
 
 	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		if (!shouldAllowInput) return
 		const newValue = e.target.value
 		if (newValue.startsWith(output)) {
 			setUserInput(newValue.slice(output.length))
@@ -181,6 +190,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (!shouldAllowInput) return
 		const textarea = e.target as HTMLTextAreaElement
 		const cursorPosition = textarea.selectionStart
 
@@ -260,11 +270,15 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 					.terminal-cursor-focused {
 						background-color: var(--vscode-terminalCursor-foreground);
 					}
+
+					.terminal-cursor-hidden {
+						display: none;
+					}
 				`}
 			</style>
 			<DynamicTextArea
 				ref={textAreaRef}
-				value={output + userInput}
+				value={output + (shouldAllowInput ? userInput : "")}
 				onChange={handleChange}
 				onKeyDown={handleKeyDown}
 				onKeyPress={handleKeyPress}
@@ -272,12 +286,14 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin }) => {
 				onBlur={() => setIsFocused(false)}
 				className="terminal-textarea"
 				style={{
-					backgroundColor: "var(--vscode-terminal-background)",
+					backgroundColor: "var(--vscode-editor-background)",
 					caretColor: "transparent", // Hide default caret
 					color: "var(--vscode-terminal-foreground)",
 					borderRadius: "3px",
 					...(textAreaStyle as any),
+					//pointerEvents: shouldAllowInput ? "auto" : "none",
 				}}
+				readOnly={!shouldAllowInput}
 				minRows={1}
 			/>
 			<div ref={mirrorRef} className="terminal-mirror"></div>
