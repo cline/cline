@@ -9,6 +9,8 @@ interface TerminalProps {
 
 /*
 Inspired by https://phuoc.ng/collection/mirror-a-text-area/create-your-own-custom-cursor-in-a-text-area/
+
+Note: Even though vscode exposes var(--vscode-terminalCursor-foreground) it does not render in front of a color that isn't var(--vscode-terminal-background), and it turns out a lot of themes don't even define some/any of these terminal color variables. Very odd behavior, so try changing themes/color variables if you don't see the caret.
 */
 
 const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllowInput }) => {
@@ -171,17 +173,20 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 
 	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		const newValue = e.target.value
+
+		// Ensure the user can only edit their input after the output
 		if (newValue.startsWith(output)) {
 			setUserInput(newValue.slice(output.length))
 		} else {
-			setUserInput(newValue)
+			// If the user tries to edit the output part, reset the value to the correct state
+			e.target.value = output + userInput
 		}
 
 		// Trigger resize after setting user input
 		const textarea = textAreaRef.current
 		const hiddenTextarea = hiddenTextareaRef.current
 		if (textarea && hiddenTextarea) {
-			hiddenTextarea.value = newValue
+			hiddenTextarea.value = output + userInput
 			const newHeight = hiddenTextarea.scrollHeight
 			textarea.style.height = `${newHeight}px`
 		}
@@ -224,7 +229,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 		fontFamily: "var(--vscode-editor-font-family)",
 		fontSize: "var(--vscode-editor-font-size)",
 		padding: "10px",
-		border: "1px solid var(--vscode-terminal-border)",
+		border: "1px solid var(--vscode-editorGroup-border)",
 		outline: "none",
 		whiteSpace: "pre-wrap",
 		overflowX: "hidden",
@@ -261,18 +266,25 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 					}
 
 					.terminal-cursor {
-						border: 1px solid var(--vscode-terminalCursor-foreground);
+						border: 1px solid var(--vscode-terminal-foreground);
 						position: absolute;
 						width: 4px;
 						margin-top: -0.5px;
 					}
 
 					.terminal-cursor-focused {
-						background-color: var(--vscode-terminalCursor-foreground);
+						background-color: var(--vscode-terminal-foreground);
+						animation: blink 1s step-end infinite;
 					}
 
 					.terminal-cursor-hidden {
 						display: none;
+					}
+
+					@keyframes blink {
+						50% {
+							opacity: 0;
+						}
 					}
 				`}
 			</style>
@@ -286,7 +298,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 				onBlur={() => setIsFocused(false)}
 				className="terminal-textarea"
 				style={{
-					backgroundColor: "var(--vscode-editor-background)",
+					backgroundColor: "var(--vscode-terminal-background)",
 					caretColor: "transparent", // Hide default caret
 					color: "var(--vscode-terminal-foreground)",
 					borderRadius: "3px",
@@ -306,6 +318,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 					position: "absolute",
 					top: 0,
 					left: 0,
+					right: 0,
 					opacity: 0,
 					...(textAreaStyle as any),
 				}}
