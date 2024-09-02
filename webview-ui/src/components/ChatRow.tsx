@@ -7,7 +7,7 @@ import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequenc
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
-import { ApiProvider } from "../../../src/shared/api"
+import Terminal from "./Terminal"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -16,7 +16,7 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
-	apiProvider?: ApiProvider
+	handleSendStdin: (text: string) => void
 }
 
 const ChatRow: React.FC<ChatRowProps> = ({
@@ -26,7 +26,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
-	apiProvider,
+	handleSendStdin,
 }) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 	const apiRequestFailedMessage =
@@ -411,7 +411,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							}
 							return {
 								command: text.slice(0, outputIndex).trim(),
-								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
+								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trimStart(),
 							}
 						}
 
@@ -422,32 +422,10 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									{icon}
 									{title}
 								</div>
-								<div>
-									<div>
-										<CodeBlock
-											code={command}
-											language="shell-session"
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</div>
-
-									{output && (
-										<>
-											<p style={{ ...pStyle, margin: "10px 0 10px 0" }}>
-												{COMMAND_OUTPUT_STRING}
-											</p>
-											<CodeBlock
-												code={output}
-												language="shell-session"
-												syntaxHighlighterStyle={syntaxHighlighterStyle}
-												isExpanded={isExpanded}
-												onToggleExpand={onToggleExpand}
-											/>
-										</>
-									)}
-								</div>
+								<Terminal
+									output={command + (output ? "\n" + output : "")}
+									handleSendStdin={handleSendStdin}
+								/>
 							</>
 						)
 					case "completion_result":

@@ -17,7 +17,7 @@ import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { combineApiRequests } from "./shared/combineApiRequests"
-import { combineCommandSequences } from "./shared/combineCommandSequences"
+import { combineCommandSequences, COMMAND_STDIN_STRING } from "./shared/combineCommandSequences"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
@@ -27,9 +27,10 @@ import { findLast, findLastIndex } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { extractTextFromFile } from "./utils/extract-text"
+import { getPythonEnvPath } from "./utils/get-python-env"
 
 const SYSTEM_PROMPT =
-	() => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
  
@@ -84,7 +85,17 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 SYSTEM INFORMATION
 
 Operating System: ${osName()}
-Default Shell: ${defaultShell}
+Default Shell: ${defaultShell}${await (async () => {
+		try {
+			const pythonEnvPath = await getPythonEnvPath()
+			if (pythonEnvPath) {
+				return `\nPython Environment: ${pythonEnvPath}`
+			}
+		} catch (error) {
+			console.log("Failed to get python env path", error)
+		}
+		return ""
+	})()}
 Home Directory: ${os.homedir()}
 Current Working Directory: ${cwd}
 `
@@ -1193,9 +1204,11 @@ export class ClaudeDev {
 			return "The user denied this operation."
 		}
 
+		let userFeedback: { text?: string; images?: string[] } | undefined
 		const sendCommandOutput = async (subprocess: ResultPromise, line: string): Promise<void> => {
 			try {
-				const { response, text } = await this.ask("command_output", line)
+				const { response, text, images } = await this.ask("command_output", line)
+				const isStdin = (text ?? "").startsWith(COMMAND_STDIN_STRING)
 				// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
 				if (response === "yesButtonTapped") {
 					// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
@@ -1209,12 +1222,27 @@ export class ClaudeDev {
 						treeKill(subprocess.pid, "SIGINT")
 					}
 				} else {
-					// if the user sent some input, we send it to the command stdin
-					// add newline as cli programs expect a newline after each input
-					// (stdin needs to be set to `pipe` to send input to the command, execa does this by default when using template literals - other options are inherit (from parent process stdin) or null (no stdin))
-					subprocess.stdin?.write(text + "\n")
-					// Recurse with an empty string to continue listening for more input
-					sendCommandOutput(subprocess, "") // empty strings are effectively ignored by the webview, this is done solely to relinquish control over the exit command button
+					if (isStdin) {
+						const stdin = text?.slice(COMMAND_STDIN_STRING.length) ?? ""
+
+						// replace last commandoutput with + stdin
+						const lastCommandOutput = findLastIndex(this.claudeMessages, (m) => m.ask === "command_output")
+						if (lastCommandOutput !== -1) {
+							this.claudeMessages[lastCommandOutput].text += stdin
+						}
+
+						// if the user sent some input, we send it to the command stdin
+						// add newline as cli programs expect a newline after each input
+						// (stdin needs to be set to `pipe` to send input to the command, execa does this by default when using template literals - other options are inherit (from parent process stdin) or null (no stdin))
+						subprocess.stdin?.write(stdin + "\n")
+						// Recurse with an empty string to continue listening for more input
+						sendCommandOutput(subprocess, "") // empty strings are effectively ignored by the webview, this is done solely to relinquish control over the exit command button
+					} else {
+						userFeedback = { text, images }
+						if (subprocess.pid) {
+							treeKill(subprocess.pid, "SIGINT")
+						}
+					}
 				}
 			} catch {
 				// This can only happen if this ask promise was ignored, so ignore this error
@@ -1262,6 +1290,17 @@ export class ClaudeDev {
 			// grouping command_output messages despite any gaps anyways)
 			await delay(100)
 			this.executeCommandRunningProcess = undefined
+
+			if (userFeedback) {
+				await this.say("user_feedback", userFeedback.text, userFeedback.images)
+				return this.formatIntoToolResponse(
+					`Command Output:\n${result}\n\nThe user interrupted the command and provided the following feedback:\n<feedback>\n${
+						userFeedback.text
+					}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`,
+					userFeedback.images
+				)
+			}
+
 			// for attemptCompletion, we don't want to return the command output
 			if (returnEmptyStringOnSuccess) {
 				return ""
@@ -1323,7 +1362,7 @@ export class ClaudeDev {
 
 	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {
 		try {
-			let systemPrompt = SYSTEM_PROMPT()
+			let systemPrompt = await SYSTEM_PROMPT()
 			if (this.customInstructions && this.customInstructions.trim()) {
 				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 				systemPrompt += `
