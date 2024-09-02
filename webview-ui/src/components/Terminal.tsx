@@ -276,14 +276,14 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 					}
 
 					.terminal-cursor {
-						border: 1px solid var(--vscode-terminal-foreground);
+						border: 1px solid var(--vscode-terminal-foreground, #FFFFFF);
 						position: absolute;
 						width: 4px;
 						margin-top: -0.5px;
 					}
 
 					.terminal-cursor-focused {
-						background-color: var(--vscode-terminal-foreground);
+						background-color: var(--vscode-terminal-foreground, #FFFFFF);
 						animation: blink 1s step-end infinite;
 					}
 
@@ -308,7 +308,7 @@ const Terminal: React.FC<TerminalProps> = ({ output, handleSendStdin, shouldAllo
 				onBlur={() => setIsFocused(false)}
 				className="terminal-textarea"
 				style={{
-					backgroundColor: "var(--vscode-terminal-background)",
+					// backgroundColor: "var(--vscode-editor-background)", // NOTE: adding cursor ontop of this color wouldnt work on some themes
 					caretColor: "transparent", // Hide default caret
 					color: "var(--vscode-terminal-foreground)",
 					borderRadius: "3px",
