@@ -57,6 +57,7 @@ const ChatView = ({
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
+	const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
@@ -606,10 +607,13 @@ const ChatView = ({
 					onFocus={() => setIsTextAreaFocused(true)}
 					onBlur={() => setIsTextAreaFocused(false)}
 					onPaste={handlePaste}
-					onHeightChange={() =>
+					onHeightChange={(height, meta) => {
+						if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
+							setTextAreaBaseHeight(height)
+						}
 						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
 						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
-					}
+					}}
 					placeholder={placeholderText}
 					maxRows={10}
 					autoFocus={true}
@@ -657,7 +661,7 @@ const ChatView = ({
 						right: 20,
 						display: "flex",
 						alignItems: "flex-center",
-						top: 10,
+						height: textAreaBaseHeight || 31,
 						bottom: 10,
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
