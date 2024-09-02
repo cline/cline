@@ -31,6 +31,10 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
+					New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+
+					support for Python environments)
+				</li>
+				<li>
 					<b>You can now edit Claude's changes before accepting!</b> When he edits or creates a file, you can
 					modify his changes directly in the right side of the diff view (+ hover over the 'Revert Block'
 					arrow button in the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
@@ -42,10 +46,6 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 				<li>
 					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
 					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					Adds "Always allow read-only operations" setting to let Claude read files and view directories
-					without needing to approve (<b>off</b> by default).
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>

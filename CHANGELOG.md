@@ -4,6 +4,10 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.5.13]
+
+- New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+ support for Python environments)
+
 ## [1.5.6]
 
 - You can now edit Claude's changes before accepting! When he edits or creates a file, you can modify his changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in the center to undo `// rest of code here` shenanigans)

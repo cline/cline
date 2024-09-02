@@ -33,7 +33,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "aug-31-2024-1" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "sep-2-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
@@ -166,14 +166,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.claudeDev = new ClaudeDev(
-			this,
-			apiConfiguration,
-			customInstructions,
-			alwaysAllowReadOnly,
-			task,
-			images
-		)
+		this.claudeDev = new ClaudeDev(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
 	}
 
 	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
@@ -472,13 +465,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async getStateToPostToWebview() {
-		const {
-			apiConfiguration,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			taskHistory,
-		} = await this.getState()
+		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
+			await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,

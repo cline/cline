@@ -91,9 +91,7 @@ Default Shell: ${defaultShell}${await (async () => {
 			if (pythonEnvPath) {
 				return `\nPython Environment: ${pythonEnvPath}`
 			}
-		} catch (error) {
-			console.log("Failed to get python env path", error)
-		}
+		} catch {}
 		return ""
 	})()}
 Home Directory: ${os.homedir()}
