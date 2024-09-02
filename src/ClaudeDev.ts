@@ -1303,7 +1303,7 @@ export class ClaudeDev {
 			if (returnEmptyStringOnSuccess) {
 				return ""
 			}
-			return `Command Output:\n${result}`
+			return `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`
 		} catch (e) {
 			const error = e as any
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
