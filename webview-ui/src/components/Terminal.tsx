@@ -77,6 +77,8 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 			"whiteSpace",
 			"wordSpacing",
 			"wordWrap",
+			"width",
+			"height",
 		]
 
 		stylesToCopy.forEach((property) => {
@@ -91,13 +93,15 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 		hiddenTextarea.style.whiteSpace = "pre-wrap"
 		hiddenTextarea.style.overflowWrap = "break-word"
 
-		const borderWidth = parseInt(textareaStyles.borderWidth, 10) || 0
+		// const borderWidth = parseInt(textareaStyles.borderWidth, 10) || 0
 		const updateSize = () => {
 			hiddenTextarea.value = textarea.value
 			const newHeight = hiddenTextarea.scrollHeight
 			textarea.style.height = `${newHeight}px`
-			mirror.style.width = `${textarea.clientWidth + 2 * borderWidth}px`
+			mirror.style.width = `${textarea.offsetWidth}px`
 			mirror.style.height = `${newHeight}px`
+			hiddenTextarea.style.width = `${textarea.offsetWidth}px`
+			hiddenTextarea.style.height = `${newHeight}px`
 		}
 
 		updateSize()
@@ -247,8 +251,7 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 		border: "1px solid var(--vscode-editorGroup-border)",
 		outline: "none",
 		whiteSpace: "pre-wrap",
-		overflowX: "hidden",
-		overflowY: "hidden",
+		overflow: "hidden",
 		width: "100%",
 		boxSizing: "border-box",
 		resize: "none",
@@ -260,6 +263,7 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 				{`
 					.terminal-container {
 						position: relative;
+						overflow: hidden;  // Add this
 					}
 
 					.terminal-textarea {
@@ -333,6 +337,9 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 					position: "absolute",
 					top: 0,
 					left: 0,
+					height: "100%",
+					width: "100%",
+					overflow: "hidden",
 					opacity: 0,
 					...(textAreaStyle as any),
 				}}
