@@ -411,7 +411,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							}
 							return {
 								command: text.slice(0, outputIndex).trim(),
-								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trimStart(),
+								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim() + " ",
 							}
 						}
 
