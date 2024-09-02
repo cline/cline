@@ -11,8 +11,8 @@
 Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) Claude Dev can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore complex projects, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond simple code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, Claude Dev provides a human-in-the-loop GUI to supervise every file changed and command executed, providing a safe and accessible way to explore the potential of agentic AI.
 
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
--   Inspect diffs of every change Claude makes right in the editor, and provide feedback until you're satisfied with the result
--   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ respond to interactive commands by sending a message)
+-   Review and edit diffs of every change Claude makes right in the editor, or provide feedback in chat until you're satisfied with the result
+-   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ supports interactive input and python environments)
 -   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
