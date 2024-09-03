@@ -102,6 +102,13 @@ const ChatView = ({
 							setPrimaryButtonText("Retry")
 							setSecondaryButtonText("Start New Task")
 							break
+						case "mistake_limit_reached":
+							setTextAreaDisabled(false)
+							setClaudeAsk("mistake_limit_reached")
+							setEnableButtons(true)
+							setPrimaryButtonText("Proceed Anyways")
+							setSecondaryButtonText("Start New Task")
+							break
 						case "followup":
 							setTextAreaDisabled(false)
 							setClaudeAsk("followup")
@@ -225,6 +232,7 @@ const ChatView = ({
 					case "completion_result": // if this happens then the user has feedback for the completion result
 					case "resume_task":
 					case "resume_completed_task":
+					case "mistake_limit_reached":
 						vscode.postMessage({
 							type: "askResponse",
 							askResponse: "messageResponse",
@@ -269,6 +277,7 @@ const ChatView = ({
 			case "command_output":
 			case "tool":
 			case "resume_task":
+			case "mistake_limit_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
 				break
 			case "completion_result":
@@ -287,6 +296,7 @@ const ChatView = ({
 	const handleSecondaryButtonClick = () => {
 		switch (claudeAsk) {
 			case "api_req_failed":
+			case "mistake_limit_reached":
 				startNewTask()
 				break
 			case "command":
