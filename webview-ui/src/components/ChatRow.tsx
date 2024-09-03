@@ -347,7 +347,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 			case "ask":
 				switch (message.ask) {
 					case "tool":
-						return renderTool(message, headerStyle)
+						return renderTool(message)
 					case "command":
 						const splitMessage = (text: string) => {
 							const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
@@ -366,7 +366,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								<h3 className="flex-line">
 									{icon}
 									{title}
-								</div>
+								</h3>
 								<Terminal
 									rawOutput={command + (output ? "\n" + output : "")}
 									handleSendStdin={handleSendStdin}
