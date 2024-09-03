@@ -813,17 +813,18 @@ export class ClaudeDev {
 			}
 
 			// Create a temporary file with the new content
+			const fileName = path.basename(absolutePath)
 			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
-			const tempFilePath = path.join(tempDir, path.basename(absolutePath))
+			const tempFilePath = path.join(tempDir, fileName)
 			await fs.writeFile(tempFilePath, newContent)
 
 			vscode.commands.executeCommand(
 				"vscode.diff",
-				vscode.Uri.parse(`claude-dev-diff:${path.basename(absolutePath)}`).with({
+				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
 					query: Buffer.from(originalContent).toString("base64"),
 				}),
 				vscode.Uri.file(tempFilePath),
-				`${path.basename(absolutePath)}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
+				`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
 			)
 
 			let userResponse: {
@@ -857,6 +858,15 @@ export class ClaudeDev {
 			if (diffDocument && diffDocument.isDirty) {
 				console.log("saving diff document")
 				await diffDocument.save()
+			}
+			// some users report a bug where the diff editor doesnt save the file automatically, so this is a workaround
+			if (!diffDocument) {
+				const savedResult = await vscode.workspace.save(vscode.Uri.file(tempFilePath))
+				// savedResult will be undefined if file was not found or couldn't be saved
+				if (!savedResult) {
+					// last resort is saving everything
+					await vscode.workspace.saveAll(false)
+				}
 			}
 
 			if (response !== "yesButtonTapped") {
