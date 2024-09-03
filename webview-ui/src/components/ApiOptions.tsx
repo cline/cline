@@ -73,7 +73,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 125 }}>
+					style={{ minWidth: 130 }}>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
@@ -294,9 +294,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						}}>
 						You can use any OpenAI compatible API with models that support tool use.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so results
-							may vary depending on the quality of the model you choose. Less capable models may not work
-							as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so less
+							capable models may not work as expected.)
 						</span>
 					</p>
 				</div>

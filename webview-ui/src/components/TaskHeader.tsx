@@ -103,7 +103,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				marginBottom: "-2px",
 				marginRight: "-2.5px",
 			}}>
-			<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
+			<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT</div>
 		</VSCodeButton>
 	)
 

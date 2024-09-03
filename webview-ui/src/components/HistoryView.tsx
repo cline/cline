@@ -65,12 +65,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const ExportButton = ({ itemId }: { itemId: string }) => (
 		<VSCodeButton
+			className="export-button"
 			appearance="icon"
 			onClick={(e) => {
 				e.stopPropagation()
 				handleExportMd(itemId)
 			}}>
-			<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT .MD</div>
+			<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 		</VSCodeButton>
 	)
 
@@ -81,11 +82,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.history-item:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
-					.delete-button {
+					.delete-button, .export-button {
 						opacity: 0;
 						pointer-events: none;
 					}
-					.history-item:hover .delete-button {
+					.history-item:hover .delete-button,
+					.history-item:hover .export-button {
 						opacity: 1;
 						pointer-events: auto;
 					}
@@ -282,7 +284,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
 
-										{item.cacheWrites && item.cacheReads && (
+										{!!item.cacheWrites && (
 											<div
 												style={{
 													display: "flex",
@@ -329,7 +331,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: 0,
 														}}
 													/>
-													{item.cacheReads?.toLocaleString()}
+													{(item.cacheReads || 0).toLocaleString()}
 												</span>
 											</div>
 										)}

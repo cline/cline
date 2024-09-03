@@ -917,7 +917,7 @@ export class ClaudeDev {
 					} as ClaudeSayTool)
 				)
 				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${
-					fileExists ? "applied to" : "written as new file"
+					fileExists ? "saved to" : "written as new file"
 				} ${relPath}:\n\n${diffResult}`
 			} else {
 				const diffResult = diff.createPatch(relPath, originalContent, newContent)

@@ -93,7 +93,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				]
 			case "api_req_started":
 				return [
-					cost ? (
+					cost != null ? (
 						<span
 							className="codicon codicon-check"
 							style={{ color: successColor, marginBottom: "-1.5px" }}></span>
@@ -104,7 +104,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 					) : (
 						ProgressIndicator
 					),
-					cost ? (
+					cost != null ? (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Complete</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
@@ -266,7 +266,9 @@ const ChatRow: React.FC<ChatRowProps> = ({
 									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 										{icon}
 										{title}
-										{cost && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
+										{cost != null && cost > 0 && (
+											<VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>
+										)}
 									</div>
 									<VSCodeButton
 										appearance="icon"
