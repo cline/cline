@@ -267,7 +267,7 @@ export class ClaudeDev {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private executeCommandRunningProcess?: ResultPromise
-	private mistakeCount: number = 0
+	private consecutiveMistakeCount: number = 0
 	private shouldSkipNextApiReqStartedMessage = false
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
@@ -715,7 +715,7 @@ export class ClaudeDev {
 						text: "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
 					},
 				]
-				this.mistakeCount++
+				this.consecutiveMistakeCount++
 			}
 		}
 	}
@@ -779,7 +779,7 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use write_to_file without value for required parameter 'path'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
 
@@ -789,10 +789,10 @@ export class ClaudeDev {
 				"error",
 				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to output token limits. Retrying...`
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'content'. Please retry with complete response."
 		}
-
+		this.consecutiveMistakeCount = 0
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const fileExists = await fs
@@ -954,9 +954,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use read_file without value for required parameter 'path'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
 			const content = await extractTextFromFile(absolutePath)
@@ -996,9 +997,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use list_files without value for required parameter 'path'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		try {
 			const recursive = recursiveRaw?.toLowerCase() === "true"
 			const absolutePath = path.resolve(cwd, relDirPath)
@@ -1101,9 +1103,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use list_code_definition_names without value for required parameter 'path'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
@@ -1145,19 +1148,18 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use search_files without value for required parameter 'path'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
 		}
-
 		if (regex === undefined) {
 			await this.say(
 				"error",
 				`Claude tried to use search_files without value for required parameter 'regex'. Retrying...`
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'regex'. Please retry with complete response."
 		}
-
+		this.consecutiveMistakeCount = 0
 		try {
 			const absolutePath = path.resolve(cwd, relDirPath)
 			const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
@@ -1200,9 +1202,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use execute_command without value for required parameter 'command'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'command'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		const { response, text, images } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
 			if (response === "messageResponse") {
@@ -1330,9 +1333,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use ask_followup_question without value for required parameter 'question'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'question'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		const { text, images } = await this.ask("followup", question)
 		await this.say("user_feedback", text ?? "", images)
 		return this.formatIntoToolResponse(`<answer>\n${text}\n</answer>`, images)
@@ -1345,9 +1349,10 @@ export class ClaudeDev {
 				"error",
 				"Claude tried to use attempt_completion without value for required parameter 'result'. Retrying..."
 			)
-			this.mistakeCount++
+			this.consecutiveMistakeCount++
 			return "Error: Missing value for required parameter 'result'. Please retry with complete response."
 		}
+		this.consecutiveMistakeCount = 0
 		let resultToSend = result
 		if (command) {
 			await this.say("completion_result", resultToSend)
@@ -1434,14 +1439,14 @@ ${this.customInstructions.trim()}
 			throw new Error("ClaudeDev instance aborted")
 		}
 
-		if (this.mistakeCount >= 3) {
+		if (this.consecutiveMistakeCount >= 3) {
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				`This may indicate a failure in his thought process or inability to use a tool properly, which can be alleviated with some user direction (e.g. "let's try breaking this large file down into smaller files").`
 			)
 			if (response === "yesButtonTapped") {
 				// proceed anyways
-				this.mistakeCount = 0
+				this.consecutiveMistakeCount = 0
 			} else {
 				userContent.push(
 					...[
