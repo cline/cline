@@ -1,8 +1,8 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { ApiProvider } from "../../../src/shared/api"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
 import Thumbnails from "./Thumbnails"
 
@@ -15,9 +15,6 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	onClose: () => void
-	isHidden: boolean
-	vscodeUriScheme?: string
-	apiProvider?: ApiProvider
 }
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
@@ -29,10 +26,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	onClose,
-	isHidden,
-	vscodeUriScheme,
-	apiProvider,
 }) => {
+	const { apiConfiguration } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -99,6 +94,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const handleDownload = () => {
 		vscode.postMessage({ type: "exportCurrentTask" })
 	}
+
+	const ExportButton = () => (
+		<VSCodeButton
+			appearance="icon"
+			onClick={handleDownload}
+			style={{
+				marginBottom: "-2px",
+				marginRight: "-2.5px",
+			}}>
+			<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
+		</VSCodeButton>
+	)
 
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
@@ -196,23 +203,32 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				)}
 				{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
 				<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-					<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-						<span style={{ fontWeight: "bold" }}>Tokens:</span>
-						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-							<i
-								className="codicon codicon-arrow-up"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
-							/>
-							{tokensIn?.toLocaleString()}
-						</span>
-						<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-							<i
-								className="codicon codicon-arrow-down"
-								style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
-							/>
-							{tokensOut?.toLocaleString()}
-						</span>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+						}}>
+						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+							<span style={{ fontWeight: "bold" }}>Tokens:</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								<i
+									className="codicon codicon-arrow-up"
+									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
+								/>
+								{tokensIn?.toLocaleString()}
+							</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								<i
+									className="codicon codicon-arrow-down"
+									style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
+								/>
+								{tokensOut?.toLocaleString()}
+							</span>
+						</div>
+						{apiConfiguration?.apiProvider === "openai" && <ExportButton />}
 					</div>
+
 					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
 						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 							<span style={{ fontWeight: "bold" }}>Cache:</span>
@@ -232,26 +248,20 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</span>
 						</div>
 					)}
-					<div
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: "center",
-						}}>
-						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-							<span style={{ fontWeight: "bold" }}>API Cost:</span>
-							<span>${totalCost?.toFixed(4)}</span>
-						</div>
-						<VSCodeButton
-							appearance="icon"
-							onClick={handleDownload}
+					{apiConfiguration?.apiProvider !== "openai" && (
+						<div
 							style={{
-								marginBottom: "-2px",
-								marginRight: "-2.5px",
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
 							}}>
-							<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT .MD</div>
-						</VSCodeButton>
-					</div>
+							<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+								<span style={{ fontWeight: "bold" }}>API Cost:</span>
+								<span>${totalCost?.toFixed(4)}</span>
+							</div>
+							<ExportButton />
+						</div>
+					)}
 				</div>
 			</div>
 			{/* {apiProvider === "kodu" && (

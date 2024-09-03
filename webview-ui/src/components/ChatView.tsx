@@ -497,9 +497,6 @@ const ChatView = ({
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
-					isHidden={isHidden}
-					vscodeUriScheme={uriScheme}
-					apiProvider={apiConfiguration?.apiProvider}
 				/>
 			) : (
 				<>

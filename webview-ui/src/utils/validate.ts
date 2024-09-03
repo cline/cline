@@ -23,6 +23,15 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid Google Cloud Project ID and Region."
 				}
 				break
+			case "openai":
+				if (
+					!apiConfiguration.openAiBaseUrl ||
+					!apiConfiguration.openAiApiKey ||
+					!apiConfiguration.openAiModelId
+				) {
+					return "You must provide a valid base URL, API key, and model ID."
+				}
+				break
 		}
 	}
 	return undefined

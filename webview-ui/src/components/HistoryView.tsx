@@ -63,6 +63,17 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		)
 	}
 
+	const ExportButton = ({ itemId }: { itemId: string }) => (
+		<VSCodeButton
+			appearance="icon"
+			onClick={(e) => {
+				e.stopPropagation()
+				handleExportMd(itemId)
+			}}>
+			<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT .MD</div>
+		</VSCodeButton>
+	)
+
 	return (
 		<>
 			<style>
@@ -216,52 +227,61 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<div
 											style={{
 												display: "flex",
+												justifyContent: "space-between",
 												alignItems: "center",
-												gap: "4px",
-												flexWrap: "wrap",
 											}}>
-											<span
-												style={{
-													fontWeight: 500,
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												Tokens:
-											</span>
-											<span
+											<div
 												style={{
 													display: "flex",
 													alignItems: "center",
-													gap: "3px",
-													color: "var(--vscode-descriptionForeground)",
+													gap: "4px",
+													flexWrap: "wrap",
 												}}>
-												<i
-													className="codicon codicon-arrow-up"
+												<span
 													style={{
-														fontSize: "12px",
-														fontWeight: "bold",
-														marginBottom: "-2px",
-													}}
-												/>
-												{item.tokensIn?.toLocaleString()}
-											</span>
-											<span
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "3px",
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												<i
-													className="codicon codicon-arrow-down"
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													Tokens:
+												</span>
+												<span
 													style={{
-														fontSize: "12px",
-														fontWeight: "bold",
-														marginBottom: "-2px",
-													}}
-												/>
-												{item.tokensOut?.toLocaleString()}
-											</span>
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-up"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
+													{item.tokensIn?.toLocaleString()}
+												</span>
+												<span
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-down"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
+													{item.tokensOut?.toLocaleString()}
+												</span>
+											</div>
+											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
+
 										{item.cacheWrites && item.cacheReads && (
 											<div
 												style={{
@@ -313,36 +333,29 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												</span>
 											</div>
 										)}
-										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-												marginTop: -2,
-											}}>
-											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													API Cost:
-												</span>
-												<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-													${item.totalCost?.toFixed(4)}
-												</span>
-											</div>
-											<VSCodeButton
-												appearance="icon"
-												onClick={(e) => {
-													e.stopPropagation()
-													handleExportMd(item.id)
+										{!!item.totalCost && (
+											<div
+												style={{
+													display: "flex",
+													justifyContent: "space-between",
+													alignItems: "center",
+													marginTop: -2,
 												}}>
-												<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>
-													EXPORT .MD
+												<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+													<span
+														style={{
+															fontWeight: 500,
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														API Cost:
+													</span>
+													<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+														${item.totalCost?.toFixed(4)}
+													</span>
 												</div>
-											</VSCodeButton>
-										</div>
+												<ExportButton itemId={item.id} />
+											</div>
+										)}
 									</div>
 								</div>
 							</div>

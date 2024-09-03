@@ -1,9 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeLink,
-	VSCodeTextArea
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../utils/validate"

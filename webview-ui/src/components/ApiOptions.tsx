@@ -2,12 +2,12 @@ import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vsco
 import React, { useMemo } from "react"
 import {
 	ApiConfiguration,
-	ApiModelId,
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	openAiModelInfoSaneDefaults,
 	openRouterDefaultModelId,
 	openRouterModels,
 	vertexDefaultModelId,
@@ -69,11 +69,16 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				<label htmlFor="api-provider">
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
-				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
+				<VSCodeDropdown
+					id="api-provider"
+					value={selectedProvider}
+					onChange={handleInputChange("apiProvider")}
+					style={{ minWidth: 125 }}>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -256,6 +261,47 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				</div>
 			)}
 
+			{selectedProvider === "openai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.openAiBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("openAiBaseUrl")}
+						placeholder={"e.g. http://localhost:11434"}>
+						<span style={{ fontWeight: 500 }}>Base URL</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.openAiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("openAiApiKey")}
+						placeholder="e.g. ollama">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.openAiModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("openAiModelId")}
+						placeholder={"e.g. llama3.1"}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						You can use any OpenAI compatible API with models that support tool use.{" "}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so results
+							may vary depending on the quality of the model you choose. Less capable models may not work
+							as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -267,7 +313,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				</p>
 			)}
 
-			{showModelOptions && (
+			{selectedProvider !== "openai" && showModelOptions && (
 				<>
 					<div className="dropdown-container">
 						<label htmlFor="model-id">
@@ -365,8 +411,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"
 	const modelId = apiConfiguration?.apiModelId
 
-	const getProviderData = (models: Record<string, ModelInfo>, defaultId: ApiModelId) => {
-		let selectedModelId: ApiModelId
+	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
+		let selectedModelId: string
 		let selectedModelInfo: ModelInfo
 		if (modelId && modelId in models) {
 			selectedModelId = modelId
@@ -386,6 +432,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
+		case "openai":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openAiModelId ?? "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

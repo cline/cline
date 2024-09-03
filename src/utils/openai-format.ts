@@ -142,3 +142,60 @@ export function convertToOpenAiMessages(
 
 	return openAiMessages
 }
+
+// Convert OpenAI response to Anthropic format
+export function convertToAnthropicMessage(
+	completion: OpenAI.Chat.Completions.ChatCompletion
+): Anthropic.Messages.Message {
+	const openAiMessage = completion.choices[0].message
+	const anthropicMessage: Anthropic.Messages.Message = {
+		id: completion.id,
+		type: "message",
+		role: openAiMessage.role, // always "assistant"
+		content: [
+			{
+				type: "text",
+				text: openAiMessage.content || "",
+			},
+		],
+		model: completion.model,
+		stop_reason: (() => {
+			switch (completion.choices[0].finish_reason) {
+				case "stop":
+					return "end_turn"
+				case "length":
+					return "max_tokens"
+				case "tool_calls":
+					return "tool_use"
+				case "content_filter": // Anthropic doesn't have an exact equivalent
+				default:
+					return null
+			}
+		})(),
+		stop_sequence: null, // which custom stop_sequence was generated, if any (not applicable if you don't use stop_sequence)
+		usage: {
+			input_tokens: completion.usage?.prompt_tokens || 0,
+			output_tokens: completion.usage?.completion_tokens || 0,
+		},
+	}
+
+	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
+		anthropicMessage.content.push(
+			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
+				let parsedInput = {}
+				try {
+					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+				} catch (error) {
+					console.error("Failed to parse tool arguments:", error)
+				}
+				return {
+					type: "tool_use",
+					id: toolCall.id,
+					name: toolCall.function.name,
+					input: parsedInput,
+				}
+			})
+		)
+	}
+	return anthropicMessage
+}
