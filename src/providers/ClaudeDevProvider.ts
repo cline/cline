@@ -16,7 +16,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey"
+type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "awsSessionToken"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -310,6 +310,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								openRouterApiKey,
 								awsAccessKey,
 								awsSecretKey,
+								awsSessionToken,
 								awsRegion,
 								vertexProjectId,
 								vertexRegion,
@@ -320,6 +321,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openRouterApiKey", openRouterApiKey)
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
+							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
@@ -609,6 +611,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			openRouterApiKey,
 			awsAccessKey,
 			awsSecretKey,
+			awsSessionToken,
 			awsRegion,
 			vertexProjectId,
 			vertexRegion,
@@ -623,6 +626,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
+			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
@@ -654,6 +658,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				openRouterApiKey,
 				awsAccessKey,
 				awsSecretKey,
+				awsSessionToken,
 				awsRegion,
 				vertexProjectId,
 				vertexRegion,
@@ -728,7 +733,13 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		for (const key of this.context.globalState.keys()) {
 			await this.context.globalState.update(key, undefined)
 		}
-		const secretKeys: SecretKey[] = ["apiKey", "openRouterApiKey", "awsAccessKey", "awsSecretKey"]
+		const secretKeys: SecretKey[] = [
+			"apiKey",
+			"openRouterApiKey",
+			"awsAccessKey",
+			"awsSecretKey",
+			"awsSessionToken",
+		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
 		}

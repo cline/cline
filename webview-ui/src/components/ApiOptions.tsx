@@ -153,6 +153,14 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter Secret Key...">
 						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.awsSessionToken || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("awsSessionToken")}
+						placeholder="Enter Session Token...">
+						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
+					</VSCodeTextField>
 					<div className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
@@ -192,14 +200,9 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						These credentials are stored locally and only used to make API requests from this extension.
-						{!(apiConfiguration?.awsAccessKey && apiConfiguration?.awsSecretKey) && (
-							<VSCodeLink
-								href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
-								style={{ display: "inline" }}>
-								You can find your AWS access key and secret key here.
-							</VSCodeLink>
-						)}
+						Authenticate by either providing the keys above or use the default AWS credential providers,
+						i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to
+						make API requests from this extension.
 					</p>
 				</div>
 			)}

@@ -6,6 +6,7 @@ export interface ApiHandlerOptions {
 	openRouterApiKey?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
+	awsSessionToken?: string
 	awsRegion?: string
 	vertexProjectId?: string
 	vertexRegion?: string

@@ -9,8 +9,8 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "bedrock":
-				if (!apiConfiguration.awsAccessKey || !apiConfiguration.awsSecretKey || !apiConfiguration.awsRegion) {
-					return "You must provide a valid AWS access key, secret key, and region."
+				if (!apiConfiguration.awsRegion) {
+					return "You must choose a region to use with AWS Bedrock."
 				}
 				break
 			case "openrouter":

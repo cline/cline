@@ -31,7 +31,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState(message.state)
 			const config = message.state?.apiConfiguration
 			const hasKey = config
-				? [config.apiKey, config.openRouterApiKey, config.awsAccessKey, config.vertexProjectId].some(
+				? [config.apiKey, config.openRouterApiKey, config.awsRegion, config.vertexProjectId].some(
 						(key) => key !== undefined
 				  )
 				: false
