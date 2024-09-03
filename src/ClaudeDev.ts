@@ -1444,10 +1444,7 @@ ${this.customInstructions.trim()}
 				"mistake_limit_reached",
 				`This may indicate a failure in his thought process or inability to use a tool properly, which can be alleviated with some user direction (e.g. "let's try breaking this large file down into smaller files").`
 			)
-			if (response === "yesButtonTapped") {
-				// proceed anyways
-				this.consecutiveMistakeCount = 0
-			} else {
+			if (response === "messageResponse") {
 				userContent.push(
 					...[
 						{
@@ -1458,6 +1455,7 @@ ${this.customInstructions.trim()}
 					]
 				)
 			}
+			this.consecutiveMistakeCount = 0
 		}
 
 		await this.addToApiConversationHistory({ role: "user", content: userContent })
