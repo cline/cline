@@ -15,7 +15,6 @@ export interface ExtensionMessage {
 export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
-	maxRequestsPerTask?: number
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
 	themeName?: string
@@ -35,7 +34,6 @@ export interface ClaudeMessage {
 }
 
 export type ClaudeAsk =
-	| "request_limit_reached"
 	| "followup"
 	| "command"
 	| "command_output"

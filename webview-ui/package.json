@@ -20,6 +20,7 @@
     "react-use": "^17.5.1",
     "react-virtuoso": "^4.7.13",
     "rewire": "^7.0.0",
+    "strip-ansi": "^7.1.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },

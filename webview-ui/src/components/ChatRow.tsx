@@ -7,7 +7,7 @@ import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequenc
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import CodeBlock from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
-import { ApiProvider } from "../../../src/shared/api"
+import Terminal from "./Terminal"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -16,7 +16,7 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
-	apiProvider?: ApiProvider
+	handleSendStdin: (text: string) => void
 }
 
 const ChatRow: React.FC<ChatRowProps> = ({
@@ -26,7 +26,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
-	apiProvider,
+	handleSendStdin,
 }) => {
 	const cost = message.text != null && message.say === "api_req_started" ? JSON.parse(message.text).cost : undefined
 	const apiRequestFailedMessage =
@@ -53,11 +53,6 @@ const ChatRow: React.FC<ChatRowProps> = ({
 		)
 
 		switch (type) {
-			case "request_limit_reached":
-				return [
-					<span className="codicon codicon-error text-error" />,
-					<h3 className="text-error">Max Requests Reached</h3>,
-				]
 			case "error":
 				return [<span className="codicon codicon-error text-error" />, <h3 className="text-error">Error</h3>]
 			case "command":
@@ -352,17 +347,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 			case "ask":
 				switch (message.ask) {
 					case "tool":
-						return renderTool(message)
-					case "request_limit_reached":
-						return (
-							<>
-								<h3 className="flex-line">
-									{icon}
-									{title}
-								</h3>
-								<div className="text-error">{message.text}</div>
-							</>
-						)
+						return renderTool(message, headerStyle)
 					case "command":
 						const splitMessage = (text: string) => {
 							const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
@@ -371,7 +356,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							}
 							return {
 								command: text.slice(0, outputIndex).trim(),
-								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
+								output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim() + " ",
 							}
 						}
 
@@ -381,31 +366,12 @@ const ChatRow: React.FC<ChatRowProps> = ({
 								<h3 className="flex-line">
 									{icon}
 									{title}
-								</h3>
-								<div>
-									<div>
-										<CodeBlock
-											code={command}
-											language="shell-session"
-											syntaxHighlighterStyle={syntaxHighlighterStyle}
-											isExpanded={isExpanded}
-											onToggleExpand={onToggleExpand}
-										/>
-									</div>
-
-									{output && (
-										<>
-											<div style={{ margin: "10px 0 10px 0" }}>{COMMAND_OUTPUT_STRING}</div>
-											<CodeBlock
-												code={output}
-												language="shell-session"
-												syntaxHighlighterStyle={syntaxHighlighterStyle}
-												isExpanded={isExpanded}
-												onToggleExpand={onToggleExpand}
-											/>
-										</>
-									)}
 								</div>
+								<Terminal
+									rawOutput={command + (output ? "\n" + output : "")}
+									handleSendStdin={handleSendStdin}
+									shouldAllowInput={!!isCommandExecuting && output.length > 0}
+								/>
 							</>
 						)
 					case "completion_result":

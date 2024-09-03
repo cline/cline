@@ -3,7 +3,6 @@ import { ApiConfiguration, ApiProvider } from "./api"
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
-		| "maxRequestsPerTask"
 		| "customInstructions"
 		| "alwaysAllowReadOnly"
 		| "webviewDidLaunch"
