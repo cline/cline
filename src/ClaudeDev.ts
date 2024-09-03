@@ -814,9 +814,19 @@ export class ClaudeDev {
 
 			// Create a temporary file with the new content
 			const fileName = path.basename(absolutePath)
-			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
+			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+			if (!globalStoragePath) {
+				throw new Error("Global storage uri is invalid")
+			}
+			const tempDir = path.join(globalStoragePath, "temp")
+			await fs.mkdir(tempDir, { recursive: true })
 			const tempFilePath = path.join(tempDir, fileName)
 			await fs.writeFile(tempFilePath, newContent)
+
+			// const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
+			// const tempFilePath = path.join(tempDir, fileName)
+			// await fs.writeFile(tempFilePath, newContent)
+			// await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), Buffer.from(newContent))
 
 			vscode.commands.executeCommand(
 				"vscode.diff",
@@ -872,18 +882,15 @@ export class ClaudeDev {
 			if (response !== "yesButtonTapped") {
 				await this.closeDiffViews()
 				// Clean up the temporary file
-				try {
-					await fs.rm(tempDir, { recursive: true, force: true })
-				} catch (error) {
-					// deleting temp file failed (seems to happen on some windows machines), which is okay since system will clean it up anyways
-					console.error(`Error deleting temporary directory: ${error}`)
-				}
+				await fs.rm(tempDir, { recursive: true, force: true })
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
 				}
 				return "The user denied this operation."
 			}
+
+			await this.closeDiffViews()
 
 			// Read the potentially edited content from the temp file
 			const editedContent = await fs.readFile(tempFilePath, "utf-8")
@@ -892,16 +899,11 @@ export class ClaudeDev {
 			}
 			await fs.writeFile(absolutePath, editedContent)
 
-			// Clean up the temporary file
-			try {
-				await fs.rm(tempDir, { recursive: true, force: true })
-			} catch (error) {
-				console.error(`Error deleting temporary directory: ${error}`)
-			}
-
 			// Finish by opening the edited file in the editor
 			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-			await this.closeDiffViews()
+
+			// Clean up the temporary file
+			await fs.rm(tempDir, { recursive: true, force: true })
 
 			if (editedContent !== newContent) {
 				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
@@ -944,14 +946,10 @@ export class ClaudeDev {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
-			.filter((tab) => {
-				if (tab.input instanceof vscode.TabInputTextDiff) {
-					const originalPath = (tab.input.original as vscode.Uri).toString()
-					const modifiedPath = (tab.input.modified as vscode.Uri).toString()
-					return originalPath.includes("claude-dev-") || modifiedPath.includes("claude-dev-")
-				}
-				return false
-			})
+			.filter(
+				(tab) =>
+					tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === "claude-dev-diff"
+			)
 
 		for (const tab of tabs) {
 			await vscode.window.tabGroups.close(tab)
