@@ -109,16 +109,28 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.registerTextDocumentContentProvider("claude-dev-diff", diffContentProvider)
 	)
 
-	// // URI Handler
-	// const handleUri = async (uri: vscode.Uri) => {
-	// 	const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-	// 	const token = query.get("token")
-	// 	const email = query.get("email")
-	// 	if (token) {
-	// 		await sidebarProvider.saveKoduApiKey(token, email || undefined)
-	// 	}
-	// }
-	// context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+	// URI Handler
+	const handleUri = async (uri: vscode.Uri) => {
+		console.log("handleUri", uri)
+		const path = uri.path
+		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
+		const visibleProvider = ClaudeDevProvider.getVisibleInstance()
+		if (!visibleProvider) {
+			return
+		}
+		switch (path) {
+			case "/openrouter": {
+				const code = query.get("code")
+				if (code) {
+					await visibleProvider.handleOpenRouterCallback(code)
+				}
+				break
+			}
+			default:
+				break
+		}
+	}
+	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 }
 
 // This method is called when your extension is deactivated

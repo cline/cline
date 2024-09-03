@@ -4,10 +4,11 @@ import { ClaudeDev } from "../ClaudeDev"
 import { ApiModelId, ApiProvider } from "../shared/api"
 import { ExtensionMessage } from "../shared/ExtensionMessage"
 import { WebviewMessage } from "../shared/WebviewMessage"
-import { downloadTask, getNonce, getUri, selectImages } from "../utils"
+import { downloadTask, findLast, getNonce, getUri, selectImages } from "../utils"
 import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
+import axios from "axios"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -30,6 +31,7 @@ type GlobalStateKey =
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	private static activeInstances: Set<ClaudeDevProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
@@ -37,6 +39,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
+		ClaudeDevProvider.activeInstances.add(this)
 		this.revertKodu()
 	}
 
@@ -81,6 +84,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			}
 		}
 		this.outputChannel.appendLine("Disposed all disposables")
+		ClaudeDevProvider.activeInstances.delete(this)
+	}
+
+	public static getVisibleInstance(): ClaudeDevProvider | undefined {
+		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
 	resolveWebviewView(
@@ -373,6 +381,33 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
+	// OpenRouter
+
+	async handleOpenRouterCallback(code: string) {
+		console.log("handleOpenRouterCallback", code)
+		let apiKey: string
+		try {
+			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
+			console.log("OpenRouter API response:", response.data)
+
+			if (response.data && response.data.key) {
+				apiKey = response.data.key
+			} else {
+				throw new Error("Invalid response from OpenRouter API")
+			}
+		} catch (error) {
+			console.error("Error exchanging code for API key:", error)
+			throw error
+		}
+
+		const openrouter: ApiProvider = "openrouter"
+		await this.updateGlobalState("apiProvider", openrouter)
+		await this.storeSecret("openRouterApiKey", apiKey)
+		await this.postStateToWebview()
+		this.claudeDev?.updateApi({ apiProvider: openrouter, openRouterApiKey: apiKey })
+		await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -606,7 +641,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to anthropic
+				// New users should default to anthropic for now, but will change to openrouter after fast edit mode
 				apiProvider = "anthropic"
 			}
 		}

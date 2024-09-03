@@ -1,5 +1,8 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ApiConfiguration } from "../../../src/shared/api"
+// import VSCodeButtonLink from "./VSCodeButtonLink"
+// import { getOpenRouterAuthUrl } from "./ApiOptions"
+// import { vscode } from "../utils/vscode"
 
 interface AnnouncementProps {
 	version: string
@@ -30,22 +33,54 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 				🎉{"  "}New in v{version}
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				{/* <li>
+					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
+					so I recommend trying them out.
+					<br />
+					{!apiConfiguration?.openRouterApiKey && (
+						<VSCodeButtonLink
+							href={getOpenRouterAuthUrl(vscodeUriScheme)}
+							style={{
+								transform: "scale(0.85)",
+								transformOrigin: "left center",
+								margin: "4px -30px 2px 0",
+							}}>
+							Get OpenRouter API Key
+						</VSCodeButtonLink>
+					)}
+					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
+						<VSCodeButton
+							onClick={() => {
+								vscode.postMessage({
+									type: "apiConfiguration",
+									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
+								})
+							}}
+							style={{
+								transform: "scale(0.85)",
+								transformOrigin: "left center",
+								margin: "4px -30px 2px 0",
+							}}>
+							Switch to OpenRouter
+						</VSCodeButton>
+					)}
+				</li> */}
+				<li>
+					<b>Edit Claude's changes before accepting!</b> When he creates or edits a file, you can modify his
+					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
+					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
+				</li>
+				<li>
+					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
+					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
+				</li>
 				<li>
 					New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+
 					support for Python environments)
 				</li>
 				<li>
-					<b>You can now edit Claude's changes before accepting!</b> When he edits or creates a file, you can
-					modify his changes directly in the right side of the diff view (+ hover over the 'Revert Block'
-					arrow button in the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
 					Adds support for reading .pdf and .docx files (try "turn my business_plan.docx into a company
 					website")
-				</li>
-				<li>
-					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
-					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>

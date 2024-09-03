@@ -14,6 +14,7 @@ import {
 	vertexModels,
 } from "../../../src/shared/api"
 import { useExtensionState } from "../context/ExtensionStateContext"
+import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -21,7 +22,7 @@ interface ApiOptionsProps {
 }
 
 const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage }) => {
-	const { apiConfiguration, setApiConfiguration } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
@@ -70,8 +71,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				</label>
 				<VSCodeDropdown id="api-provider" value={selectedProvider} onChange={handleInputChange("apiProvider")}>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
@@ -93,9 +94,11 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
-						<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
-							You can get an Anthropic API key by signing up here.
-						</VSCodeLink>
+						{!apiConfiguration?.apiKey && (
+							<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
+								You can get an Anthropic API key by signing up here.
+							</VSCodeLink>
+						)}
 					</p>
 				</div>
 			)}
@@ -110,20 +113,24 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
+					{!apiConfiguration?.openRouterApiKey && (
+						<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} style={{ margin: "5px 0 0 0" }}>
+							Get OpenRouter API Key
+						</VSCodeButtonLink>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						<VSCodeLink href="https://openrouter.ai/" style={{ display: "inline" }}>
-							You can get an OpenRouter API key by signing up here.
-						</VSCodeLink>{" "}
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter support is experimental and may
-							not work well with large files.)
-						</span>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+						{/* {!apiConfiguration?.openRouterApiKey && (
+							<span style={{ color: "var(--vscode-charts-green)" }}>
+								(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter is recommended for high rate
+								limits, prompt caching, and wider selection of models.)
+							</span>
+						)} */}
 					</p>
 				</div>
 			)}
@@ -186,11 +193,13 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These credentials are stored locally and only used to make API requests from this extension.
-						<VSCodeLink
-							href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
-							style={{ display: "inline" }}>
-							You can find your AWS access key and secret key here.
-						</VSCodeLink>
+						{!(apiConfiguration?.awsAccessKey && apiConfiguration?.awsSecretKey) && (
+							<VSCodeLink
+								href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+								style={{ display: "inline" }}>
+								You can find your AWS access key and secret key here.
+							</VSCodeLink>
+						)}
 					</p>
 				</div>
 			)}
@@ -272,6 +281,10 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 			)}
 		</div>
 	)
+}
+
+export function getOpenRouterAuthUrl(uriScheme?: string) {
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
 }
 
 export const formatPrice = (price: number) => {
