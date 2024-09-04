@@ -866,16 +866,10 @@ export class ClaudeDev {
 			const closeInMemoryDocAndDiffViews = async () => {
 				// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
 				try {
-					const matchingEditor = vscode.window.visibleTextEditors.find(
-						(editor) => editor.document.uri === inMemoryDocument.uri
-					)
-					if (matchingEditor) {
-						await vscode.window.showTextDocument(matchingEditor.document, {
-							viewColumn: matchingEditor.viewColumn,
-							preview: true,
-							preserveFocus: false,
-						})
-					}
+					await vscode.window.showTextDocument(inMemoryDocument, {
+						preview: true,
+						preserveFocus: false,
+					})
 					// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
 				} catch (error) {
 					console.log(`Could not open editor for ${absolutePath}: ${error}`)
