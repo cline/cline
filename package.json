@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.5.11",
+  "version": "1.5.24",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -115,7 +115,8 @@
     "install:all": "npm install && cd webview-ui && npm install",
     "start:webview": "cd webview-ui && npm run start",
     "build:webview": "cd webview-ui && npm run build",
-    "test:webview": "cd webview-ui && npm run test"
+    "test:webview": "cd webview-ui && npm run test",
+    "publish:marketplace": "vsce publish && ovsx publish"
   },
   "devDependencies": {
     "@types/diff": "^5.2.1",

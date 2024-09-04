@@ -17,6 +17,8 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromPDF(filePath)
 		case ".docx":
 			return extractTextFromDOCX(filePath)
+		case ".ipynb":
+			return extractTextFromIPYNB(filePath)
 		default:
 			const isBinary = await isBinaryFile(filePath)
 			if (!isBinary) {
@@ -36,4 +38,18 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
 async function extractTextFromDOCX(filePath: string): Promise<string> {
 	const result = await mammoth.extractRawText({ path: filePath })
 	return result.value
+}
+
+async function extractTextFromIPYNB(filePath: string): Promise<string> {
+	const data = await fs.readFile(filePath, "utf8")
+	const notebook = JSON.parse(data)
+	let extractedText = ""
+
+	for (const cell of notebook.cells) {
+		if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
+			extractedText += cell.source.join("\n") + "\n"
+		}
+	}
+
+	return extractedText
 }

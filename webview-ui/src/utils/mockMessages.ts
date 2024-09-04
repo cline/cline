@@ -205,12 +205,6 @@ export const mockMessages: ClaudeMessage[] = [
 		text: "Great! The tests for the TodoList component have passed. All functionalities, including the new delete feature, are working as expected.",
 	},
 	{
-		ts: Date.now() - 2200000,
-		type: "ask",
-		ask: "request_limit_reached",
-		text: "You've reached the maximum number of requests for this task. Would you like to continue or start a new task?",
-	},
-	{
 		ts: Date.now() - 2100000,
 		type: "say",
 		say: "text",

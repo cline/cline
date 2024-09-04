@@ -13,8 +13,9 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.client = new AnthropicBedrock({
 			// Authenticate by either providing the keys below or use the default AWS credential providers, such as
 			// using ~/.aws/credentials or the "AWS_SECRET_ACCESS_KEY" and "AWS_ACCESS_KEY_ID" environment variables.
-			awsAccessKey: this.options.awsAccessKey,
-			awsSecretKey: this.options.awsSecretKey,
+			...(this.options.awsAccessKey ? { awsAccessKey: this.options.awsAccessKey } : {}),
+			...(this.options.awsSecretKey ? { awsSecretKey: this.options.awsSecretKey } : {}),
+			...(this.options.awsSessionToken ? { awsSessionToken: this.options.awsSessionToken } : {}),
 
 			// awsRegion changes the aws region to which the request is made. By default, we read AWS_REGION,
 			// and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.

@@ -1,6 +1,8 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
+import { Virtuoso } from "react-virtuoso"
+import { useMemo, useState } from "react"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -8,6 +10,8 @@ type HistoryViewProps = {
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const { taskHistory } = useExtensionState()
+	const [searchQuery, setSearchQuery] = useState("")
+
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
@@ -35,6 +39,42 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			.toUpperCase()
 	}
 
+	const presentableTasks = useMemo(() => {
+		return taskHistory.filter((item) => item.ts && item.task)
+	}, [taskHistory])
+
+	const taskHistorySearchResults = useMemo(() => {
+		return presentableTasks.filter((item) => item.task.toLowerCase().includes(searchQuery.toLowerCase()))
+	}, [presentableTasks, searchQuery])
+
+	const highlightText = (text: string, query: string) => {
+		if (!query) return text
+		const parts = text.split(new RegExp(`(${query})`, "gi"))
+		return parts.map((part, index) =>
+			part.toLowerCase() === query.toLowerCase() ? (
+				<mark
+					key={index}
+					style={{ backgroundColor: "var(--vscode-editor-findMatchHighlightBackground)", color: "inherit" }}>
+					{part}
+				</mark>
+			) : (
+				part
+			)
+		)
+	}
+
+	const ExportButton = ({ itemId }: { itemId: string }) => (
+		<VSCodeButton
+			className="export-button"
+			appearance="icon"
+			onClick={(e) => {
+				e.stopPropagation()
+				handleExportMd(itemId)
+			}}>
+			<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
+		</VSCodeButton>
+	)
+
 	return (
 		<>
 			<style>
@@ -42,11 +82,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.history-item:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
-					.delete-button {
+					.delete-button, .export-button {
 						opacity: 0;
 						pointer-events: none;
 					}
-					.history-item:hover .delete-button {
+					.history-item:hover .delete-button,
+					.history-item:hover .export-button {
 						opacity: 1;
 						pointer-events: auto;
 					}
@@ -73,8 +114,29 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 				</div>
+				<div style={{ padding: "5px 17px" }}>
+					<VSCodeTextField
+						style={{ width: "100%" }}
+						placeholder="Search history..."
+						value={searchQuery}
+						onInput={(e) => setSearchQuery((e.target as HTMLInputElement)?.value)}>
+						<div
+							slot="start"
+							className="codicon codicon-search"
+							style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}></div>
+						{searchQuery && (
+							<VSCodeButton
+								appearance="icon"
+								aria-label="Clear search"
+								onClick={() => setSearchQuery("")}
+								slot="end">
+								<span className="codicon codicon-close"></span>
+							</VSCodeButton>
+						)}
+					</VSCodeTextField>
+				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					{taskHistory.length === 0 && (
+					{presentableTasks.length === 0 && (
 						<div
 							style={{
 								display: "flex",
@@ -97,10 +159,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							</div>
 						</div>
 					)}
-
-					{taskHistory
-						.filter((item) => item.ts && item.task)
-						.map((item, index) => (
+					<Virtuoso
+						style={{
+							flexGrow: 1,
+							overflowY: "scroll",
+							scrollbarWidth: "none",
+						}}
+						data={taskHistorySearchResults}
+						itemContent={(index, item) => (
 							<div
 								key={item.id}
 								className="history-item"
@@ -157,59 +223,68 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											wordBreak: "break-word",
 											overflowWrap: "anywhere",
 										}}>
-										{item.task}
+										{highlightText(item.task, searchQuery)}
 									</div>
 									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 										<div
 											style={{
 												display: "flex",
+												justifyContent: "space-between",
 												alignItems: "center",
-												gap: "4px",
-												flexWrap: "wrap",
 											}}>
-											<span
-												style={{
-													fontWeight: 500,
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												Tokens:
-											</span>
-											<span
+											<div
 												style={{
 													display: "flex",
 													alignItems: "center",
-													gap: "3px",
-													color: "var(--vscode-descriptionForeground)",
+													gap: "4px",
+													flexWrap: "wrap",
 												}}>
-												<i
-													className="codicon codicon-arrow-up"
+												<span
 													style={{
-														fontSize: "12px",
-														fontWeight: "bold",
-														marginBottom: "-2px",
-													}}
-												/>
-												{item.tokensIn?.toLocaleString()}
-											</span>
-											<span
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "3px",
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												<i
-													className="codicon codicon-arrow-down"
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													Tokens:
+												</span>
+												<span
 													style={{
-														fontSize: "12px",
-														fontWeight: "bold",
-														marginBottom: "-2px",
-													}}
-												/>
-												{item.tokensOut?.toLocaleString()}
-											</span>
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-up"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
+													{item.tokensIn?.toLocaleString()}
+												</span>
+												<span
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-down"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
+													{item.tokensOut?.toLocaleString()}
+												</span>
+											</div>
+											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
-										{item.cacheWrites && item.cacheReads && (
+
+										{!!item.cacheWrites && (
 											<div
 												style={{
 													display: "flex",
@@ -256,44 +331,38 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: 0,
 														}}
 													/>
-													{item.cacheReads?.toLocaleString()}
+													{(item.cacheReads || 0).toLocaleString()}
 												</span>
 											</div>
 										)}
-										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-												marginTop: -2,
-											}}>
-											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													API Cost:
-												</span>
-												<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-													${item.totalCost?.toFixed(4)}
-												</span>
-											</div>
-											<VSCodeButton
-												appearance="icon"
-												onClick={(e) => {
-													e.stopPropagation()
-													handleExportMd(item.id)
+										{!!item.totalCost && (
+											<div
+												style={{
+													display: "flex",
+													justifyContent: "space-between",
+													alignItems: "center",
+													marginTop: -2,
 												}}>
-												<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>
-													EXPORT .MD
+												<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+													<span
+														style={{
+															fontWeight: 500,
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														API Cost:
+													</span>
+													<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+														${item.totalCost?.toFixed(4)}
+													</span>
 												</div>
-											</VSCodeButton>
-										</div>
+												<ExportButton itemId={item.id} />
+											</div>
+										)}
 									</div>
 								</div>
 							</div>
-						))}
+						)}
+					/>
 				</div>
 			</div>
 		</>

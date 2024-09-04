@@ -71,3 +71,4 @@ export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessag
 		})
 }
 export const COMMAND_OUTPUT_STRING = "Output:"
+export const COMMAND_STDIN_STRING = "Input:"

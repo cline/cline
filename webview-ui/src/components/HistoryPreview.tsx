@@ -108,17 +108,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									<span>
 										Tokens: ↑{item.tokensIn?.toLocaleString()} ↓{item.tokensOut?.toLocaleString()}
 									</span>
-									{" • "}
-									{item.cacheWrites && item.cacheReads && (
+									{!!item.cacheWrites && (
 										<>
+											{" • "}
 											<span>
 												Cache: +{item.cacheWrites?.toLocaleString()} →{" "}
-												{item.cacheReads?.toLocaleString()}
+												{(item.cacheReads || 0).toLocaleString()}
 											</span>
-											{" • "}
 										</>
 									)}
-									<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
+									{!!item.totalCost && (
+										<>
+											{" • "}
+											<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
+										</>
+									)}
 								</div>
 							</div>
 						</div>
