@@ -864,7 +864,9 @@ export class ClaudeDev {
 			const { response, text, images } = userResponse
 
 			if (response !== "yesButtonTapped") {
-				await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+				try {
+					await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+				} catch {}
 				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
 				await this.closeDiffViews()
 				if (response === "messageResponse") {
@@ -882,7 +884,12 @@ export class ClaudeDev {
 			await fs.writeFile(absolutePath, editedContent)
 
 			// Close the in-memory doc
-			await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+			try {
+				await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+			} catch (error) {
+				console.log(`Could not open editor for ${absolutePath}: ${error}`)
+			}
+
 			await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
 			await this.closeDiffViews()
 
