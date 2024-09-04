@@ -71,16 +71,12 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
 				</li>
 				<li>
-					Adds new <code>search_files</code> tool that lets Claude perform regex searches in your project,
-					making it easy for him to refactor code, address TODOs and FIXMEs, remove dead code, and more!
+					New <code>search_files</code> tool that lets Claude perform regex searches in your project, letting
+					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
 				</li>
 				<li>
-					New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+
-					support for Python environments)
-				</li>
-				<li>
-					Adds support for reading .pdf and .docx files (try "turn my business_plan.docx into a company
-					website")
+					When Claude runs commands, you can now type directly in the terminal (+ support for Python
+					environments)
 				</li>
 			</ul>
 			<p style={{ margin: "0" }}>
