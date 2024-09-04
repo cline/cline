@@ -863,12 +863,30 @@ export class ClaudeDev {
 			}
 			const { response, text, images } = userResponse
 
-			if (response !== "yesButtonTapped") {
+			const closeInMemoryDocAndDiffViews = async () => {
+				// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
 				try {
-					await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
-				} catch {}
-				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
+					const matchingEditor = vscode.window.visibleTextEditors.find(
+						(editor) => editor.document.uri === inMemoryDocument.uri
+					)
+					if (matchingEditor) {
+						await vscode.window.showTextDocument(matchingEditor.document, {
+							viewColumn: matchingEditor.viewColumn,
+							preview: true,
+							preserveFocus: false,
+						})
+					}
+					// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+				} catch (error) {
+					console.log(`Could not open editor for ${absolutePath}: ${error}`)
+				}
+
+				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
 				await this.closeDiffViews()
+			}
+
+			if (response !== "yesButtonTapped") {
+				await closeInMemoryDocAndDiffViews()
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
@@ -883,15 +901,7 @@ export class ClaudeDev {
 			}
 			await fs.writeFile(absolutePath, editedContent)
 
-			// Close the in-memory doc
-			try {
-				await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
-			} catch (error) {
-				console.log(`Could not open editor for ${absolutePath}: ${error}`)
-			}
-
-			await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
-			await this.closeDiffViews()
+			await closeInMemoryDocAndDiffViews()
 
 			// Finish by opening the edited file in the editor
 			// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
