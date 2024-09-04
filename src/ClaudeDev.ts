@@ -863,12 +863,24 @@ export class ClaudeDev {
 			}
 			const { response, text, images } = userResponse
 
-			if (response !== "yesButtonTapped") {
+			const closeInMemoryDocAndDiffViews = async () => {
+				// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
 				try {
-					await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
-				} catch {}
-				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
+					await vscode.window.showTextDocument(inMemoryDocument, {
+						preview: true,
+						preserveFocus: false,
+					})
+					// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+				} catch (error) {
+					console.log(`Could not open editor for ${absolutePath}: ${error}`)
+				}
+
+				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
 				await this.closeDiffViews()
+			}
+
+			if (response !== "yesButtonTapped") {
+				await closeInMemoryDocAndDiffViews()
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
@@ -883,15 +895,7 @@ export class ClaudeDev {
 			}
 			await fs.writeFile(absolutePath, editedContent)
 
-			// Close the in-memory doc
-			try {
-				await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
-			} catch (error) {
-				console.log(`Could not open editor for ${absolutePath}: ${error}`)
-			}
-
-			await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
-			await this.closeDiffViews()
+			await closeInMemoryDocAndDiffViews()
 
 			// Finish by opening the edited file in the editor
 			// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
@@ -1456,7 +1460,7 @@ ${this.customInstructions.trim()}
 		if (this.consecutiveMistakeCount >= 3) {
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
-				`This may indicate a failure in his thought process or inability to use a tool properly, which can be alleviated with some user direction (e.g. "let's try breaking this large file down into smaller files").`
+				`This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "let's try breaking this large file down into smaller files").`
 			)
 			if (response === "messageResponse") {
 				userContent.push(
