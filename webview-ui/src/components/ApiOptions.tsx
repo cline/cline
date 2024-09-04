@@ -308,8 +308,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("ollamaModelId")}
-						placeholder={"e.g. llama3.1"}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
+						placeholder={"e.g. llama3.1:8b-instruct-q5_K_M"}>
+						<span style={{ fontWeight: 500 }}>Model Name</span>
 					</VSCodeTextField>
 					<p
 						style={{
