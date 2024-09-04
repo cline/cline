@@ -394,12 +394,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
-		console.log("handleOpenRouterCallback", code)
 		let apiKey: string
 		try {
 			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
-			console.log("OpenRouter API response:", response.data)
-
 			if (response.data && response.data.key) {
 				apiKey = response.data.key
 			} else {
