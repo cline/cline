@@ -115,7 +115,8 @@
     "install:all": "npm install && cd webview-ui && npm install",
     "start:webview": "cd webview-ui && npm run start",
     "build:webview": "cd webview-ui && npm run build",
-    "test:webview": "cd webview-ui && npm run test"
+    "test:webview": "cd webview-ui && npm run test",
+    "publish:marketplace": "vsce publish && ovsx publish"
   },
   "devDependencies": {
     "@types/diff": "^5.2.1",
