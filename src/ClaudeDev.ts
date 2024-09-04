@@ -881,31 +881,48 @@ export class ClaudeDev {
 			}
 			await fs.writeFile(absolutePath, editedContent)
 
-			// Finish by opening the edited file in the editor
+			// Close the in-memory doc
 			await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
 			await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
 			await this.closeDiffViews()
-			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 
-			if (editedContent !== newContent) {
-				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
-				const userDiff = diff.createPatch(relPath, newContent, editedContent)
+			// Finish by opening the edited file in the editor
+			// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
+			try {
+				const openEditor = vscode.window.visibleTextEditors.find((editor) => {
+					return editor.document.uri.fsPath === absolutePath
+				})
+				if (openEditor) {
+					// File is already open, show the tab and focus on it
+					await vscode.window.showTextDocument(openEditor.document, openEditor.viewColumn)
+				} else {
+					// If not open, open the file
+					const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
+					await vscode.window.showTextDocument(document, { preview: false })
+				}
+			} catch (error) {
+				// Handle errors more gracefully
+				console.log(`Could not open editor for ${absolutePath}: ${error}`)
+			}
+			// await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+
+			// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
+			const newContentEOL = newContent.includes("\r\n") ? "\r\n" : "\n"
+			const normalizedEditedContent = editedContent.replace(/\r\n|\n/g, newContentEOL)
+			const normalizedNewContent = newContent.replace(/\r\n|\n/g, newContentEOL) // just in case the new content has a mix of varying EOL characters
+			if (normalizedEditedContent !== normalizedNewContent) {
+				const userDiff = diff.createPatch(relPath, normalizedNewContent, normalizedEditedContent)
 				await this.say(
 					"user_feedback_diff",
 					JSON.stringify({
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: this.getReadablePath(relPath),
-						diff: this.createPrettyPatch(relPath, newContent, editedContent),
+						diff: this.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
 					} as ClaudeSayTool)
 				)
-				return `The user accepted but made the following changes to your content:\n\n${userDiff}\n\nFinal result ${
-					fileExists ? "saved to" : "written as new file"
-				} ${relPath}:\n\n${diffResult}`
+				return `The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content was successfully saved to ${relPath}.`
 			} else {
-				const diffResult = diff.createPatch(relPath, originalContent, newContent)
-				return `${
-					fileExists ? `Changes applied to ${relPath}:\n\n${diffResult}` : `New file written to ${relPath}`
-				}`
+				return `The content was successfully saved to ${relPath}.`
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
