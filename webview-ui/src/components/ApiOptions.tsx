@@ -528,10 +528,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelId: apiConfiguration?.ollamaModelId ?? "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
-		default:
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
 }
 
