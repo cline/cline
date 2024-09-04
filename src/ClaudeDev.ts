@@ -1466,7 +1466,7 @@ ${this.customInstructions.trim()}
 		if (this.consecutiveMistakeCount >= 3) {
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
-				`This may indicate a failure in his thought process or inability to use a tool properly, which can be alleviated with some user direction (e.g. "let's try breaking this large file down into smaller files").`
+				`This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "let's try breaking this large file down into smaller files").`
 			)
 			if (response === "messageResponse") {
 				userContent.push(

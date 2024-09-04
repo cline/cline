@@ -123,11 +123,8 @@ const ChatView = ({
 							const tool = JSON.parse(lastMessage.text || "{}") as ClaudeSayTool
 							switch (tool.tool) {
 								case "editedExistingFile":
-									setPrimaryButtonText("Save")
-									setSecondaryButtonText("Reject")
-									break
 								case "newFileCreated":
-									setPrimaryButtonText("Create")
+									setPrimaryButtonText("Save")
 									setSecondaryButtonText("Reject")
 									break
 								default:
