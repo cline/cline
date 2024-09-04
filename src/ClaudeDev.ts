@@ -784,7 +784,6 @@ export class ClaudeDev {
 		}
 
 		if (newContent === undefined) {
-			// Special message for this case since this tends to happen the most
 			await this.say(
 				"error",
 				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to output token limits. Retrying...`
@@ -812,30 +811,31 @@ export class ClaudeDev {
 				originalContent = ""
 			}
 
-			// Create a temporary file with the new content
 			const fileName = path.basename(absolutePath)
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			if (!globalStoragePath) {
-				throw new Error("Global storage uri is invalid")
-			}
-			const tempDir = path.join(globalStoragePath, "temp")
-			await fs.mkdir(tempDir, { recursive: true })
-			const tempFilePath = path.join(tempDir, fileName)
-			await fs.writeFile(tempFilePath, newContent)
 
-			// const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "claude-dev-"))
-			// const tempFilePath = path.join(tempDir, fileName)
-			// await fs.writeFile(tempFilePath, newContent)
-			// await vscode.workspace.fs.writeFile(vscode.Uri.file(tempFilePath), Buffer.from(newContent))
+			// Windows file locking issues can prevent temporary files from being saved or closed properly.
+			// To avoid these problems, we use in-memory TextDocument objects with the `untitled` scheme.
+			// This method keeps the document entirely in memory, bypassing the filesystem and ensuring
+			// a consistent editing experience across all platforms. This also has the added benefit of not
+			// polluting the user's workspace with temporary files.
 
-			vscode.commands.executeCommand(
+			// Create an in-memory document for the new content
+			const uri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
+			const inMemoryDocument = await vscode.workspace.openTextDocument(uri)
+			const edit = new vscode.WorkspaceEdit()
+			edit.insert(uri, new vscode.Position(0, 0), newContent)
+			await vscode.workspace.applyEdit(edit)
+
+			// Show diff
+			await vscode.commands.executeCommand(
 				"vscode.diff",
 				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
 					query: Buffer.from(originalContent).toString("base64"),
 				}),
-				vscode.Uri.file(tempFilePath),
+				inMemoryDocument.uri,
 				`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
 			)
+			await vscode.commands.executeCommand("workbench.action.focusSideBar")
 
 			let userResponse: {
 				response: ClaudeAskResponse
@@ -863,26 +863,10 @@ export class ClaudeDev {
 			}
 			const { response, text, images } = userResponse
 
-			// Save any unsaved changes in the diff editor
-			const diffDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === tempFilePath)
-			if (diffDocument && diffDocument.isDirty) {
-				console.log("saving diff document")
-				await diffDocument.save()
-			}
-			// some users report a bug where the diff editor doesnt save the file automatically, so this is a workaround
-			if (!diffDocument) {
-				const savedResult = await vscode.workspace.save(vscode.Uri.file(tempFilePath))
-				// savedResult will be undefined if file was not found or couldn't be saved
-				if (!savedResult) {
-					// last resort is saving everything
-					await vscode.workspace.saveAll(false)
-				}
-			}
-
 			if (response !== "yesButtonTapped") {
+				await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
 				await this.closeDiffViews()
-				// Clean up the temporary file
-				await fs.rm(tempDir, { recursive: true, force: true })
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
@@ -890,20 +874,18 @@ export class ClaudeDev {
 				return "The user denied this operation."
 			}
 
-			await this.closeDiffViews()
-
-			// Read the potentially edited content from the temp file
-			const editedContent = await fs.readFile(tempFilePath, "utf-8")
+			// Read the potentially edited content from the in-memory document
+			const editedContent = inMemoryDocument.getText()
 			if (!fileExists) {
 				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
 			}
 			await fs.writeFile(absolutePath, editedContent)
 
 			// Finish by opening the edited file in the editor
+			await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+			await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor")
+			await this.closeDiffViews()
 			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-
-			// Clean up the temporary file
-			await fs.rm(tempDir, { recursive: true, force: true })
 
 			if (editedContent !== newContent) {
 				const diffResult = diff.createPatch(relPath, originalContent, editedContent)
