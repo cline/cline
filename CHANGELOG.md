@@ -4,6 +4,10 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.5.19]
+
+- Adds support for OpenAI compatible API providers (e.g. Ollama!)
+
 ## [1.5.13]
 
 - New terminal emulator! When Claude runs commands, you can now type directly in the terminal (+ support for Python environments)
