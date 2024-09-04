@@ -5,6 +5,7 @@ import { AwsBedrockHandler } from "./bedrock"
 import { OpenRouterHandler } from "./openrouter"
 import { VertexHandler } from "./vertex"
 import { OpenAiHandler } from "./openai"
+import { OllamaHandler } from "./ollama"
 
 export interface ApiHandlerMessageResponse {
 	message: Anthropic.Messages.Message
@@ -43,6 +44,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new VertexHandler(options)
 		case "openai":
 			return new OpenAiHandler(options)
+		case "ollama":
+			return new OllamaHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

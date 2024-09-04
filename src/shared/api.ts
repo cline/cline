@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "openai"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "openai" | "ollama"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -13,6 +13,7 @@ export interface ApiHandlerOptions {
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
+	ollamaModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

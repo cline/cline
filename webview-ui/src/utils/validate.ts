@@ -32,6 +32,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
+			case "ollama":
+				if (!apiConfiguration.ollamaModelId) {
+					return "You must provide a valid model ID."
+				}
+				break
 		}
 	}
 	return undefined

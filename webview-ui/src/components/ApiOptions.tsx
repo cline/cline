@@ -79,6 +79,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -268,7 +269,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						style={{ width: "100%" }}
 						type="url"
 						onInput={handleInputChange("openAiBaseUrl")}
-						placeholder={"e.g. http://localhost:11434/v1"}>
+						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
 					<VSCodeTextField
@@ -276,14 +277,14 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						style={{ width: "100%" }}
 						type="password"
 						onInput={handleInputChange("openAiApiKey")}
-						placeholder="e.g. ollama">
+						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("openAiModelId")}
-						placeholder={"e.g. llama3.1"}>
+						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 					<p
@@ -293,6 +294,40 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						You can use any OpenAI compatible API with models that support tool use.{" "}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so less
+							capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "ollama" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.ollamaModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("ollamaModelId")}
+						placeholder={"e.g. llama3.1"}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Ollama allows you to run models locally on your computer. For instructions on how to get started
+						with Ollama, see their
+						<VSCodeLink
+							href="https://github.com/ollama/ollama/blob/main/README.md"
+							style={{ display: "inline" }}>
+							quickstart guide.
+						</VSCodeLink>{" "}
+						You can use any models that support{" "}
+						<VSCodeLink href="https://ollama.com/search?c=tools" style={{ display: "inline" }}>
+							tool use.
+						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so less
 							capable models may not work as expected.)
@@ -312,7 +347,7 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				</p>
 			)}
 
-			{selectedProvider !== "openai" && showModelOptions && (
+			{selectedProvider !== "openai" && selectedProvider !== "ollama" && showModelOptions && (
 				<>
 					<div className="dropdown-container">
 						<label htmlFor="model-id">
@@ -435,6 +470,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openAiModelId ?? "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "ollama":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.ollamaModelId ?? "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:

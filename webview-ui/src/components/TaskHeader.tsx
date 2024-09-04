@@ -226,7 +226,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{tokensOut?.toLocaleString()}
 							</span>
 						</div>
-						{apiConfiguration?.apiProvider === "openai" && <ExportButton />}
+						{(apiConfiguration?.apiProvider === "openai" || apiConfiguration?.apiProvider === "ollama") && (
+							<ExportButton />
+						)}
 					</div>
 
 					{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
@@ -248,7 +250,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</span>
 						</div>
 					)}
-					{apiConfiguration?.apiProvider !== "openai" && (
+					{apiConfiguration?.apiProvider !== "openai" && apiConfiguration?.apiProvider !== "ollama" && (
 						<div
 							style={{
 								display: "flex",
