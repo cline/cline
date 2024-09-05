@@ -29,6 +29,7 @@ type GlobalStateKey =
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
+	| "ollamaBaseUrl"
 	| "ollamaModelId"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
@@ -320,6 +321,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								openAiBaseUrl,
 								openAiApiKey,
 								openAiModelId,
+								ollamaBaseUrl,
 								ollamaModelId,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
@@ -335,6 +337,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
+							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
@@ -626,6 +629,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			ollamaBaseUrl,
 			ollamaModelId,
 			lastShownAnnouncementId,
 			customInstructions,
@@ -645,6 +649,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
@@ -681,6 +686,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				openAiBaseUrl,
 				openAiApiKey,
 				openAiModelId,
+				ollamaBaseUrl,
 				ollamaModelId,
 			},
 			lastShownAnnouncementId,

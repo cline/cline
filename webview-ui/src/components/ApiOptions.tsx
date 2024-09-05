@@ -305,6 +305,14 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
+						value={apiConfiguration?.ollamaBaseUrl || "http://127.0.0.1:11434/v1"}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("ollamaBaseUrl")}
+						placeholder={"Enter base URL... or http://127.0.0.1:11434/v1"}>
+						<span style={{ fontWeight: 500 }}>Base URL</span>
+					</VSCodeTextField>
+					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("ollamaModelId")}

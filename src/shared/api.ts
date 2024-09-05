@@ -13,6 +13,7 @@ export interface ApiHandlerOptions {
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
+	ollamaBaseUrl?: string
 	ollamaModelId?: string
 }
 
