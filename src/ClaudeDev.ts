@@ -875,15 +875,25 @@ export class ClaudeDev {
 				// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
 				try {
 					await vscode.window.showTextDocument(inMemoryDocument, {
-						preview: true,
+						preview: false, // ensures it opens in non-preview tab (preview tabs are easily replaced)
 						preserveFocus: false,
 					})
 					// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
 				} catch (error) {
 					console.log(`Could not open editor for ${absolutePath}: ${error}`)
 				}
+				// Wait for the in-memory document to become the active editor (sometimes vscode timing issues happen and this would accidentally close claude dev!)
+				await pWaitFor(
+					() => {
+						return vscode.window.activeTextEditor?.document === inMemoryDocument
+					},
+					{ timeout: 5000, interval: 100 }
+				)
 
-				await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
+				if (vscode.window.activeTextEditor?.document === inMemoryDocument) {
+					await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
+				}
+
 				await this.closeDiffViews()
 			}
 
