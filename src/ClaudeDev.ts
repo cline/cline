@@ -69,15 +69,6 @@ RULES
 
 ====
 
-READING FILES
-
-- You must only use the read_file tool to read files whose contents you don't already know. If you've previously read or edited a file, you should infer its contents from those previous operations.
-- When you've edited a file or the user has applied edits to your changes, you must construct the final result in your mind to know the contents of the file without calling the read_file tool again.
-- Before using the read_file tool, always check if you can deduce the current state of the file from previous interactions or operations. This includes considering any edits made by you or the user, as well as any other relevant context provided throughout the task.
-- Reading a file unnecessarily will significantly disrupt the user's experience and is STRICTLY PROHIBITED. When thinking about what tools to call, always start by asking if you can infer the content of necessary files from previous operations.
-
-====
-
 OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
