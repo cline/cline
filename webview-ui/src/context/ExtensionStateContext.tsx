@@ -38,6 +38,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 						config.vertexProjectId,
 						config.openAiApiKey,
 						config.ollamaModelId,
+						config.sapAiCoreClientId,
 				  ].some((key) => key !== undefined)
 				: false
 			setShowWelcome(!hasKey)

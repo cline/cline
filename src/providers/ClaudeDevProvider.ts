@@ -790,6 +790,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			"awsSecretKey",
 			"awsSessionToken",
 			"openAiApiKey",
+			"sapAiCoreClientId",
+			"sapAiCoreClientSecret",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
