@@ -339,17 +339,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 				</div>
 			)}
 
-			{apiErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{apiErrorMessage}
-				</p>
-			)}
-
 			{selectedProvider === "sapaicore" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
@@ -394,6 +383,17 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						</VSCodeLink>
 					</p>
 				</div>
+			)}
+
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
 			)}
 
 			{selectedProvider !== "openai" && selectedProvider !== "ollama" && showModelOptions && (
@@ -528,10 +528,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelId: apiConfiguration?.ollamaModelId ?? "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
-		default:
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
 }
 
