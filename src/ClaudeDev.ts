@@ -53,7 +53,6 @@ RULES
 - You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '${cwd}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '${cwd}', and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${cwd}'). For example, if you needed to run \`npm install\` in a project outside of '${cwd}', you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
-- If you need to read or edit a file you have already read or edited, you can assume its contents have not changed since then (unless specified otherwise by the user) and skip using the read_file tool before proceeding.
 - When using the search_files tool, craft your regex patterns carefully to balance specificity and flexibility. Based on the user's task you may use it to find code patterns, TODO comments, function definitions, or any text-based information across the project. The results include context, so analyze the surrounding code to better understand the matches. Leverage the search_files tool in combination with other tools for more comprehensive analysis. For example, use it to find specific code patterns, then use read_file to examine the full context of interesting matches before using write_to_file to make informed changes.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
 - You must try to use multiple tools in one request when possible. For example if you were to create a website, you would use the write_to_file tool to create the necessary files with their appropriate contents all at once. Or if you wanted to analyze a project, you could use the read_file tool multiple times to look at several key files. This will help you accomplish the user's task more efficiently.
@@ -67,6 +66,15 @@ RULES
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - CRITICAL: When editing files with write_to_file, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
+
+====
+
+READING FILES
+
+- You must only use the read_file tool to read files whose contents you don't already know. If you've previously read or edited a file, you should infer its contents from those previous operations.
+- When you've edited a file or the user has applied edits to your changes, you must construct the final result in your mind to know the contents of the file without calling the read_file tool again.
+- Before using the read_file tool, always check if you can deduce the current state of the file from previous interactions or operations. This includes considering any edits made by you or the user, as well as any other relevant context provided throughout the task.
+- Reading a file unnecessarily will significantly disrupt the user's experience and is STRICTLY PROHIBITED. When thinking about what tools to call, always start by asking if you can infer the content of necessary files from previous operations.
 
 ====
 
@@ -820,10 +828,10 @@ export class ClaudeDev {
 			// polluting the user's workspace with temporary files.
 
 			// Create an in-memory document for the new content
-			const uri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
-			const inMemoryDocument = await vscode.workspace.openTextDocument(uri)
+			const inMemoryDocumentUri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
+			const inMemoryDocument = await vscode.workspace.openTextDocument(inMemoryDocumentUri)
 			const edit = new vscode.WorkspaceEdit()
-			edit.insert(uri, new vscode.Position(0, 0), newContent)
+			edit.insert(inMemoryDocumentUri, new vscode.Position(0, 0), newContent)
 			await vscode.workspace.applyEdit(edit)
 
 			// Show diff
@@ -892,29 +900,36 @@ export class ClaudeDev {
 			const editedContent = inMemoryDocument.getText()
 			if (!fileExists) {
 				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
+				await fs.writeFile(absolutePath, "")
 			}
-			await fs.writeFile(absolutePath, editedContent)
-
 			await closeInMemoryDocAndDiffViews()
 
-			// Finish by opening the edited file in the editor
-			// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
+			// await fs.writeFile(absolutePath, editedContent)
+
+			// open file and add text to it, if it fails fallback to using writeFile
+			// we try doing it this way since it adds to local history for users to see what's changed in the file's timeline
 			try {
-				const openEditor = vscode.window.visibleTextEditors.find((editor) => {
-					return editor.document.uri.fsPath === absolutePath
-				})
-				if (openEditor) {
-					// File is already open, show the tab and focus on it
-					await vscode.window.showTextDocument(openEditor.document, openEditor.viewColumn)
-				} else {
-					// If not open, open the file
-					const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
-					await vscode.window.showTextDocument(document, { preview: false })
+				const editor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+				const edit = new vscode.WorkspaceEdit()
+				const fullRange = new vscode.Range(
+					editor.document.positionAt(0),
+					editor.document.positionAt(editor.document.getText().length)
+				)
+				edit.replace(editor.document.uri, fullRange, editedContent)
+				// Apply the edit, this will trigger a local save and timeline history
+				await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
+				await editor.document.save()
+			} catch (saveError) {
+				console.log(`Could not open editor for ${absolutePath}: ${saveError}`)
+				await fs.writeFile(absolutePath, editedContent)
+				// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
+				try {
+					await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+				} catch (openFileError) {
+					console.log(`Could not open editor for ${absolutePath}: ${openFileError}`)
 				}
-			} catch (error) {
-				// Handle errors more gracefully
-				console.log(`Could not open editor for ${absolutePath}: ${error}`)
 			}
+
 			// await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 
 			// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
@@ -1388,7 +1403,7 @@ export class ClaudeDev {
 		}
 		await this.say("user_feedback", text ?? "", images)
 		return this.formatIntoToolResponse(
-			`The user is not pleased with the results. Use the feedback they provided to successfully complete the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
+			`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`,
 			images
 		)
 	}

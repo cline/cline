@@ -4,6 +4,11 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.5.27]
+
+- Claude's changes now appear in your file's Timeline, allowing you to easily view a diff of each edit. This is especially helpful if you want to revert to a previous version. No need for git—everything is tracked by VSCode's local history!
+- Updated system prompt to keep Claude from re-reading files unnecessarily
+
 ## [1.5.19]
 
 - Adds support for OpenAI compatible API providers (e.g. Ollama!)
