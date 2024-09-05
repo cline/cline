@@ -882,12 +882,13 @@ export class ClaudeDev {
 				} catch (error) {
 					console.log(`Could not open editor for ${absolutePath}: ${error}`)
 				}
+				await delay(50)
 				// Wait for the in-memory document to become the active editor (sometimes vscode timing issues happen and this would accidentally close claude dev!)
 				await pWaitFor(
 					() => {
 						return vscode.window.activeTextEditor?.document === inMemoryDocument
 					},
-					{ timeout: 5000, interval: 100 }
+					{ timeout: 5000, interval: 50 }
 				)
 
 				if (vscode.window.activeTextEditor?.document === inMemoryDocument) {
