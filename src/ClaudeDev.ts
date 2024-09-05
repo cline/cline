@@ -807,6 +807,14 @@ export class ClaudeDev {
 				.then(() => true)
 				.catch(() => false)
 
+			// if the file is already open, ensure it's not dirty before getting its contents
+			if (fileExists) {
+				const existingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === absolutePath)
+				if (existingDocument && existingDocument.isDirty) {
+					await existingDocument.save()
+				}
+			}
+
 			let originalContent: string
 			if (fileExists) {
 				originalContent = await fs.readFile(absolutePath, "utf-8")
@@ -821,6 +829,28 @@ export class ClaudeDev {
 
 			const fileName = path.basename(absolutePath)
 
+			// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+
+			// Keep track of newly created directories
+			const createdDirs: string[] = await this.createDirectoriesForFile(absolutePath)
+			console.log(`Created directories: ${createdDirs.join(", ")}`)
+			// make sure the file exists before we open it
+			if (!fileExists) {
+				await fs.writeFile(absolutePath, "")
+			}
+
+			// Open the existing file with the new contents
+			const updatedDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
+
+			// await updatedDocument.save()
+			// const edit = new vscode.WorkspaceEdit()
+			// const fullRange = new vscode.Range(
+			// 	updatedDocument.positionAt(0),
+			// 	updatedDocument.positionAt(updatedDocument.getText().length)
+			// )
+			// edit.replace(updatedDocument.uri, fullRange, newContent)
+			// await vscode.workspace.applyEdit(edit)
+
 			// Windows file locking issues can prevent temporary files from being saved or closed properly.
 			// To avoid these problems, we use in-memory TextDocument objects with the `untitled` scheme.
 			// This method keeps the document entirely in memory, bypassing the filesystem and ensuring
@@ -828,11 +858,11 @@ export class ClaudeDev {
 			// polluting the user's workspace with temporary files.
 
 			// Create an in-memory document for the new content
-			const inMemoryDocumentUri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
-			const inMemoryDocument = await vscode.workspace.openTextDocument(inMemoryDocumentUri)
-			const edit = new vscode.WorkspaceEdit()
-			edit.insert(inMemoryDocumentUri, new vscode.Position(0, 0), newContent)
-			await vscode.workspace.applyEdit(edit)
+			// const inMemoryDocumentUri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
+			// const inMemoryDocument = await vscode.workspace.openTextDocument(inMemoryDocumentUri)
+			// const edit = new vscode.WorkspaceEdit()
+			// edit.insert(inMemoryDocumentUri, new vscode.Position(0, 0), newContent)
+			// await vscode.workspace.applyEdit(edit)
 
 			// Show diff
 			await vscode.commands.executeCommand(
@@ -840,9 +870,37 @@ export class ClaudeDev {
 				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
 					query: Buffer.from(originalContent).toString("base64"),
 				}),
-				inMemoryDocument.uri,
+				updatedDocument.uri,
 				`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
 			)
+
+			// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+			let documentWasOpen = false
+
+			// close the tab if it's open
+			const tabs = vscode.window.tabGroups.all
+				.map((tg) => tg.tabs)
+				.flat()
+				.filter((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === absolutePath)
+			for (const tab of tabs) {
+				await vscode.window.tabGroups.close(tab)
+				console.log(`Closed tab for ${absolutePath}`)
+				documentWasOpen = true
+			}
+
+			console.log(`Document was open: ${documentWasOpen}`)
+
+			// edit needs to happen after we close the original tab
+			const edit = new vscode.WorkspaceEdit()
+			const fullRange = new vscode.Range(
+				updatedDocument.positionAt(0),
+				updatedDocument.positionAt(updatedDocument.getText().length)
+			)
+			edit.replace(updatedDocument.uri, fullRange, newContent)
+			// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
+			await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
+
+			// remove cursor from the document
 			await vscode.commands.executeCommand("workbench.action.focusSideBar")
 
 			let userResponse: {
@@ -871,35 +929,64 @@ export class ClaudeDev {
 			}
 			const { response, text, images } = userResponse
 
-			const closeInMemoryDocAndDiffViews = async () => {
-				// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
-				try {
-					await vscode.window.showTextDocument(inMemoryDocument, {
-						preview: false, // ensures it opens in non-preview tab (preview tabs are easily replaced)
-						preserveFocus: false,
-					})
-					// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
-				} catch (error) {
-					console.log(`Could not open editor for ${absolutePath}: ${error}`)
-				}
-				await delay(50)
-				// Wait for the in-memory document to become the active editor (sometimes vscode timing issues happen and this would accidentally close claude dev!)
-				await pWaitFor(
-					() => {
-						return vscode.window.activeTextEditor?.document === inMemoryDocument
-					},
-					{ timeout: 5000, interval: 50 }
-				)
+			// const closeInMemoryDocAndDiffViews = async () => {
+			// 	// ensure that the in-memory doc is active editor (this seems to fail on windows machines if its already active, so ignoring if there's an error as it's likely it's already active anyways)
+			// 	// try {
+			// 	// 	await vscode.window.showTextDocument(inMemoryDocument, {
+			// 	// 		preview: false, // ensures it opens in non-preview tab (preview tabs are easily replaced)
+			// 	// 		preserveFocus: false,
+			// 	// 	})
+			// 	// 	// await vscode.window.showTextDocument(inMemoryDocument.uri, { preview: true, preserveFocus: false })
+			// 	// } catch (error) {
+			// 	// 	console.log(`Could not open editor for ${absolutePath}: ${error}`)
+			// 	// }
+			// 	// await delay(50)
+			// 	// // Wait for the in-memory document to become the active editor (sometimes vscode timing issues happen and this would accidentally close claude dev!)
+			// 	// await pWaitFor(
+			// 	// 	() => {
+			// 	// 		return vscode.window.activeTextEditor?.document === inMemoryDocument
+			// 	// 	},
+			// 	// 	{ timeout: 5000, interval: 50 }
+			// 	// )
 
-				if (vscode.window.activeTextEditor?.document === inMemoryDocument) {
-					await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
-				}
+			// 	// if (vscode.window.activeTextEditor?.document === inMemoryDocument) {
+			// 	// 	await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor") // allows us to close the untitled doc without being prompted to save it
+			// 	// }
 
-				await this.closeDiffViews()
-			}
+			// 	await this.closeDiffViews()
+			// }
 
 			if (response !== "yesButtonTapped") {
-				await closeInMemoryDocAndDiffViews()
+				if (!fileExists) {
+					if (updatedDocument.isDirty) {
+						await updatedDocument.save()
+					}
+					await this.closeDiffViews()
+					await fs.unlink(absolutePath)
+					// Remove only the directories we created, in reverse order
+					for (let i = createdDirs.length - 1; i >= 0; i--) {
+						await fs.rmdir(createdDirs[i])
+						console.log(`Directory ${createdDirs[i]} has been deleted.`)
+					}
+					console.log(`File ${absolutePath} has been deleted.`)
+				} else {
+					// revert document
+					const edit = new vscode.WorkspaceEdit()
+					const fullRange = new vscode.Range(
+						updatedDocument.positionAt(0),
+						updatedDocument.positionAt(updatedDocument.getText().length)
+					)
+					edit.replace(updatedDocument.uri, fullRange, originalContent)
+					// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
+					await vscode.workspace.applyEdit(edit)
+					await updatedDocument.save()
+					console.log(`File ${absolutePath} has been reverted to its original content.`)
+					if (documentWasOpen) {
+						await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+					}
+					await this.closeDiffViews()
+				}
+
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
 					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
@@ -907,39 +994,63 @@ export class ClaudeDev {
 				return "The user denied this operation."
 			}
 
-			// Read the potentially edited content from the in-memory document
-			const editedContent = inMemoryDocument.getText()
-			if (!fileExists) {
-				await fs.mkdir(path.dirname(absolutePath), { recursive: true })
-				await fs.writeFile(absolutePath, "")
+			const editedContent = updatedDocument.getText()
+			if (updatedDocument.isDirty) {
+				await updatedDocument.save()
 			}
-			await closeInMemoryDocAndDiffViews()
+
+			// Read the potentially edited content from the document
+
+			// trigger an entry in the local history for the file
+			// if (fileExists) {
+			// 	await fs.writeFile(absolutePath, originalContent)
+			// 	const editor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			// 	const edit = new vscode.WorkspaceEdit()
+			// 	const fullRange = new vscode.Range(
+			// 		editor.document.positionAt(0),
+			// 		editor.document.positionAt(editor.document.getText().length)
+			// 	)
+			// 	edit.replace(editor.document.uri, fullRange, editedContent)
+			// 	// Apply the edit, this will trigger a local save and timeline history
+			// 	await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
+			// 	await editor.document.save()
+			// }
+
+			// if (!fileExists) {
+			// 	await fs.mkdir(path.dirname(absolutePath), { recursive: true })
+			// 	await fs.writeFile(absolutePath, "")
+			// }
+			// await closeInMemoryDocAndDiffViews()
 
 			// await fs.writeFile(absolutePath, editedContent)
 
 			// open file and add text to it, if it fails fallback to using writeFile
 			// we try doing it this way since it adds to local history for users to see what's changed in the file's timeline
-			try {
-				const editor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-				const edit = new vscode.WorkspaceEdit()
-				const fullRange = new vscode.Range(
-					editor.document.positionAt(0),
-					editor.document.positionAt(editor.document.getText().length)
-				)
-				edit.replace(editor.document.uri, fullRange, editedContent)
-				// Apply the edit, this will trigger a local save and timeline history
-				await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
-				await editor.document.save()
-			} catch (saveError) {
-				console.log(`Could not open editor for ${absolutePath}: ${saveError}`)
-				await fs.writeFile(absolutePath, editedContent)
-				// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
-				try {
-					await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
-				} catch (openFileError) {
-					console.log(`Could not open editor for ${absolutePath}: ${openFileError}`)
-				}
-			}
+			// try {
+			// 	const editor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			// 	const edit = new vscode.WorkspaceEdit()
+			// 	const fullRange = new vscode.Range(
+			// 		editor.document.positionAt(0),
+			// 		editor.document.positionAt(editor.document.getText().length)
+			// 	)
+			// 	edit.replace(editor.document.uri, fullRange, editedContent)
+			// 	// Apply the edit, this will trigger a local save and timeline history
+			// 	await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
+			// 	await editor.document.save()
+			// } catch (saveError) {
+			// 	console.log(`Could not open editor for ${absolutePath}: ${saveError}`)
+			// 	await fs.writeFile(absolutePath, editedContent)
+			// 	// calling showTextDocument would sometimes fail even though changes were applied, so we'll ignore these one-off errors (likely due to vscode locking issues)
+			// 	try {
+			// 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+			// 	} catch (openFileError) {
+			// 		console.log(`Could not open editor for ${absolutePath}: ${openFileError}`)
+			// 	}
+			// }
+
+			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+
+			await this.closeDiffViews()
 
 			// await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 
@@ -957,7 +1068,7 @@ export class ClaudeDev {
 						diff: this.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
 					} as ClaudeSayTool)
 				)
-				return `The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content was successfully saved to ${relPath}.`
+				return `The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath}.`
 			} else {
 				return `The content was successfully saved to ${relPath}.`
 			}
@@ -968,6 +1079,51 @@ export class ClaudeDev {
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return errorString
+		}
+	}
+
+	/**
+	 * Asynchronously creates all non-existing subdirectories for a given file path
+	 * and collects them in an array for later deletion.
+	 *
+	 * @param filePath - The full path to a file.
+	 * @returns A promise that resolves to an array of newly created directories.
+	 */
+	async createDirectoriesForFile(filePath: string): Promise<string[]> {
+		const newDirectories: string[] = []
+		const normalizedFilePath = path.normalize(filePath) // Normalize path for cross-platform compatibility
+		const directoryPath = path.dirname(normalizedFilePath)
+
+		let currentPath = directoryPath
+		const dirsToCreate: string[] = []
+
+		// Traverse up the directory tree and collect missing directories
+		while (!(await this.exists(currentPath))) {
+			dirsToCreate.push(currentPath)
+			currentPath = path.dirname(currentPath)
+		}
+
+		// Create directories from the topmost missing one down to the target directory
+		for (let i = dirsToCreate.length - 1; i >= 0; i--) {
+			await fs.mkdir(dirsToCreate[i])
+			newDirectories.push(dirsToCreate[i])
+		}
+
+		return newDirectories
+	}
+
+	/**
+	 * Helper function to check if a path exists.
+	 *
+	 * @param path - The path to check.
+	 * @returns A promise that resolves to true if the path exists, false otherwise.
+	 */
+	async exists(filePath: string): Promise<boolean> {
+		try {
+			await fs.access(filePath)
+			return true
+		} catch {
+			return false
 		}
 	}
 
