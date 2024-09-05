@@ -892,11 +892,15 @@ export class ClaudeDev {
 
 			// edit needs to happen after we close the original tab
 			const edit = new vscode.WorkspaceEdit()
-			const fullRange = new vscode.Range(
-				updatedDocument.positionAt(0),
-				updatedDocument.positionAt(updatedDocument.getText().length)
-			)
-			edit.replace(updatedDocument.uri, fullRange, newContent)
+			if (!fileExists) {
+				edit.insert(updatedDocument.uri, new vscode.Position(0, 0), newContent)
+			} else {
+				const fullRange = new vscode.Range(
+					updatedDocument.positionAt(0),
+					updatedDocument.positionAt(updatedDocument.getText().length)
+				)
+				edit.replace(updatedDocument.uri, fullRange, newContent)
+			}
 			// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
 			await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
 
