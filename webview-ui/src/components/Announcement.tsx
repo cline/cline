@@ -1,5 +1,6 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ApiConfiguration } from "../../../src/shared/api"
+import { memo } from "react"
 // import VSCodeButtonLink from "./VSCodeButtonLink"
 // import { getOpenRouterAuthUrl } from "./ApiOptions"
 // import { vscode } from "../utils/vscode"
@@ -89,4 +90,4 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 	)
 }
 
-export default Announcement
+export default memo(Announcement)

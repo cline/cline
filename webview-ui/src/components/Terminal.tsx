@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo, memo } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import stripAnsi from "strip-ansi"
 
@@ -14,7 +14,7 @@ Inspired by https://phuoc.ng/collection/mirror-a-text-area/create-your-own-custo
 Note: Even though vscode exposes var(--vscode-terminalCursor-foreground) it does not render in front of a color that isn't var(--vscode-terminal-background), and it turns out a lot of themes don't even define some/any of these terminal color variables. Very odd behavior, so try changing themes/color variables if you don't see the caret.
 */
 
-const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldAllowInput }) => {
+const Terminal = ({ rawOutput, handleSendStdin, shouldAllowInput }: TerminalProps) => {
 	const [userInput, setUserInput] = useState("")
 	const [isFocused, setIsFocused] = useState(false) // Initially not focused
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -348,4 +348,4 @@ const Terminal: React.FC<TerminalProps> = ({ rawOutput, handleSendStdin, shouldA
 	)
 }
 
-export default Terminal
+export default memo(Terminal)

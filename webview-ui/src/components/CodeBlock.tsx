@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { memo, useMemo } from "react"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { getLanguageFromPath } from "../utils/getLanguageFromPath"
 import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
@@ -67,6 +67,14 @@ interface CodeBlockProps {
 	onToggleExpand: () => void
 }
 
+/*
+We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
+^: Anchors the match to the start of the string.
+[^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
+The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
+*/
+const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+
 const CodeBlock = ({
 	code,
 	diff,
@@ -76,15 +84,6 @@ const CodeBlock = ({
 	isExpanded,
 	onToggleExpand,
 }: CodeBlockProps) => {
-	/*
-    We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
-
-    ^: Anchors the match to the start of the string.
-    [^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
-    The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
-    */
-	const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
-
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code]
@@ -168,5 +167,5 @@ const CodeBlock = ({
 		</div>
 	)
 }
-
-export default CodeBlock
+// memo does shallow comparison of props, so if you need it to re-render when a nested object changes, you need to pass a custom comparison function
+export default memo(CodeBlock)

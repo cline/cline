@@ -6,7 +6,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -31,7 +31,7 @@ interface ApiOptionsProps {
 	apiErrorMessage?: string
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage }) => {
+const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -550,4 +550,4 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	}
 }
 
-export default ApiOptions
+export default memo(ApiOptions)
