@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.5.32",
+  "version": "1.5.33",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.84.0"
@@ -146,7 +146,6 @@
     "diff": "^5.2.0",
     "execa": "^9.3.0",
     "globby": "^14.0.2",
-    "isbinaryfile": "^5.0.2",
     "mammoth": "^1.8.0",
     "openai": "^4.54.0",
     "os-name": "^6.0.0",
