@@ -14,6 +14,7 @@ export interface ApiHandlerOptions {
 	openAiApiKey?: string
 	openAiModelId?: string
 	ollamaModelId?: string
+	ollamaBaseUrl?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

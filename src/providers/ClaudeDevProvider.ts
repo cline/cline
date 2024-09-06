@@ -30,6 +30,7 @@ type GlobalStateKey =
 	| "openAiBaseUrl"
 	| "openAiModelId"
 	| "ollamaModelId"
+	| "ollamaBaseUrl"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -321,6 +322,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								openAiApiKey,
 								openAiModelId,
 								ollamaModelId,
+								ollamaBaseUrl,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -336,6 +338,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
+							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -385,6 +388,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "resetState":
 						await this.resetState()
 						break
+					case "requestOllamaModels":
+						const models = await this.getOllamaModels(message.text)
+						this.postMessageToWebview({ type: "ollamaModels", models })
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -392,6 +399,25 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	// Ollama
+
+	async getOllamaModels(baseUrl?: string) {
+		try {
+			if (!baseUrl) {
+				baseUrl = "http://localhost:11434"
+			}
+			if (!URL.canParse(baseUrl)) {
+				return []
+			}
+			const response = await axios.get(`${baseUrl}/api/tags`)
+			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+			const models = [...new Set<string>(modelsArray)]
+			return models
+		} catch (error) {
+			return []
+		}
 	}
 
 	// OpenRouter
@@ -627,6 +653,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			openAiApiKey,
 			openAiModelId,
 			ollamaModelId,
+			ollamaBaseUrl,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -646,6 +673,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
+			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -682,6 +710,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				openAiApiKey,
 				openAiModelId,
 				ollamaModelId,
+				ollamaBaseUrl,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
