@@ -52,9 +52,6 @@
     ]
   },
   "devDependencies": {
-    "@types/react-scroll": "^1.8.10",
-    "@types/react-syntax-highlighter": "^15.5.13",
-    "@types/react-text-truncate": "^0.14.4",
     "@types/vscode-webview": "^1.57.5"
   }
 }
