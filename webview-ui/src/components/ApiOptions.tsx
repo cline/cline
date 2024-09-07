@@ -5,6 +5,7 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
@@ -34,6 +35,7 @@ interface ApiOptionsProps {
 const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -126,10 +128,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
+
+					<div style={{ marginTop: 2 }}>
+						<VSCodeCheckbox
+							checked={anthropicBaseUrlSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAnthropicBaseUrlSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+								}
+							}}>
+							Use custom base URL
+						</VSCodeCheckbox>
+					</div>
+
+					{anthropicBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.anthropicBaseUrl || ""}
+							style={{ width: "100%", marginTop: 2 }}
+							type="url"
+							onInput={handleInputChange("anthropicBaseUrl")}
+							placeholder="Default: https://api.anthropic.com"
+						/>
+					)}
+
 					<p
 						style={{
 							fontSize: "12px",
-							marginTop: "5px",
+							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.

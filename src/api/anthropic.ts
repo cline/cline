@@ -8,7 +8,10 @@ export class AnthropicHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new Anthropic({ apiKey: this.options.apiKey })
+		this.client = new Anthropic({
+			apiKey: this.options.apiKey,
+			baseURL: this.options.anthropicBaseUrl || undefined,
+		})
 	}
 
 	async createMessage(
