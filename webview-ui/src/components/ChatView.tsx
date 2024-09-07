@@ -14,27 +14,19 @@ import ChatRow from "./ChatRow"
 import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
+import { normalizeApiConfiguration } from "./ApiOptions"
 
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
-	selectedModelSupportsImages: boolean
-	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-const ChatView = ({
-	isHidden,
-	showAnnouncement,
-	selectedModelSupportsImages,
-	selectedModelSupportsPromptCache,
-	hideAnnouncement,
-	showHistoryView,
-}: ChatViewProps) => {
-	const { version, claudeMessages: messages, taskHistory, apiConfiguration, uriScheme } = useExtensionState()
+const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const { version, claudeMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -313,12 +305,16 @@ const ChatView = ({
 		startNewTask()
 	}, [startNewTask])
 
+	const { selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration)
+	}, [apiConfiguration])
+
 	const selectImages = useCallback(() => {
 		vscode.postMessage({ type: "selectImages" })
 	}, [])
 
 	const shouldDisableImages =
-		!selectedModelSupportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+		!selectedModelInfo.supportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
 
 	const handlePaste = useCallback(
 		async (e: React.ClipboardEvent) => {
@@ -495,7 +491,7 @@ const ChatView = ({
 					task={task}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelSupportsPromptCache}
+					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
 					cacheWrites={apiMetrics.totalCacheWrites}
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
@@ -503,14 +499,7 @@ const ChatView = ({
 				/>
 			) : (
 				<>
-					{showAnnouncement && (
-						<Announcement
-							version={version}
-							hideAnnouncement={hideAnnouncement}
-							apiConfiguration={apiConfiguration}
-							vscodeUriScheme={uriScheme}
-						/>
-					)}
+					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>

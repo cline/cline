@@ -80,7 +80,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
-const CodeBlock = memo(function CodeBlock({ source }: { source?: string }) {
+const CodeBlock = memo(({ source }: { source?: string }) => {
 	const { theme } = useExtensionState()
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [

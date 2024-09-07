@@ -7,6 +7,7 @@ import CodeAccordian from "./CodeAccordian"
 import CodeBlock from "./CodeBlock"
 import Terminal from "./Terminal"
 import Thumbnails from "./Thumbnails"
+import deepEqual from "fast-deep-equal"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -17,17 +18,21 @@ interface ChatRowProps {
 	handleSendStdin: (text: string) => void
 }
 
-const ChatRow = memo((props: ChatRowProps) => {
-	// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
-	return (
-		<div
-			style={{
-				padding: "10px 6px 10px 15px",
-			}}>
-			<ChatRowContent {...props} />
-		</div>
-	)
-})
+const ChatRow = memo(
+	(props: ChatRowProps) => {
+		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
+		return (
+			<div
+				style={{
+					padding: "10px 6px 10px 15px",
+				}}>
+				<ChatRowContent {...props} />
+			</div>
+		)
+	},
+	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
+	deepEqual
+)
 
 export default ChatRow
 
