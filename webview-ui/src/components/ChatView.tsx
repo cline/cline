@@ -1,6 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
@@ -9,7 +8,6 @@ import { combineApiRequests } from "../../../src/shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_STDIN_STRING } from "../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../context/ExtensionStateContext"
-import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
@@ -36,14 +34,7 @@ const ChatView = ({
 	hideAnnouncement,
 	showHistoryView,
 }: ChatViewProps) => {
-	const {
-		version,
-		claudeMessages: messages,
-		taskHistory,
-		themeName: vscodeThemeName,
-		apiConfiguration,
-		uriScheme,
-	} = useExtensionState()
+	const { version, claudeMessages: messages, taskHistory, apiConfiguration, uriScheme } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -65,7 +56,6 @@ const ChatView = ({
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
-	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 
@@ -75,14 +65,6 @@ const ChatView = ({
 			[ts]: !prev[ts],
 		}))
 	}
-
-	useEffect(() => {
-		if (!vscodeThemeName) return
-		const theme = getSyntaxHighlighterStyleFromTheme(vscodeThemeName)
-		if (theme) {
-			setSyntaxHighlighterStyle(theme)
-		}
-	}, [vscodeThemeName])
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -486,7 +468,6 @@ const ChatView = ({
 			<ChatRow
 				key={message.ts}
 				message={message}
-				syntaxHighlighterStyle={syntaxHighlighterStyle}
 				isExpanded={expandedRows[message.ts] || false}
 				onToggleExpand={() => toggleRowExpansion(message.ts)}
 				lastModifiedMessage={modifiedMessages.at(-1)}
@@ -494,7 +475,7 @@ const ChatView = ({
 				handleSendStdin={handleSendStdin}
 			/>
 		),
-		[expandedRows, syntaxHighlighterStyle, modifiedMessages, visibleMessages.length, handleSendStdin]
+		[expandedRows, modifiedMessages, visibleMessages.length, handleSendStdin]
 	)
 
 	return (

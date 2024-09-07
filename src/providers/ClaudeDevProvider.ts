@@ -9,6 +9,7 @@ import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
+import { getTheme } from "../utils/getTheme"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -156,10 +157,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 		// Listen for when color changes
 		vscode.workspace.onDidChangeConfiguration(
-			(e) => {
+			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
 					// Sends latest theme name to webview
-					this.postStateToWebview()
+					await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
 				}
 			},
 			null,
@@ -293,6 +294,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				switch (message.type) {
 					case "webviewDidLaunch":
 						await this.postStateToWebview()
+						const theme = await getTheme()
+						await this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -543,7 +546,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
-			themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 			uriScheme: vscode.env.uriScheme,
 			claudeMessages: this.claudeDev?.claudeMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),

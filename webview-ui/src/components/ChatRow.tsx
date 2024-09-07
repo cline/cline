@@ -1,17 +1,15 @@
 import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
-import { SyntaxHighlighterStyle } from "../utils/getSyntaxHighlighterStyleFromTheme"
+import CodeAccordian from "./CodeAccordian"
 import CodeBlock from "./CodeBlock"
 import Terminal from "./Terminal"
 import Thumbnails from "./Thumbnails"
 
 interface ChatRowProps {
 	message: ClaudeMessage
-	syntaxHighlighterStyle: SyntaxHighlighterStyle
 	isExpanded: boolean
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
@@ -35,7 +33,6 @@ export default ChatRow
 
 const ChatRowContent = ({
 	message,
-	syntaxHighlighterStyle,
 	isExpanded,
 	onToggleExpand,
 	lastModifiedMessage,
@@ -165,10 +162,9 @@ const ChatRowContent = ({
 							{toolIcon("edit")}
 							<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							diff={tool.diff!}
 							path={tool.path!}
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -181,10 +177,9 @@ const ChatRowContent = ({
 							{toolIcon("new-file")}
 							<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -199,10 +194,9 @@ const ChatRowContent = ({
 								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
 							</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -219,11 +213,10 @@ const ChatRowContent = ({
 									: "Claude viewed the top level files in this directory:"}
 							</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
 							language="shell-session"
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -240,11 +233,10 @@ const ChatRowContent = ({
 									: "Claude recursively viewed all files in this directory:"}
 							</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
 							language="shell-session"
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -261,10 +253,9 @@ const ChatRowContent = ({
 									: "Claude viewed source code definition names used in this directory:"}
 							</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -287,11 +278,10 @@ const ChatRowContent = ({
 								)}
 							</span>
 						</div>
-						<CodeBlock
+						<CodeAccordian
 							code={tool.content!}
 							path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
 							language="plaintext"
-							syntaxHighlighterStyle={syntaxHighlighterStyle}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -365,10 +355,9 @@ const ChatRowContent = ({
 
 							{isExpanded && (
 								<div style={{ marginTop: "10px" }}>
-									<CodeBlock
+									<CodeAccordian
 										code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)}
 										language="json"
-										syntaxHighlighterStyle={syntaxHighlighterStyle}
 										isExpanded={true}
 										onToggleExpand={onToggleExpand}
 									/>
@@ -381,7 +370,7 @@ const ChatRowContent = ({
 				case "text":
 					return (
 						<div>
-							<Markdown syntaxHighlighterStyle={syntaxHighlighterStyle} markdown={message.text} />
+							<Markdown markdown={message.text} />
 						</div>
 					)
 				case "user_feedback":
@@ -421,10 +410,9 @@ const ChatRowContent = ({
 								}}>
 								The user made the following changes:
 							</span>
-							<CodeBlock
+							<CodeAccordian
 								diff={tool.diff!}
 								path={tool.path!}
-								syntaxHighlighterStyle={syntaxHighlighterStyle}
 								isExpanded={isExpanded}
 								onToggleExpand={onToggleExpand}
 							/>
@@ -450,7 +438,7 @@ const ChatRowContent = ({
 								{title}
 							</div>
 							<div style={{ color: "var(--vscode-charts-green)" }}>
-								<Markdown syntaxHighlighterStyle={syntaxHighlighterStyle} markdown={message.text} />
+								<Markdown markdown={message.text} />
 							</div>
 						</>
 					)
@@ -465,7 +453,7 @@ const ChatRowContent = ({
 								</div>
 							)}
 							<div>
-								<Markdown syntaxHighlighterStyle={syntaxHighlighterStyle} markdown={message.text} />
+								<Markdown markdown={message.text} />
 							</div>
 						</>
 					)
@@ -517,7 +505,7 @@ const ChatRowContent = ({
 									{title}
 								</div>
 								<div style={{ color: "var(--vscode-charts-green)" }}>
-									<Markdown syntaxHighlighterStyle={syntaxHighlighterStyle} markdown={message.text} />
+									<Markdown markdown={message.text} />
 								</div>
 							</div>
 						)
@@ -534,7 +522,7 @@ const ChatRowContent = ({
 								</div>
 							)}
 							<div>
-								<Markdown syntaxHighlighterStyle={syntaxHighlighterStyle} markdown={message.text} />
+								<Markdown markdown={message.text} />
 							</div>
 						</>
 					)
@@ -559,114 +547,94 @@ const ProgressIndicator = () => (
 	</div>
 )
 
-const Markdown = memo(
-	({ syntaxHighlighterStyle, markdown }: { syntaxHighlighterStyle: SyntaxHighlighterStyle; markdown?: string }) => {
-		// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
-		// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
-		const parsed = markdown?.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
-			return `_<thinking>_\n\n${content}\n\n_</thinking>_`
-		})
-		return (
-			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
-				<ReactMarkdown
-					children={parsed}
-					components={{
-						p(props) {
-							const { style, ...rest } = props
-							return (
-								<p
-									style={{
-										...style,
-										margin: 0,
-										marginTop: 0,
-										marginBottom: 0,
-										whiteSpace: "pre-wrap",
-										wordBreak: "break-word",
-										overflowWrap: "anywhere",
-									}}
-									{...rest}
+const Markdown = memo(({ markdown }: { markdown?: string }) => {
+	// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
+	// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
+	const parsed = markdown?.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
+		return `_<thinking>_\n\n${content}\n\n_</thinking>_`
+	})
+	return (
+		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
+			<ReactMarkdown
+				children={parsed}
+				components={{
+					p(props) {
+						const { style, ...rest } = props
+						return (
+							<p
+								style={{
+									...style,
+									margin: 0,
+									marginTop: 0,
+									marginBottom: 0,
+									whiteSpace: "pre-wrap",
+									wordBreak: "break-word",
+									overflowWrap: "anywhere",
+								}}
+								{...rest}
+							/>
+						)
+					},
+					ol(props) {
+						const { style, ...rest } = props
+						return (
+							<ol
+								style={{
+									...style,
+									padding: "0 0 0 20px",
+									margin: "10px 0",
+									wordBreak: "break-word",
+									overflowWrap: "anywhere",
+								}}
+								{...rest}
+							/>
+						)
+					},
+					ul(props) {
+						const { style, ...rest } = props
+						return (
+							<ul
+								style={{
+									...style,
+									padding: "0 0 0 20px",
+									margin: "10px 0",
+									wordBreak: "break-word",
+									overflowWrap: "anywhere",
+								}}
+								{...rest}
+							/>
+						)
+					},
+					// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
+					code(props) {
+						const { children, className, node, ...rest } = props
+						const match = /language-(\w+)/.exec(className || "")
+						return match ? (
+							<div
+								style={{
+									borderRadius: 3,
+									border: "1px solid var(--vscode-sideBar-border)",
+									overflow: "hidden",
+								}}>
+								<CodeBlock
+									source={`${"```"}${match[1]}\n${String(children).replace(/\n$/, "")}\n${"```"}`}
 								/>
-							)
-						},
-						ol(props) {
-							const { style, ...rest } = props
-							return (
-								<ol
-									style={{
-										...style,
-										padding: "0 0 0 20px",
-										margin: "10px 0",
-										wordBreak: "break-word",
-										overflowWrap: "anywhere",
-									}}
-									{...rest}
-								/>
-							)
-						},
-						ul(props) {
-							const { style, ...rest } = props
-							return (
-								<ul
-									style={{
-										...style,
-										padding: "0 0 0 20px",
-										margin: "10px 0",
-										wordBreak: "break-word",
-										overflowWrap: "anywhere",
-									}}
-									{...rest}
-								/>
-							)
-						},
-						// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
-						code(props) {
-							const { children, className, node, ...rest } = props
-							const match = /language-(\w+)/.exec(className || "")
-							return match ? (
-								<SyntaxHighlighter
-									{...(rest as any)} // will be passed down to pre
-									PreTag="div"
-									children={String(children).replace(/\n$/, "")}
-									language={match[1]}
-									style={{
-										...syntaxHighlighterStyle,
-										'code[class*="language-"]': {
-											background: "var(--vscode-editor-background)",
-										},
-										'pre[class*="language-"]': {
-											background: "var(--vscode-editor-background)",
-										},
-									}}
-									customStyle={{
-										overflowX: "auto",
-										overflowY: "hidden",
-										maxWidth: "100%",
-										margin: 0,
-										padding: "10px",
-										// important to note that min-width: max-content is not required here how it is in CodeBlock.tsx
-										borderRadius: 3,
-										border: "1px solid var(--vscode-sideBar-border)",
-										fontSize: "var(--vscode-editor-font-size)",
-										lineHeight: "var(--vscode-editor-line-height)",
-										fontFamily: "var(--vscode-editor-font-family)",
-									}}
-								/>
-							) : (
-								<code
-									{...rest}
-									className={className}
-									style={{
-										whiteSpace: "pre-line",
-										wordBreak: "break-word",
-										overflowWrap: "anywhere",
-									}}>
-									{children}
-								</code>
-							)
-						},
-					}}
-				/>
-			</div>
-		)
-	}
-)
+							</div>
+						) : (
+							<code
+								{...rest}
+								className={className}
+								style={{
+									whiteSpace: "pre-line",
+									wordBreak: "break-word",
+									overflowWrap: "anywhere",
+								}}>
+								{children}
+							</code>
+						)
+					},
+				}}
+			/>
+		</div>
+	)
+})
