@@ -146,7 +146,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					{anthropicBaseUrlSelected && (
 						<VSCodeTextField
 							value={apiConfiguration?.anthropicBaseUrl || ""}
-							style={{ width: "100%", marginTop: 2 }}
+							style={{ width: "100%", marginTop: 3 }}
 							type="url"
 							onInput={handleInputChange("anthropicBaseUrl")}
 							placeholder="Default: https://api.anthropic.com"
