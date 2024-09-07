@@ -541,6 +541,16 @@ export class ClaudeDev {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
+		// const lastClaudeMessage = this.claudeMessages[lastClaudeMessageIndex]
+		// could be a completion result with a command
+		// const secondLastClaudeMessage = this.claudeMessages
+		// 	.slice()
+		// 	.reverse()
+		// 	.find(
+		// 		(m, index) =>
+		// 			index !== lastClaudeMessageIndex && !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+		// 	)
+		// (lastClaudeMessage?.ask === "command" && secondLastClaudeMessage?.ask === "completion_result")
 
 		let askType: ClaudeAsk
 		if (lastClaudeMessage?.ask === "completion_result") {

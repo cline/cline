@@ -27,9 +27,13 @@ const StyledMarkdown = styled.div`
 	pre > code {
 		.hljs-deletion {
 			background-color: var(--vscode-diffEditor-removedTextBackground);
+			display: inline-block;
+			width: 100%;
 		}
 		.hljs-addition {
 			background-color: var(--vscode-diffEditor-insertedTextBackground);
+			display: inline-block;
+			width: 100%;
 		}
 	}
 

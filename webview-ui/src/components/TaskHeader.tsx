@@ -177,7 +177,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							color: "var(--vscode-textLink-foreground)",
 							marginLeft: "auto",
 							textAlign: "right",
-							paddingRight: 0,
+							paddingRight: 2,
 						}}
 						onClick={() => setIsExpanded(!isExpanded)}>
 						See less
