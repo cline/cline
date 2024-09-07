@@ -153,7 +153,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} style={{ margin: "5px 0 0 0" }}>
+						<VSCodeButtonLink
+							href={getOpenRouterAuthUrl(uriScheme)}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
 							Get OpenRouter API Key
 						</VSCodeButtonLink>
 					)}

@@ -444,7 +444,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		this.claudeDev?.updateApi({ apiProvider: openrouter, openRouterApiKey: apiKey })
-		await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
 	}
 
 	// Task history
