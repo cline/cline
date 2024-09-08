@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { EventEmitter } from "events"
-import delay from "delay"
+import pWaitFor from "p-wait-for"
 
 /*
 TerminalManager:
@@ -20,6 +20,14 @@ Enables flexible command execution:
 - Listen to real-time events
 - Continue execution in background
 - Retrieve missed output later
+
+Notes:
+- it turns out some shellIntegration APIs are available on cursor, although not on older versions of vscode
+- "By default, the shell integration script should automatically activate on supported shells launched from VS Code."
+Supported shells:
+Linux/macOS: bash, fish, pwsh, zsh
+Windows: pwsh
+
 
 Example:
 
@@ -41,77 +49,75 @@ process.continue();
 // Later, if you need to get the unretrieved output:
 const unretrievedOutput = terminalManager.getUnretrievedOutput(terminalId);
 console.log('Unretrieved output:', unretrievedOutput);
+
+Resources:
+- https://github.com/microsoft/vscode/issues/226655
+- https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api
+- https://code.visualstudio.com/docs/terminal/shell-integration
+- https://code.visualstudio.com/api/references/vscode-api#Terminal
+- https://github.com/microsoft/vscode-extension-samples/blob/main/terminal-sample/src/extension.ts
+- https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
 export class TerminalManager {
 	private terminals: TerminalInfo[] = []
 	private processes: Map<number, TerminalProcess> = new Map()
-	private context: vscode.ExtensionContext
 	private nextTerminalId = 1
-
-	constructor(context: vscode.ExtensionContext) {
-		this.context = context
-		this.setupListeners()
-	}
-
-	private setupListeners() {
-		// todo: make sure we do this check everywhere we use the new terminal APIs
-		if (hasShellIntegrationApis()) {
-			this.context.subscriptions.push(
-				vscode.window.onDidOpenTerminal(this.handleOpenTerminal.bind(this)),
-				vscode.window.onDidCloseTerminal(this.handleClosedTerminal.bind(this)),
-				vscode.window.onDidChangeTerminalShellIntegration(this.handleShellIntegrationChange.bind(this)),
-				vscode.window.onDidStartTerminalShellExecution(this.handleShellExecutionStart.bind(this)),
-				vscode.window.onDidEndTerminalShellExecution(this.handleShellExecutionEnd.bind(this))
-			)
-		}
-	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string, cwd: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
-
-		const process = new TerminalProcess(terminalInfo, command)
-
+		const process = new TerminalProcess()
 		this.processes.set(terminalInfo.id, process)
 
+		process.once("completed", () => {
+			console.log(`completed received for terminal ${terminalInfo.id}`)
+			terminalInfo.busy = false
+		})
+
 		const promise = new Promise<void>((resolve, reject) => {
-			process.once(CONTINUE_EVENT, () => {
-				console.log("2")
+			process.once("continue", () => {
+				console.log(`continue received for terminal ${terminalInfo.id}`)
 				resolve()
 			})
-			process.once("error", reject)
+			process.once("error", (error) => {
+				console.error(`Error in terminal ${terminalInfo.id}:`, error)
+				reject(error)
+			})
 		})
 
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
+			console.log(`Shell integration active for terminal ${terminalInfo.id}, running command immediately`)
 			process.waitForShellIntegration = false
-			process.run()
-		}
-
-		if (hasShellIntegrationApis()) {
-			// Fallback to sendText if there is no shell integration within 3 seconds of launching (could be because the user is not running one of the supported shells)
-			setTimeout(() => {
-				if (!terminalInfo.terminal.shellIntegration) {
-					process.waitForShellIntegration = false
-					process.run()
-					// Without shell integration, we can't know when the command has finished or what the
-					// exit code was.
-				}
-			}, 3000)
+			process.run(terminalInfo.terminal, command)
 		} else {
-			// User doesn't have shell integration API available, run command the old way
-			process.waitForShellIntegration = false
-			process.run()
+			console.log(`Waiting for shell integration for terminal ${terminalInfo.id}`)
+			// docs recommend waiting 3s for shell integration to activate
+			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
+				console.log(
+					`Shell integration ${
+						terminalInfo.terminal.shellIntegration ? "activated" : "not activated"
+					} for terminal ${terminalInfo.id}`
+				)
+
+				const existingProcess = this.processes.get(terminalInfo.id)
+				if (existingProcess && existingProcess.waitForShellIntegration) {
+					existingProcess.waitForShellIntegration = false
+					existingProcess.run(terminalInfo.terminal, command)
+				}
+			})
 		}
 
-		// Merge the process and promise
 		return mergePromise(process, promise)
 	}
 
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		const availableTerminal = this.terminals.find((t) => {
-			if (t.busy) {
+			// it seems even if you close the terminal, it can still be reused
+			const isDisposed = !t.terminal || t.terminal.exitStatus // The exit status of the terminal will be undefined while the terminal is active.
+			console.log(`Terminal ${t.id} isDisposed:`, isDisposed)
+			if (t.busy || isDisposed) {
 				return false
 			}
 			const terminalCwd = t.terminal.shellIntegration?.cwd // one of claude's commands could have changed the cwd of the terminal
@@ -121,7 +127,7 @@ export class TerminalManager {
 			return vscode.Uri.file(cwd).fsPath === terminalCwd.fsPath
 		})
 		if (availableTerminal) {
-			console.log("reusing terminal", availableTerminal.id)
+			console.log("Reusing terminal", availableTerminal.id)
 			return availableTerminal
 		}
 
@@ -140,61 +146,8 @@ export class TerminalManager {
 		return newTerminalInfo
 	}
 
-	private handleOpenTerminal(terminal: vscode.Terminal) {
-		console.log(`Terminal opened: ${terminal.name}`)
-	}
-
-	private handleClosedTerminal(terminal: vscode.Terminal) {
-		const index = this.terminals.findIndex((t) => t.terminal === terminal)
-		if (index !== -1) {
-			const terminalInfo = this.terminals[index]
-			this.terminals.splice(index, 1)
-			this.processes.delete(terminalInfo.id)
-		}
-		console.log(`Terminal closed: ${terminal.name}`)
-	}
-
-	private handleShellIntegrationChange(e: vscode.TerminalShellIntegrationChangeEvent) {
-		const terminalInfo = this.terminals.find((t) => t.terminal === e.terminal)
-		if (terminalInfo) {
-			const process = this.processes.get(terminalInfo.id)
-			if (process && process.waitForShellIntegration) {
-				process.waitForShellIntegration = false
-				process.run()
-			}
-			console.log(`Shell integration activated for terminal: ${e.terminal.name}`)
-		}
-	}
-
-	private handleShellExecutionStart(e: vscode.TerminalShellExecutionStartEvent) {
-		const terminalInfo = this.terminals.find((t) => t.terminal === e.terminal)
-		if (terminalInfo) {
-			terminalInfo.busy = true
-			terminalInfo.lastCommand = e.execution.commandLine.value
-			console.log(`Command started in terminal ${terminalInfo.id}: ${terminalInfo.lastCommand}`)
-		}
-	}
-
-	private handleShellExecutionEnd(e: vscode.TerminalShellExecutionEndEvent) {
-		const terminalInfo = this.terminals.find((t) => t.terminal === e.terminal)
-		if (terminalInfo) {
-			this.handleCommandCompletion(terminalInfo, e.exitCode)
-		}
-	}
-
-	private handleCommandCompletion(terminalInfo: TerminalInfo, exitCode?: number | undefined) {
-		terminalInfo.busy = false
-		console.log(
-			`Command "${terminalInfo.lastCommand}" in terminal ${terminalInfo.id} completed with exit code: ${exitCode}`
-		)
-	}
-
 	getBusyTerminals(): { id: number; lastCommand: string }[] {
 		return this.terminals.filter((t) => t.busy).map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
-	}
-
-	hasBusyTerminals(): boolean {
-		return this.terminals.some((t) => t.busy)
 	}
 
 	getUnretrievedOutput(terminalId: number): string {
@@ -206,17 +159,12 @@ export class TerminalManager {
 	}
 
 	disposeAll() {
-		for (const info of this.terminals) {
-			info.terminal.dispose() // todo do we want to do this? test with tab view closing it
-		}
+		// for (const info of this.terminals) {
+		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
+		// }
 		this.terminals = []
 		this.processes.clear()
 	}
-}
-
-function hasShellIntegrationApis(): boolean {
-	const [major, minor] = vscode.version.split(".").map(Number)
-	return major > 1 || (major === 1 && minor >= 93)
 }
 
 interface TerminalInfo {
@@ -226,54 +174,59 @@ interface TerminalInfo {
 	id: number
 }
 
-const CONTINUE_EVENT = "CONTINUE_EVENT"
+interface TerminalProcessEvents {
+	line: [line: string]
+	continue: []
+	completed: []
+	error: [error: Error]
+}
 
-export class TerminalProcess extends EventEmitter {
+export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
-	private execution?: vscode.TerminalShellExecution
-	private stream?: AsyncIterable<string>
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
 
-	constructor(public terminalInfo: TerminalInfo, private command: string) {
-		super()
-	}
+	// constructor() {
+	// 	super()
 
-	async run() {
-		if (this.terminalInfo.terminal.shellIntegration) {
-			this.execution = this.terminalInfo.terminal.shellIntegration.executeCommand(this.command)
-			this.stream = this.execution.read()
+	async run(terminal: vscode.Terminal, command: string) {
+		if (terminal.shellIntegration) {
+			console.log(`Shell integration available for terminal`)
+			const execution = terminal.shellIntegration.executeCommand(command)
+			const stream = execution.read()
 			// todo: need to handle errors
-			let isFirstChunk = true // ignore first chunk since it's vscode shell integration marker
-			for await (const data of this.stream) {
-				console.log("data", data)
-				if (!isFirstChunk) {
-					this.fullOutput += data
-					if (this.isListening) {
-						this.emitIfEol(data)
-						this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
-					}
-				} else {
-					isFirstChunk = false
+			for await (const data of stream) {
+				console.log(`Received data chunk for terminal:`, data)
+				this.fullOutput += data
+				if (this.isListening) {
+					console.log(`Emitting data for terminal`)
+					this.emitIfEol(data)
+					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
 			}
 
 			// Emit any remaining content in the buffer
 			if (this.buffer && this.isListening) {
+				console.log(`Emitting remaining buffer for terminal:`, this.buffer.trim())
 				this.emit("line", this.buffer.trim())
 				this.buffer = ""
 				this.lastRetrievedIndex = this.fullOutput.length
 			}
 
-			this.emit(CONTINUE_EVENT)
+			console.log(`Command execution completed for terminal`)
+			this.emit("continue")
+			this.emit("completed")
 		} else {
-			this.terminalInfo.terminal.sendText(this.command, true)
+			console.log(`Shell integration not available for terminal, falling back to sendText`)
+			terminal.sendText(command, true)
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
 			setTimeout(() => {
-				this.emit(CONTINUE_EVENT)
+				console.log(`Emitting continue after delay for terminal`)
+				this.emit("continue")
+				// can't emit completed since we don't if the command actually completed, it could still be running server
 			}, 2000) // Adjust this delay as needed
 		}
 	}
@@ -294,13 +247,17 @@ export class TerminalProcess extends EventEmitter {
 	}
 
 	continue() {
+		// Emit any remaining content in the buffer
+		if (this.buffer && this.isListening) {
+			console.log(`Emitting remaining buffer for terminal:`, this.buffer.trim())
+			this.emit("line", this.buffer.trim())
+			this.buffer = ""
+			this.lastRetrievedIndex = this.fullOutput.length
+		}
+
 		this.isListening = false
 		this.removeAllListeners("line")
-		this.emit(CONTINUE_EVENT)
-	}
-
-	isStillListening() {
-		return this.isListening
+		this.emit("continue")
 	}
 
 	getUnretrievedOutput(): string {

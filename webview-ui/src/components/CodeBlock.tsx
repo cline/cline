@@ -5,7 +5,7 @@ import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../context/ExtensionStateContext"
 
-const BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
+export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 
 /*
 overflowX: auto + inner div with padding results in an issue where the top/left/bottom padding renders but the right padding inside does not count as overflow as the width of the element is not exceeded. Once the inner div is outside the boundaries of the parent it counts as overflow.
@@ -15,12 +15,27 @@ this fixes the issue of right padding clipped off
 minWidth: "max-content",
 */
 
-const StyledMarkdown = styled.div`
+interface CodeBlockProps {
+	source?: string
+	forceWrap?: boolean
+}
+
+const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
+	${({ forceWrap }) =>
+		forceWrap &&
+		`
+    pre, code {
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+    }
+  `}
+
 	pre {
-		background-color: ${BG_COLOR};
+		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 5px;
 		margin: 0;
-		min-width: max-content;
+		min-width: ${({ forceWrap }) => (forceWrap ? "auto" : "max-content")};
 		padding: 10px 10px;
 	}
 
@@ -43,7 +58,7 @@ const StyledMarkdown = styled.div`
 		}
 		word-wrap: break-word;
 		border-radius: 5px;
-		background-color: ${BG_COLOR};
+		background-color: ${CODE_BLOCK_BG_COLOR};
 		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
 		font-family: var(--vscode-editor-font-family);
 	}
@@ -53,7 +68,7 @@ const StyledMarkdown = styled.div`
 		color: #f78383;
 	}
 
-	background-color: ${BG_COLOR};
+	background-color: ${CODE_BLOCK_BG_COLOR};
 	font-family: var(--vscode-font-family), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
 		Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 	font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
@@ -84,7 +99,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
-const CodeBlock = memo(({ source }: { source?: string }) => {
+const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 	const { theme } = useExtensionState()
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
@@ -121,11 +136,11 @@ const CodeBlock = memo(({ source }: { source?: string }) => {
 	return (
 		<div
 			style={{
-				overflowY: "auto",
-				maxHeight: "100%",
-				backgroundColor: BG_COLOR,
+				overflowY: forceWrap ? "visible" : "auto",
+				maxHeight: forceWrap ? "none" : "100%",
+				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown>{reactContent}</StyledMarkdown>
+			<StyledMarkdown forceWrap={forceWrap}>{reactContent}</StyledMarkdown>
 		</div>
 	)
 })

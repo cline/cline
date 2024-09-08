@@ -21,7 +21,7 @@ import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
 import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
-import { findLast, findLastIndex } from "./utils"
+import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { extractTextFromFile } from "./utils/extract-text"
@@ -281,7 +281,7 @@ export class ClaudeDev {
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
-		this.terminalManager = new TerminalManager(provider.context)
+		this.terminalManager = new TerminalManager()
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -445,31 +445,6 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 	}
 
-	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
-		return images
-			? images.map((dataUrl) => {
-					// data:image/png;base64,base64string
-					const [rest, base64] = dataUrl.split(",")
-					const mimeType = rest.split(":")[1].split(";")[0]
-					return {
-						type: "image",
-						source: { type: "base64", media_type: mimeType, data: base64 },
-					} as Anthropic.ImageBlockParam
-			  })
-			: []
-	}
-
-	private formatIntoToolResponse(text: string, images?: string[]): ToolResponse {
-		if (images && images.length > 0) {
-			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
-			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
-			// Placing images after text leads to better results
-			return [textBlock, ...imageBlocks]
-		} else {
-			return text
-		}
-	}
-
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new ClaudeDev client (otherwise webview would show stale messages from previous session)
@@ -486,21 +461,19 @@ export class ClaudeDev {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: this.api.createUserReadableRequest([
-					{
-						type: "text",
-						text: `${taskText}\n\n<potentially_relevant_details>(see getPotentiallyRelevantDetails in src/ClaudeDev.ts)</potentially_relevant_details>`,
-					},
-					...imageBlocks,
-				]),
+				request: `${taskText}\n\n<potentially_relevant_details>\nLoading...\n</potentially_relevant_details>`,
 			})
 		)
 		this.shouldSkipNextApiReqStartedMessage = true
-		this.getPotentiallyRelevantDetails(true).then(async (verboseDetails) => {
+		this.getInitialDetails().then(async (initialDetails) => {
+			const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
+			this.claudeMessages[lastApiReqIndex].text = JSON.stringify({ request: `${taskText}\n\n${initialDetails}` })
+			await this.saveClaudeMessages()
+			await this.providerRef.deref()?.postStateToWebview()
 			await this.initiateTaskLoop([
 				{
 					type: "text",
-					text: `${taskText}\n\n${verboseDetails}`, // cannot be sent with system prompt since it's cached and these details can change
+					text: `${taskText}\n\n${initialDetails}`, // cannot be sent with system prompt since it's cached and these details can change
 				},
 				...imageBlocks,
 			])
@@ -687,8 +660,7 @@ export class ClaudeDev {
 				: "") +
 			(newUserContentText
 				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>\n`
-				: "") +
-			`\n\n${await this.getPotentiallyRelevantDetails()}`
+				: "")
 
 		const newUserContentImages = newUserContent.filter((block) => block.type === "image")
 		const combinedModifiedOldUserContentWithNewUserContent: UserContent = (
@@ -781,21 +753,12 @@ export class ClaudeDev {
 
 	async writeToFile(relPath?: string, newContent?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use write_to_file without value for required parameter 'path'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("write_to_file", "path")
 		}
-
 		if (newContent === undefined) {
-			await this.say(
-				"error",
-				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to output token limits. Retrying...`
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'content'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("write_to_file", "content", relPath)
 		}
 		this.consecutiveMistakeCount = 0
 		try {
@@ -991,9 +954,9 @@ export class ClaudeDev {
 
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+					return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 				}
-				return "The user denied this operation."
+				return await this.formatToolDenied()
 			}
 
 			const editedContent = updatedDocument.getText()
@@ -1070,9 +1033,11 @@ export class ClaudeDev {
 						diff: this.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
 					} as ClaudeSayTool)
 				)
-				return `The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath}. Note this does not mean you need to re-write the file with the user's changes, they have already been applied to the file.`
+				return this.formatToolResult(
+					`The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath}. Note this does not mean you need to re-write the file with the user's changes, they have already been applied to the file.`
+				)
 			} else {
-				return `The content was successfully saved to ${relPath}.`
+				return this.formatToolResult(`The content was successfully saved to ${relPath}.`)
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
@@ -1080,7 +1045,7 @@ export class ClaudeDev {
 				"error",
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
@@ -1152,12 +1117,8 @@ export class ClaudeDev {
 
 	async readFile(relPath?: string): Promise<ToolResponse> {
 		if (relPath === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use read_file without value for required parameter 'path'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("read_file", "path")
 		}
 		this.consecutiveMistakeCount = 0
 		try {
@@ -1176,9 +1137,9 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+						return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 					}
-					return "The user denied this operation."
+					return await this.formatToolDenied()
 				}
 			}
 
@@ -1189,18 +1150,14 @@ export class ClaudeDev {
 				"error",
 				`Error reading file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
 	async listFiles(relDirPath?: string, recursiveRaw?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use list_files without value for required parameter 'path'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("list_files", "path")
 		}
 		this.consecutiveMistakeCount = 0
 		try {
@@ -1221,13 +1178,13 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+						return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 					}
-					return "The user denied this operation."
+					return await this.formatToolDenied()
 				}
 			}
 
-			return result
+			return this.formatToolResult(result)
 		} catch (error) {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
 			await this.say(
@@ -1236,7 +1193,7 @@ export class ClaudeDev {
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
@@ -1301,12 +1258,8 @@ export class ClaudeDev {
 
 	async listCodeDefinitionNames(relDirPath?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use list_code_definition_names without value for required parameter 'path'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("list_code_definition_names", "path")
 		}
 		this.consecutiveMistakeCount = 0
 		try {
@@ -1325,13 +1278,13 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+						return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 					}
-					return "The user denied this operation."
+					return await this.formatToolDenied()
 				}
 			}
 
-			return result
+			return this.formatToolResult(result)
 		} catch (error) {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
 			await this.say(
@@ -1340,26 +1293,18 @@ export class ClaudeDev {
 					error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
 	async searchFiles(relDirPath: string, regex: string, filePattern?: string): Promise<ToolResponse> {
 		if (relDirPath === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use search_files without value for required parameter 'path'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'path'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("search_files", "path")
 		}
 		if (regex === undefined) {
-			await this.say(
-				"error",
-				`Claude tried to use search_files without value for required parameter 'regex'. Retrying...`
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'regex'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("search_files", "regex", relDirPath)
 		}
 		this.consecutiveMistakeCount = 0
 		try {
@@ -1381,40 +1326,36 @@ export class ClaudeDev {
 				if (response !== "yesButtonTapped") {
 					if (response === "messageResponse") {
 						await this.say("user_feedback", text, images)
-						return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+						return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 					}
-					return "The user denied this operation."
+					return await this.formatToolDenied()
 				}
 			}
 
-			return results
+			return this.formatToolResult(results)
 		} catch (error) {
 			const errorString = `Error searching files: ${JSON.stringify(serializeError(error))}`
 			await this.say(
 				"error",
 				`Error searching files:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
 	async executeCommand(command?: string, returnEmptyStringOnSuccess: boolean = false): Promise<ToolResponse> {
 		if (command === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use execute_command without value for required parameter 'command'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'command'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("execute_command", "command")
 		}
 		this.consecutiveMistakeCount = 0
 		const { response, text, images } = await this.ask("command", command)
 		if (response !== "yesButtonTapped") {
 			if (response === "messageResponse") {
 				await this.say("user_feedback", text, images)
-				return this.formatIntoToolResponse(await this.formatGenericToolFeedback(text), images)
+				return this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
 			}
-			return "The user denied this operation."
+			return await this.formatToolDenied()
 		}
 
 		try {
@@ -1439,7 +1380,7 @@ export class ClaudeDev {
 
 			let result = ""
 			process.on("line", (line) => {
-				console.log("sending line from here", line)
+				console.log("New line from process:", line)
 				result += line
 				sendCommandOutput(line)
 			})
@@ -1455,10 +1396,8 @@ export class ClaudeDev {
 
 			if (userFeedback) {
 				await this.say("user_feedback", userFeedback.text, userFeedback.images)
-				return this.formatIntoToolResponse(
-					`Command Output:\n${result}\n\nThe user interrupted the command and provided the following feedback:\n<feedback>\n${
-						userFeedback.text
-					}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`,
+				return this.formatToolResponseWithImages(
+					`Command Output:\n${result}\n\nThe user interrupted the command and provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images
 				)
 			}
@@ -1467,39 +1406,31 @@ export class ClaudeDev {
 			if (returnEmptyStringOnSuccess) {
 				return ""
 			}
-			return `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`
+			return await this.formatToolResult(`Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`)
 		} catch (error) {
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
 			await this.say("error", `Error executing command:\n${errorMessage}`)
-			return errorString
+			return await this.formatToolError(errorString)
 		}
 	}
 
 	async askFollowupQuestion(question?: string): Promise<ToolResponse> {
 		if (question === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use ask_followup_question without value for required parameter 'question'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'question'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("ask_followup_question", "question")
 		}
 		this.consecutiveMistakeCount = 0
 		const { text, images } = await this.ask("followup", question)
 		await this.say("user_feedback", text ?? "", images)
-		return this.formatIntoToolResponse(`<answer>\n${text}\n</answer>`, images)
+		return this.formatToolResponseWithImages(`<answer>\n${text}\n</answer>`, images)
 	}
 
 	async attemptCompletion(result?: string, command?: string): Promise<ToolResponse> {
 		// result is required, command is optional
 		if (result === undefined) {
-			await this.say(
-				"error",
-				"Claude tried to use attempt_completion without value for required parameter 'result'. Retrying..."
-			)
 			this.consecutiveMistakeCount++
-			return "Error: Missing value for required parameter 'result'. Please retry with complete response."
+			return await this.sayAndCreateMissingParamError("attempt_completion", "result")
 		}
 		this.consecutiveMistakeCount = 0
 		let resultToSend = result
@@ -1518,8 +1449,8 @@ export class ClaudeDev {
 			return "" // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
 		}
 		await this.say("user_feedback", text ?? "", images)
-		return this.formatIntoToolResponse(
-			`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`,
+		return this.formatToolResponseWithImages(
+			`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
 			images
 		)
 	}
@@ -1600,7 +1531,7 @@ ${this.customInstructions.trim()}
 					...[
 						{
 							type: "text",
-							text: `You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${text}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`,
+							text: `You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${text}\n</feedback>`,
 						} as Anthropic.Messages.TextBlockParam,
 						...this.formatImagesIntoBlocks(images),
 					]
@@ -1609,15 +1540,15 @@ ${this.customInstructions.trim()}
 			this.consecutiveMistakeCount = 0
 		}
 
+		// add potentially relevant details as its own text block, separate from tool results
+		userContent.push({ type: "text", text: await this.getPotentiallyRelevantDetails() })
+
 		await this.addToApiConversationHistory({ role: "user", content: userContent })
 
 		if (!this.shouldSkipNextApiReqStartedMessage) {
 			await this.say(
 				"api_req_started",
-				// what the user sees in the webview
-				JSON.stringify({
-					request: this.api.createUserReadableRequest(userContent),
-				})
+				JSON.stringify({ request: userContent.map(formatContentBlockToMarkdown).join("\n\n") })
 			)
 		} else {
 			this.shouldSkipNextApiReqStartedMessage = false
@@ -1748,9 +1679,50 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	// Prompts
+	// Formatting responses to Claude
 
-	async getPotentiallyRelevantDetails(verbose: boolean = false) {
+	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
+		return images
+			? images.map((dataUrl) => {
+					// data:image/png;base64,base64string
+					const [rest, base64] = dataUrl.split(",")
+					const mimeType = rest.split(":")[1].split(";")[0]
+					return {
+						type: "image",
+						source: { type: "base64", media_type: mimeType, data: base64 },
+					} as Anthropic.ImageBlockParam
+			  })
+			: []
+	}
+
+	private formatToolResponseWithImages(text: string, images?: string[]): ToolResponse {
+		if (images && images.length > 0) {
+			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
+			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
+			// Placing images after text leads to better results
+			return [textBlock, ...imageBlocks]
+		} else {
+			return text
+		}
+	}
+
+	async getInitialDetails() {
+		let details = "<potentially_relevant_details>"
+
+		const isDesktop = cwd === path.join(os.homedir(), "Desktop")
+		const files = await listFiles(cwd, !isDesktop)
+		const result = this.formatFilesList(cwd, files)
+		details += `\n# Current Working Directory ('${cwd}') File Structure:${
+			isDesktop
+				? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
+				: ""
+		}\n${result}\n`
+
+		details += "</potentially_relevant_details>"
+		return details
+	}
+
+	async getPotentiallyRelevantDetails() {
 		let details = `<potentially_relevant_details>
 # VSCode Visible Files:
 ${
@@ -1769,25 +1741,76 @@ ${
 		.filter(Boolean)
 		.map((absolutePath) => path.relative(cwd, absolutePath))
 		.join("\n") || "(No tabs open)"
-}
-`
+}`
 
-		if (verbose) {
-			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
-			const files = await listFiles(cwd, !isDesktop)
-			const result = this.formatFilesList(cwd, files)
-			details += `\n# Current Working Directory ('${cwd}') File Structure:${
-				isDesktop
-					? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
-					: ""
-			}:\n${result}\n`
+		const busyTerminals = this.terminalManager.getBusyTerminals()
+		if (busyTerminals.length > 0) {
+			details += "\n\n# Active Terminals:"
+			for (const busyTerminal of busyTerminals) {
+				details += `\n## Original command:\n${busyTerminal.lastCommand}`
+				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
+				if (newOutput) {
+					details += `\n## New output since last check:\n${newOutput}`
+				}
+			}
 		}
 
-		details += "</potentially_relevant_details>"
+		// Get diagnostics for all open files in the workspace
+		const diagnostics = vscode.languages.getDiagnostics()
+		const relevantDiagnostics = diagnostics.filter(([_, fileDiagnostics]) =>
+			fileDiagnostics.some(
+				(d) =>
+					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
+			)
+		)
+
+		if (relevantDiagnostics.length > 0) {
+			details += "\n\n# Workspace Diagnostics:"
+			for (const [uri, fileDiagnostics] of relevantDiagnostics) {
+				const relativePath = path.relative(cwd, uri.fsPath)
+				details += `\n## ${relativePath}:`
+				for (const diagnostic of fileDiagnostics) {
+					if (
+						diagnostic.severity === vscode.DiagnosticSeverity.Error ||
+						diagnostic.severity === vscode.DiagnosticSeverity.Warning
+					) {
+						let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+						const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+						details += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
+					}
+				}
+			}
+		}
+
+		details += "\n</potentially_relevant_details>"
 		return details
 	}
 
-	async formatGenericToolFeedback(feedback?: string) {
-		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>\n\n${await this.getPotentiallyRelevantDetails()}`
+	async formatToolDeniedFeedback(feedback?: string) {
+		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`
+	}
+
+	async formatToolDenied() {
+		return `The user denied this operation.`
+	}
+
+	async formatToolResult(result: string) {
+		return result // the successful result of the tool should never be manipulated, if we need to add details it should be as a separate user text block
+	}
+
+	async formatToolError(error?: string) {
+		return `The tool execution failed with the following error:\n<error>\n${error}\n</error>`
+	}
+
+	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
+		await this.say(
+			"error",
+			`Claude tried to use ${toolName}${
+				relPath ? ` for '${relPath}'` : ""
+			} without value for required parameter '${paramName}'. Retrying...`
+		)
+		return await this.formatToolError(
+			`Missing value for required parameter '${paramName}'. Please retry with complete response.`
+		)
 	}
 }

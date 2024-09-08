@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown"
 import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
 import CodeAccordian from "./CodeAccordian"
-import CodeBlock from "./CodeBlock"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
 
 interface ChatRowProps {
@@ -352,8 +352,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{isExpanded && (
 								<div style={{ marginTop: "10px" }}>
 									<CodeAccordian
-										code={JSON.stringify(JSON.parse(message.text || "{}").request, null, 2)}
-										language="json"
+										code={JSON.parse(message.text || "{}").request}
+										language="markdown"
 										isExpanded={true}
 										onToggleExpand={onToggleExpand}
 									/>
@@ -516,19 +516,32 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									borderRadius: 3,
 									border: "1px solid var(--vscode-sideBar-border)",
 									overflow: "hidden",
+									backgroundColor: CODE_BLOCK_BG_COLOR,
 								}}>
-								<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} />
+								<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
+								{output.length > 0 && (
+									<div style={{ width: "100%" }}>
+										<div
+											onClick={onToggleExpand}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "4px",
+												width: "100%",
+												justifyContent: "flex-start",
+												cursor: "pointer",
+												padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
+											}}>
+											<span
+												className={`codicon codicon-chevron-${
+													isExpanded ? "down" : "right"
+												}`}></span>
+											<span style={{ fontSize: "0.8em" }}>Command Output</span>
+										</div>
+										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
+									</div>
+								)}
 							</div>
-							{output.length > 0 && (
-								<div
-									style={{
-										borderRadius: 3,
-										border: "1px solid var(--vscode-sideBar-border)",
-										overflow: "hidden",
-									}}>
-									<CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />
-								</div>
-							)}
 						</>
 					)
 				case "completion_result":

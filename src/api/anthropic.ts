@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../shared/api"
 
 export class AnthropicHandler implements ApiHandler {
@@ -96,24 +96,6 @@ export class AnthropicHandler implements ApiHandler {
 				})
 				return { message }
 			}
-		}
-	}
-
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any {
-		return {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
-			tools: "(see tools in src/ClaudeDev.ts)",
-			tool_choice: { type: "auto" },
 		}
 	}
 

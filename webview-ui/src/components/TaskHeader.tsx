@@ -109,7 +109,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						justifyContent: "space-between",
 						alignItems: "center",
 					}}>
-					<span style={{ fontWeight: "bold", fontSize: "16px" }}>Task</span>
+					<span style={{ fontWeight: "bold" }}>Task</span>
 					<VSCodeButton
 						appearance="icon"
 						onClick={onClose}

@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "."
 import {
 	ApiHandlerOptions,
 	ModelInfo,
@@ -175,24 +175,6 @@ export class OpenRouterHandler implements ApiHandler {
 		}
 
 		return completion
-	}
-
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any {
-		return {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
-			tools: "(see tools in src/ClaudeDev.ts)",
-			tool_choice: "auto",
-		}
 	}
 
 	getModel(): { id: OpenRouterModelId; info: ModelInfo } {

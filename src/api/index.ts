@@ -19,15 +19,6 @@ export interface ApiHandler {
 		tools: Anthropic.Messages.Tool[]
 	): Promise<ApiHandlerMessageResponse>
 
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any
-
 	getModel(): { id: string; info: ModelInfo }
 }
 
@@ -49,32 +40,4 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 		default:
 			return new AnthropicHandler(options)
 	}
-}
-
-export function withoutImageData(
-	userContent: Array<
-		| Anthropic.TextBlockParam
-		| Anthropic.ImageBlockParam
-		| Anthropic.ToolUseBlockParam
-		| Anthropic.ToolResultBlockParam
-	>
-): Array<
-	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
-> {
-	return userContent.map((part) => {
-		if (part.type === "image") {
-			return { ...part, source: { ...part.source, data: "..." } }
-		} else if (part.type === "tool_result" && typeof part.content !== "string") {
-			return {
-				...part,
-				content: part.content?.map((contentPart) => {
-					if (contentPart.type === "image") {
-						return { ...contentPart, source: { ...contentPart.source, data: "..." } }
-					}
-					return contentPart
-				}),
-			}
-		}
-		return part
-	})
 }
