@@ -22,7 +22,6 @@
     "react-virtuoso": "^4.7.13",
     "rehype-highlight": "^7.0.0",
     "rewire": "^7.0.0",
-    "strip-ansi": "^7.1.0",
     "styled-components": "^6.1.13",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"

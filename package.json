@@ -122,7 +122,7 @@
     "@types/diff": "^5.2.1",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
-    "@types/vscode": "^1.82.0",
+    "@types/vscode": "^1.93.0",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",
     "@vscode/test-cli": "^0.0.9",
@@ -144,7 +144,6 @@
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
     "diff": "^5.2.0",
-    "execa": "^9.3.0",
     "globby": "^14.0.2",
     "mammoth": "^1.8.0",
     "monaco-vscode-textmate-theme-converter": "^0.1.7",
@@ -153,7 +152,6 @@
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
     "serialize-error": "^11.0.3",
-    "tree-kill": "^1.2.2",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.22.6"
   }

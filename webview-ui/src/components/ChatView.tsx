@@ -5,7 +5,7 @@ import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_STDIN_STRING } from "../../../src/shared/combineCommandSequences"
+import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
@@ -118,7 +118,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setTextAreaDisabled(false)
 							setClaudeAsk("command_output")
 							setEnableButtons(true)
-							setPrimaryButtonText("Exit Command")
+							setPrimaryButtonText("Proceed While Running")
 							setSecondaryButtonText(undefined)
 							break
 						case "completion_result":
@@ -223,23 +223,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 		}
 	}, [inputValue, selectedImages, messages.length, claudeAsk])
-
-	const handleSendStdin = useCallback(
-		(text: string) => {
-			if (claudeAsk === "command_output") {
-				vscode.postMessage({
-					type: "askResponse",
-					askResponse: "messageResponse",
-					text: COMMAND_STDIN_STRING + text,
-				})
-				setClaudeAsk(undefined)
-				// don't need to disable since extension relinquishes control back immediately
-				// setTextAreaDisabled(true)
-				// setEnableButtons(false)
-			}
-		},
-		[claudeAsk]
-	)
 
 	const startNewTask = useCallback(() => {
 		vscode.postMessage({ type: "clearTask" })
@@ -468,10 +451,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onToggleExpand={() => toggleRowExpansion(message.ts)}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				isLast={index === visibleMessages.length - 1}
-				handleSendStdin={handleSendStdin}
 			/>
 		),
-		[expandedRows, modifiedMessages, visibleMessages.length, handleSendStdin]
+		[expandedRows, modifiedMessages, visibleMessages.length]
 	)
 
 	return (

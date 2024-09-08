@@ -2,14 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import defaultShell from "default-shell"
 import delay from "delay"
 import * as diff from "diff"
-import { execa, ExecaError, ResultPromise } from "execa"
 import fs from "fs/promises"
 import os from "os"
 import osName from "os-name"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
-import treeKill from "tree-kill"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "./api"
 import { LIST_FILES_LIMIT, listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
@@ -17,7 +15,7 @@ import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
 import { combineApiRequests } from "./shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_STDIN_STRING } from "./shared/combineCommandSequences"
+import { combineCommandSequences } from "./shared/combineCommandSequences"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "./shared/ExtensionMessage"
 import { getApiMetrics } from "./shared/getApiMetrics"
 import { HistoryItem } from "./shared/HistoryItem"
@@ -28,6 +26,7 @@ import { truncateHalfConversation } from "./utils/context-management"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { extractTextFromFile } from "./utils/extract-text"
 import { getPythonEnvPath } from "./utils/get-python-env"
+import { TerminalManager } from "./integrations/TerminalManager"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -257,6 +256,7 @@ type UserContent = Array<
 export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
+	private terminalManager: TerminalManager
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
@@ -265,7 +265,6 @@ export class ClaudeDev {
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
-	private executeCommandRunningProcess?: ResultPromise
 	private consecutiveMistakeCount: number = 0
 	private shouldSkipNextApiReqStartedMessage = false
 	private providerRef: WeakRef<ClaudeDevProvider>
@@ -282,6 +281,7 @@ export class ClaudeDev {
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
+		this.terminalManager = new TerminalManager(provider.context)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -731,10 +731,7 @@ export class ClaudeDev {
 
 	abortTask() {
 		this.abort = true // will stop any autonomously running promises
-		const runningProcessId = this.executeCommandRunningProcess?.pid
-		if (runningProcessId) {
-			treeKill(runningProcessId, "SIGTERM")
-		}
+		this.terminalManager.disposeAll()
 	}
 
 	async executeTool(toolName: ToolName, toolInput: any): Promise<ToolResponse> {
@@ -1420,92 +1417,41 @@ export class ClaudeDev {
 			return "The user denied this operation."
 		}
 
-		let userFeedback: { text?: string; images?: string[] } | undefined
-		const sendCommandOutput = async (subprocess: ResultPromise, line: string): Promise<void> => {
-			try {
-				const { response, text, images } = await this.ask("command_output", line)
-				const isStdin = (text ?? "").startsWith(COMMAND_STDIN_STRING)
-				// if this ask promise is not ignored, that means the user responded to it somehow either by clicking primary button or by typing text
-				if (response === "yesButtonTapped") {
-					// SIGINT is typically what's sent when a user interrupts a process (like pressing Ctrl+C)
-					/*
-					.kill sends SIGINT by default. However by not passing any options into .kill(), execa internally sends a SIGKILL after a grace period if the SIGINT failed.
-					however it turns out that even this isn't enough for certain processes like npm starting servers. therefore we use the tree-kill package to kill all processes in the process tree, including the root process.
-					- Sends signal to all children processes of the process with pid pid, including pid. Signal defaults to SIGTERM.
-					*/
-					if (subprocess.pid) {
-						//subprocess.kill("SIGINT") // will result in for loop throwing error
-						treeKill(subprocess.pid, "SIGINT")
-					}
-				} else {
-					if (isStdin) {
-						const stdin = text?.slice(COMMAND_STDIN_STRING.length) ?? ""
+		try {
+			const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+			terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
+			const process = this.terminalManager.runCommand(terminalInfo, command, cwd)
 
-						// replace last commandoutput with + stdin
-						const lastCommandOutput = findLastIndex(this.claudeMessages, (m) => m.ask === "command_output")
-						if (lastCommandOutput !== -1) {
-							this.claudeMessages[lastCommandOutput].text += stdin
-						}
-
-						// if the user sent some input, we send it to the command stdin
-						// add newline as cli programs expect a newline after each input
-						// (stdin needs to be set to `pipe` to send input to the command, execa does this by default when using template literals - other options are inherit (from parent process stdin) or null (no stdin))
-						subprocess.stdin?.write(stdin + "\n")
-						// Recurse with an empty string to continue listening for more input
-						sendCommandOutput(subprocess, "") // empty strings are effectively ignored by the webview, this is done solely to relinquish control over the exit command button
+			let userFeedback: { text?: string; images?: string[] } | undefined
+			const sendCommandOutput = async (line: string): Promise<void> => {
+				try {
+					const { response, text, images } = await this.ask("command_output", line)
+					if (response === "yesButtonTapped") {
+						// proceed while running
 					} else {
 						userFeedback = { text, images }
-						if (subprocess.pid) {
-							treeKill(subprocess.pid, "SIGINT")
-						}
 					}
+					process.continue() // continue past the await
+				} catch {
+					// This can only happen if this ask promise was ignored, so ignore this error
 				}
-			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
 			}
-		}
 
-		try {
 			let result = ""
-			// execa by default tries to convert bash into javascript, so need to specify `shell: true` to use sh on unix or cmd.exe on windows
-			// also worth noting that execa`input` and the execa(command) have nuanced differences like the template literal version handles escaping for you, while with the function call, you need to be more careful about how arguments are passed, especially when using shell: true.
-			// execa returns a promise-like object that is both a promise and a Subprocess that has properties like stdin
-			const subprocess = execa({ shell: true, cwd: cwd })`${command}`
-			this.executeCommandRunningProcess = subprocess
-
-			subprocess.stdout?.on("data", (data) => {
-				if (data) {
-					const output = data.toString()
-					// stream output to user in realtime
-					// do not await since it's sent as an ask and we are not waiting for a response
-					sendCommandOutput(subprocess, output)
-					result += output
-				}
+			process.on("line", (line) => {
+				console.log("sending line from here", line)
+				result += line
+				sendCommandOutput(line)
 			})
 
-			try {
-				await subprocess
-				// NOTE: using for await to stream execa output does not return lines that expect user input, so we use listen to the stdout stream and handle data directly, allowing us to process output as soon as it's available even before a full line is complete.
-				// for await (const chunk of subprocess) {
-				// 	const line = chunk.toString()
-				// 	sendCommandOutput(subprocess, line)
-				// 	result += `${line}\n`
-				// }
-			} catch (e) {
-				if ((e as ExecaError).signal === "SIGINT") {
-					//await this.say("command_output", `\nUser exited command...`)
-					result += `\n====\nUser terminated command process via SIGINT. This is not an error. Please continue with your task, but keep in mind that the command is no longer running. For example, if this command was used to start a server for a react app, the server is no longer running and you cannot open a browser to view it anymore.`
-				} else {
-					throw e // if the command was not terminated by user, let outer catch handle it as a real error
-				}
-			}
+			await process
+
 			// Wait for a short delay to ensure all messages are sent to the webview
 			// This delay allows time for non-awaited promises to be created and
 			// for their associated messages to be sent to the webview, maintaining
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
-			await delay(100)
-			this.executeCommandRunningProcess = undefined
+			await delay(10)
 
 			if (userFeedback) {
 				await this.say("user_feedback", userFeedback.text, userFeedback.images)
@@ -1522,12 +1468,10 @@ export class ClaudeDev {
 				return ""
 			}
 			return `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`
-		} catch (e) {
-			const error = e as any
+		} catch (error) {
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
-			await this.say("error", `Error executing command:\n${errorMessage}`) // TODO: in webview show code block for command errors
-			this.executeCommandRunningProcess = undefined
+			await this.say("error", `Error executing command:\n${errorMessage}`)
 			return errorString
 		}
 	}
