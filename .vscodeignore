@@ -37,3 +37,6 @@ webview-ui/node_modules/**
 
 # Include default themes JSON files used in getTheme
 !src/utils/default-themes/**
+
+# Include icons
+!icons/**

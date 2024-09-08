@@ -44,7 +44,6 @@ console.log('Unretrieved output:', unretrievedOutput);
 */
 
 export class TerminalManager {
-	private static readonly TERMINAL_NAME = "Claude Dev"
 	private terminals: TerminalInfo[] = []
 	private processes: Map<number, TerminalProcess> = new Map()
 	private context: vscode.ExtensionContext
@@ -127,8 +126,9 @@ export class TerminalManager {
 		}
 
 		const newTerminal = vscode.window.createTerminal({
-			name: `${TerminalManager.TERMINAL_NAME} ${this.nextTerminalId}`,
+			name: "Claude Dev",
 			cwd: cwd,
+			iconPath: new vscode.ThemeIcon("robot"),
 		})
 		const newTerminalInfo: TerminalInfo = {
 			terminal: newTerminal,
