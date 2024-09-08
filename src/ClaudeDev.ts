@@ -42,7 +42,7 @@ CAPABILITIES
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
 	- For example, when asked to make edits or improvements you might analyze the file structure in the initial potentially_relevant_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
-- The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the user has the ability to send input to stdin and terminate the command on their own if needed.
+- The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way.
 
 ====
 
@@ -1385,6 +1385,11 @@ export class ClaudeDev {
 				sendCommandOutput(line)
 			})
 
+			let completed = false
+			process.on("completed", () => {
+				completed = true
+			})
+
 			await process
 
 			// Wait for a short delay to ensure all messages are sent to the webview
@@ -1392,12 +1397,14 @@ export class ClaudeDev {
 			// for their associated messages to be sent to the webview, maintaining
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
-			await delay(10)
+			await delay(50)
 
 			if (userFeedback) {
 				await this.say("user_feedback", userFeedback.text, userFeedback.images)
 				return this.formatToolResponseWithImages(
-					`Command Output:\n${result}\n\nThe user interrupted the command and provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images
 				)
 			}
@@ -1406,7 +1413,17 @@ export class ClaudeDev {
 			if (returnEmptyStringOnSuccess) {
 				return ""
 			}
-			return await this.formatToolResult(`Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`)
+			if (completed) {
+				return await this.formatToolResult(
+					`Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`
+				)
+			} else {
+				return await this.formatToolResult(
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					}\n\nYou will be updated on the terminal status and new output in the future.`
+				)
+			}
 		} catch (error) {
 			let errorMessage = error.message || JSON.stringify(serializeError(error), null, 2)
 			const errorString = `Error executing command:\n${errorMessage}`
@@ -1743,18 +1760,6 @@ ${
 		.join("\n") || "(No tabs open)"
 }`
 
-		const busyTerminals = this.terminalManager.getBusyTerminals()
-		if (busyTerminals.length > 0) {
-			details += "\n\n# Active Terminals:"
-			for (const busyTerminal of busyTerminals) {
-				details += `\n## Original command:\n${busyTerminal.lastCommand}`
-				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
-				if (newOutput) {
-					details += `\n## New output since last check:\n${newOutput}`
-				}
-			}
-		}
-
 		// Get diagnostics for all open files in the workspace
 		const diagnostics = vscode.languages.getDiagnostics()
 		const relevantDiagnostics = diagnostics.filter(([_, fileDiagnostics]) =>
@@ -1765,7 +1770,7 @@ ${
 		)
 
 		if (relevantDiagnostics.length > 0) {
-			details += "\n\n# Workspace Diagnostics:"
+			details += "\n\n# VSCode Workspace Diagnostics:"
 			for (const [uri, fileDiagnostics] of relevantDiagnostics) {
 				const relativePath = path.relative(cwd, uri.fsPath)
 				details += `\n## ${relativePath}:`
@@ -1778,6 +1783,18 @@ ${
 						const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
 						details += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
 					}
+				}
+			}
+		}
+
+		const busyTerminals = this.terminalManager.getBusyTerminals()
+		if (busyTerminals.length > 0) {
+			details += "\n\n# Active Terminals:"
+			for (const busyTerminal of busyTerminals) {
+				details += `\n## Original command:\n${busyTerminal.lastCommand}`
+				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
+				if (newOutput) {
+					details += `\n## New output since last check:\n${newOutput}`
 				}
 			}
 		}
