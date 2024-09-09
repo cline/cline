@@ -256,26 +256,37 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// todo: need to handle errors
 			let isFirstChunk = true
 			for await (let data of stream) {
-				// if (isFirstChunk) {
-				// 	// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
-				// 	const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-				// 	data = stripAnsi(data.replace(vscodeSequenceRegex, ""))
-				// 	// Split data by newlines
-				// 	let lines = data.split("\n")
-				// 	// Remove the first line
-				// 	// if (lines.length > 0) {
-				// 	// 	lines.shift()
-				// 	// }
-				// 	// Process second line: remove everything up to the first alphanumeric character
-				// 	if (lines.length > 0) {
-				// 		lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
-				// 	}
-				// 	// Join lines back
-				// 	data = lines.join("\n")
-				// 	isFirstChunk = false
-				// } else {
-				// 	data = stripAnsi(data)
-				// }
+				if (isFirstChunk) {
+					/*
+					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
+					*/
+					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
+					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
+					data = stripAnsi(data.replace(vscodeSequenceRegex, ""))
+					// Split data by newlines
+					let lines = data.split("\n")
+					// Remove non-human readable characters from the first line
+					if (lines.length > 0) {
+						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
+					}
+					// Check if first two characters are the same, if so remove the first character
+					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+						lines[0] = lines[0].slice(1)
+					}
+					// Process second line: remove everything up to the first alphanumeric character
+					if (lines.length > 1) {
+						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+					}
+					// Remove the first line if it matches the command (case-insensitive)
+					if (lines.length > 0 && lines[0].trim().toLowerCase() === command.trim().toLowerCase()) {
+						lines.shift()
+					}
+					// Join lines back
+					data = lines.join("\n")
+					isFirstChunk = false
+				} else {
+					data = stripAnsi(data)
+				}
 				console.log(`Received data chunk for terminal:`, data)
 				this.fullOutput += data
 				if (this.isListening) {
@@ -319,7 +330,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer += chunk
 		let lineEndIndex: number
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trim()
+			let line = this.buffer.slice(0, lineEndIndex).trim() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
