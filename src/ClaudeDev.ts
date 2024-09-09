@@ -1362,7 +1362,7 @@ export class ClaudeDev {
 
 			let result = ""
 			process.on("line", (line) => {
-				result += line
+				result += line + "\n"
 				sendCommandOutput(line)
 			})
 
@@ -1383,6 +1383,8 @@ export class ClaudeDev {
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
 			await delay(50)
+
+			result = result.trim()
 
 			if (userFeedback) {
 				await this.say("user_feedback", userFeedback.text, userFeedback.images)

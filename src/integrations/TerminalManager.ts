@@ -291,21 +291,21 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
-					let lines = data ? data.split("\n") : []
+					// let lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-						lines[0] = lines[0].slice(1)
-					}
-					// Process second line: remove everything up to the first alphanumeric character
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					}
+					// if (lines.length > 0) {
+					// 	lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
+					// }
+					// // Check if first two characters are the same, if so remove the first character
+					// if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+					// 	lines[0] = lines[0].slice(1)
+					// }
+					// // Process second line: remove everything up to the first alphanumeric character
+					// if (lines.length > 1) {
+					// 	lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+					// }
 					// Join lines back
-					data = lines.join("\n")
+					// data = lines.join("\n")
 					isFirstChunk = false
 				} else {
 					data = stripAnsi(data)
@@ -369,7 +369,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer += chunk
 		let lineEndIndex: number
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trim() // removes trailing \r
+			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
