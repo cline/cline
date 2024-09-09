@@ -1388,7 +1388,7 @@ export class ClaudeDev {
 			// for their associated messages to be sent to the webview, maintaining
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
-			await delay(100)
+			await delay(50)
 
 			result = result.trim()
 

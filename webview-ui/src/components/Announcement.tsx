@@ -30,8 +30,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				{/* <li>
+			<p style={{ margin: "5px 0px" }}>
+				Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a
+				new 'Proceed While Running' button to let Claude continue working while commands run, sending him new
+				output along the way (i.e. letting him react to server errors as he edits files!)
+			</p>
+			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
 					so I recommend trying them out.
 					<br />
@@ -62,7 +67,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							Switch to OpenRouter
 						</VSCodeButton>
 					)}
-				</li> */}
+				</li> 
 				<li>
 					<b>Edit Claude's changes before accepting!</b> When he creates or edits a file, you can modify his
 					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
@@ -76,7 +81,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					When Claude runs commands, you can now type directly in the terminal (+ support for Python
 					environments)
 				</li>
-			</ul>
+			</ul>*/}
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
 				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
