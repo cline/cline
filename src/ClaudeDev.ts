@@ -733,7 +733,14 @@ export class ClaudeDev {
 		}
 		if (newContent === undefined) {
 			this.consecutiveMistakeCount++
-			return await this.sayAndCreateMissingParamError("write_to_file", "content", relPath)
+			// Custom error message for this particular case
+			await this.say(
+				"error",
+				`Claude tried to use write_to_file for '${relPath}' without value for required parameter 'content'. This is likely due to reaching the maximum output token limit. Retrying with suggestion to change response size...`
+			)
+			return await this.formatToolError(
+				`Missing value for required parameter 'content'. This may occur if the file is too large, exceeding output limits. Consider splitting into smaller files or reducing content size. Please retry with all required parameters.`
+			)
 		}
 		this.consecutiveMistakeCount = 0
 		try {
