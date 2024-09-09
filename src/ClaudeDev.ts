@@ -1756,37 +1756,37 @@ ${
 }`
 
 		// Get diagnostics for all open files in the workspace
-		const diagnostics = vscode.languages.getDiagnostics()
-		const relevantDiagnostics = diagnostics.filter(([_, fileDiagnostics]) =>
-			fileDiagnostics.some(
-				(d) =>
-					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-			)
-		)
+		// const diagnostics = vscode.languages.getDiagnostics()
+		// const relevantDiagnostics = diagnostics.filter(([_, fileDiagnostics]) =>
+		// 	fileDiagnostics.some(
+		// 		(d) =>
+		// 			d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
+		// 	)
+		// )
 
-		if (relevantDiagnostics.length > 0) {
-			details += "\n\n# VSCode Workspace Diagnostics"
-			for (const [uri, fileDiagnostics] of relevantDiagnostics) {
-				const relativePath = path.relative(cwd, uri.fsPath)
-				details += `\n## ${relativePath}:`
-				for (const diagnostic of fileDiagnostics) {
-					if (
-						diagnostic.severity === vscode.DiagnosticSeverity.Error ||
-						diagnostic.severity === vscode.DiagnosticSeverity.Warning
-					) {
-						let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-						const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-						details += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
-					}
-				}
-			}
-		}
+		// if (relevantDiagnostics.length > 0) {
+		// 	details += "\n\n# VSCode Workspace Diagnostics"
+		// 	for (const [uri, fileDiagnostics] of relevantDiagnostics) {
+		// 		const relativePath = path.relative(cwd, uri.fsPath)
+		// 		details += `\n## ${relativePath}:`
+		// 		for (const diagnostic of fileDiagnostics) {
+		// 			if (
+		// 				diagnostic.severity === vscode.DiagnosticSeverity.Error ||
+		// 				diagnostic.severity === vscode.DiagnosticSeverity.Warning
+		// 			) {
+		// 				let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+		// 				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+		// 				details += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
+		// 			}
+		// 		}
+		// 	}
+		// }
 
 		const busyTerminals = this.terminalManager.getBusyTerminals()
 		if (busyTerminals.length > 0) {
 			details += "\n\n# Active Terminals"
 			for (const busyTerminal of busyTerminals) {
-				details += `\n## $ ${busyTerminal.lastCommand}`
+				details += `\n## ${busyTerminal.lastCommand}`
 				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
 					details += `\n...\n${newOutput}`
