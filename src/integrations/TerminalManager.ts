@@ -1,7 +1,7 @@
-import * as vscode from "vscode"
 import { EventEmitter } from "events"
 import pWaitFor from "p-wait-for"
 import stripAnsi from "strip-ansi"
+import * as vscode from "vscode"
 
 /*
 TerminalManager:
@@ -325,16 +325,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 			}
 
-			// Emit any remaining content in the buffer
-			if (this.buffer && this.isListening) {
-				const remainingBuffer = this.buffer.trim()
-				if (remainingBuffer !== "%") {
-					// for some reason vscode likes to end stream with %
-					this.emit("line", remainingBuffer)
-				}
-				this.buffer = ""
-				this.lastRetrievedIndex = this.fullOutput.length
-			}
+			this.emitRemainingBufferIfListening()
 			this.emit("completed")
 			this.emit("continue")
 		} else {
@@ -366,14 +357,27 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		}
 	}
 
-	continue() {
-		// Emit any remaining content in the buffer
+	private emitRemainingBufferIfListening() {
 		if (this.buffer && this.isListening) {
-			this.emit("line", this.buffer.trim())
+			// some processing to remove artifacts like '%' at the end of the buffer
+			const lines = this.buffer.trimEnd().split("\n")
+			if (lines.length > 0) {
+				const lastLine = lines[lines.length - 1]
+				if (lastLine.endsWith("%")) {
+					lines.pop()
+				}
+			}
+			const remainingBuffer = lines.join("\n").trimEnd()
+			if (remainingBuffer) {
+				this.emit("line", remainingBuffer)
+			}
 			this.buffer = ""
 			this.lastRetrievedIndex = this.fullOutput.length
 		}
+	}
 
+	continue() {
+		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
 		this.emit("continue")
