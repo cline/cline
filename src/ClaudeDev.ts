@@ -1346,6 +1346,7 @@ export class ClaudeDev {
 			const process = this.terminalManager.runCommand(terminalInfo, command)
 
 			let userFeedback: { text?: string; images?: string[] } | undefined
+			let didContinue = false
 			const sendCommandOutput = async (line: string): Promise<void> => {
 				try {
 					const { response, text, images } = await this.ask("command_output", line)
@@ -1354,6 +1355,7 @@ export class ClaudeDev {
 					} else {
 						userFeedback = { text, images }
 					}
+					didContinue = true
 					process.continue() // continue past the await
 				} catch {
 					// This can only happen if this ask promise was ignored, so ignore this error
@@ -1363,7 +1365,11 @@ export class ClaudeDev {
 			let result = ""
 			process.on("line", (line) => {
 				result += line + "\n"
-				sendCommandOutput(line)
+				if (!didContinue) {
+					sendCommandOutput(line)
+				} else {
+					this.say("command_output", line)
+				}
 			})
 
 			let completed = false
@@ -1382,7 +1388,7 @@ export class ClaudeDev {
 			// for their associated messages to be sent to the webview, maintaining
 			// the correct order of messages (although the webview is smart about
 			// grouping command_output messages despite any gaps anyways)
-			await delay(50)
+			await delay(100)
 
 			result = result.trim()
 
