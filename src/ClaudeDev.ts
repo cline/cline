@@ -10,6 +10,7 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "./api"
+import { TerminalManager } from "./integrations/TerminalManager"
 import { LIST_FILES_LIMIT, listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
@@ -23,10 +24,8 @@ import { Tool, ToolName } from "./shared/Tool"
 import { ClaudeAskResponse } from "./shared/WebviewMessage"
 import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
-import { regexSearchFiles } from "./utils/ripgrep"
 import { extractTextFromFile } from "./utils/extract-text"
-import { getPythonEnvPath } from "./utils/get-python-env"
-import { TerminalManager } from "./integrations/TerminalManager"
+import { regexSearchFiles } from "./utils/ripgrep"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -83,15 +82,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 SYSTEM INFORMATION
 
 Operating System: ${osName()}
-Default Shell: ${defaultShell}${await (async () => {
-		try {
-			const pythonEnvPath = await getPythonEnvPath()
-			if (pythonEnvPath) {
-				return `\nPython Environment: ${pythonEnvPath}`
-			}
-		} catch {}
-		return ""
-	})()}
+Default Shell: ${defaultShell}
 Home Directory: ${os.homedir()}
 Current Working Directory: ${cwd}
 `
@@ -1361,7 +1352,7 @@ export class ClaudeDev {
 		try {
 			const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 			terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-			const process = this.terminalManager.runCommand(terminalInfo, command, cwd)
+			const process = this.terminalManager.runCommand(terminalInfo, command)
 
 			let userFeedback: { text?: string; images?: string[] } | undefined
 			const sendCommandOutput = async (line: string): Promise<void> => {
@@ -1386,8 +1377,12 @@ export class ClaudeDev {
 			})
 
 			let completed = false
-			process.on("completed", () => {
+			process.once("completed", () => {
 				completed = true
+			})
+
+			process.once("no_shell_integration", async () => {
+				await this.say("shell_integration_warning")
 			})
 
 			await process
@@ -1729,7 +1724,7 @@ ${this.customInstructions.trim()}
 		const isDesktop = cwd === path.join(os.homedir(), "Desktop")
 		const files = await listFiles(cwd, !isDesktop)
 		const result = this.formatFilesList(cwd, files)
-		details += `\n# Current Working Directory ('${cwd}') File Structure:${
+		details += `\n# Current Working Directory ('${cwd}') Files${
 			isDesktop
 				? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
 				: ""
@@ -1741,7 +1736,7 @@ ${this.customInstructions.trim()}
 
 	async getPotentiallyRelevantDetails() {
 		let details = `<potentially_relevant_details>
-# VSCode Visible Files:
+# VSCode Visible Files
 ${
 	vscode.window.visibleTextEditors
 		?.map((editor) => editor.document?.uri?.fsPath)
@@ -1750,7 +1745,7 @@ ${
 		.join("\n") || "(No files open)"
 }
 
-# VSCode Opened Tabs:
+# VSCode Open Tabs
 ${
 	vscode.window.tabGroups.all
 		.flatMap((group) => group.tabs)
@@ -1770,7 +1765,7 @@ ${
 		)
 
 		if (relevantDiagnostics.length > 0) {
-			details += "\n\n# VSCode Workspace Diagnostics:"
+			details += "\n\n# VSCode Workspace Diagnostics"
 			for (const [uri, fileDiagnostics] of relevantDiagnostics) {
 				const relativePath = path.relative(cwd, uri.fsPath)
 				details += `\n## ${relativePath}:`
@@ -1789,12 +1784,14 @@ ${
 
 		const busyTerminals = this.terminalManager.getBusyTerminals()
 		if (busyTerminals.length > 0) {
-			details += "\n\n# Active Terminals:"
+			details += "\n\n# Active Terminals"
 			for (const busyTerminal of busyTerminals) {
-				details += `\n## Original command:\n${busyTerminal.lastCommand}`
+				details += `\n## $ ${busyTerminal.lastCommand}`
 				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
-					details += `\n## New output since last check:\n${newOutput}`
+					details += `\n...\n${newOutput}`
+				} else {
+					details += `\n(Still running, no new output)`
 				}
 			}
 		}

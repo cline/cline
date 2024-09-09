@@ -156,6 +156,7 @@
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
     "serialize-error": "^11.0.3",
+    "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.22.6"
   }

@@ -1,5 +1,17 @@
 import * as vscode from "vscode"
 
+/*
+Used to get user's current python environment (unnecessary now that we use the IDE's terminal)
+${await (async () => {
+		try {
+			const pythonEnvPath = await getPythonEnvPath()
+			if (pythonEnvPath) {
+				return `\nPython Environment: ${pythonEnvPath}`
+			}
+		} catch {}
+		return ""
+	})()}
+*/
 export async function getPythonEnvPath(): Promise<string | undefined> {
 	const pythonExtension = vscode.extensions.getExtension("ms-python.python")
 

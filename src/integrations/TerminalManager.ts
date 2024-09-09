@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { EventEmitter } from "events"
 import pWaitFor from "p-wait-for"
+import stripAnsi from "strip-ansi"
 
 /*
 TerminalManager:
@@ -59,12 +60,64 @@ Resources:
 - https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
-export class TerminalManager {
-	private terminals: TerminalInfo[] = []
-	private processes: Map<number, TerminalProcess> = new Map()
-	private nextTerminalId = 1
+// Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
+// Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
+class TerminalRegistry {
+	private static terminals: TerminalInfo[] = []
+	private static nextTerminalId = 1
 
-	runCommand(terminalInfo: TerminalInfo, command: string, cwd: string): TerminalProcessResultPromise {
+	static createTerminal(cwd?: string | vscode.Uri | undefined): TerminalInfo {
+		const terminal = vscode.window.createTerminal({
+			cwd,
+			name: "Claude Dev",
+			iconPath: new vscode.ThemeIcon("robot"),
+		})
+		const newInfo: TerminalInfo = {
+			terminal,
+			busy: false,
+			lastCommand: "",
+			id: this.nextTerminalId++,
+		}
+		this.terminals.push(newInfo)
+		return newInfo
+	}
+
+	static getTerminal(id: number): TerminalInfo | undefined {
+		const terminalInfo = this.terminals.find((t) => t.id === id)
+		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
+			this.removeTerminal(id)
+			return undefined
+		}
+		return terminalInfo
+	}
+
+	static updateTerminal(id: number, updates: Partial<TerminalInfo>) {
+		const terminal = this.getTerminal(id)
+		if (terminal) {
+			Object.assign(terminal, updates)
+		}
+	}
+
+	static removeTerminal(id: number) {
+		this.terminals = this.terminals.filter((t) => t.id !== id)
+	}
+
+	static getAllTerminals(): TerminalInfo[] {
+		this.terminals = this.terminals.filter((t) => !this.isTerminalClosed(t.terminal))
+		return this.terminals
+	}
+
+	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)
+	private static isTerminalClosed(terminal: vscode.Terminal): boolean {
+		return terminal.exitStatus !== undefined
+	}
+}
+
+export class TerminalManager {
+	private terminalIds: Set<number> = new Set()
+	private processes: Map<number, TerminalProcess> = new Map()
+
+	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -73,6 +126,16 @@ export class TerminalManager {
 		process.once("completed", () => {
 			console.log(`completed received for terminal ${terminalInfo.id}`)
 			terminalInfo.busy = false
+		})
+
+		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
+		process.once("no_shell_integration", () => {
+			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
+			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
+			TerminalRegistry.removeTerminal(terminalInfo.id)
+			this.terminalIds.delete(terminalInfo.id)
+			this.processes.delete(terminalInfo.id)
+			console.log(`Removed terminal ${terminalInfo.id} from TerminalManager`)
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {
@@ -113,11 +176,9 @@ export class TerminalManager {
 	}
 
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
-		const availableTerminal = this.terminals.find((t) => {
-			// it seems even if you close the terminal, it can still be reused
-			const isDisposed = !t.terminal || t.terminal.exitStatus // The exit status of the terminal will be undefined while the terminal is active.
-			console.log(`Terminal ${t.id} isDisposed:`, isDisposed)
-			if (t.busy || isDisposed) {
+		// Find available terminal from our pool first (created for this task)
+		const availableTerminal = TerminalRegistry.getAllTerminals().find((t) => {
+			if (t.busy) {
 				return false
 			}
 			const terminalCwd = t.terminal.shellIntegration?.cwd // one of claude's commands could have changed the cwd of the terminal
@@ -128,41 +189,36 @@ export class TerminalManager {
 		})
 		if (availableTerminal) {
 			console.log("Reusing terminal", availableTerminal.id)
+			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
 
-		const newTerminal = vscode.window.createTerminal({
-			name: "Claude Dev",
-			cwd: cwd,
-			iconPath: new vscode.ThemeIcon("robot"),
-		})
-		const newTerminalInfo: TerminalInfo = {
-			terminal: newTerminal,
-			busy: false,
-			lastCommand: "",
-			id: this.nextTerminalId++,
-		}
-		this.terminals.push(newTerminalInfo)
+		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
+		this.terminalIds.add(newTerminalInfo.id)
+		console.log("Created new terminal", newTerminalInfo.id)
 		return newTerminalInfo
 	}
 
 	getBusyTerminals(): { id: number; lastCommand: string }[] {
-		return this.terminals.filter((t) => t.busy).map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
+		return Array.from(this.terminalIds)
+			.map((id) => TerminalRegistry.getTerminal(id))
+			.filter((t): t is TerminalInfo => t !== undefined && t.busy)
+			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 
 	getUnretrievedOutput(terminalId: number): string {
-		const process = this.processes.get(terminalId)
-		if (!process) {
+		if (!this.terminalIds.has(terminalId)) {
 			return ""
 		}
-		return process.getUnretrievedOutput()
+		const process = this.processes.get(terminalId)
+		return process ? process.getUnretrievedOutput() : ""
 	}
 
 	disposeAll() {
 		// for (const info of this.terminals) {
 		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
 		// }
-		this.terminals = []
+		this.terminalIds.clear()
 		this.processes.clear()
 	}
 }
@@ -179,6 +235,7 @@ interface TerminalProcessEvents {
 	continue: []
 	completed: []
 	error: [error: Error]
+	no_shell_integration: []
 }
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
@@ -192,12 +249,33 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
-		if (terminal.shellIntegration) {
+		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			console.log(`Shell integration available for terminal`)
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors
-			for await (const data of stream) {
+			let isFirstChunk = true
+			for await (let data of stream) {
+				// if (isFirstChunk) {
+				// 	// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
+				// 	const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
+				// 	data = stripAnsi(data.replace(vscodeSequenceRegex, ""))
+				// 	// Split data by newlines
+				// 	let lines = data.split("\n")
+				// 	// Remove the first line
+				// 	// if (lines.length > 0) {
+				// 	// 	lines.shift()
+				// 	// }
+				// 	// Process second line: remove everything up to the first alphanumeric character
+				// 	if (lines.length > 0) {
+				// 		lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+				// 	}
+				// 	// Join lines back
+				// 	data = lines.join("\n")
+				// 	isFirstChunk = false
+				// } else {
+				// 	data = stripAnsi(data)
+				// }
 				console.log(`Received data chunk for terminal:`, data)
 				this.fullOutput += data
 				if (this.isListening) {
@@ -209,25 +287,30 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			// Emit any remaining content in the buffer
 			if (this.buffer && this.isListening) {
-				console.log(`Emitting remaining buffer for terminal:`, this.buffer.trim())
-				this.emit("line", this.buffer.trim())
+				const remainingBuffer = this.buffer.trim()
+				if (remainingBuffer !== "%") {
+					// for some reason vscode likes to end stream with %
+					console.log(`Emitting remaining buffer for terminal:`, remainingBuffer)
+					this.emit("line", remainingBuffer)
+				}
 				this.buffer = ""
 				this.lastRetrievedIndex = this.fullOutput.length
 			}
-
 			console.log(`Command execution completed for terminal`)
-			this.emit("continue")
 			this.emit("completed")
+			this.emit("continue")
 		} else {
 			console.log(`Shell integration not available for terminal, falling back to sendText`)
 			terminal.sendText(command, true)
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
-			setTimeout(() => {
-				console.log(`Emitting continue after delay for terminal`)
-				this.emit("continue")
-				// can't emit completed since we don't if the command actually completed, it could still be running server
-			}, 2000) // Adjust this delay as needed
+			this.emit("completed")
+			this.emit("continue")
+			this.emit("no_shell_integration")
+			// setTimeout(() => {
+			// 	console.log(`Emitting continue after delay for terminal`)
+			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
+			// }, 500) // Adjust this delay as needed
 		}
 	}
 

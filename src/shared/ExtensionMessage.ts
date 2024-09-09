@@ -56,6 +56,7 @@ export type ClaudeSay =
 	| "api_req_retried"
 	| "command_output"
 	| "tool"
+	| "shell_integration_warning"
 
 export interface ClaudeSayTool {
 	tool:

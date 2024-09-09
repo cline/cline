@@ -438,6 +438,34 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							</div>
 						</>
 					)
+				case "shell_integration_warning":
+					return (
+						<>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									padding: 8,
+									borderRadius: 3,
+									fontSize: 12,
+								}}>
+								<i
+									className="codicon codicon-warning"
+									style={{
+										marginRight: 8,
+										fontSize: 18,
+										color: "#FFA500",
+									}}></i>
+								<span>
+									Shell integration is not available! Claude will not be able to see the output of the
+									command. Please update to the latest version of VSCode (
+									{"CMD/CTRL + Shift + P → Update"}) and ensure you are using one of the following
+									shells: bash, zsh, fish, or PowerShell.
+								</span>
+							</div>
+						</>
+					)
 
 				default:
 					return (
@@ -480,10 +508,6 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								.split("")
 								.map((char) => {
 									switch (char) {
-										case "\n":
-											return "↵\n"
-										case "\r":
-											return "⏎"
 										case "\t":
 											return "→   "
 										case "\b":
