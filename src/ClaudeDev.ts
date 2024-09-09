@@ -1782,7 +1782,7 @@ ${
 				details += `\n## ${busyTerminal.lastCommand}`
 				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
-					details += `\n...\n${newOutput}`
+					details += `\nNew Output:\n${newOutput}`
 				} else {
 					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
 				}
