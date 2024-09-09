@@ -206,10 +206,10 @@ export class TerminalManager {
 		return newTerminalInfo
 	}
 
-	getBusyTerminals(): { id: number; lastCommand: string }[] {
+	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
 		return Array.from(this.terminalIds)
 			.map((id) => TerminalRegistry.getTerminal(id))
-			.filter((t): t is TerminalInfo => t !== undefined && t.busy)
+			.filter((t): t is TerminalInfo => t !== undefined && t.busy === busy)
 			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 
