@@ -257,7 +257,6 @@ export class ClaudeDev {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private consecutiveMistakeCount: number = 0
-	private shouldSkipNextApiReqStartedMessage = false
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
 
@@ -445,30 +444,14 @@ export class ClaudeDev {
 
 		await this.say("text", task, images)
 
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a loading spinner as this happens
-		const taskText = `<task>\n${task}\n</task>`
 		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
-		await this.say(
-			"api_req_started",
-			JSON.stringify({
-				request: `${taskText}\n\n<potentially_relevant_details>\nLoading...\n</potentially_relevant_details>`,
-			})
-		)
-		this.shouldSkipNextApiReqStartedMessage = true
-		this.getInitialDetails().then(async (initialDetails) => {
-			const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
-			this.claudeMessages[lastApiReqIndex].text = JSON.stringify({ request: `${taskText}\n\n${initialDetails}` })
-			await this.saveClaudeMessages()
-			await this.providerRef.deref()?.postStateToWebview()
-			await this.initiateTaskLoop([
-				{
-					type: "text",
-					text: `${taskText}\n\n${initialDetails}`, // cannot be sent with system prompt since it's cached and these details can change
-				},
-				...imageBlocks,
-			])
-		})
+		await this.initiateTaskLoop([
+			{
+				type: "text",
+				text: `<task>\n${task}\n</task>`,
+			},
+			...imageBlocks,
+		])
 	}
 
 	private async resumeTaskFromHistory() {
@@ -647,10 +630,10 @@ export class ClaudeDev {
 		const combinedText =
 			`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now ${cwd}. If the task has not been completed, retry the last step before interruption and proceed with completing the task.` +
 			(modifiedOldUserContentText
-				? `\n\nLast recorded user input before interruption:\n<previous_message>\n${modifiedOldUserContentText}\n</previous_message>\n`
+				? `\n\nLast recorded user input before interruption:\n<previous_message>\n${modifiedOldUserContentText}\n</previous_message>`
 				: "") +
 			(newUserContentText
-				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>\n`
+				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>`
 				: "")
 
 		const newUserContentImages = newUserContent.filter((block) => block.type === "image")
@@ -664,9 +647,10 @@ export class ClaudeDev {
 
 	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
 		let nextUserContent = userContent
-
+		let includeFileDetails = true
 		while (!this.abort) {
-			const { didEndLoop } = await this.recursivelyMakeClaudeRequests(nextUserContent)
+			const { didEndLoop } = await this.recursivelyMakeClaudeRequests(nextUserContent, includeFileDetails)
+			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that claude will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
 			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Claude is prompted to finish the task as efficiently as he can.
@@ -1371,7 +1355,6 @@ export class ClaudeDev {
 
 			let result = ""
 			process.on("line", (line) => {
-				console.log("New line from process:", line)
 				result += line
 				sendCommandOutput(line)
 			})
@@ -1526,7 +1509,10 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	async recursivelyMakeClaudeRequests(userContent: UserContent): Promise<ClaudeRequestResult> {
+	async recursivelyMakeClaudeRequests(
+		userContent: UserContent,
+		includeFileDetails: boolean = false
+	): Promise<ClaudeRequestResult> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
@@ -1552,19 +1538,33 @@ ${this.customInstructions.trim()}
 			this.consecutiveMistakeCount = 0
 		}
 
+		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
+		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		await this.say(
+			"api_req_started",
+			JSON.stringify({
+				request:
+					userContent.map(formatContentBlockToMarkdown).join("\n\n") +
+					"\n\n<potentially_relevant_details>\nLoading...\n</potentially_relevant_details>",
+			})
+		)
+
+		// potentially expensive operation
+		const potentiallyRelevantDetails = await this.getPotentiallyRelevantDetails(includeFileDetails)
+
 		// add potentially relevant details as its own text block, separate from tool results
-		userContent.push({ type: "text", text: await this.getPotentiallyRelevantDetails() })
+		userContent.push({ type: "text", text: potentiallyRelevantDetails })
 
 		await this.addToApiConversationHistory({ role: "user", content: userContent })
 
-		if (!this.shouldSkipNextApiReqStartedMessage) {
-			await this.say(
-				"api_req_started",
-				JSON.stringify({ request: userContent.map(formatContentBlockToMarkdown).join("\n\n") })
-			)
-		} else {
-			this.shouldSkipNextApiReqStartedMessage = false
-		}
+		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
+		const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
+		this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
+			request: userContent.map(formatContentBlockToMarkdown).join("\n\n"),
+		})
+		await this.saveClaudeMessages()
+		await this.providerRef.deref()?.postStateToWebview()
+
 		try {
 			const response = await this.attemptApiRequest()
 
@@ -1718,23 +1718,7 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	async getInitialDetails() {
-		let details = "<potentially_relevant_details>"
-
-		const isDesktop = cwd === path.join(os.homedir(), "Desktop")
-		const files = await listFiles(cwd, !isDesktop)
-		const result = this.formatFilesList(cwd, files)
-		details += `\n# Current Working Directory ('${cwd}') Files${
-			isDesktop
-				? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
-				: ""
-		}\n${result}\n`
-
-		details += "</potentially_relevant_details>"
-		return details
-	}
-
-	async getPotentiallyRelevantDetails() {
+	async getPotentiallyRelevantDetails(includeFileDetails: boolean = false) {
 		let details = `<potentially_relevant_details>
 # VSCode Visible Files
 ${
@@ -1791,9 +1775,20 @@ ${
 				if (newOutput) {
 					details += `\n...\n${newOutput}`
 				} else {
-					details += `\n(Still running, no new output)`
+					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
 				}
 			}
+		}
+
+		if (includeFileDetails) {
+			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
+			const files = await listFiles(cwd, !isDesktop)
+			const result = this.formatFilesList(cwd, files)
+			details += `\n\n# Current Working Directory ('${cwd}') Files${
+				isDesktop
+					? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
+					: ""
+			}\n${result}`
 		}
 
 		details += "\n</potentially_relevant_details>"

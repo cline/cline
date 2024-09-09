@@ -277,13 +277,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			for await (let data of stream) {
+				console.log("original chunk:", data)
 				if (isFirstChunk) {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
 					*/
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
 					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					data = stripAnsi(data.replace(vscodeSequenceRegex, ""))
+					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
+					if (lastMatch && lastMatch.index !== undefined) {
+						data = data.slice(lastMatch.index + lastMatch[0].length)
+					}
+					// remove ansi
+					data = stripAnsi(data)
 					// Split data by newlines
 					let lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
@@ -320,7 +326,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = lines.join("\n")
 				}
 
-				console.log(`Received data chunk for terminal:`, data)
+				console.log(`parsed chunk:`, data)
 				this.fullOutput += data
 				if (this.isListening) {
 					console.log(`Emitting data for terminal`)
