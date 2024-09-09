@@ -60,6 +60,26 @@ Resources:
 - https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
+/*
+The new shellIntegration API gives us access to terminal command execution output handling.
+However, we don't update our VSCode type definitions or engine requirements to maintain compatibility
+with older VSCode versions. Users on older versions will automatically fall back to using sendText
+for terminal command execution.
+Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
+This approach allows us to leverage advanced features when available while ensuring broad compatibility.
+https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
+*/
+declare module "vscode" {
+	interface Terminal {
+		shellIntegration?: {
+			cwd?: vscode.Uri
+			executeCommand?: (command: string) => {
+				read: () => AsyncIterable<string>
+			}
+		}
+	}
+}
+
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
 // Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 class TerminalRegistry {
@@ -255,6 +275,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			const stream = execution.read()
 			// todo: need to handle errors
 			let isFirstChunk = true
+			let didOutputNonCommand = false
 			for await (let data of stream) {
 				if (isFirstChunk) {
 					/*
@@ -277,16 +298,28 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					if (lines.length > 1) {
 						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
 					}
-					// Remove the first line if it matches the command (case-insensitive)
-					if (lines.length > 0 && lines[0].trim().toLowerCase() === command.trim().toLowerCase()) {
-						lines.shift()
-					}
 					// Join lines back
 					data = lines.join("\n")
 					isFirstChunk = false
 				} else {
 					data = stripAnsi(data)
 				}
+
+				// first few chunks could be the command being echoed back, so we must ignore
+				if (!didOutputNonCommand) {
+					const lines = data.split("\n")
+					for (let i = 0; i < lines.length; i++) {
+						if (command.includes(lines[i].trim())) {
+							lines.splice(i, 1)
+							i-- // Adjust index after removal
+						} else {
+							didOutputNonCommand = true
+							break
+						}
+					}
+					data = lines.join("\n")
+				}
+
 				console.log(`Received data chunk for terminal:`, data)
 				this.fullOutput += data
 				if (this.isListening) {
