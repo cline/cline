@@ -264,7 +264,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
 					data = stripAnsi(data.replace(vscodeSequenceRegex, ""))
 					// Split data by newlines
-					let lines = data.split("\n")
+					let lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
