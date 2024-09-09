@@ -277,21 +277,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
-					// let lines = data ? data.split("\n") : []
+					let lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
-					// if (lines.length > 0) {
-					// 	lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					// }
-					// // Check if first two characters are the same, if so remove the first character
-					// if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-					// 	lines[0] = lines[0].slice(1)
-					// }
-					// // Process second line: remove everything up to the first alphanumeric character
-					// if (lines.length > 1) {
-					// 	lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					// }
+					if (lines.length > 0) {
+						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
+					}
+					// Check if first two characters are the same, if so remove the first character
+					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+						lines[0] = lines[0].slice(1)
+					}
+					// Remove everything up to the first alphanumeric character for first two lines
+					if (lines.length > 0) {
+						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+					}
+					if (lines.length > 1) {
+						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+					}
 					// Join lines back
-					// data = lines.join("\n")
+					data = lines.join("\n")
 					isFirstChunk = false
 				} else {
 					data = stripAnsi(data)
@@ -359,15 +362,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	private emitRemainingBufferIfListening() {
 		if (this.buffer && this.isListening) {
-			// some processing to remove artifacts like '%' at the end of the buffer
-			const lines = this.buffer.trimEnd().split("\n")
-			if (lines.length > 0) {
-				const lastLine = lines[lines.length - 1]
-				if (lastLine.endsWith("%")) {
-					lines.pop()
-				}
-			}
-			const remainingBuffer = lines.join("\n").trimEnd()
+			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
 			if (remainingBuffer) {
 				this.emit("line", remainingBuffer)
 			}
@@ -386,7 +381,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	getUnretrievedOutput(): string {
 		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
 		this.lastRetrievedIndex = this.fullOutput.length
-		return unretrieved
+		return this.removeLastLineArtifacts(unretrieved)
+	}
+
+	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)
+	// This modification will remove '%', '$', '#', or '>' followed by optional whitespace
+	removeLastLineArtifacts(output: string) {
+		const lines = output.trimEnd().split("\n")
+		if (lines.length > 0) {
+			const lastLine = lines[lines.length - 1]
+			// Remove prompt characters and trailing whitespace from the last line
+			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
+		}
+		return lines.join("\n").trimEnd()
 	}
 }
 
