@@ -6,7 +6,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.6.0]
 
-- Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a new 'Proceed While Running' button to let Claude continue working while commands run, sending him new output along the way (i.e. letting him react to server errors as he edits files!)
+- Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a new 'Proceed While Running' button to let Claude continue working while commands run, sending him new output along the way (i.e. letting him react to server errors as he edits files)
 
 ## [1.5.27]
 
