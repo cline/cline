@@ -144,7 +144,6 @@ export class TerminalManager {
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
-			console.log(`completed received for terminal ${terminalInfo.id}`)
 			terminalInfo.busy = false
 		})
 
@@ -155,12 +154,10 @@ export class TerminalManager {
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 			this.terminalIds.delete(terminalInfo.id)
 			this.processes.delete(terminalInfo.id)
-			console.log(`Removed terminal ${terminalInfo.id} from TerminalManager`)
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {
 			process.once("continue", () => {
-				console.log(`continue received for terminal ${terminalInfo.id}`)
 				resolve()
 			})
 			process.once("error", (error) => {
@@ -171,19 +168,11 @@ export class TerminalManager {
 
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
-			console.log(`Shell integration active for terminal ${terminalInfo.id}, running command immediately`)
 			process.waitForShellIntegration = false
 			process.run(terminalInfo.terminal, command)
 		} else {
-			console.log(`Waiting for shell integration for terminal ${terminalInfo.id}`)
 			// docs recommend waiting 3s for shell integration to activate
 			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
-				console.log(
-					`Shell integration ${
-						terminalInfo.terminal.shellIntegration ? "activated" : "not activated"
-					} for terminal ${terminalInfo.id}`
-				)
-
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false
@@ -208,14 +197,12 @@ export class TerminalManager {
 			return vscode.Uri.file(cwd).fsPath === terminalCwd.fsPath
 		})
 		if (availableTerminal) {
-			console.log("Reusing terminal", availableTerminal.id)
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
 
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		this.terminalIds.add(newTerminalInfo.id)
-		console.log("Created new terminal", newTerminalInfo.id)
 		return newTerminalInfo
 	}
 
@@ -270,7 +257,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			console.log(`Shell integration available for terminal`)
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors
@@ -278,7 +264,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
-				console.log("original chunk:", data)
 				if (isFirstChunk) {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
@@ -333,10 +318,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					didEmitEmptyLine = true
 				}
 
-				console.log(`parsed chunk:`, data)
 				this.fullOutput += data
 				if (this.isListening) {
-					console.log(`Emitting data for terminal`)
 					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
@@ -347,17 +330,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				const remainingBuffer = this.buffer.trim()
 				if (remainingBuffer !== "%") {
 					// for some reason vscode likes to end stream with %
-					console.log(`Emitting remaining buffer for terminal:`, remainingBuffer)
 					this.emit("line", remainingBuffer)
 				}
 				this.buffer = ""
 				this.lastRetrievedIndex = this.fullOutput.length
 			}
-			console.log(`Command execution completed for terminal`)
 			this.emit("completed")
 			this.emit("continue")
 		} else {
-			console.log(`Shell integration not available for terminal, falling back to sendText`)
 			terminal.sendText(command, true)
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
@@ -389,7 +369,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	continue() {
 		// Emit any remaining content in the buffer
 		if (this.buffer && this.isListening) {
-			console.log(`Emitting remaining buffer for terminal:`, this.buffer.trim())
 			this.emit("line", this.buffer.trim())
 			this.buffer = ""
 			this.lastRetrievedIndex = this.fullOutput.length
