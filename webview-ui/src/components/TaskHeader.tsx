@@ -140,22 +140,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{task.text}</span>}
 						</div>
 					</div>
-					{!isTaskExpanded && (
-						<div
-							style={{
-								marginLeft: 10,
-								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
-								color: "var(--vscode-badge-background)",
-								padding: "2px 4px",
-								borderRadius: "500px",
-								fontSize: "11px",
-								fontWeight: 500,
-								display: "inline-block",
-								flexShrink: 0,
-							}}>
-							${totalCost?.toFixed(4)}
-						</div>
-					)}
+					{!isTaskExpanded &&
+						apiConfiguration?.apiProvider !== "openai" &&
+						apiConfiguration?.apiProvider !== "ollama" && (
+							<div
+								style={{
+									marginLeft: 10,
+									backgroundColor:
+										"color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
+									color: "var(--vscode-badge-background)",
+									padding: "2px 4px",
+									borderRadius: "500px",
+									fontSize: "11px",
+									fontWeight: 500,
+									display: "inline-block",
+									flexShrink: 0,
+								}}>
+								${totalCost?.toFixed(4)}
+							</div>
+						)}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
