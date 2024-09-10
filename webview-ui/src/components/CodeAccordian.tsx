@@ -7,6 +7,7 @@ interface CodeAccordianProps {
 	diff?: string
 	language?: string | undefined
 	path?: string
+	isFeedback?: boolean
 	isExpanded: boolean
 	onToggleExpand: () => void
 }
@@ -19,7 +20,7 @@ The replace method removes these matched characters, effectively trimming the st
 */
 const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
 
-const CodeAccordian = ({ code, diff, language, path, isExpanded, onToggleExpand }: CodeAccordianProps) => {
+const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onToggleExpand }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code]
@@ -33,7 +34,7 @@ const CodeAccordian = ({ code, diff, language, path, isExpanded, onToggleExpand 
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
-			{path && (
+			{(path || isFeedback) && (
 				<div
 					style={{
 						color: "var(--vscode-descriptionForeground)",
@@ -42,25 +43,34 @@ const CodeAccordian = ({ code, diff, language, path, isExpanded, onToggleExpand 
 						alignItems: "center",
 						padding: "6px 10px",
 						cursor: "pointer",
+						userSelect: "none",
+						WebkitUserSelect: "none",
+						MozUserSelect: "none",
+						msUserSelect: "none",
 					}}
 					onClick={onToggleExpand}>
-					<span
-						style={{
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							marginRight: "8px",
-							fontSize: "11px",
-							// trick to get ellipsis at beginning of string
-							direction: "rtl",
-							textAlign: "left",
-						}}>
-						{removeLeadingNonAlphanumeric(path) + "\u200E"}
-					</span>
+					<div style={{ display: "flex", alignItems: "center" }}>
+						{isFeedback && (
+							<span className="codicon codicon-feedback" style={{ marginRight: "6px" }}></span>
+						)}
+						<span
+							style={{
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								marginRight: "8px",
+								fontSize: "11px",
+								// trick to get ellipsis at beginning of string
+								direction: "rtl",
+								textAlign: "left",
+							}}>
+							{isFeedback ? "User Edits" : removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
+						</span>
+					</div>
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
-			{(!path || isExpanded) && (
+			{(!(path || isFeedback) || isExpanded) && (
 				<div
 					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{

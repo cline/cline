@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
@@ -103,11 +103,11 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						<ProgressIndicator />
 					),
 					cost != null ? (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Complete</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 					) : (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Making API Request...</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
 					),
 				]
 			case "followup":
@@ -299,15 +299,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									...headerStyle,
 									marginBottom: cost == null && apiRequestFailedMessage ? 10 : 0,
 									justifyContent: "space-between",
-								}}>
+									cursor: "pointer",
+									userSelect: "none",
+									WebkitUserSelect: "none",
+									MozUserSelect: "none",
+									msUserSelect: "none",
+								}}
+								onClick={onToggleExpand}>
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
 									{cost != null && cost > 0 && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
 								</div>
-								<VSCodeButton appearance="icon" aria-label="Toggle Details" onClick={onToggleExpand}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</VSCodeButton>
+								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
 							{cost == null && apiRequestFailedMessage && (
 								<>
@@ -391,24 +395,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					return (
 						<div
 							style={{
-								backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-								borderRadius: "3px",
-								padding: "8px",
-								whiteSpace: "pre-line",
-								wordWrap: "break-word",
+								marginTop: -10,
+								width: "100%",
 							}}>
-							<span
-								style={{
-									display: "block",
-									fontStyle: "italic",
-									marginBottom: "8px",
-									opacity: 0.8,
-								}}>
-								The user made the following changes:
-							</span>
 							<CodeAccordian
 								diff={tool.diff!}
-								path={tool.path!}
+								isFeedback={true}
 								isExpanded={isExpanded}
 								onToggleExpand={onToggleExpand}
 							/>
@@ -627,7 +619,8 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
 	// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
 	const parsed = markdown?.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
-		return `_<thinking>_\n\n${content}\n\n_</thinking>_`
+		return content
+		// return `_<thinking>_\n\n${content}\n\n_</thinking>_`
 	})
 	return (
 		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
@@ -704,6 +697,13 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 									whiteSpace: "pre-line",
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
+									backgroundColor: "var(--vscode-textCodeBlock-background)",
+									color: "var(--vscode-textPreformat-foreground)",
+									fontFamily: "var(--vscode-editor-font-family)",
+									fontSize: "var(--vscode-editor-font-size)",
+									borderRadius: "3px",
+									border: "1px solid var(--vscode-textSeparator-foreground)",
+									// padding: "2px 4px",
 								}}>
 								{children}
 							</code>

@@ -330,6 +330,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = lines.join("\n")
 				}
 
+				// sometimes chunks have leading/trailing commas which we'll remove too
+				data = data.replace(/^,+|,+$/g, "")
+
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
