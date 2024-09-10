@@ -10,6 +10,7 @@ import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
 import { getTheme } from "../utils/getTheme"
+import { openImage } from "../utils/open-image"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -397,6 +398,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "requestOllamaModels":
 						const models = await this.getOllamaModels(message.text)
 						this.postMessageToWebview({ type: "ollamaModels", models })
+						break
+					case "openImage":
+						openImage(message.text!)
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
