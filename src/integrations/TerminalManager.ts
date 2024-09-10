@@ -221,6 +221,11 @@ export class TerminalManager {
 		return process ? process.getUnretrievedOutput() : ""
 	}
 
+	isProcessHot(terminalId: number): boolean {
+		const process = this.processes.get(terminalId)
+		return process ? process.isHot : false
+	}
+
 	disposeAll() {
 		// for (const info of this.terminals) {
 		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
@@ -251,6 +256,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private buffer: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
+	isHot: boolean = false
+	private hotTimer: NodeJS.Timeout | null = null
 
 	// constructor() {
 	// 	super()
@@ -264,6 +271,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
+				// Set to hot to stall API requests until terminal is cool again
+				this.isHot = true
+				if (this.hotTimer) {
+					clearTimeout(this.hotTimer)
+				}
+				this.hotTimer = setTimeout(() => {
+					this.isHot = false
+				}, 4_000)
 				if (isFirstChunk) {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
@@ -329,6 +344,12 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 
 			this.emitRemainingBufferIfListening()
+
+			if (this.hotTimer) {
+				clearTimeout(this.hotTimer)
+			}
+			this.isHot = false
+
 			this.emit("completed")
 			this.emit("continue")
 		} else {

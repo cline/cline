@@ -1783,6 +1783,13 @@ ${
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
 		if (busyTerminals.length > 0) {
+			// wait for terminals to cool down
+			await delay(500) // delay after saving file
+			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
+				interval: 100,
+				timeout: 7_000,
+			}).catch(() => {})
+			// terminals are cool, let's retrieve their output
 			details += "\n\n# Active Terminals"
 			for (const busyTerminal of busyTerminals) {
 				details += `\n## ${busyTerminal.lastCommand}`
