@@ -2,7 +2,7 @@ import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
-import { useMemo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -18,10 +18,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const handleDeleteHistoryItem = (id: string) => {
 		vscode.postMessage({ type: "deleteTaskWithId", text: id })
-	}
-
-	const handleExportMd = (id: string) => {
-		vscode.postMessage({ type: "exportTaskWithId", text: id })
 	}
 
 	const formatDate = (timestamp: number) => {
@@ -62,18 +58,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			)
 		)
 	}
-
-	const ExportButton = ({ itemId }: { itemId: string }) => (
-		<VSCodeButton
-			className="export-button"
-			appearance="icon"
-			onClick={(e) => {
-				e.stopPropagation()
-				handleExportMd(itemId)
-			}}>
-			<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
-		</VSCodeButton>
-	)
 
 	return (
 		<>
@@ -369,4 +353,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	)
 }
 
-export default HistoryView
+const ExportButton = ({ itemId }: { itemId: string }) => (
+	<VSCodeButton
+		className="export-button"
+		appearance="icon"
+		onClick={(e) => {
+			e.stopPropagation()
+			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
+		}}>
+		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
+	</VSCodeButton>
+)
+
+export default memo(HistoryView)

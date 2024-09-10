@@ -2,8 +2,12 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.5.31",
-  "icon": "icon.png",
+  "version": "1.6.2",
+  "icon": "icons/icon.png",
+  "galleryBanner": {
+    "color": "#C1DCEA",
+    "theme": "light"
+  },
   "engines": {
     "vscode": "^1.84.0"
   },
@@ -122,7 +126,7 @@
     "@types/diff": "^5.2.1",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
-    "@types/vscode": "^1.82.0",
+    "@types/vscode": "^1.84.0",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",
     "@vscode/test-cli": "^0.0.9",
@@ -144,16 +148,15 @@
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
     "diff": "^5.2.0",
-    "execa": "^9.3.0",
     "globby": "^14.0.2",
-    "isbinaryfile": "^5.0.2",
     "mammoth": "^1.8.0",
+    "monaco-vscode-textmate-theme-converter": "^0.1.7",
     "openai": "^4.54.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
     "serialize-error": "^11.0.3",
-    "tree-kill": "^1.2.2",
+    "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.22.6"
   }

@@ -42,7 +42,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	}
 }
 
-function formatContentBlockToMarkdown(
+export function formatContentBlockToMarkdown(
 	block:
 		| Anthropic.TextBlockParam
 		| Anthropic.ImageBlockParam

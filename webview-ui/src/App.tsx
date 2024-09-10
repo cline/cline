@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
-import { normalizeApiConfiguration } from "./components/ApiOptions"
 import ChatView from "./components/ChatView"
 import HistoryView from "./components/HistoryView"
 import SettingsView from "./components/SettingsView"
@@ -10,7 +9,7 @@ import { ExtensionStateContextProvider, useExtensionState } from "./context/Exte
 import { vscode } from "./utils/vscode"
 
 const AppContent = () => {
-	const { didHydrateState, showWelcome, apiConfiguration, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -39,10 +38,6 @@ const AppContent = () => {
 
 	useEvent("message", handleMessage)
 
-	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
-
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
@@ -70,8 +65,6 @@ const AppContent = () => {
 						}}
 						isHidden={showSettings || showHistory}
 						showAnnouncement={showAnnouncement}
-						selectedModelSupportsImages={selectedModelInfo.supportsImages}
-						selectedModelSupportsPromptCache={selectedModelInfo.supportsPromptCache}
 						hideAnnouncement={() => {
 							setShowAnnouncement(false)
 						}}

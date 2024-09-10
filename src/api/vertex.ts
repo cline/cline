@@ -1,6 +1,6 @@
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../shared/api"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
@@ -31,24 +31,6 @@ export class VertexHandler implements ApiHandler {
 			tool_choice: { type: "auto" },
 		})
 		return { message }
-	}
-
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any {
-		return {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
-			tools: "(see tools in src/ClaudeDev.ts)",
-			tool_choice: { type: "auto" },
-		}
 	}
 
 	getModel(): { id: VertexModelId; info: ModelInfo } {
