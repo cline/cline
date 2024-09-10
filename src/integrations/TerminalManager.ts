@@ -251,7 +251,7 @@ interface TerminalProcessEvents {
 }
 
 // how long to wait after a process outputs anything before we consider it "cool" again
-const PROCESS_HOT_TIMEOUT = 2_500
+const PROCESS_HOT_TIMEOUT = 3_500
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
