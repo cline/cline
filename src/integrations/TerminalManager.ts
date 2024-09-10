@@ -250,6 +250,9 @@ interface TerminalProcessEvents {
 	no_shell_integration: []
 }
 
+// how long to wait after a process outputs anything before we consider it "cool" again
+const PROCESS_HOT_TIMEOUT = 2_500
+
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
@@ -278,7 +281,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 				this.hotTimer = setTimeout(() => {
 					this.isHot = false
-				}, 4_000)
+				}, PROCESS_HOT_TIMEOUT)
 				if (isFirstChunk) {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
@@ -330,8 +333,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = lines.join("\n")
 				}
 
-				// sometimes chunks have leading/trailing commas which we'll remove too
-				data = data.replace(/^,+|,+$/g, "")
+				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
+				data = data.replace(/,/g, "")
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {

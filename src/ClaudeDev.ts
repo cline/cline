@@ -1790,7 +1790,7 @@ ${
 			await delay(500) // delay after saving file
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
-				timeout: 7_000,
+				timeout: 7_500,
 			}).catch(() => {})
 			// terminals are cool, let's retrieve their output
 			details += "\n\n# Active Terminals"
