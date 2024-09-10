@@ -251,7 +251,8 @@ interface TerminalProcessEvents {
 }
 
 // how long to wait after a process outputs anything before we consider it "cool" again
-const PROCESS_HOT_TIMEOUT = 3_500
+const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
+const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
@@ -274,14 +275,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
-				// Set to hot to stall API requests until terminal is cool again
-				this.isHot = true
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-				}
-				this.hotTimer = setTimeout(() => {
-					this.isHot = false
-				}, PROCESS_HOT_TIMEOUT)
+				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
@@ -335,6 +329,36 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
 				data = data.replace(/,/g, "")
+
+				// 2. Set isHot depending on the command
+				// Set to hot to stall API requests until terminal is cool again
+				this.isHot = true
+				if (this.hotTimer) {
+					clearTimeout(this.hotTimer)
+				}
+				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to claude
+				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating"]
+				const markerNullifiers = [
+					"finish",
+					"complete",
+					"succeed",
+					"done",
+					"end",
+					"stop",
+					"exit",
+					"terminate",
+					"error",
+					"failed",
+				]
+				const isCompiling =
+					compilingMarkers.some((marker) => command.toLowerCase().includes(marker.toLowerCase())) &&
+					!markerNullifiers.some((nullifier) => command.toLowerCase().includes(nullifier.toLowerCase()))
+				this.hotTimer = setTimeout(
+					() => {
+						this.isHot = false
+					},
+					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
+				)
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
