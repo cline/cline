@@ -337,8 +337,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					clearTimeout(this.hotTimer)
 				}
 				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to claude
-				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating"]
+				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
 				const markerNullifiers = [
+					"compiled",
+					"success",
 					"finish",
 					"complete",
 					"succeed",
@@ -348,11 +350,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					"exit",
 					"terminate",
 					"error",
-					"failed",
+					"fail",
 				]
 				const isCompiling =
-					compilingMarkers.some((marker) => command.toLowerCase().includes(marker.toLowerCase())) &&
-					!markerNullifiers.some((nullifier) => command.toLowerCase().includes(nullifier.toLowerCase()))
+					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
+					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
 				this.hotTimer = setTimeout(
 					() => {
 						this.isHot = false
