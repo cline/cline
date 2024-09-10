@@ -189,7 +189,7 @@ function formatResults(results: SearchResult[], cwd: string): string {
 	if (results.length >= MAX_RESULTS) {
 		output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary.\n\n`
 	} else {
-		output += `Found ${results.length.toLocaleString()} results.\n\n`
+		output += `Found ${results.length === 1 ? "1 result" : `${results.length.toLocaleString()} results`}.\n\n`
 	}
 
 	// Group results by file name

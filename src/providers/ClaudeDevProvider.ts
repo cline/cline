@@ -9,6 +9,7 @@ import * as path from "path"
 import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
+import { getTheme } from "../utils/getTheme"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -30,6 +31,8 @@ type GlobalStateKey =
 	| "openAiBaseUrl"
 	| "openAiModelId"
 	| "ollamaModelId"
+	| "ollamaBaseUrl"
+	| "anthropicBaseUrl"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -38,7 +41,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "sep-2-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "sep-9-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
@@ -155,10 +158,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 		// Listen for when color changes
 		vscode.workspace.onDidChangeConfiguration(
-			(e) => {
+			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
 					// Sends latest theme name to webview
-					this.postStateToWebview()
+					await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
 				}
 			},
 			null,
@@ -292,6 +295,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				switch (message.type) {
 					case "webviewDidLaunch":
 						await this.postStateToWebview()
+						const theme = await getTheme()
+						await this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -321,6 +326,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								openAiApiKey,
 								openAiModelId,
 								ollamaModelId,
+								ollamaBaseUrl,
+								anthropicBaseUrl,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -336,6 +343,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
+							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -385,6 +394,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 					case "resetState":
 						await this.resetState()
 						break
+					case "requestOllamaModels":
+						const models = await this.getOllamaModels(message.text)
+						this.postMessageToWebview({ type: "ollamaModels", models })
+						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -392,6 +405,25 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	// Ollama
+
+	async getOllamaModels(baseUrl?: string) {
+		try {
+			if (!baseUrl) {
+				baseUrl = "http://localhost:11434"
+			}
+			if (!URL.canParse(baseUrl)) {
+				return []
+			}
+			const response = await axios.get(`${baseUrl}/api/tags`)
+			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+			const models = [...new Set<string>(modelsArray)]
+			return models
+		} catch (error) {
+			return []
+		}
 	}
 
 	// OpenRouter
@@ -415,7 +447,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		this.claudeDev?.updateApi({ apiProvider: openrouter, openRouterApiKey: apiKey })
-		await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
 	}
 
 	// Task history
@@ -517,7 +549,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
-			themeName: vscode.workspace.getConfiguration("workbench").get<string>("colorTheme"),
 			uriScheme: vscode.env.uriScheme,
 			claudeMessages: this.claudeDev?.claudeMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
@@ -627,6 +658,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			openAiApiKey,
 			openAiModelId,
 			ollamaModelId,
+			ollamaBaseUrl,
+			anthropicBaseUrl,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -646,6 +679,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
+			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -682,6 +717,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				openAiApiKey,
 				openAiModelId,
 				ollamaModelId,
+				ollamaBaseUrl,
+				anthropicBaseUrl,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

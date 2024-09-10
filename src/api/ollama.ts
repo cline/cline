@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
 
@@ -11,7 +11,7 @@ export class OllamaHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "http://localhost:11434/v1",
+			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
 			apiKey: "ollama",
 		})
 	}
@@ -46,23 +46,6 @@ export class OllamaHandler implements ApiHandler {
 		}
 		const anthropicMessage = convertToAnthropicMessage(completion)
 		return { message: anthropicMessage }
-	}
-
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any {
-		return {
-			model: this.options.ollamaModelId ?? "",
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
-			tools: "(see tools in src/ClaudeDev.ts)",
-			tool_choice: "auto",
-		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

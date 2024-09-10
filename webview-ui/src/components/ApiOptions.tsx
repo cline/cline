@@ -1,5 +1,13 @@
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useMemo } from "react"
+import {
+	VSCodeDropdown,
+	VSCodeLink,
+	VSCodeOption,
+	VSCodeRadio,
+	VSCodeRadioGroup,
+	VSCodeTextField,
+	VSCodeCheckbox,
+} from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -15,14 +23,20 @@ import {
 } from "../../../src/shared/api"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import VSCodeButtonLink from "./VSCodeButtonLink"
+import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
+import { useEvent, useInterval } from "react-use"
+import { vscode } from "../utils/vscode"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
 }
 
-const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessage }) => {
+const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
@@ -30,6 +44,27 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
+
+	// Poll ollama models
+	const requestOllamaModels = useCallback(() => {
+		if (selectedProvider === "ollama") {
+			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
+		}
+	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
+	useEffect(() => {
+		if (selectedProvider === "ollama") {
+			requestOllamaModels()
+		}
+	}, [selectedProvider, requestOllamaModels])
+	useInterval(requestOllamaModels, selectedProvider === "ollama" ? 2000 : null)
+
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		if (message.type === "ollamaModels" && message.models) {
+			setOllamaModels(message.models)
+		}
+	}, [])
+	useEvent("message", handleMessage)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -93,10 +128,35 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
+
+					<div style={{ marginTop: 2 }}>
+						<VSCodeCheckbox
+							checked={anthropicBaseUrlSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAnthropicBaseUrlSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+								}
+							}}>
+							Use custom base URL
+						</VSCodeCheckbox>
+					</div>
+
+					{anthropicBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.anthropicBaseUrl || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("anthropicBaseUrl")}
+							placeholder="Default: https://api.anthropic.com"
+						/>
+					)}
+
 					<p
 						style={{
 							fontSize: "12px",
-							marginTop: "5px",
+							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
@@ -120,7 +180,10 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} style={{ margin: "5px 0 0 0" }}>
+						<VSCodeButtonLink
+							href={getOpenRouterAuthUrl(uriScheme)}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
 							Get OpenRouter API Key
 						</VSCodeButtonLink>
 					)}
@@ -295,8 +358,8 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 						}}>
 						You can use any OpenAI compatible API with models that support tool use.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so less
-							capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
+							best with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -305,32 +368,66 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiErrorMessa
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
+						value={apiConfiguration?.ollamaBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("ollamaBaseUrl")}
+						placeholder={"Default: http://localhost:11434"}>
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+					</VSCodeTextField>
+					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("ollamaModelId")}
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					{ollamaModels.length > 0 && (
+						<VSCodeRadioGroup
+							value={
+								ollamaModels.includes(apiConfiguration?.ollamaModelId || "")
+									? apiConfiguration?.ollamaModelId
+									: ""
+							}
+							onChange={(e) => {
+								const value = (e.target as HTMLInputElement)?.value
+								// need to check value first since radio group returns empty string sometimes
+								if (value) {
+									handleInputChange("ollamaModelId")({
+										target: { value },
+									})
+								}
+							}}>
+							{ollamaModels.map((model) => (
+								<VSCodeRadio
+									key={model}
+									value={model}
+									checked={apiConfiguration?.ollamaModelId === model}>
+									{model}
+								</VSCodeRadio>
+							))}
+						</VSCodeRadioGroup>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Ollama allows you to run models locally on your computer. For instructions on how to get started
-						with Ollama, see their
+						Ollama allows you to run models locally on your computer. For instructions on how to get
+						started, see their
 						<VSCodeLink
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline" }}>
 							quickstart guide.
 						</VSCodeLink>{" "}
-						You can use any models that support{" "}
+						You can use any model that supports{" "}
 						<VSCodeLink href="https://ollama.com/search?c=tools" style={{ display: "inline" }}>
 							tool use.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts, so less
-							capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
+							best with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -483,4 +580,4 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	}
 }
 
-export default ApiOptions
+export default memo(ApiOptions)

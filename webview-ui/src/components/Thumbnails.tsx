@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from "react"
+import React, { useState, useRef, useLayoutEffect, memo } from "react"
 import { useWindowSize } from "react-use"
 
 interface ThumbnailsProps {
@@ -8,7 +8,7 @@ interface ThumbnailsProps {
 	onHeightChange?: (height: number) => void
 }
 
-const Thumbnails: React.FC<ThumbnailsProps> = ({ images, style, setImages, onHeightChange }) => {
+const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProps) => {
 	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
@@ -88,4 +88,4 @@ const Thumbnails: React.FC<ThumbnailsProps> = ({ images, style, setImages, onHei
 	)
 }
 
-export default Thumbnails
+export default memo(Thumbnails)

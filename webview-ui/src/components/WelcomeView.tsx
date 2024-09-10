@@ -5,9 +5,7 @@ import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
-interface WelcomeViewProps {}
-
-const WelcomeView: React.FC<WelcomeViewProps> = () => {
+const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)

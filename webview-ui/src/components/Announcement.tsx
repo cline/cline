@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { ApiConfiguration } from "../../../src/shared/api"
+import { memo } from "react"
 // import VSCodeButtonLink from "./VSCodeButtonLink"
 // import { getOpenRouterAuthUrl } from "./ApiOptions"
 // import { vscode } from "../utils/vscode"
@@ -7,13 +7,11 @@ import { ApiConfiguration } from "../../../src/shared/api"
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
-	apiConfiguration?: ApiConfiguration
-	vscodeUriScheme?: string
 }
 /*
 You must update the latestAnnouncementId in ClaudeDevProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
-const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriScheme }: AnnouncementProps) => {
+const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
@@ -32,8 +30,16 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				{/* <li>
+			<p style={{ margin: "5px 0px" }}>
+				Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a
+				new 'Proceed While Running' button to let Claude continue working while commands run, sending him new
+				output along the way (i.e. letting him react to server errors as he edits files).{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1833316974518014072">
+					Demo here!
+				</VSCodeLink>
+			</p>
+			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
 					so I recommend trying them out.
 					<br />
@@ -64,7 +70,7 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 							Switch to OpenRouter
 						</VSCodeButton>
 					)}
-				</li> */}
+				</li> 
 				<li>
 					<b>Edit Claude's changes before accepting!</b> When he creates or edits a file, you can modify his
 					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
@@ -78,7 +84,7 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 					When Claude runs commands, you can now type directly in the terminal (+ support for Python
 					environments)
 				</li>
-			</ul>
+			</ul>*/}
 			<p style={{ margin: "0" }}>
 				Follow me for more updates!{" "}
 				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
@@ -89,4 +95,4 @@ const Announcement = ({ version, hideAnnouncement, apiConfiguration, vscodeUriSc
 	)
 }
 
-export default Announcement
+export default memo(Announcement)

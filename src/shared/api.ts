@@ -3,6 +3,7 @@ export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "o
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -14,6 +15,7 @@ export interface ApiHandlerOptions {
 	openAiApiKey?: string
 	openAiModelId?: string
 	ollamaModelId?: string
+	ollamaBaseUrl?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
