@@ -5,7 +5,7 @@
   "version": "1.6.2",
   "icon": "icons/icon.png",
   "galleryBanner": {
-    "color": "#C7D1D9",
+    "color": "#FFDFCA",
     "theme": "light"
   },
   "engines": {
