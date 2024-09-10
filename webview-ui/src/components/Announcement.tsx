@@ -33,7 +33,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<p style={{ margin: "5px 0px" }}>
 				Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a
 				new 'Proceed While Running' button to let Claude continue working while commands run, sending him new
-				output along the way (i.e. letting him react to server errors as he edits files)
+				output along the way (i.e. letting him react to server errors as he edits files).{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1833316974518014072">
+					Demo here!
+				</VSCodeLink>
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
