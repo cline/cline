@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse, withoutImageData } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
 
@@ -46,23 +46,6 @@ export class OpenAiHandler implements ApiHandler {
 		}
 		const anthropicMessage = convertToAnthropicMessage(completion)
 		return { message: anthropicMessage }
-	}
-
-	createUserReadableRequest(
-		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
-	): any {
-		return {
-			model: this.options.openAiModelId ?? "",
-			system: "(see SYSTEM_PROMPT in src/ClaudeDev.ts)",
-			messages: [{ conversation_history: "..." }, { role: "user", content: withoutImageData(userContent) }],
-			tools: "(see tools in src/ClaudeDev.ts)",
-			tool_choice: "auto",
-		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

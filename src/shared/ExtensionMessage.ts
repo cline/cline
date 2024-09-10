@@ -5,11 +5,12 @@ import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages"
+	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme"
 	text?: string
 	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	state?: ExtensionState
 	images?: string[]
+	models?: string[]
 }
 
 export interface ExtensionState {
@@ -17,7 +18,6 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
-	themeName?: string
 	uriScheme?: string
 	claudeMessages: ClaudeMessage[]
 	taskHistory: HistoryItem[]
@@ -56,6 +56,7 @@ export type ClaudeSay =
 	| "api_req_retried"
 	| "command_output"
 	| "tool"
+	| "shell_integration_warning"
 
 export interface ClaudeSayTool {
 	tool:

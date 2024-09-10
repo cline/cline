@@ -12,7 +12,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
 -   Review and edit diffs of every change Claude makes right in the editor, or provide feedback in chat until you're satisfied with the result
--   Runs CLI commands directly in chat, so you never have to open a terminal yourself (+ supports interactive input and python environments)
+-   Executes commands directly in your terminal, keeping Claude updated on any output as he works (i.e. letting him react to server errors!)
 -   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
 -   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed

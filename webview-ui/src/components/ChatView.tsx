@@ -1,49 +1,32 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import vsDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
 import DynamicTextArea from "react-textarea-autosize"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../src/shared/ExtensionMessage"
 import { combineApiRequests } from "../../../src/shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_STDIN_STRING } from "../../../src/shared/combineCommandSequences"
+import { combineCommandSequences } from "../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../context/ExtensionStateContext"
-import { getSyntaxHighlighterStyleFromTheme } from "../utils/getSyntaxHighlighterStyleFromTheme"
 import { vscode } from "../utils/vscode"
 import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
 import HistoryPreview from "./HistoryPreview"
 import TaskHeader from "./TaskHeader"
 import Thumbnails from "./Thumbnails"
+import { normalizeApiConfiguration } from "./ApiOptions"
 
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
-	selectedModelSupportsImages: boolean
-	selectedModelSupportsPromptCache: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
 }
 
 const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-const ChatView = ({
-	isHidden,
-	showAnnouncement,
-	selectedModelSupportsImages,
-	selectedModelSupportsPromptCache,
-	hideAnnouncement,
-	showHistoryView,
-}: ChatViewProps) => {
-	const {
-		version,
-		claudeMessages: messages,
-		taskHistory,
-		themeName: vscodeThemeName,
-		apiConfiguration,
-		uriScheme,
-	} = useExtensionState()
+const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const { version, claudeMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
@@ -65,7 +48,6 @@ const ChatView = ({
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
-	const [syntaxHighlighterStyle, setSyntaxHighlighterStyle] = useState(vsDarkPlus)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 
@@ -75,14 +57,6 @@ const ChatView = ({
 			[ts]: !prev[ts],
 		}))
 	}
-
-	useEffect(() => {
-		if (!vscodeThemeName) return
-		const theme = getSyntaxHighlighterStyleFromTheme(vscodeThemeName)
-		if (theme) {
-			setSyntaxHighlighterStyle(theme)
-		}
-	}, [vscodeThemeName])
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -144,7 +118,7 @@ const ChatView = ({
 							setTextAreaDisabled(false)
 							setClaudeAsk("command_output")
 							setEnableButtons(true)
-							setPrimaryButtonText("Exit Command")
+							setPrimaryButtonText("Proceed While Running")
 							setSecondaryButtonText(undefined)
 							break
 						case "completion_result":
@@ -215,7 +189,7 @@ const ChatView = ({
 		}
 	}, [messages.length])
 
-	const handleSendMessage = () => {
+	const handleSendMessage = useCallback(() => {
 		const text = inputValue.trim()
 		if (text || selectedImages.length > 0) {
 			if (messages.length === 0) {
@@ -248,26 +222,16 @@ const ChatView = ({
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
 		}
-	}
+	}, [inputValue, selectedImages, messages.length, claudeAsk])
 
-	const handleSendStdin = (text: string) => {
-		if (claudeAsk === "command_output") {
-			vscode.postMessage({
-				type: "askResponse",
-				askResponse: "messageResponse",
-				text: COMMAND_STDIN_STRING + text,
-			})
-			setClaudeAsk(undefined)
-			// don't need to disable since extension relinquishes control back immediately
-			// setTextAreaDisabled(true)
-			// setEnableButtons(false)
-		}
-	}
+	const startNewTask = useCallback(() => {
+		vscode.postMessage({ type: "clearTask" })
+	}, [])
 
 	/*
 	This logic depends on the useEffect[messages] above to set claudeAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
-	const handlePrimaryButtonClick = () => {
+	const handlePrimaryButtonClick = useCallback(() => {
 		switch (claudeAsk) {
 			case "api_req_failed":
 			case "command":
@@ -288,9 +252,9 @@ const ChatView = ({
 		setEnableButtons(false)
 		// setPrimaryButtonText(undefined)
 		// setSecondaryButtonText(undefined)
-	}
+	}, [claudeAsk, startNewTask])
 
-	const handleSecondaryButtonClick = () => {
+	const handleSecondaryButtonClick = useCallback(() => {
 		switch (claudeAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
@@ -307,67 +271,76 @@ const ChatView = ({
 		setEnableButtons(false)
 		// setPrimaryButtonText(undefined)
 		// setSecondaryButtonText(undefined)
-	}
+	}, [claudeAsk, startNewTask])
 
-	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-		const isComposing = event.nativeEvent?.isComposing ?? false
-		if (event.key === "Enter" && !event.shiftKey && !isComposing) {
-			event.preventDefault()
-			handleSendMessage()
-		}
-	}
-
-	const handleTaskCloseButtonClick = () => {
-		startNewTask()
-	}
-
-	const startNewTask = () => {
-		vscode.postMessage({ type: "clearTask" })
-	}
-
-	const selectImages = () => {
-		vscode.postMessage({ type: "selectImages" })
-	}
-
-	const handlePaste = async (e: React.ClipboardEvent) => {
-		const items = e.clipboardData.items
-		const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
-		const imageItems = Array.from(items).filter((item) => {
-			const [type, subtype] = item.type.split("/")
-			return type === "image" && acceptedTypes.includes(subtype)
-		})
-		if (!shouldDisableImages && imageItems.length > 0) {
-			e.preventDefault()
-			const imagePromises = imageItems.map((item) => {
-				return new Promise<string | null>((resolve) => {
-					const blob = item.getAsFile()
-					if (!blob) {
-						resolve(null)
-						return
-					}
-					const reader = new FileReader()
-					reader.onloadend = () => {
-						if (reader.error) {
-							console.error("Error reading file:", reader.error)
-							resolve(null)
-						} else {
-							const result = reader.result
-							resolve(typeof result === "string" ? result : null)
-						}
-					}
-					reader.readAsDataURL(blob)
-				})
-			})
-			const imageDataArray = await Promise.all(imagePromises)
-			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-			//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
-			if (dataUrls.length > 0) {
-				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
-			} else {
-				console.warn("No valid images were processed")
+	const handleKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLTextAreaElement>) => {
+			const isComposing = event.nativeEvent?.isComposing ?? false
+			if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+				event.preventDefault()
+				handleSendMessage()
 			}
-		}
-	}
+		},
+		[handleSendMessage]
+	)
+
+	const handleTaskCloseButtonClick = useCallback(() => {
+		startNewTask()
+	}, [startNewTask])
+
+	const { selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration)
+	}, [apiConfiguration])
+
+	const selectImages = useCallback(() => {
+		vscode.postMessage({ type: "selectImages" })
+	}, [])
+
+	const shouldDisableImages =
+		!selectedModelInfo.supportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+
+	const handlePaste = useCallback(
+		async (e: React.ClipboardEvent) => {
+			const items = e.clipboardData.items
+			const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
+			const imageItems = Array.from(items).filter((item) => {
+				const [type, subtype] = item.type.split("/")
+				return type === "image" && acceptedTypes.includes(subtype)
+			})
+			if (!shouldDisableImages && imageItems.length > 0) {
+				e.preventDefault()
+				const imagePromises = imageItems.map((item) => {
+					return new Promise<string | null>((resolve) => {
+						const blob = item.getAsFile()
+						if (!blob) {
+							resolve(null)
+							return
+						}
+						const reader = new FileReader()
+						reader.onloadend = () => {
+							if (reader.error) {
+								console.error("Error reading file:", reader.error)
+								resolve(null)
+							} else {
+								const result = reader.result
+								resolve(typeof result === "string" ? result : null)
+							}
+						}
+						reader.readAsDataURL(blob)
+					})
+				})
+				const imageDataArray = await Promise.all(imagePromises)
+				const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+				//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
+				if (dataUrls.length > 0) {
+					setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+				} else {
+					console.warn("No valid images were processed")
+				}
+			}
+		},
+		[shouldDisableImages, setSelectedImages]
+	)
 
 	useEffect(() => {
 		if (selectedImages.length === 0) {
@@ -469,8 +442,19 @@ const ChatView = ({
 		return text
 	}, [task])
 
-	const shouldDisableImages =
-		!selectedModelSupportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+	const itemContent = useCallback(
+		(index: number, message: any) => (
+			<ChatRow
+				key={message.ts}
+				message={message}
+				isExpanded={expandedRows[message.ts] || false}
+				onToggleExpand={() => toggleRowExpansion(message.ts)}
+				lastModifiedMessage={modifiedMessages.at(-1)}
+				isLast={index === visibleMessages.length - 1}
+			/>
+		),
+		[expandedRows, modifiedMessages, visibleMessages.length]
+	)
 
 	return (
 		<div
@@ -489,7 +473,7 @@ const ChatView = ({
 					task={task}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelSupportsPromptCache}
+					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
 					cacheWrites={apiMetrics.totalCacheWrites}
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
@@ -497,14 +481,7 @@ const ChatView = ({
 				/>
 			) : (
 				<>
-					{showAnnouncement && (
-						<Announcement
-							version={version}
-							hideAnnouncement={hideAnnouncement}
-							apiConfiguration={apiConfiguration}
-							vscodeUriScheme={uriScheme}
-						/>
-					)}
+					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
 						<h2>What can I do for you?</h2>
 						<p>
@@ -540,18 +517,7 @@ const ChatView = ({
 						// }}
 						increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
-						itemContent={(index, message) => (
-							<ChatRow
-								key={message.ts}
-								message={message}
-								syntaxHighlighterStyle={syntaxHighlighterStyle}
-								isExpanded={expandedRows[message.ts] || false}
-								onToggleExpand={() => toggleRowExpansion(message.ts)}
-								lastModifiedMessage={modifiedMessages.at(-1)}
-								isLast={index === visibleMessages.length - 1}
-								handleSendStdin={handleSendStdin}
-							/>
-						)}
+						itemContent={itemContent}
 					/>
 					<div
 						style={{

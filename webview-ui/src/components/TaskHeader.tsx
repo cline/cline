@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useRef, useState } from "react"
+import React, { memo, useEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../context/ExtensionStateContext"
@@ -89,24 +89,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}
 	}, [task.text, windowWidth])
 
-	const toggleExpand = () => setIsExpanded(!isExpanded)
-
-	const handleDownload = () => {
-		vscode.postMessage({ type: "exportCurrentTask" })
-	}
-
-	const ExportButton = () => (
-		<VSCodeButton
-			appearance="icon"
-			onClick={handleDownload}
-			style={{
-				marginBottom: "-2px",
-				marginRight: "-2.5px",
-			}}>
-			<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT</div>
-		</VSCodeButton>
-	)
-
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
@@ -127,7 +109,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						justifyContent: "space-between",
 						alignItems: "center",
 					}}>
-					<span style={{ fontWeight: "bold", fontSize: "16px" }}>Task</span>
+					<span style={{ fontWeight: "bold" }}>Task</span>
 					<VSCodeButton
 						appearance="icon"
 						onClick={onClose}
@@ -182,7 +164,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									paddingLeft: 3,
 									backgroundColor: "var(--vscode-badge-background)",
 								}}
-								onClick={toggleExpand}>
+								onClick={() => setIsExpanded(!isExpanded)}>
 								See more
 							</div>
 						</div>
@@ -195,9 +177,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							color: "var(--vscode-textLink-foreground)",
 							marginLeft: "auto",
 							textAlign: "right",
-							paddingRight: 0,
+							paddingRight: 2,
 						}}
-						onClick={toggleExpand}>
+						onClick={() => setIsExpanded(!isExpanded)}>
 						See less
 					</div>
 				)}
@@ -298,4 +280,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	)
 }
 
-export default TaskHeader
+const ExportButton = () => (
+	<VSCodeButton
+		appearance="icon"
+		onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}
+		style={{
+			marginBottom: "-2px",
+			marginRight: "-2.5px",
+		}}>
+		<div style={{ fontSize: "10.5px", fontWeight: "bold", opacity: 0.6 }}>EXPORT</div>
+	</VSCodeButton>
+)
+
+export default memo(TaskHeader)

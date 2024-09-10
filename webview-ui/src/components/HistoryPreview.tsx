@@ -1,6 +1,7 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
+import { memo } from "react"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -148,4 +149,4 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	)
 }
 
-export default HistoryPreview
+export default memo(HistoryPreview)

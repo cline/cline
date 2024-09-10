@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../utils/validate"
 import { vscode } from "../utils/vscode"
@@ -162,4 +162,4 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	)
 }
 
-export default SettingsView
+export default memo(SettingsView)
