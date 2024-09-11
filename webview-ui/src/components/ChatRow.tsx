@@ -4,9 +4,10 @@ import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
-import CodeAccordian from "./CodeAccordian"
+import CodeAccordian, { removeLeadingNonAlphanumeric } from "./CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
+import { vscode } from "../utils/vscode"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -190,12 +191,54 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
 							</span>
 						</div>
-						<CodeAccordian
+						{/* <CodeAccordian
 							code={tool.content!}
 							path={tool.path!}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
-						/>
+						/> */}
+						<div
+							style={{
+								borderRadius: 3,
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+								overflow: "hidden",
+								border: "1px solid var(--vscode-editorGroup-border)",
+							}}>
+							<div
+								style={{
+									color: "var(--vscode-descriptionForeground)",
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									padding: "6px 10px",
+									cursor: "pointer",
+									userSelect: "none",
+									WebkitUserSelect: "none",
+									MozUserSelect: "none",
+									msUserSelect: "none",
+								}}
+								onClick={() => {
+									vscode.postMessage({ type: "openFile", text: tool.content })
+								}}>
+								<div style={{ display: "flex", alignItems: "center" }}>
+									<span
+										style={{
+											whiteSpace: "nowrap",
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											marginRight: "8px",
+											fontSize: "11px",
+											direction: "rtl",
+											textAlign: "left",
+										}}>
+										{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+									</span>
+								</div>
+								<span
+									className={`codicon codicon-link-external`}
+									style={{ fontSize: 13, margin: "1.5px 0" }}></span>
+							</div>
+						</div>
 					</>
 				)
 			case "listFilesTopLevel":

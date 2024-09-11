@@ -1138,7 +1138,7 @@ export class ClaudeDev {
 			const message = JSON.stringify({
 				tool: "readFile",
 				path: this.getReadablePath(relPath),
-				content,
+				content: absolutePath,
 			} as ClaudeSayTool)
 			if (this.alwaysAllowReadOnly) {
 				await this.say("tool", message)
