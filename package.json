@@ -2,10 +2,10 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.6.2",
+  "version": "1.6.4",
   "icon": "icons/icon.png",
   "galleryBanner": {
-    "color": "#C1DCEA",
+    "color": "#F9E1D2",
     "theme": "light"
   },
   "engines": {
@@ -21,14 +21,25 @@
     "url": "https://github.com/saoudrizwan/claude-dev"
   },
   "categories": [
-    "AI"
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Education",
+    "Machine Learning",
+    "Snippets",
+    "Testing"
   ],
   "keywords": [
-    "AI",
-    "Claude",
-    "agentic",
-    "productivity",
-    "automation"
+    "claude",
+    "coding",
+    "agent",
+    "autonomous",
+    "chatgpt",
+    "sonnet",
+    "mistral",
+    "codestral",
+    "ai",
+    "llama"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
