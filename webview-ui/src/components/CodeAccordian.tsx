@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react"
 import { getLanguageFromPath } from "../utils/getLanguageFromPath"
-import CodeBlock from "./CodeBlock"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 
 interface CodeAccordianProps {
 	code?: string
@@ -30,7 +30,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 		<div
 			style={{
 				borderRadius: 3,
-				backgroundColor: "var(--vscode-editor-background)",
+				backgroundColor: CODE_BLOCK_BG_COLOR,
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>

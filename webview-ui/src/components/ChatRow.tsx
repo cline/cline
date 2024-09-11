@@ -534,7 +534,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<div
 								style={{
 									borderRadius: 3,
-									border: "1px solid var(--vscode-sideBar-border)",
+									border: "1px solid var(--vscode-editorGroup-border)",
 									overflow: "hidden",
 									backgroundColor: CODE_BLOCK_BG_COLOR,
 								}}>
@@ -682,7 +682,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 							<div
 								style={{
 									borderRadius: 3,
-									border: "1px solid var(--vscode-sideBar-border)",
+									border: "1px solid var(--vscode-editorGroup-border)",
 									overflow: "hidden",
 								}}>
 								<CodeBlock
