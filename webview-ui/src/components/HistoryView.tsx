@@ -3,6 +3,7 @@ import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState } from "react"
+import Fuse, { FuseResult } from "fuse.js"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -39,25 +40,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		return taskHistory.filter((item) => item.ts && item.task)
 	}, [taskHistory])
 
-	const taskHistorySearchResults = useMemo(() => {
-		return presentableTasks.filter((item) => item.task.toLowerCase().includes(searchQuery.toLowerCase()))
-	}, [presentableTasks, searchQuery])
+	const fuse = useMemo(() => {
+		return new Fuse(presentableTasks, {
+			keys: ["task"],
+			threshold: 0.4,
+			shouldSort: true,
+			isCaseSensitive: false,
+			ignoreLocation: true,
+			includeMatches: true,
+			minMatchCharLength: 1,
+		})
+	}, [presentableTasks])
 
-	const highlightText = (text: string, query: string) => {
-		if (!query) return text
-		const parts = text.split(new RegExp(`(${query})`, "gi"))
-		return parts.map((part, index) =>
-			part.toLowerCase() === query.toLowerCase() ? (
-				<mark
-					key={index}
-					style={{ backgroundColor: "var(--vscode-editor-findMatchHighlightBackground)", color: "inherit" }}>
-					{part}
-				</mark>
-			) : (
-				part
-			)
-		)
-	}
+	const taskHistorySearchResults = useMemo(() => {
+		if (!searchQuery) return presentableTasks
+		const searchResults = fuse.search(searchQuery)
+		return highlight(searchResults)
+	}, [presentableTasks, searchQuery, fuse])
 
 	return (
 		<>
@@ -74,6 +73,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.history-item:hover .export-button {
 						opacity: 1;
 						pointer-events: auto;
+					}
+					.history-item-highlight {
+						background-color: var(--vscode-editor-findMatchHighlightBackground);
+						color: inherit;
 					}
 				`}
 			</style>
@@ -205,9 +208,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											whiteSpace: "pre-wrap",
 											wordBreak: "break-word",
 											overflowWrap: "anywhere",
-										}}>
-										{highlightText(item.task, searchQuery)}
-									</div>
+										}}
+										dangerouslySetInnerHTML={{ __html: item.task }}
+									/>
 									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 										<div
 											style={{
@@ -363,5 +366,55 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 	</VSCodeButton>
 )
+
+// https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
+const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+	const set = (obj: Record<string, any>, path: string, value: any) => {
+		const pathValue = path.split(".")
+		let i: number
+
+		for (i = 0; i < pathValue.length - 1; i++) {
+			obj = obj[pathValue[i]] as Record<string, any>
+		}
+
+		obj[pathValue[i]] = value
+	}
+
+	const generateHighlightedText = (inputText: string, regions: [number, number][] = []) => {
+		let content = ""
+		let nextUnhighlightedRegionStartingIndex = 0
+
+		regions.forEach((region) => {
+			const lastRegionNextIndex = region[1] + 1
+
+			content += [
+				inputText.substring(nextUnhighlightedRegionStartingIndex, region[0]),
+				`<span class="${highlightClassName}">`,
+				inputText.substring(region[0], lastRegionNextIndex),
+				"</span>",
+			].join("")
+
+			nextUnhighlightedRegionStartingIndex = lastRegionNextIndex
+		})
+
+		content += inputText.substring(nextUnhighlightedRegionStartingIndex)
+
+		return content
+	}
+
+	return fuseSearchResult
+		.filter(({ matches }) => matches && matches.length)
+		.map(({ item, matches }) => {
+			const highlightedItem = { ...item }
+
+			matches?.forEach((match) => {
+				if (match.key && typeof match.value === "string") {
+					set(highlightedItem, match.key, generateHighlightedText(match.value, [...match.indices]))
+				}
+			})
+
+			return highlightedItem
+		})
+}
 
 export default memo(HistoryView)
