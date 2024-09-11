@@ -848,20 +848,22 @@ export class ClaudeDev {
 			await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
 
 			// Find the first range where the content differs and scroll to it
-			const diffResult = diff.diffLines(originalContent, newContent)
-			for (let i = 0, lineCount = 0; i < diffResult.length; i++) {
-				const part = diffResult[i]
-				if (part.added || part.removed) {
-					const startLine = lineCount + 1
-					const endLine = lineCount + (part.count || 0)
-					vscode.window.activeTextEditor?.revealRange(
-						// + 3 to move the editor up slightly as this looks better
-						new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine + 3, 0)),
-						vscode.TextEditorRevealType.InCenter
-					)
-					break
+			if (fileExists) {
+				const diffResult = diff.diffLines(originalContent, newContent)
+				for (let i = 0, lineCount = 0; i < diffResult.length; i++) {
+					const part = diffResult[i]
+					if (part.added || part.removed) {
+						const startLine = lineCount + 1
+						const endLine = lineCount + (part.count || 0)
+						vscode.window.activeTextEditor?.revealRange(
+							// + 3 to move the editor up slightly as this looks better
+							new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine + 3, 0)),
+							vscode.TextEditorRevealType.InCenter
+						)
+						break
+					}
+					lineCount += part.count || 0
 				}
-				lineCount += part.count || 0
 			}
 
 			// remove cursor from the document
