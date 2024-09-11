@@ -847,26 +847,21 @@ export class ClaudeDev {
 			// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
 			await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
 
-			// Find the first position where the content differs and scroll to the first changed line if found
-			let firstDiffPosition: vscode.Position | undefined
-			const originalLines = originalContent.split("\n")
-			const newLines = newContent.split("\n")
-			for (let i = 0; i < Math.max(originalLines.length, newLines.length); i++) {
-				if (i < originalLines.length && i < newLines.length) {
-					if (originalLines[i] !== newLines[i]) {
-						firstDiffPosition = new vscode.Position(i, 0)
-						break
-					}
-				} else {
-					firstDiffPosition = new vscode.Position(i, 0)
+			// Find the first range where the content differs and scroll to it
+			const diffResult = diff.diffLines(originalContent, newContent)
+			for (let i = 0, lineCount = 0; i < diffResult.length; i++) {
+				const part = diffResult[i]
+				if (part.added || part.removed) {
+					const startLine = lineCount + 1
+					const endLine = lineCount + (part.count || 0)
+					vscode.window.activeTextEditor?.revealRange(
+						// + 3 to move the editor up slightly as this looks better
+						new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine + 3, 0)),
+						vscode.TextEditorRevealType.InCenter
+					)
 					break
 				}
-			}
-			if (firstDiffPosition) {
-				vscode.window.activeTextEditor?.revealRange(
-					new vscode.Range(firstDiffPosition, firstDiffPosition),
-					vscode.TextEditorRevealType.InCenter
-				)
+				lineCount += part.count || 0
 			}
 
 			// remove cursor from the document
