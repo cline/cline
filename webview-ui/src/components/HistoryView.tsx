@@ -1,17 +1,31 @@
-import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState } from "react"
+import { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 
 type HistoryViewProps = {
 	onDone: () => void
 }
 
+type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
+
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const { taskHistory } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
+	const [sortOption, setSortOption] = useState<SortOption>("newest")
+	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+
+	useEffect(() => {
+		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
+			setLastNonRelevantSort(sortOption)
+			setSortOption("mostRelevant")
+		} else if (!searchQuery && sortOption === "mostRelevant" && lastNonRelevantSort) {
+			setSortOption(lastNonRelevantSort)
+			setLastNonRelevantSort(null)
+		}
+	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
@@ -43,20 +57,42 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const fuse = useMemo(() => {
 		return new Fuse(presentableTasks, {
 			keys: ["task"],
-			threshold: 0.4,
+			threshold: 0.6,
 			shouldSort: true,
 			isCaseSensitive: false,
-			ignoreLocation: true,
+			ignoreLocation: false,
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
 	}, [presentableTasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		if (!searchQuery) return presentableTasks
-		const searchResults = fuse.search(searchQuery)
-		return highlight(searchResults)
-	}, [presentableTasks, searchQuery, fuse])
+		let results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
+
+		results.sort((a, b) => {
+			switch (sortOption) {
+				case "oldest":
+					return a.ts - b.ts
+				case "mostExpensive":
+					return (b.totalCost || 0) - (a.totalCost || 0)
+				case "mostTokens":
+					return (
+						(b.tokensIn || 0) +
+						(b.tokensOut || 0) +
+						(b.cacheWrites || 0) +
+						(b.cacheReads || 0) -
+						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
+					)
+				case "mostRelevant":
+					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
+				case "newest":
+				default:
+					return b.ts - a.ts
+			}
+		})
+
+		return results
+	}, [presentableTasks, searchQuery, fuse, sortOption])
 
 	return (
 		<>
@@ -77,6 +113,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.history-item-highlight {
 						background-color: var(--vscode-editor-findMatchHighlightBackground);
 						color: inherit;
+					}
+					.clear-search-button {
+						cursor: pointer;
+						opacity: 0.5;
+					}
+					.clear-search-button:hover {
+						opacity: 1;
 					}
 				`}
 			</style>
@@ -101,26 +144,56 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 				</div>
-				<div style={{ padding: "5px 17px 10px 17px" }}>
-					<VSCodeTextField
-						style={{ width: "100%" }}
-						placeholder="Search history..."
-						value={searchQuery}
-						onInput={(e) => setSearchQuery((e.target as HTMLInputElement)?.value)}>
-						<div
-							slot="start"
-							className="codicon codicon-search"
-							style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}></div>
-						{searchQuery && (
-							<VSCodeButton
-								appearance="icon"
-								aria-label="Clear search"
-								onClick={() => setSearchQuery("")}
-								slot="end">
-								<span className="codicon codicon-close"></span>
-							</VSCodeButton>
-						)}
-					</VSCodeTextField>
+				<div style={{ padding: "5px 17px 6px 17px" }}>
+					<div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+						<VSCodeTextField
+							style={{ width: "100%" }}
+							placeholder="Fuzzy search history..."
+							value={searchQuery}
+							onInput={(e) => {
+								const newValue = (e.target as HTMLInputElement)?.value
+								setSearchQuery(newValue)
+								if (newValue && !searchQuery && sortOption !== "mostRelevant") {
+									setLastNonRelevantSort(sortOption)
+									setSortOption("mostRelevant")
+								}
+							}}>
+							<div
+								slot="start"
+								className="codicon codicon-search"
+								style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}></div>
+							{searchQuery && (
+								<div
+									className="clear-search-button"
+									aria-label="Clear search"
+									onClick={() => setSearchQuery("")}
+									slot="end"
+									style={{
+										display: "flex",
+										justifyContent: "center",
+										alignItems: "center",
+										height: "100%",
+									}}>
+									<span className="codicon codicon-close"></span>
+								</div>
+							)}
+						</VSCodeTextField>
+						<VSCodeRadioGroup
+							style={{ display: "flex", flexWrap: "wrap" }}
+							value={sortOption}
+							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
+							<VSCodeRadio value="newest">Newest</VSCodeRadio>
+							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
+							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
+							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
+							<VSCodeRadio
+								value="mostRelevant"
+								disabled={!searchQuery}
+								style={{ opacity: searchQuery ? 1 : 0.5 }}>
+								Most Relevant
+							</VSCodeRadio>
+						</VSCodeRadioGroup>
+					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
 					{presentableTasks.length === 0 && (
@@ -139,11 +212,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<span
 								className="codicon codicon-archive"
 								style={{ fontSize: "50px", marginBottom: "15px" }}></span>
-							<div>
-								No history found,
-								<br />
-								start a new task to see it here...
-							</div>
+							<div>No history found</div>
 						</div>
 					)}
 					<Virtuoso
