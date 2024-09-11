@@ -29,7 +29,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	}
 
 	return (
-		<div style={{ flexGrow: 1, overflowY: "auto" }}>
+		<div style={{ flexShrink: 0 }}>
 			<style>
 				{`
 					.history-preview-item {

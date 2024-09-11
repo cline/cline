@@ -98,7 +98,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 				</div>
-				<div style={{ padding: "5px 17px" }}>
+				<div style={{ padding: "5px 17px 10px 17px" }}>
 					<VSCodeTextField
 						style={{ width: "100%" }}
 						placeholder="Search history..."
@@ -147,7 +147,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						style={{
 							flexGrow: 1,
 							overflowY: "scroll",
-							scrollbarWidth: "none",
 						}}
 						data={taskHistorySearchResults}
 						itemContent={(index, item) => (

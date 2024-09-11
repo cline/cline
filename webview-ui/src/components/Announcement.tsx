@@ -20,6 +20,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				padding: "12px 16px",
 				margin: "5px 15px 5px 15px",
 				position: "relative",
+				flexShrink: 0,
 			}}>
 			<VSCodeButton
 				appearance="icon"
