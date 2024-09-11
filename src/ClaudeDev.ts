@@ -855,11 +855,24 @@ export class ClaudeDev {
 					if (part.added || part.removed) {
 						const startLine = lineCount + 1
 						const endLine = lineCount + (part.count || 0)
-						vscode.window.activeTextEditor?.revealRange(
-							// + 3 to move the editor up slightly as this looks better
-							new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine + 3, 0)),
-							vscode.TextEditorRevealType.InCenter
-						)
+						const activeEditor = vscode.window.activeTextEditor
+						if (activeEditor) {
+							try {
+								activeEditor.revealRange(
+									// + 3 to move the editor up slightly as this looks better
+									new vscode.Range(
+										new vscode.Position(startLine, 0),
+										new vscode.Position(
+											Math.min(endLine + 3, activeEditor.document.lineCount - 1),
+											0
+										)
+									),
+									vscode.TextEditorRevealType.InCenter
+								)
+							} catch (error) {
+								console.error(`Error revealing range for ${absolutePath}: ${error}`)
+							}
+						}
 						break
 					}
 					lineCount += part.count || 0
@@ -1558,7 +1571,7 @@ ${this.customInstructions.trim()}
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
-					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "let's try breaking this large file down into smaller files").`
+					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
 					: "Claude Dev uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.5 Sonnet for its advanced agentic coding capabilities."
 			)
 			if (response === "messageResponse") {
