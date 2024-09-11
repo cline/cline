@@ -455,9 +455,15 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									</span>
 								</div>
 								<div>
-									Claude won't be able to view the command's output. Please update VSCode (CMD/CTRL +
-									Shift + P → Update) and make sure you're using a supported shell: bash, zsh, fish,
-									or PowerShell.
+									Claude won't be able to view the command's output. Please update VSCode (
+									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
+									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
+									"Terminal: Select Default Profile").{" "}
+									<a
+										href="https://github.com/saoudrizwan/claude-dev/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										style={{ color: "inherit", textDecoration: "underline" }}>
+										Still having trouble?
+									</a>
 								</div>
 							</div>
 						</>
