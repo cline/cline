@@ -507,16 +507,12 @@ export class ClaudeDev {
 		}
 
 		const { response, text, images } = await this.ask(askType) // calls poststatetowebview
-
-		let newUserContent: UserContent = []
+		let responseText: string | undefined
+		let responseImages: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images)
-			if (images && images.length > 0) {
-				newUserContent.push(...this.formatImagesIntoBlocks(images))
-			}
-			if (text) {
-				newUserContent.push({ type: "text", text })
-			}
+			responseText = text
+			responseImages = images
 		}
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with claude messages
@@ -529,8 +525,8 @@ export class ClaudeDev {
 		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
 			await this.getSavedApiConversationHistory()
 
-		let modifiedOldUserContent: UserContent
-		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[]
+		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
+		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[] // need to remove the last user message to replace with new modified user message
 		if (existingApiConversationHistory.length > 0) {
 			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
 
@@ -556,7 +552,7 @@ export class ClaudeDev {
 					modifiedOldUserContent = []
 				}
 			} else if (lastMessage.role === "user") {
-				const previousAssistantMessage =
+				const previousAssistantMessage: Anthropic.Messages.MessageParam | undefined =
 					existingApiConversationHistory[existingApiConversationHistory.length - 2]
 
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
@@ -586,7 +582,7 @@ export class ClaudeDev {
 								content: "Task was interrupted before this tool call could be completed.",
 							}))
 
-						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1) // removes the last user message
 						modifiedOldUserContent = [...existingUserContent, ...missingToolResponses]
 					} else {
 						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
@@ -603,10 +599,8 @@ export class ClaudeDev {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		// now we have newUserContent which is user's current message, and the modifiedOldUserContent which is the old message with tool responses filled in
-		// we need to combine them while ensuring there is only one text block
-		const modifiedOldUserContentText = modifiedOldUserContent.find((block) => block.type === "text")?.text
-		const newUserContentText = newUserContent.find((block) => block.type === "text")?.text
+		let newUserContent: UserContent = [...modifiedOldUserContent]
+
 		const agoText = (() => {
 			const timestamp = lastClaudeMessage?.ts ?? Date.now()
 			const now = Date.now()
@@ -627,22 +621,21 @@ export class ClaudeDev {
 			return "just now"
 		})()
 
-		const combinedText =
-			`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now ${cwd}. If the task has not been completed, retry the last step before interruption and proceed with completing the task.` +
-			(modifiedOldUserContentText
-				? `\n\nLast recorded user input before interruption:\n<previous_message>\n${modifiedOldUserContentText}\n</previous_message>`
-				: "") +
-			(newUserContentText
-				? `\n\nNew instructions for task continuation:\n<user_message>\n${newUserContentText}\n</user_message>`
-				: "")
+		newUserContent.push({
+			type: "text",
+			text:
+				`Task resumption: This autonomous coding task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.` +
+				(responseText
+					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
+					: ""),
+		})
 
-		const newUserContentImages = newUserContent.filter((block) => block.type === "image")
-		const combinedModifiedOldUserContentWithNewUserContent: UserContent = (
-			modifiedOldUserContent.filter((block) => block.type !== "text") as UserContent
-		).concat([{ type: "text", text: combinedText }, ...newUserContentImages])
+		if (responseImages && responseImages.length > 0) {
+			newUserContent.push(...this.formatImagesIntoBlocks(responseImages))
+		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
-		await this.initiateTaskLoop(combinedModifiedOldUserContentWithNewUserContent)
+		await this.initiateTaskLoop(newUserContent)
 	}
 
 	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
@@ -1649,17 +1642,34 @@ ${this.customInstructions.trim()}
 
 			// A response always returns text content blocks (it's just that before we were iterating over the completion_attempt response before we could append text response, resulting in bug)
 			for (const contentBlock of response.content) {
+				// type can only be text or tool_use
 				if (contentBlock.type === "text") {
 					assistantResponses.push(contentBlock)
 					await this.say("text", contentBlock.text)
+				} else if (contentBlock.type === "tool_use") {
+					assistantResponses.push(contentBlock)
 				}
+			}
+
+			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
+			if (assistantResponses.length > 0) {
+				await this.addToApiConversationHistory({ role: "assistant", content: assistantResponses })
+			} else {
+				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
+				await this.say(
+					"error",
+					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
+				)
+				await this.addToApiConversationHistory({
+					role: "assistant",
+					content: [{ type: "text", text: "Failure: I did not provide a response." }],
+				})
 			}
 
 			let toolResults: Anthropic.ToolResultBlockParam[] = []
 			let attemptCompletionBlock: Anthropic.Messages.ToolUseBlock | undefined
 			for (const contentBlock of response.content) {
 				if (contentBlock.type === "tool_use") {
-					assistantResponses.push(contentBlock)
 					const toolName = contentBlock.name as ToolName
 					const toolInput = contentBlock.input
 					const toolUseId = contentBlock.id
@@ -1675,17 +1685,6 @@ ${this.customInstructions.trim()}
 						toolResults.push({ type: "tool_result", tool_use_id: toolUseId, content: result })
 					}
 				}
-			}
-
-			if (assistantResponses.length > 0) {
-				await this.addToApiConversationHistory({ role: "assistant", content: assistantResponses })
-			} else {
-				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
-				await this.say("error", "Unexpected Error: No assistant messages were found in the API response")
-				await this.addToApiConversationHistory({
-					role: "assistant",
-					content: [{ type: "text", text: "Failure: I did not have a response to provide." }],
-				})
 			}
 
 			let didEndLoop = false
