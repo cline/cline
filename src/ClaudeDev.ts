@@ -847,6 +847,28 @@ export class ClaudeDev {
 			// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
 			await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
 
+			// Find the first position where the content differs and scroll to the first changed line if found
+			let firstDiffPosition: vscode.Position | undefined
+			const originalLines = originalContent.split("\n")
+			const newLines = newContent.split("\n")
+			for (let i = 0; i < Math.max(originalLines.length, newLines.length); i++) {
+				if (i < originalLines.length && i < newLines.length) {
+					if (originalLines[i] !== newLines[i]) {
+						firstDiffPosition = new vscode.Position(i, 0)
+						break
+					}
+				} else {
+					firstDiffPosition = new vscode.Position(i, 0)
+					break
+				}
+			}
+			if (firstDiffPosition) {
+				vscode.window.activeTextEditor?.revealRange(
+					new vscode.Range(firstDiffPosition, firstDiffPosition),
+					vscode.TextEditorRevealType.InCenter
+				)
+			}
+
 			// remove cursor from the document
 			await vscode.commands.executeCommand("workbench.action.focusSideBar")
 
