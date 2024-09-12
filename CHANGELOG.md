@@ -4,6 +4,12 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.6.5]
+
+- Adds fuzzy search and sorting to Task History, making it easier to find specific tasks
+- Task header can now be collapsed to provide more space for viewing conversations
+- Added support for Azure OpenAI and Google Gemini (free for up to 15 requests per minute!)
+
 ## [1.6.0]
 
 - Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a new 'Proceed While Running' button to let Claude continue working while commands run, sending him new output along the way (i.e. letting him react to server errors as he edits files)
