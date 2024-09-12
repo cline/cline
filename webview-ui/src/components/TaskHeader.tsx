@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { memo, useEffect, useRef, useState } from "react"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../context/ExtensionStateContext"
@@ -90,6 +90,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}
 	}, [task.text, windowWidth])
 
+	const isCostAvailable = useMemo(() => {
+		return (
+			apiConfiguration?.apiProvider !== "openai" &&
+			apiConfiguration?.apiProvider !== "ollama" &&
+			apiConfiguration?.apiProvider !== "gemini"
+		)
+	}, [apiConfiguration?.apiProvider])
+
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
@@ -140,25 +148,22 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{task.text}</span>}
 						</div>
 					</div>
-					{!isTaskExpanded &&
-						apiConfiguration?.apiProvider !== "openai" &&
-						apiConfiguration?.apiProvider !== "ollama" && (
-							<div
-								style={{
-									marginLeft: 10,
-									backgroundColor:
-										"color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
-									color: "var(--vscode-badge-background)",
-									padding: "2px 4px",
-									borderRadius: "500px",
-									fontSize: "11px",
-									fontWeight: 500,
-									display: "inline-block",
-									flexShrink: 0,
-								}}>
-								${totalCost?.toFixed(4)}
-							</div>
-						)}
+					{!isTaskExpanded && isCostAvailable && (
+						<div
+							style={{
+								marginLeft: 10,
+								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
+								color: "var(--vscode-badge-background)",
+								padding: "2px 4px",
+								borderRadius: "500px",
+								fontSize: "11px",
+								fontWeight: 500,
+								display: "inline-block",
+								flexShrink: 0,
+							}}>
+							${totalCost?.toFixed(4)}
+						</div>
+					)}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
@@ -257,8 +262,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{tokensOut?.toLocaleString()}
 									</span>
 								</div>
-								{(apiConfiguration?.apiProvider === "openai" ||
-									apiConfiguration?.apiProvider === "ollama") && <ExportButton />}
+								{!isCostAvailable && <ExportButton />}
 							</div>
 
 							{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
@@ -280,21 +284,20 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</span>
 								</div>
 							)}
-							{apiConfiguration?.apiProvider !== "openai" &&
-								apiConfiguration?.apiProvider !== "ollama" && (
-									<div
-										style={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "center",
-										}}>
-										<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-											<span style={{ fontWeight: "bold" }}>API Cost:</span>
-											<span>${totalCost?.toFixed(4)}</span>
-										</div>
-										<ExportButton />
+							{isCostAvailable && (
+								<div
+									style={{
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+									}}>
+									<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+										<span style={{ fontWeight: "bold" }}>API Cost:</span>
+										<span>${totalCost?.toFixed(4)}</span>
 									</div>
-								)}
+									<ExportButton />
+								</div>
+							)}
 						</div>
 					</>
 				)}

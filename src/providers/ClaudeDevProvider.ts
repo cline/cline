@@ -18,7 +18,14 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey = "apiKey" | "openRouterApiKey" | "awsAccessKey" | "awsSecretKey" | "awsSessionToken" | "openAiApiKey"
+type SecretKey =
+	| "apiKey"
+	| "openRouterApiKey"
+	| "awsAccessKey"
+	| "awsSecretKey"
+	| "awsSessionToken"
+	| "openAiApiKey"
+	| "geminiApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -329,6 +336,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								ollamaModelId,
 								ollamaBaseUrl,
 								anthropicBaseUrl,
+								geminiApiKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -346,6 +354,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+							await this.storeSecret("geminiApiKey", geminiApiKey)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -667,6 +676,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			ollamaModelId,
 			ollamaBaseUrl,
 			anthropicBaseUrl,
+			geminiApiKey,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -688,6 +698,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -726,6 +737,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				ollamaModelId,
 				ollamaBaseUrl,
 				anthropicBaseUrl,
+				geminiApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -804,6 +816,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			"awsSecretKey",
 			"awsSessionToken",
 			"openAiApiKey",
+			"geminiApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

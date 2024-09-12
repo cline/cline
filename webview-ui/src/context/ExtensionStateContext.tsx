@@ -40,6 +40,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 						config.vertexProjectId,
 						config.openAiApiKey,
 						config.ollamaModelId,
+						config.geminiApiKey,
 				  ].some((key) => key !== undefined)
 				: false
 			setShowWelcome(!hasKey)

@@ -1,4 +1,4 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "openai" | "ollama"
+export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "openai" | "ollama" | "gemini"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -16,6 +16,7 @@ export interface ApiHandlerOptions {
 	openAiModelId?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	geminiApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -305,3 +306,26 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 }
+
+// Gemini
+// https://ai.google.dev/gemini-api/docs/models/gemini
+export type GeminiModelId = keyof typeof geminiModels
+export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-flash-latest"
+export const geminiModels = {
+	"gemini-1.5-flash-latest": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-latest": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
