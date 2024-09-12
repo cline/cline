@@ -33,7 +33,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			<style>
 				{`
 					.history-preview-item {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 50%, transparent);
+						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
 						border-radius: 4px;
 						position: relative;
 						overflow: hidden;
