@@ -70,6 +70,27 @@ export class OpenRouterHandler implements ApiHandler {
 
 		const anthropicMessage = convertToAnthropicMessage(completion)
 
+		// Check if the model is Gemini Flash and remove extra escapes in tool result args
+		// switch (this.getModel().id) {
+		// 	case "google/gemini-pro-1.5":
+		// 	case "google/gemini-flash-1.5":
+		// 		const content = anthropicMessage.content
+		// 		for (const block of content) {
+		// 			if (
+		// 				block.type === "tool_use" &&
+		// 				typeof block.input === "object" &&
+		// 				block.input !== null &&
+		// 				"content" in block.input &&
+		// 				typeof block.input.content === "string"
+		// 			) {
+		// 				block.input.content = unescapeGeminiContent(block.input.content)
+		// 			}
+		// 		}
+		// 		break
+		// 	default:
+		// 		break
+		// }
+
 		return { message: anthropicMessage }
 	}
 

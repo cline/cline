@@ -49,24 +49,19 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						msUserSelect: "none",
 					}}
 					onClick={onToggleExpand}>
-					<div style={{ display: "flex", alignItems: "center" }}>
-						{isFeedback && (
-							<span className="codicon codicon-feedback" style={{ marginRight: "6px" }}></span>
-						)}
-						<span
-							style={{
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								marginRight: "8px",
-								// fontSize: "11px",
-								// trick to get ellipsis at beginning of string
-								direction: "rtl",
-								textAlign: "left",
-							}}>
-							{isFeedback ? "User Edits" : removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
-						</span>
-					</div>
+					{isFeedback && <span className="codicon codicon-feedback" style={{ marginRight: "6px" }}></span>}
+					<span
+						style={{
+							whiteSpace: "nowrap",
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							marginRight: "8px",
+							// trick to get ellipsis at beginning of string
+							direction: "rtl",
+							textAlign: "left",
+						}}>
+						{isFeedback ? "User Edits" : removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
+					</span>
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}

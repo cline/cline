@@ -220,19 +220,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								onClick={() => {
 									vscode.postMessage({ type: "openFile", text: tool.content })
 								}}>
-								<div style={{ display: "flex", alignItems: "center" }}>
-									<span
-										style={{
-											whiteSpace: "nowrap",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											marginRight: "8px",
-											direction: "rtl",
-											textAlign: "left",
-										}}>
-										{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
-									</span>
-								</div>
+								<span
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+								</span>
 								<span
 									className={`codicon codicon-link-external`}
 									style={{ fontSize: 13.5, margin: "1px 0" }}></span>
