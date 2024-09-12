@@ -13,9 +13,8 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
 -   Review and edit diffs of every change Claude makes right in the editor, or provide feedback in chat until you're satisfied with the result
 -   Executes commands directly in your terminal, keeping Claude updated on any output as he works (i.e. letting him react to server errors!)
--   Presents permission buttons (i.e. 'Approve terminal command') before tool use or sending information to the API
+-   Presents permission buttons (like 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
--   Set a maximum # of API requests allowed for a task before being prompted for permission to proceed
 -   When a task is completed, Claude determines if he can present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button
 
 _**Pro tip**: Use the `Cmd + Shift + P` shortcut to open the command palette and type `Claude Dev: Open In New Tab` to start a new task right in the editor._

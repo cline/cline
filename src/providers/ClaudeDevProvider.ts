@@ -10,7 +10,7 @@ import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
 import { getTheme } from "../utils/getTheme"
-import { openImage } from "../utils/open-image"
+import { openFile, openImage } from "../utils/open-file"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -401,6 +401,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "openImage":
 						openImage(message.text!)
+						break
+					case "openFile":
+						openFile(message.text!)
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)

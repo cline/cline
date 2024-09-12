@@ -480,9 +480,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onClose={handleTaskCloseButtonClick}
 				/>
 			) : (
-				<>
+				<div
+					style={{
+						flexGrow: 1,
+						overflowY: "auto",
+						display: "flex",
+						flexDirection: "column",
+					}}>
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
+					<div style={{ padding: "0 20px", flexShrink: 0 }}>
 						<h2>What can I do for you?</h2>
 						<p>
 							Thanks to{" "}
@@ -497,7 +503,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-				</>
+				</div>
 			)}
 			{task && (
 				<>
