@@ -41,7 +41,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
-						padding: "6px 10px",
+						padding: "9px 10px",
 						cursor: "pointer",
 						userSelect: "none",
 						WebkitUserSelect: "none",
@@ -59,7 +59,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 								overflow: "hidden",
 								textOverflow: "ellipsis",
 								marginRight: "8px",
-								fontSize: "11px",
+								// fontSize: "11px",
 								// trick to get ellipsis at beginning of string
 								direction: "rtl",
 								textAlign: "left",
