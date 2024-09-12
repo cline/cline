@@ -1,4 +1,12 @@
-export type ApiProvider = "anthropic" | "openrouter" | "bedrock" | "vertex" | "openai" | "ollama" | "gemini"
+export type ApiProvider =
+	| "anthropic"
+	| "openrouter"
+	| "bedrock"
+	| "vertex"
+	| "openai"
+	| "ollama"
+	| "gemini"
+	| "openai-native"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -17,6 +25,7 @@ export interface ApiHandlerOptions {
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	geminiApiKey?: string
+	openAiNativeApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -332,5 +341,44 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// OpenAI Native
+// https://openai.com/api/pricing/
+export type OpenAiNativeModelId = keyof typeof openAiNativeModels
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "o1-preview"
+export const openAiNativeModels = {
+	"o1-preview": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15,
+		outputPrice: 60,
+	},
+	"o1-mini": {
+		maxTokens: 65_536,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 12,
+	},
+	"gpt-4o": {
+		maxTokens: 4_096,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
+	"gpt-4o-mini": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
 	},
 } as const satisfies Record<string, ModelInfo>
