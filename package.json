@@ -2,11 +2,11 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "icon": "icons/icon.png",
   "galleryBanner": {
-    "color": "#F9E1D2",
-    "theme": "light"
+    "color": "#232323",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.84.0"
@@ -25,7 +25,6 @@
     "Chat",
     "Programming Languages",
     "Education",
-    "Machine Learning",
     "Snippets",
     "Testing"
   ],
@@ -36,8 +35,6 @@
     "autonomous",
     "chatgpt",
     "sonnet",
-    "mistral",
-    "codestral",
     "ai",
     "llama"
   ],
