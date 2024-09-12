@@ -1,5 +1,6 @@
 import React, { useState, useRef, useLayoutEffect, memo } from "react"
 import { useWindowSize } from "react-use"
+import { vscode } from "../utils/vscode"
 
 interface ThumbnailsProps {
 	images: string[]
@@ -31,6 +32,10 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 
 	const isDeletable = setImages !== undefined
 
+	const handleImageClick = (image: string) => {
+		vscode.postMessage({ type: "openImage", text: image })
+	}
+
 	return (
 		<div
 			ref={containerRef}
@@ -55,7 +60,9 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 							height: 34,
 							objectFit: "cover",
 							borderRadius: 4,
+							cursor: "pointer",
 						}}
+						onClick={() => handleImageClick(image)}
 					/>
 					{isDeletable && hoveredIndex === index && (
 						<div
