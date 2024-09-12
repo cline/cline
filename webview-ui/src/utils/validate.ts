@@ -23,6 +23,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid Google Cloud Project ID and Region."
 				}
 				break
+			case "gemini":
+				if (!apiConfiguration.geminiApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "openai":
 				if (
 					!apiConfiguration.openAiBaseUrl ||

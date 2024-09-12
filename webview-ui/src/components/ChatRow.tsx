@@ -210,7 +210,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
-									padding: "6px 10px",
+									padding: "9px 10px",
 									cursor: "pointer",
 									userSelect: "none",
 									WebkitUserSelect: "none",
@@ -220,23 +220,20 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								onClick={() => {
 									vscode.postMessage({ type: "openFile", text: tool.content })
 								}}>
-								<div style={{ display: "flex", alignItems: "center" }}>
-									<span
-										style={{
-											whiteSpace: "nowrap",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											marginRight: "8px",
-											fontSize: "11px",
-											direction: "rtl",
-											textAlign: "left",
-										}}>
-										{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
-									</span>
-								</div>
+								<span
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+								</span>
 								<span
 									className={`codicon codicon-link-external`}
-									style={{ fontSize: 13, margin: "1.5px 0" }}></span>
+									style={{ fontSize: 13.5, margin: "1px 0" }}></span>
 							</div>
 						</div>
 					</>
@@ -423,7 +420,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								backgroundColor: "var(--vscode-badge-background)",
 								color: "var(--vscode-badge-foreground)",
 								borderRadius: "3px",
-								padding: "8px",
+								padding: "9px",
 								whiteSpace: "pre-line",
 								wordWrap: "break-word",
 							}}>
