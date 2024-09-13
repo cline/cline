@@ -12,7 +12,6 @@ import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
-	OpenAiNativeModelId,
 	anthropicDefaultModelId,
 	anthropicModels,
 	bedrockDefaultModelId,
@@ -115,11 +114,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130 }}>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
@@ -547,7 +546,7 @@ export const formatPrice = (price: number) => {
 
 const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const isO1 = (["o1-preview", "o1-mini"] as OpenAiNativeModelId[]).includes(selectedModelId as OpenAiNativeModelId)
+	const isO1 = false //(["o1-preview", "o1-mini"] as OpenAiNativeModelId[]).includes(selectedModelId as OpenAiNativeModelId)
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem

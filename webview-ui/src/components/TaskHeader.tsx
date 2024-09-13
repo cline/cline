@@ -98,6 +98,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		)
 	}, [apiConfiguration?.apiProvider])
 
+	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
+
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
 			<div
@@ -265,7 +267,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!isCostAvailable && <ExportButton />}
 							</div>
 
-							{(doesModelSupportPromptCache || cacheReads !== undefined || cacheWrites !== undefined) && (
+							{(shouldShowPromptCacheInfo || cacheReads !== undefined || cacheWrites !== undefined) && (
 								<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 									<span style={{ fontWeight: "bold" }}>Cache:</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>

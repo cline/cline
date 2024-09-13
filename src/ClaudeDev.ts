@@ -1656,6 +1656,9 @@ ${this.customInstructions.trim()}
 			let cacheReadInputTokens =
 				(response as Anthropic.Beta.PromptCaching.Messages.PromptCachingBetaMessage).usage
 					.cache_read_input_tokens || undefined
+			// @ts-ignore-next-line
+			let totalCost = response.usage.total_cost
+
 			await this.say(
 				"api_req_finished",
 				JSON.stringify({
@@ -1663,12 +1666,14 @@ ${this.customInstructions.trim()}
 					tokensOut: outputTokens,
 					cacheWrites: cacheCreationInputTokens,
 					cacheReads: cacheReadInputTokens,
-					cost: this.calculateApiCost(
-						inputTokens,
-						outputTokens,
-						cacheCreationInputTokens,
-						cacheReadInputTokens
-					),
+					cost:
+						totalCost ||
+						this.calculateApiCost(
+							inputTokens,
+							outputTokens,
+							cacheCreationInputTokens,
+							cacheReadInputTokens
+						),
 				})
 			)
 
