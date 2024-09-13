@@ -431,27 +431,30 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			if (isCollapsing && isAtBottom) {
 				const timer = setTimeout(() => {
-					if (virtuosoRef.current) {
-						virtuosoRef.current.scrollToIndex({
+					virtuosoRef.current?.scrollToIndex({
+						index: visibleMessages.length - 1,
+						align: "end",
+					})
+				}, 0)
+				return () => clearTimeout(timer)
+			} else if (isLastMessage) {
+				if (isCollapsing) {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
 							index: visibleMessages.length - 1,
 							align: "end",
 						})
-					}
-				}, 0)
-				return () => clearTimeout(timer)
-			}
-
-			if (!isCollapsing && isLastMessage) {
-				const timer = setTimeout(() => {
-					if (virtuosoRef.current) {
-						virtuosoRef.current.scrollToIndex({
+					}, 0)
+					return () => clearTimeout(timer)
+				} else {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
 							index: visibleMessages.length - 1,
 							align: "start",
-							behavior: "smooth",
 						})
-					}
-				}, 0)
-				return () => clearTimeout(timer)
+					}, 0)
+					return () => clearTimeout(timer)
+				}
 			}
 		},
 		[isAtBottom, visibleMessages, expandedRows]
