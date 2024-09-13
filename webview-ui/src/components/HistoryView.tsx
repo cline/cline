@@ -196,25 +196,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					{presentableTasks.length === 0 && (
+					{/* {presentableTasks.length === 0 && (
 						<div
 							style={{
-								display: "flex",
-								flexDirection: "column",
-								justifyContent: "center",
+								
 								alignItems: "center",
-								height: "100%",
 								fontStyle: "italic",
 								color: "var(--vscode-descriptionForeground)",
 								textAlign: "center",
 								padding: "0px 10px",
 							}}>
 							<span
-								className="codicon codicon-archive"
-								style={{ fontSize: "50px", marginBottom: "15px" }}></span>
-							<div>No history found</div>
+								className="codicon codicon-robot"
+								style={{ fontSize: "60px", marginBottom: "10px" }}></span>
+							<div>Start a task to see it here</div>
 						</div>
-					)}
+					)} */}
 					<Virtuoso
 						style={{
 							flexGrow: 1,

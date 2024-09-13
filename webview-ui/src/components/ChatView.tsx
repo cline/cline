@@ -50,13 +50,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
-
-	const toggleRowExpansion = (ts: number) => {
-		setExpandedRows((prev) => ({
-			...prev,
-			[ts]: !prev[ts],
-		}))
-	}
+	const [isAtBottom, setIsAtBottom] = useState(false)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -426,6 +420,46 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
+	const toggleRowExpansion = useCallback(
+		(ts: number) => {
+			const isCollapsing = expandedRows[ts] ?? false
+			const isLastMessage = visibleMessages.at(-1)?.ts === ts
+			setExpandedRows((prev) => ({
+				...prev,
+				[ts]: !prev[ts],
+			}))
+
+			if (isCollapsing && isAtBottom) {
+				const timer = setTimeout(() => {
+					virtuosoRef.current?.scrollToIndex({
+						index: visibleMessages.length - 1,
+						align: "end",
+					})
+				}, 0)
+				return () => clearTimeout(timer)
+			} else if (isLastMessage) {
+				if (isCollapsing) {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
+							index: visibleMessages.length - 1,
+							align: "end",
+						})
+					}, 0)
+					return () => clearTimeout(timer)
+				} else {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
+							index: visibleMessages.length - 1,
+							align: "start",
+						})
+					}, 0)
+					return () => clearTimeout(timer)
+				}
+			}
+		},
+		[isAtBottom, visibleMessages, expandedRows]
+	)
+
 	useEffect(() => {
 		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
 		const timer = setTimeout(() => {
@@ -453,7 +487,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				isLast={index === visibleMessages.length - 1}
 			/>
 		),
-		[expandedRows, modifiedMessages, visibleMessages.length]
+		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion]
 	)
 
 	return (
@@ -521,9 +555,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						// 	}
 						// 	return false
 						// }}
-						increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+						// increasing top by 1_000 to prevent jumping around when user collapses a row
+						increaseViewportBy={{ top: 1_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 						itemContent={itemContent}
+						atBottomStateChange={setIsAtBottom}
+						atBottomThreshold={100}
 					/>
 					<div
 						style={{

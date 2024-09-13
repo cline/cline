@@ -9,6 +9,7 @@ import {
 	openRouterModels,
 } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import axios from "axios"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -36,6 +37,44 @@ export class OpenRouterHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
+
+		// prompt caching: https://openrouter.ai/docs/prompt-caching
+		switch (this.getModel().id) {
+			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3-haiku:beta":
+			case "anthropic/claude-3-opus:beta":
+				openAiMessages[0] = {
+					role: "system",
+					content: [
+						{
+							type: "text",
+							text: systemPrompt,
+							// @ts-ignore-next-line
+							cache_control: { type: "ephemeral" },
+						},
+					],
+				}
+				// Add cache_control to the last two user messages
+				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
+				lastTwoUserMessages.forEach((msg) => {
+					if (typeof msg.content === "string") {
+						msg.content = [{ type: "text", text: msg.content }]
+					}
+					if (Array.isArray(msg.content)) {
+						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+						if (!lastTextPart) {
+							lastTextPart = { type: "text", text: "..." }
+							msg.content.push(lastTextPart)
+						}
+						// @ts-ignore-next-line
+						lastTextPart["cache_control"] = { type: "ephemeral" }
+					}
+				})
+				break
+			default:
+				break
+		}
 
 		// Convert Anthropic tools to OpenAI tools
 		const openAiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((tool) => ({
@@ -90,6 +129,21 @@ export class OpenRouterHandler implements ApiHandler {
 		// 	default:
 		// 		break
 		// }
+
+		const genId = completion.id
+		// Log the generation details from OpenRouter API
+		try {
+			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+				headers: {
+					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+				},
+			})
+			// @ts-ignore-next-line
+			anthropicMessage.usage.total_cost = response.data?.data?.total_cost
+			console.log("OpenRouter generation details:", response.data)
+		} catch (error) {
+			console.error("Error fetching OpenRouter generation details:", error)
+		}
 
 		return { message: anthropicMessage }
 	}
