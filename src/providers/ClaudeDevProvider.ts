@@ -719,8 +719,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to anthropic for now, but will change to openrouter after fast edit mode
-				apiProvider = "anthropic"
+				// New users should default to openrouter
+				apiProvider = "openrouter"
 			}
 		}
 

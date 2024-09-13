@@ -113,8 +113,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130 }}>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
