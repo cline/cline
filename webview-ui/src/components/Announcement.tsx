@@ -1,5 +1,6 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
+import CloseableNote from "./common/CloseableNote"
 // import VSCodeButtonLink from "./VSCodeButtonLink"
 // import { getOpenRouterAuthUrl } from "./ApiOptions"
 // import { vscode } from "../utils/vscode"
@@ -13,21 +14,7 @@ You must update the latestAnnouncementId in ClaudeDevProvider for new announceme
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	return (
-		<div
-			style={{
-				backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-				borderRadius: "3px",
-				padding: "12px 16px",
-				margin: "5px 15px 5px 15px",
-				position: "relative",
-				flexShrink: 0,
-			}}>
-			<VSCodeButton
-				appearance="icon"
-				onClick={hideAnnouncement}
-				style={{ position: "absolute", top: "8px", right: "8px" }}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
+		<CloseableNote onClose={hideAnnouncement} style={{ margin: '0px 20px 10px 20px' }}>
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
@@ -40,7 +27,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</VSCodeLink>
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
+				<li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
 					so I recommend trying them out.
 					<br />
@@ -92,7 +79,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					@sdrzn
 				</VSCodeLink>
 			</p>
-		</div>
+		</CloseableNote>
 	)
 }
 

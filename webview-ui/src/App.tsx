@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-import { useEvent } from "react-use"
+import { useCallback, useEffect } from "react"
+import { useEvent, useToggle } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
 import ChatView from "./components/ChatView"
 import HistoryView from "./components/HistoryView"
@@ -7,12 +7,14 @@ import SettingsView from "./components/SettingsView"
 import WelcomeView from "./components/WelcomeView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
+import { useHideable } from "./hooks/useHideable"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
-	const [showSettings, setShowSettings] = useState(false)
-	const [showHistory, setShowHistory] = useState(false)
-	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [showSettings, setShowSettings] = useToggle(false)
+	const [showHistory, setShowHistory] = useToggle(false)
+	const [isShowAnnouncement, hideAnnouncement, showAnnouncement] = useHideable(false)
+	const [isShowIntroNote, hideIntroNote] = useHideable(true)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
@@ -34,16 +36,16 @@ const AppContent = () => {
 				}
 				break
 		}
-	}, [])
+	}, [setShowSettings, setShowHistory])
 
 	useEvent("message", handleMessage)
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
-			setShowAnnouncement(true)
+			showAnnouncement()
 			vscode.postMessage({ type: "didShowAnnouncement" })
 		}
-	}, [shouldShowAnnouncement])
+	}, [shouldShowAnnouncement, showAnnouncement])
 
 	if (!didHydrateState) {
 		return null
@@ -64,10 +66,10 @@ const AppContent = () => {
 							setShowHistory(true)
 						}}
 						isHidden={showSettings || showHistory}
-						showAnnouncement={showAnnouncement}
-						hideAnnouncement={() => {
-							setShowAnnouncement(false)
-						}}
+						isShowAnnouncement={isShowAnnouncement}
+						hideAnnouncement={hideAnnouncement}
+						isShowIntroNote={isShowIntroNote}
+						hideIntroNote={hideIntroNote}
 					/>
 				</>
 			)}
