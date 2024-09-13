@@ -7,6 +7,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	// File name
 	const date = new Date(dateTs)
 	const month = date.toLocaleString("en-US", { month: "short" }).toLowerCase()
+	const monthLong = date.toLocaleString("en-US", { month: "long" })
 	const day = date.getDate()
 	const year = date.getFullYear()
 	let hours = date.getHours()
@@ -24,8 +25,8 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 			const content = Array.isArray(message.content)
 				? message.content.map(formatContentBlockToMarkdown).join("\n")
 				: message.content
-
-			return `${role}\n\n${content}\n\n`
+			const timestamp = `# ${monthLong} ${day},${year} ${hours}:${minutes}:${seconds}${ampm}`;
+			return `${timestamp}\n${role}\n\n${content}\n\n`
 		})
 		.join("---\n\n")
 
