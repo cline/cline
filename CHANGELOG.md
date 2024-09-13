@@ -6,9 +6,9 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.6.5]
 
-- Adds fuzzy search and sorting to Task History, making it easier to find specific tasks
+- Adds support for OpenAI o1, Azure OpenAI, and Google Gemini (free for up to 15 requests per minute!)
 - Task header can now be collapsed to provide more space for viewing conversations
-- Added support for Azure OpenAI and Google Gemini (free for up to 15 requests per minute!)
+- Adds fuzzy search and sorting to Task History, making it easier to find specific tasks
 
 ## [1.6.0]
 

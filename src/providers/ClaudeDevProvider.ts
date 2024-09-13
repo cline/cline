@@ -26,6 +26,7 @@ type SecretKey =
 	| "awsSessionToken"
 	| "openAiApiKey"
 	| "geminiApiKey"
+	| "openAiNativeApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -337,6 +338,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								ollamaBaseUrl,
 								anthropicBaseUrl,
 								geminiApiKey,
+								openAiNativeApiKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -355,6 +357,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
+							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -677,6 +680,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			ollamaBaseUrl,
 			anthropicBaseUrl,
 			geminiApiKey,
+			openAiNativeApiKey,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -699,6 +703,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
+			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -738,6 +743,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				ollamaBaseUrl,
 				anthropicBaseUrl,
 				geminiApiKey,
+				openAiNativeApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -817,6 +823,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			"awsSessionToken",
 			"openAiApiKey",
 			"geminiApiKey",
+			"openAiNativeApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
