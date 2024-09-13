@@ -9,6 +9,7 @@ import {
 	openAiNativeModels,
 } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../utils/o1-format"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -38,19 +39,46 @@ export class OpenAiNativeHandler implements ApiHandler {
 				parameters: tool.input_schema,
 			},
 		}))
-		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			messages: openAiMessages,
-			tools: openAiTools,
-			tool_choice: "auto",
+
+		let createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+
+		switch (this.getModel().id) {
+			case "o1-preview":
+			case "o1-mini":
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
+				}
+				break
+			default:
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: openAiMessages,
+					tools: openAiTools,
+					tool_choice: "auto",
+				}
+				break
 		}
+
 		const completion = await this.client.chat.completions.create(createParams)
 		const errorMessage = (completion as any).error?.message
 		if (errorMessage) {
 			throw new Error(errorMessage)
 		}
-		const anthropicMessage = convertToAnthropicMessage(completion)
+
+		let anthropicMessage: Anthropic.Messages.Message
+		switch (this.getModel().id) {
+			case "o1-preview":
+			case "o1-mini":
+				anthropicMessage = convertO1ResponseToAnthropicMessage(completion)
+				break
+			default:
+				anthropicMessage = convertToAnthropicMessage(completion)
+				break
+		}
+
 		return { message: anthropicMessage }
 	}
 

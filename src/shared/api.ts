@@ -149,22 +149,22 @@ export const openRouterModels = {
 		cacheReadsPrice: 0.03,
 	},
 	// Doesn't support tool use (yet)
-	// "openai/o1-preview": {
-	// 	maxTokens: 32_768,
-	// 	contextWindow: 128_000,
-	// 	supportsImages: true,
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 15,
-	// 	outputPrice: 60,
-	// },
-	// "openai/o1-mini": {
-	// 	maxTokens: 65_536,
-	// 	contextWindow: 128_000,
-	// 	supportsImages: true,
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 3,
-	// 	outputPrice: 12,
-	// },
+	"openai/o1-preview": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15,
+		outputPrice: 60,
+	},
+	"openai/o1-mini": {
+		maxTokens: 65_536,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 12,
+	},
 	"openai/gpt-4o-2024-08-06": {
 		maxTokens: 16384,
 		contextWindow: 128_000,
@@ -365,22 +365,22 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
 	// don't support tool use yet
-	// "o1-preview": {
-	// 	maxTokens: 32_768,
-	// 	contextWindow: 128_000,
-	// 	supportsImages: true,
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 15,
-	// 	outputPrice: 60,
-	// },
-	// "o1-mini": {
-	// 	maxTokens: 65_536,
-	// 	contextWindow: 128_000,
-	// 	supportsImages: true,
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 3,
-	// 	outputPrice: 12,
-	// },
+	"o1-preview": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15,
+		outputPrice: 60,
+	},
+	"o1-mini": {
+		maxTokens: 65_536,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 12,
+	},
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,

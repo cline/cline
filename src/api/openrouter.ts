@@ -10,6 +10,7 @@ import {
 } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
 import axios from "axios"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../utils/o1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -86,12 +87,26 @@ export class OpenRouterHandler implements ApiHandler {
 			},
 		}))
 
-		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			messages: openAiMessages,
-			tools: openAiTools,
-			tool_choice: "auto",
+		let createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+
+		switch (this.getModel().id) {
+			case "openai/o1-preview":
+			case "openai/o1-mini":
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
+				}
+				break
+			default:
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: openAiMessages,
+					tools: openAiTools,
+					tool_choice: "auto",
+				}
+				break
 		}
 
 		let completion: OpenAI.Chat.Completions.ChatCompletion
@@ -107,7 +122,16 @@ export class OpenRouterHandler implements ApiHandler {
 			throw new Error(errorMessage)
 		}
 
-		const anthropicMessage = convertToAnthropicMessage(completion)
+		let anthropicMessage: Anthropic.Messages.Message
+		switch (this.getModel().id) {
+			case "openai/o1-preview":
+			case "openai/o1-mini":
+				anthropicMessage = convertO1ResponseToAnthropicMessage(completion)
+				break
+			default:
+				anthropicMessage = convertToAnthropicMessage(completion)
+				break
+		}
 
 		// Check if the model is Gemini Flash and remove extra escapes in tool result args
 		// switch (this.getModel().id) {

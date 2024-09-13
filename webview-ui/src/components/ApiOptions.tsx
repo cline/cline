@@ -546,7 +546,7 @@ export const formatPrice = (price: number) => {
 
 const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const isO1 = false //(["o1-preview", "o1-mini"] as OpenAiNativeModelId[]).includes(selectedModelId as OpenAiNativeModelId)
+	const isO1 = selectedModelId && selectedModelId.includes("o1")
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
@@ -613,8 +613,10 @@ const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string
 					<span
 						style={{
 							fontStyle: "italic",
+							color: "var(--vscode-errorForeground)",
 						}}>
-						* This model is newly released and may not be accessible to all users yet.
+						* This model does not support tool use or system prompts, so Claude Dev uses structured output
+						prompting to achieve similar results. Your mileage may vary.
 					</span>
 				</>
 			)}
