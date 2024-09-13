@@ -597,8 +597,8 @@ const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string
 						style={{
 							fontStyle: "italic",
 						}}>
-						* Free up to {selectedModelId === geminiDefaultModelId ? "15" : "2"} requests per minute. After
-						that, billing depends on prompt size.{" "}
+						* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per
+						minute. After that, billing depends on prompt size.{" "}
 						<VSCodeLink
 							href="https://ai.google.dev/pricing"
 							style={{ display: "inline", fontSize: "inherit" }}>
