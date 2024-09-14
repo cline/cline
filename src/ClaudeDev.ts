@@ -108,6 +108,64 @@ const tools: Tool[] = [
 		},
 	},
 	{
+		name: "read_file",
+		description:
+			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: `The path of the file to read (relative to the current working directory ${cwd})`,
+				},
+			},
+			required: ["path"],
+		},
+	},
+	{
+		name: "write_to_file",
+		description:
+			"Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: `The path of the file to write to (relative to the current working directory ${cwd})`,
+				},
+				content: {
+					type: "string",
+					description: "The full content to write to the file.",
+				},
+			},
+			required: ["path", "content"],
+		},
+	},
+	{
+		name: "search_files",
+		description:
+			"Perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.",
+		input_schema: {
+			type: "object",
+			properties: {
+				path: {
+					type: "string",
+					description: `The path of the directory to search in (relative to the current working directory ${cwd}). This directory will be recursively searched.`,
+				},
+				regex: {
+					type: "string",
+					description: "The regular expression pattern to search for. Uses Rust regex syntax.",
+				},
+				filePattern: {
+					type: "string",
+					description:
+						"Optional glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
+				},
+			},
+			required: ["path", "regex"],
+		},
+	},
+	{
 		name: "list_files",
 		description:
 			"List files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents.",
@@ -141,64 +199,6 @@ const tools: Tool[] = [
 				},
 			},
 			required: ["path"],
-		},
-	},
-	{
-		name: "search_files",
-		description:
-			"Perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.",
-		input_schema: {
-			type: "object",
-			properties: {
-				path: {
-					type: "string",
-					description: `The path of the directory to search in (relative to the current working directory ${cwd}). This directory will be recursively searched.`,
-				},
-				regex: {
-					type: "string",
-					description: "The regular expression pattern to search for. Uses Rust regex syntax.",
-				},
-				filePattern: {
-					type: "string",
-					description:
-						"Optional glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
-				},
-			},
-			required: ["path", "regex"],
-		},
-	},
-	{
-		name: "read_file",
-		description:
-			"Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.",
-		input_schema: {
-			type: "object",
-			properties: {
-				path: {
-					type: "string",
-					description: `The path of the file to read (relative to the current working directory ${cwd})`,
-				},
-			},
-			required: ["path"],
-		},
-	},
-	{
-		name: "write_to_file",
-		description:
-			"Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.",
-		input_schema: {
-			type: "object",
-			properties: {
-				path: {
-					type: "string",
-					description: `The path of the file to write to (relative to the current working directory ${cwd})`,
-				},
-				content: {
-					type: "string",
-					description: "The full content to write to the file.",
-				},
-			},
-			required: ["path", "content"],
 		},
 	},
 	{
