@@ -24,7 +24,6 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 			const content = Array.isArray(message.content)
 				? message.content.map(formatContentBlockToMarkdown).join("\n")
 				: message.content
-
 			return `${role}\n\n${content}\n\n`
 		})
 		.join("---\n\n")
