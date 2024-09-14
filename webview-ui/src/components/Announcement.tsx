@@ -34,7 +34,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<p style={{ margin: "5px 0px" }}>
 				Claude can now monitor workspace problems to keep updated on linter/compiler/build issues, letting him
 				proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)
-				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1833316974518014072">
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1835100787275419829">
 					See a demo here.
 				</VSCodeLink>
 			</p>
