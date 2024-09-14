@@ -6,7 +6,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 ## [1.7.0]
 
-- Adds problems monitoring to keep Claude updated on linter/compiler/build issues, letting him proactively fix errors on his own! (adding missing imports, fixing syntax errors, etc.)
+- Adds problems monitoring to keep Claude updated on linter/compiler/build issues, letting him proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)
 
 ## [1.6.5]
 
