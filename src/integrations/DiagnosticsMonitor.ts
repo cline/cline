@@ -46,7 +46,7 @@ class DiagnosticsMonitor {
 	}
 
 	public async getCurrentDiagnostics(shouldWaitForChanges: boolean): Promise<FileDiagnostics> {
-		const currentDiagnostics = vscode.languages.getDiagnostics() // get all diagnostics for files open in workspace (not just errors/warnings so our did update check is more likely to detect updated diagnostics)
+		const currentDiagnostics = this.getDiagnostics() // get all diagnostics for files open in workspace (not just errors/warnings so our did update check is more likely to detect updated diagnostics)
 
 		if (!shouldWaitForChanges) {
 			return currentDiagnostics
@@ -61,18 +61,18 @@ class DiagnosticsMonitor {
 		return this.waitForUpdatedDiagnostics()
 	}
 
-	private async waitForUpdatedDiagnostics(timeout: number = 1_000): Promise<FileDiagnostics> {
+	private async waitForUpdatedDiagnostics(timeout: number = 500): Promise<FileDiagnostics> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				cleanup()
-				const finalDiagnostics = vscode.languages.getDiagnostics()
+				const finalDiagnostics = this.getDiagnostics()
 				this.lastDiagnostics = finalDiagnostics
 				resolve(finalDiagnostics)
 			}, timeout)
 
 			const disposable = this.diagnosticsChangeEmitter.event(() => {
 				cleanup()
-				const updatedDiagnostics = vscode.languages.getDiagnostics()
+				const updatedDiagnostics = this.getDiagnostics()
 				this.lastDiagnostics = updatedDiagnostics
 				resolve(updatedDiagnostics)
 			})
@@ -82,6 +82,12 @@ class DiagnosticsMonitor {
 				disposable.dispose()
 			}
 		})
+	}
+
+	private getDiagnostics(): FileDiagnostics {
+		const allDiagnostics = vscode.languages.getDiagnostics()
+		// for our deep comparison concept to work, we can't be comparing when new open files with 0 diagnostics to report are added to the list
+		return allDiagnostics.filter(([_, diagnostics]) => diagnostics.length > 0)
 	}
 
 	public dispose() {

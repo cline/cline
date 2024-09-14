@@ -1853,13 +1853,36 @@ ${this.customInstructions.trim()}
 			await delay(500) // delay after saving file to let terminals/diagnostics catch up
 		}
 
-		let terminalDetails = "" // want to place these at the end, but want to wait for diagnostics to load last since dev servers (compilers like webpack) will first re-compile and then send diagnostics
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
 			}).catch(() => {})
+		}
+
+		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
+		let diagnosticsDetails = ""
+		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile) // if claude edited the workspace then wait a bit for updated diagnostics
+		for (const [uri, fileDiagnostics] of diagnostics) {
+			const problems = fileDiagnostics.filter(
+				(d) =>
+					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
+			)
+			if (problems.length > 0) {
+				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}:`
+				for (const diagnostic of problems) {
+					let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+					diagnosticsDetails += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
+				}
+			}
+		}
+		this.didEditFile = false // reset, this lets us know when to wait for saved files to update diagnostics
+
+		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
+		let terminalDetails = ""
+		if (busyTerminals.length > 0) {
 			// terminals are cool, let's retrieve their output
 			terminalDetails += "\n\n# Active Terminals"
 			for (const busyTerminal of busyTerminals) {
@@ -1893,25 +1916,6 @@ ${this.customInstructions.trim()}
 				}
 			}
 		}
-
-		// we want to get diagnostics AFTER terminal for a few reasons: terminal could be scaffolding a project, compiler could send issues to diagnostics, etc.
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile) // if claude edited the workspace then wait for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter(
-				(d) =>
-					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-			)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}:`
-				for (const diagnostic of problems) {
-					let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					diagnosticsDetails += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		this.didEditFile = false // reset, this lets us know when to wait for updated diagnostics
 
 		details += "\n\n# VSCode Workspace Diagnostics"
 		if (diagnosticsDetails) {
