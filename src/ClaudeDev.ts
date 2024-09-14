@@ -1850,7 +1850,7 @@ ${this.customInstructions.trim()}
 		const busyTerminals = this.terminalManager.getTerminals(true)
 
 		if (busyTerminals.length > 0 || this.didEditFile) {
-			await delay(500) // delay after saving file to let terminals/diagnostics catch up
+			await delay(300) // delay after saving file to let terminals/diagnostics catch up
 		}
 
 		if (busyTerminals.length > 0) {
@@ -1870,7 +1870,7 @@ ${this.customInstructions.trim()}
 					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
 			)
 			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}:`
+				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
 				for (const diagnostic of problems) {
 					let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
 					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed

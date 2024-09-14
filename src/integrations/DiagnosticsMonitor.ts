@@ -61,7 +61,7 @@ class DiagnosticsMonitor {
 		return this.waitForUpdatedDiagnostics()
 	}
 
-	private async waitForUpdatedDiagnostics(timeout: number = 500): Promise<FileDiagnostics> {
+	private async waitForUpdatedDiagnostics(timeout: number = 300): Promise<FileDiagnostics> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				cleanup()
