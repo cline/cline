@@ -51,6 +51,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [didScrollFromApiReq, setDidScrollFromApiReq] = useState(false)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -461,15 +462,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	useEffect(() => {
+		// dont scroll if we're just updating the api req started informational body
+		const isLastApiReqStarted = visibleMessages.at(-1)?.say === "api_req_started"
+		if (didScrollFromApiReq && isLastApiReqStarted) {
+			return
+		}
+
 		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
 		const timer = setTimeout(() => {
 			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
 			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
 			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
+			setDidScrollFromApiReq(isLastApiReqStarted) // need to do this in timer since this effect can get called a few times simultaneously
 		}, 50)
 
 		return () => clearTimeout(timer)
-	}, [visibleMessages])
+	}, [visibleMessages, didScrollFromApiReq])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."

@@ -157,6 +157,7 @@
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
     "diff": "^5.2.0",
+    "fast-deep-equal": "^3.1.3",
     "globby": "^14.0.2",
     "mammoth": "^1.8.0",
     "monaco-vscode-textmate-theme-converter": "^0.1.7",

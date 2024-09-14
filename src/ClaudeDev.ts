@@ -26,6 +26,7 @@ import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
+import DiagnosticsMonitor from "./integrations/DiagnosticsMonitor"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -249,6 +250,8 @@ export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
 	private terminalManager: TerminalManager
+	private diagnosticsMonitor: DiagnosticsMonitor
+	private didEditFile: boolean = false
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
@@ -273,6 +276,7 @@ export class ClaudeDev {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
+		this.diagnosticsMonitor = new DiagnosticsMonitor()
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -673,6 +677,7 @@ export class ClaudeDev {
 	abortTask() {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
+		this.diagnosticsMonitor.dispose()
 	}
 
 	async executeTool(toolName: ToolName, toolInput: any): Promise<[boolean, ToolResponse]> {
@@ -971,10 +976,12 @@ export class ClaudeDev {
 				return [true, await this.formatToolDenied()]
 			}
 
+			// Save the changes
 			const editedContent = updatedDocument.getText()
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
+			this.didEditFile = true
 
 			// Read the potentially edited content from the document
 
@@ -1620,8 +1627,9 @@ ${this.customInstructions.trim()}
 			"api_req_started",
 			JSON.stringify({
 				request:
-					userContent.map(formatContentBlockToMarkdown).join("\n\n") +
-					"\n\n<environment_details>\nLoading...\n</environment_details>",
+					userContent
+						.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
+						.join("\n\n") + "\n\n<environment_details>\nLoading...\n</environment_details>",
 			})
 		)
 
@@ -1636,7 +1644,9 @@ ${this.customInstructions.trim()}
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
 		this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
-			request: userContent.map(formatContentBlockToMarkdown).join("\n\n"),
+			request: userContent
+				.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
+				.join("\n\n"),
 		})
 		await this.saveClaudeMessages()
 		await this.providerRef.deref()?.postStateToWebview()
@@ -1816,74 +1826,52 @@ ${this.customInstructions.trim()}
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
-		let details = `<environment_details>
-# VSCode Visible Files
-${
-	vscode.window.visibleTextEditors
-		?.map((editor) => editor.document?.uri?.fsPath)
-		.filter(Boolean)
-		.map((absolutePath) => path.relative(cwd, absolutePath))
-		.join("\n") || "(No files open)"
-}
+		let details = ""
 
-# VSCode Open Tabs
-${
-	vscode.window.tabGroups.all
-		.flatMap((group) => group.tabs)
-		.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-		.filter(Boolean)
-		.map((absolutePath) => path.relative(cwd, absolutePath))
-		.join("\n") || "(No tabs open)"
-}`
+		const visibleFiles = vscode.window.visibleTextEditors
+			?.map((editor) => editor.document?.uri?.fsPath)
+			.filter(Boolean)
+			.map((absolutePath) => path.relative(cwd, absolutePath))
+			.join("\n")
+		if (visibleFiles) {
+			details += `\n\n# VSCode Visible Files\n${visibleFiles}`
+		}
 
-		// Get diagnostics for all open files in the workspace
-		// const diagnostics = vscode.languages.getDiagnostics()
-		// const relevantDiagnostics = diagnostics.filter(([_, fileDiagnostics]) =>
-		// 	fileDiagnostics.some(
-		// 		(d) =>
-		// 			d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-		// 	)
-		// )
-
-		// if (relevantDiagnostics.length > 0) {
-		// 	details += "\n\n# VSCode Workspace Diagnostics"
-		// 	for (const [uri, fileDiagnostics] of relevantDiagnostics) {
-		// 		const relativePath = path.relative(cwd, uri.fsPath)
-		// 		details += `\n## ${relativePath}:`
-		// 		for (const diagnostic of fileDiagnostics) {
-		// 			if (
-		// 				diagnostic.severity === vscode.DiagnosticSeverity.Error ||
-		// 				diagnostic.severity === vscode.DiagnosticSeverity.Warning
-		// 			) {
-		// 				let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-		// 				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-		// 				details += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
-		// 			}
-		// 		}
-		// 	}
-		// }
+		const openTabs = vscode.window.tabGroups.all
+			.flatMap((group) => group.tabs)
+			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+			.filter(Boolean)
+			.map((absolutePath) => path.relative(cwd, absolutePath))
+			.join("\n")
+		if (openTabs) {
+			details += `\n\n# VSCode Open Tabs\n${openTabs}`
+		}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
+
+		if (busyTerminals.length > 0 || this.didEditFile) {
+			await delay(500) // delay after saving file to let terminals/diagnostics catch up
+		}
+
+		let terminalDetails = "" // want to place these at the end, but want to wait for diagnostics to load last since dev servers (compilers like webpack) will first re-compile and then send diagnostics
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
-			await delay(500) // delay after saving file
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
 			}).catch(() => {})
 			// terminals are cool, let's retrieve their output
-			details += "\n\n# Active Terminals"
+			terminalDetails += "\n\n# Active Terminals"
 			for (const busyTerminal of busyTerminals) {
-				details += `\n## ${busyTerminal.lastCommand}`
+				terminalDetails += `\n## ${busyTerminal.lastCommand}`
 				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
-					details += `\n### New Output\n${newOutput}`
+					terminalDetails += `\n### New Output\n${newOutput}`
 				} else {
 					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
 				}
 			}
 		}
-
 		// only show inactive terminals if there's output to show
 		const inactiveTerminals = this.terminalManager.getTerminals(false)
 		if (inactiveTerminals.length > 0) {
@@ -1895,30 +1883,59 @@ ${
 				}
 			}
 			if (inactiveTerminalOutputs.size > 0) {
-				details += "\n\n# Inactive Terminals"
+				terminalDetails += "\n\n# Inactive Terminals"
 				for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
 					const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId)
 					if (inactiveTerminal) {
-						details += `\n## ${inactiveTerminal.lastCommand}`
-						details += `\n### New Output\n${newOutput}`
+						terminalDetails += `\n## ${inactiveTerminal.lastCommand}`
+						terminalDetails += `\n### New Output\n${newOutput}`
 					}
 				}
 			}
+		}
+
+		// we want to get diagnostics AFTER terminal for a few reasons: terminal could be scaffolding a project, compiler could send issues to diagnostics, etc.
+		let diagnosticsDetails = ""
+		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile) // if claude edited the workspace then wait for updated diagnostics
+		for (const [uri, fileDiagnostics] of diagnostics) {
+			const problems = fileDiagnostics.filter(
+				(d) =>
+					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
+			)
+			if (problems.length > 0) {
+				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}:`
+				for (const diagnostic of problems) {
+					let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+					diagnosticsDetails += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
+				}
+			}
+		}
+		this.didEditFile = false // reset, this lets us know when to wait for updated diagnostics
+
+		details += "\n\n# VSCode Workspace Diagnostics"
+		if (diagnosticsDetails) {
+			details += diagnosticsDetails
+		} else {
+			details += "\n(No problems detected)"
+		}
+
+		if (terminalDetails) {
+			details += terminalDetails
 		}
 
 		if (includeFileDetails) {
 			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
 			const files = await listFiles(cwd, !isDesktop)
 			const result = this.formatFilesList(cwd, files)
-			details += `\n\n# Current Working Directory ('${cwd}') Files${
+			details += `\n\n# Current Working Directory (${cwd}) Files\n${result}${
 				isDesktop
-					? "\n(Desktop so only top-level contents shown for brevity, use list_files to explore further if necessary)"
+					? "\n(Note: Only top-level contents shown for Desktop by default. Use list_files to explore further if necessary.)"
 					: ""
-			}\n${result}`
+			}`
 		}
 
-		details += "\n</environment_details>"
-		return details
+		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 
 	async formatToolDeniedFeedback(feedback?: string) {
