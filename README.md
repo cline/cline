@@ -27,7 +27,7 @@ Claude Dev uses an autonomous task execution loop with chain-of-thought promptin
 
 Claude Dev has access to the following capabilities:
 
-1. **`execute_command`**: Execute terminal commands on the system (only with your permission, output is streamed into the chat and you can respond to stdin or exit long-running processes when you're ready)
+1. **`execute_command`**: Execute terminal commands on the system (only with your permission, output is streamed into the chat)
 2. **`read_file`**: Read the contents of a file at the specified path
 3. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
 4. **`list_files`**: List all paths for files in the specified directory. When `recursive = true`, it recursively lists all files in the directory and its nested folders (excludes files in .gitignore). When `recursive = false`, it lists only top-level files (useful for generic file operations like retrieving a file from your Desktop).
@@ -78,14 +78,14 @@ To build Claude Dev locally, follow these steps:
 
 ## Reviews
 
+-   ["VSCode + ClaudeDev + Continue: Stop Paying for Cursor with this OPENSOURCE & LOCAL Alternative"](https://www.youtube.com/watch?v=ucalLC8k94w), ["Claude Dev: This Coding Agent can Generate Applications Within VS Code!"](https://www.youtube.com/watch?v=ufq6sHGe0zs), ["ClaudeDev (Upgraded) : The BEST Coding Agent just got OLLAMA Support, Groq & Other Cool Updates!"](https://www.youtube.com/watch?v=QOG8qArZakg), ["ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet"](https://www.youtube.com/watch?v=GeZBfO1kxA4), ["ClaudeDev + Gemini : Generate Applications for FREE with Gemini 1.5 Pro / Flash!"](https://www.youtube.com/watch?v=FAFmP82bhDA), ["ClaudeDev (Upgraded) : The BEST Coding Agent just got Opensource LLM & Multimodal Support + Caching!"](https://www.youtube.com/watch?v=66b3qHPnKWM) by [AICodeKing](https://www.youtube.com/@AICodeKing)
+-   ["ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!"](https://www.youtube.com/watch?v=UNsQHosbIoE), ["VSCode + ClaudeDev: FREE Alternative Thats OPENSOURCE & LOCAL!"](https://www.youtube.com/watch?v=-vBNjoi_gJg) by [WorldofAI](https://www.youtube.com/@intheworldofai)
 -   ["Claude Sonnet 3.5 Artifacts in VSCode With This Extension"](https://www.youtube.com/watch?v=5FbZ8ALfSTs) by [CoderOne](https://www.youtube.com/@CoderOne)
--   ["ClaudeDev: NEW Coding Agent Can Generate Applications within VS Code!"](https://www.youtube.com/watch?v=UNsQHosbIoE) by [WorldofAI](https://www.youtube.com/@intheworldofai)
+-   ["Fully automated game development with a single prompt!"](https://www.youtube.com/watch?v=n18L9VFhNDo), ["Claude Dev fully automated writing code to develop chatbots! Beyond Copilot!"](https://www.youtube.com/watch?v=Us6LQzKmgfs) by [AIsuperdomain](https://www.youtube.com/@AIsuperdomain)
 -   ["ClaudeDev: This Mind-Blowing Coding Agent Can Build SaaS Apps in Minutes!"](https://www.youtube.com/watch?v=Ki0nuOeUpT0) by [AI for Devs](https://www.youtube.com/@ai-for-devs)
--   ["Claude Dev: This Coding Agent can Generate Applications Within VS Code!"](https://www.youtube.com/watch?v=ufq6sHGe0zs) by [AICodeKing](https://www.youtube.com/@AICodeKing)
--   ["ClaudeDev + NextJS + Supabase: Generate FULL-STACK Apps with Claude 3.5 Sonnet"](https://www.youtube.com/watch?v=GeZBfO1kxA4) by [AICodeKing](https://www.youtube.com/@AICodeKing)
+-   ["Claude Dev Is Mindblowing. The Best Coding Assistant tool?"](https://www.youtube.com/watch?v=Vp1Z3VGZroA), ["Combining Claude Dev With Google Gemini To Build Fast With Low Effort"](https://www.youtube.com/watch?v=cAfunEHLees), ["Browser Automation Made Easy With Claude Dev"](https://www.youtube.com/watch?v=EQ4O8rUOqZs), ["CREATE THE PERFECT CODE FOR YOU"](https://www.youtube.com/watch?v=HA5e0YIBOjk), ["The Most Powerful AI Coding Assistant Is Now Available With Local Models"](https://www.youtube.com/watch?v=UpTGEsY1Bus) by [Yaron Been](https://www.youtube.com/@ecomxfactor-YaronBeen)
 -   ["Meet Claude Dev — An Open-Source AI Programmer In VS Code"](https://generativeai.pub/meet-claude-dev-an-open-source-autonomous-ai-programmer-in-vs-code-f457f9821b7b) and ["Build games with zero code using Claude Dev in VS Code"](https://www.youtube.com/watch?v=VT-JYVi81ew) by [Jim Clyde Monge](https://jimclydemonge.medium.com/)
--   ["Claude Dev Builds NextJS App! Aider, Continue Dev & GitHub Copilot Open-Source Alternative"](https://www.youtube.com/watch?v=Rv0wJZRpnCQ) by [Josh Pocock](https://www.youtube.com/@joshfpocock)
--   ["Claude Dev Is Mindblowing. The Best Coding Assistant tool?"](https://www.youtube.com/watch?v=Vp1Z3VGZroA), ["Combining Claude Dev With Google Gemini To Build Fast With Low Effort"](https://www.youtube.com/watch?v=cAfunEHLees), and ["Browser Automation Made Easy With Claude Dev"](https://www.youtube.com/watch?v=EQ4O8rUOqZs) by [Yaron Been](https://www.youtube.com/@ecomxfactor-YaronBeen)
+-   ["Claude Dev Builds NextJS App! Continue Dev & GitHub Copilot Open-Source Alternative"](https://www.youtube.com/watch?v=Rv0wJZRpnCQ) by [Josh Pocock](https://www.youtube.com/@joshfpocock)
 -   ["ClaudeDev: The Ultimate Coding Agent for VS Code"](https://www.youtube.com/watch?v=aq0yw_DtphQ) by [Blas](https://www.youtube.com/@blascerecer)
 -   ["I Built My First Web App in One Day Using Claude Dev Extension – Mind Blown!"](https://www.reddit.com/r/ClaudeAI/comments/1eqo3nk/i_built_my_first_web_app_in_one_day_using_claude/)
 -   ["AI Development with Claude Dev"](https://www.linkedin.com/pulse/ai-development-claude-dev-shannon-lal-3ql3e/) by Shannon Lal

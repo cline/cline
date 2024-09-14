@@ -465,7 +465,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								{icon}
 								{title}
 							</div>
-							<div style={{ color: "var(--vscode-charts-green)" }}>
+							<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
 							</div>
 						</>
@@ -518,7 +518,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									{title}
 								</div>
 							)}
-							<div>
+							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
 							</div>
 						</>
@@ -618,7 +618,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									{icon}
 									{title}
 								</div>
-								<div style={{ color: "var(--vscode-charts-green)" }}>
+								<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 									<Markdown markdown={message.text} />
 								</div>
 							</div>
@@ -635,7 +635,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									{title}
 								</div>
 							)}
-							<div>
+							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
 							</div>
 						</>
@@ -669,7 +669,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 		// return `_<thinking>_\n\n${content}\n\n_</thinking>_`
 	})
 	return (
-		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
+		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -10, marginTop: -10 }}>
 			<ReactMarkdown
 				children={parsed}
 				components={{
@@ -680,8 +680,8 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 								style={{
 									...style,
 									margin: 0,
-									marginTop: 0,
-									marginBottom: 0,
+									marginTop: 10,
+									marginBottom: 10,
 									whiteSpace: "pre-wrap",
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
@@ -715,6 +715,20 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 									margin: "10px 0",
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
+								}}
+								{...rest}
+							/>
+						)
+					},
+					// pre always surrounds a code, and we custom handle code blocks below. Pre has some non-10 margin, while all other elements in markdown have a 10 top/bottom margin and the outer div has a -10 top/bottom margin to counteract this between chat rows. However we render markdown in a completion_result row so make sure to add padding as necessary when used within other rows.
+					pre(props) {
+						const { style, ...rest } = props
+						return (
+							<pre
+								style={{
+									...style,
+									marginTop: 10,
+									marginBlock: 10,
 								}}
 								{...rest}
 							/>
