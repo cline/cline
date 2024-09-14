@@ -47,8 +47,8 @@ class DiagnosticsMonitor {
 
 	public async getCurrentDiagnostics(shouldWaitForChanges: boolean): Promise<FileDiagnostics> {
 		const currentDiagnostics = this.getDiagnostics() // get all diagnostics for files open in workspace (not just errors/warnings so our did update check is more likely to detect updated diagnostics)
-
 		if (!shouldWaitForChanges) {
+			this.lastDiagnostics = currentDiagnostics
 			return currentDiagnostics
 		}
 
@@ -68,6 +68,7 @@ class DiagnosticsMonitor {
 			)
 		)
 		if (hasErrorsOrWarnings) {
+			console.log("Existing errors or warnings detected, extending timeout", currentDiagnostics)
 			timeout = 5_000
 		}
 
@@ -84,8 +85,12 @@ class DiagnosticsMonitor {
 			}, timeout)
 
 			const disposable = this.diagnosticsChangeEmitter.event(() => {
+				const updatedDiagnostics = this.getDiagnostics() // I thought this would only trigger when diagnostics changed, but that's not the case.
+				if (deepEqual(this.lastDiagnostics, updatedDiagnostics)) {
+					// diagnostics have not changed, ignoring...
+					return
+				}
 				cleanup()
-				const updatedDiagnostics = this.getDiagnostics()
 				this.lastDiagnostics = updatedDiagnostics
 				resolve(updatedDiagnostics)
 			})

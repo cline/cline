@@ -1855,9 +1855,11 @@ ${this.customInstructions.trim()}
 			await delay(300) // delay after saving file to let terminals/diagnostics catch up
 		}
 
+		let terminalWasBusy = false
 		if (allTerminals.length > 0) {
 			// wait for terminals to cool down
 			// note this does not mean they're actively running just that they recently output something
+			terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
 			await pWaitFor(() => allTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
@@ -1866,7 +1868,7 @@ ${this.customInstructions.trim()}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
 		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile) // if claude edited the workspace then wait a bit for updated diagnostics
+		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if claude ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
 		for (const [uri, fileDiagnostics] of diagnostics) {
 			const problems = fileDiagnostics.filter(
 				(d) =>
