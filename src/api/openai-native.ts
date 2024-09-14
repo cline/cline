@@ -47,14 +47,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1-mini":
 				createParams = {
 					model: this.getModel().id,
-					max_tokens: this.getModel().info.maxTokens,
+					max_completion_tokens: this.getModel().info.maxTokens,
 					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
 				}
 				break
 			default:
 				createParams = {
 					model: this.getModel().id,
-					max_tokens: this.getModel().info.maxTokens,
+					max_completion_tokens: this.getModel().info.maxTokens,
 					messages: openAiMessages,
 					tools: openAiTools,
 					tool_choice: "auto",
