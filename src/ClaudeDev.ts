@@ -1848,14 +1848,17 @@ ${this.customInstructions.trim()}
 		}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
+		const inactiveTerminals = this.terminalManager.getTerminals(false)
+		const allTerminals = [...busyTerminals, ...inactiveTerminals]
 
 		if (busyTerminals.length > 0 || this.didEditFile) {
 			await delay(300) // delay after saving file to let terminals/diagnostics catch up
 		}
 
-		if (busyTerminals.length > 0) {
+		if (allTerminals.length > 0) {
 			// wait for terminals to cool down
-			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
+			// note this does not mean they're actively running just that they recently output something
+			await pWaitFor(() => allTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
 			}).catch(() => {})
@@ -1896,7 +1899,6 @@ ${this.customInstructions.trim()}
 			}
 		}
 		// only show inactive terminals if there's output to show
-		const inactiveTerminals = this.terminalManager.getTerminals(false)
 		if (inactiveTerminals.length > 0) {
 			const inactiveTerminalOutputs = new Map<number, string>()
 			for (const inactiveTerminal of inactiveTerminals) {
