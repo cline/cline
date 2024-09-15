@@ -114,13 +114,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						background-color: var(--vscode-editor-findMatchHighlightBackground);
 						color: inherit;
 					}
-					.clear-search-button {
-						cursor: pointer;
-						opacity: 0.5;
-					}
-					.clear-search-button:hover {
-						opacity: 1;
-					}
 				`}
 			</style>
 			<div
@@ -164,7 +157,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}></div>
 							{searchQuery && (
 								<div
-									className="clear-search-button"
+									className="input-icon-button codicon codicon-close"
 									aria-label="Clear search"
 									onClick={() => setSearchQuery("")}
 									slot="end"
@@ -173,9 +166,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										justifyContent: "center",
 										alignItems: "center",
 										height: "100%",
-									}}>
-									<span className="codicon codicon-close"></span>
-								</div>
+									}}
+								/>
 							)}
 						</VSCodeTextField>
 						<VSCodeRadioGroup

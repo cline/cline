@@ -125,3 +125,20 @@ vscode-dropdown::part(listbox) {
 	transition: none;
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
+
+/* Faded icon buttons in textfields */
+
+.input-icon-button {
+	cursor: pointer;
+	opacity: 0.65;
+}
+.input-icon-button:hover {
+	opacity: 1;
+}
+.input-icon-button.disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+.input-icon-button.disabled:hover {
+	opacity: 0.4;
+}
