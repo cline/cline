@@ -90,7 +90,7 @@ Current Working Directory: ${cwd}
 `
 
 const cwd =
-	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 const tools: Tool[] = [
 	{
@@ -1828,15 +1828,20 @@ ${this.customInstructions.trim()}
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
+		// It could be useful for claude to know if the user went from one or no file to another between messages, so we always include this context
+		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 			.join("\n")
 		if (visibleFiles) {
-			details += `\n\n# VSCode Visible Files\n${visibleFiles}`
+			details += `\n${visibleFiles}`
+		} else {
+			details += "\n(No visible files)"
 		}
 
+		details += "\n\n# VSCode Open Tabs"
 		const openTabs = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
@@ -1844,7 +1849,9 @@ ${this.customInstructions.trim()}
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 			.join("\n")
 		if (openTabs) {
-			details += `\n\n# VSCode Open Tabs\n${openTabs}`
+			details += `\n${openTabs}`
+		} else {
+			details += "\n(No open tabs)"
 		}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
