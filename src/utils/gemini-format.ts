@@ -124,7 +124,12 @@ export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): Fun
 It looks like gemini likes to double escape certain characters when writing file contents: https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
 */
 export function unescapeGeminiContent(content: string) {
-	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"')
+	return content
+		.replace(/\\n/g, "\n")
+		.replace(/\\'/g, "'")
+		.replace(/\\"/g, '"')
+		.replace(/\\r/g, "\r")
+		.replace(/\\t/g, "\t")
 }
 
 export function convertGeminiResponseToAnthropic(
