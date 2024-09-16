@@ -65,6 +65,8 @@ RULES
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
+- You will automatically receive workspace error diagnostics in environment_details. Be mindful that this may include issues beyond the scope of your task or the user's request. Focus on addressing errors and warnings relevant to your work, and avoid fixing pre-existing or unrelated issues unless the user specifically instructs you to do so.
+- If you are unable to resolve errors provided in environment_details after a few attempts, consider using ask_followup_question to ask the user for additional information, such as the latest documentation related to a problematic framework, to help you make progress on the task.
 - CRITICAL: When editing files with write_to_file, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 
 ====
@@ -1877,16 +1879,14 @@ ${this.customInstructions.trim()}
 		let diagnosticsDetails = ""
 		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if claude ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
 		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter(
-				(d) =>
-					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-			)
+			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
 			if (problems.length > 0) {
 				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
 				for (const diagnostic of problems) {
-					let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
 					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					diagnosticsDetails += `\n- [${severity}] Line ${line}: ${diagnostic.message}`
+					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
+					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
 				}
 			}
 		}
@@ -1928,11 +1928,11 @@ ${this.customInstructions.trim()}
 			}
 		}
 
-		details += "\n\n# VSCode Workspace Diagnostics"
+		details += "\n\n# VSCode Workspace Errors"
 		if (diagnosticsDetails) {
 			details += diagnosticsDetails
 		} else {
-			details += "\n(No problems detected)"
+			details += "\n(No errors detected)"
 		}
 
 		if (terminalDetails) {

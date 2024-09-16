@@ -61,14 +61,11 @@ class DiagnosticsMonitor {
 		let timeout = 300
 
 		// if diagnostics contain existing errors (since the check above didn't trigger) then it's likely claude just did something that should have fixed the error, so we'll give a longer grace period for diagnostics to catch up
-		const hasErrorsOrWarnings = currentDiagnostics.some(([_, diagnostics]) =>
-			diagnostics.some(
-				(d) =>
-					d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-			)
+		const hasErrors = currentDiagnostics.some(([_, diagnostics]) =>
+			diagnostics.some((d) => d.severity === vscode.DiagnosticSeverity.Error)
 		)
-		if (hasErrorsOrWarnings) {
-			console.log("Existing errors or warnings detected, extending timeout", currentDiagnostics)
+		if (hasErrors) {
+			console.log("Existing errors detected, extending timeout", currentDiagnostics)
 			timeout = 5_000
 		}
 
