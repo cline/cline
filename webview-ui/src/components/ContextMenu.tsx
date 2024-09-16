@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { getContextMenuOptions } from "../utils/mention-context"
 
 interface ContextMenuProps {
@@ -21,10 +21,27 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedType,
 }) => {
 	const [filteredOptions, setFilteredOptions] = useState(getContextMenuOptions(searchQuery, selectedType))
+	const menuRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
 		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType))
 	}, [searchQuery, selectedType])
+
+	useEffect(() => {
+		if (menuRef.current) {
+			const selectedElement = menuRef.current.children[selectedIndex] as HTMLElement
+			if (selectedElement) {
+				const menuRect = menuRef.current.getBoundingClientRect()
+				const selectedRect = selectedElement.getBoundingClientRect()
+
+				if (selectedRect.bottom > menuRect.bottom) {
+					menuRef.current.scrollTop += selectedRect.bottom - menuRect.bottom
+				} else if (selectedRect.top < menuRect.top) {
+					menuRef.current.scrollTop -= menuRect.top - selectedRect.top
+				}
+			}
+		}
+	}, [selectedIndex])
 
 	return (
 		<div
@@ -36,6 +53,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			}}
 			onMouseDown={onMouseDown}>
 			<div
+				ref={menuRef}
 				style={{
 					backgroundColor: "var(--vscode-dropdown-background)",
 					border: "1px solid var(--vscode-dropdown-border)",
