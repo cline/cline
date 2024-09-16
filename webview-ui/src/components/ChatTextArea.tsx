@@ -206,8 +206,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 				if (showMenu) {
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
-					setSearchQuery(newValue.slice(lastAtIndex + 1, newCursorPosition))
-					setSelectedMenuIndex(2) // Set to "File" option by default
+					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
+					setSearchQuery(query)
+					if (query.length > 0) {
+						setSelectedMenuIndex(0)
+					} else {
+						setSelectedMenuIndex(2) // Set to "File" option by default
+					}
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
