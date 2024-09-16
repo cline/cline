@@ -40,7 +40,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [showContextMenu, setShowContextMenu] = useState(false)
 		const [cursorPosition, setCursorPosition] = useState(0)
 		const [searchQuery, setSearchQuery] = useState("")
-		const containerRef = useRef<HTMLDivElement>(null)
 		const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
 		const [isMouseDownOnMenu, setIsMouseDownOnMenu] = useState(false)
 		const highlightLayerRef = useRef<HTMLDivElement>(null)
@@ -48,6 +47,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedType, setSelectedType] = useState<string | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
+		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+
+		useEffect(() => {
+			const handleClickOutside = (event: MouseEvent) => {
+				if (
+					contextMenuContainerRef.current &&
+					!contextMenuContainerRef.current.contains(event.target as Node)
+				) {
+					setShowContextMenu(false)
+				}
+			}
+
+			if (showContextMenu) {
+				document.addEventListener("mousedown", handleClickOutside)
+			}
+
+			return () => {
+				document.removeEventListener("mousedown", handleClickOutside)
+			}
+		}, [showContextMenu, setShowContextMenu])
+
 		const handleMentionSelect = useCallback(
 			(type: string, value: string) => {
 				if (value === "File" || value === "Folder") {
@@ -297,7 +317,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		return (
 			<div
-				ref={containerRef}
 				style={{
 					padding: "10px 15px",
 					opacity: textAreaDisabled ? 0.5 : 1,
@@ -305,15 +324,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					display: "flex",
 				}}>
 				{showContextMenu && (
-					<ContextMenu
-						containerWidth={containerRef.current?.clientWidth || 0}
-						onSelect={handleMentionSelect}
-						searchQuery={searchQuery}
-						onMouseDown={handleMenuMouseDown}
-						selectedIndex={selectedMenuIndex}
-						setSelectedIndex={setSelectedMenuIndex}
-						selectedType={selectedType}
-					/>
+					<div ref={contextMenuContainerRef}>
+						<ContextMenu
+							onSelect={handleMentionSelect}
+							searchQuery={searchQuery}
+							onMouseDown={handleMenuMouseDown}
+							selectedIndex={selectedMenuIndex}
+							setSelectedIndex={setSelectedMenuIndex}
+							selectedType={selectedType}
+						/>
+					</div>
 				)}
 				{!isTextAreaFocused && (
 					<div

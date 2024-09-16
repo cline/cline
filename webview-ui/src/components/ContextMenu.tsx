@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react"
 import { getContextMenuOptions } from "../utils/mention-context"
 
 interface ContextMenuProps {
-	containerWidth: number
 	onSelect: (type: string, value: string) => void
 	searchQuery: string
 	onMouseDown: () => void
@@ -12,7 +11,6 @@ interface ContextMenuProps {
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
-	containerWidth,
 	onSelect,
 	searchQuery,
 	onMouseDown,
