@@ -64,7 +64,7 @@ RULES
 - NEVER start your responses with affirmations like "Certainly", "Okay", "Sure", "Great", etc. You should NOT be conversational in your responses, but rather direct and to the point.
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
-- At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is generated to provide context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message.
+- At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
 - CRITICAL: When editing files with write_to_file, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 
 ====
@@ -90,7 +90,7 @@ Current Working Directory: ${cwd}
 `
 
 const cwd =
-	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 const tools: Tool[] = [
 	{
@@ -1828,15 +1828,20 @@ ${this.customInstructions.trim()}
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
+		// It could be useful for claude to know if the user went from one or no file to another between messages, so we always include this context
+		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 			.join("\n")
 		if (visibleFiles) {
-			details += `\n\n# VSCode Visible Files\n${visibleFiles}`
+			details += `\n${visibleFiles}`
+		} else {
+			details += "\n(No visible files)"
 		}
 
+		details += "\n\n# VSCode Open Tabs"
 		const openTabs = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
@@ -1844,7 +1849,9 @@ ${this.customInstructions.trim()}
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 			.join("\n")
 		if (openTabs) {
-			details += `\n\n# VSCode Open Tabs\n${openTabs}`
+			details += `\n${openTabs}`
+		} else {
+			details += "\n(No open tabs)"
 		}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)

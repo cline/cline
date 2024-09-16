@@ -659,7 +659,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-						padding: "0 54px 0 9px",
+						padding: "0 49px 0 9px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 					}}
@@ -681,30 +681,35 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				<div
 					style={{
 						position: "absolute",
-						right: 20,
+						right: 23,
 						display: "flex",
 						alignItems: "flex-center",
 						height: textAreaBaseHeight || 31,
-						bottom: 10,
+						bottom: 9, // should be 10 but doesnt look good on mac
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
-						<VSCodeButton
-							disabled={shouldDisableImages}
-							appearance="icon"
-							aria-label="Attach Images"
-							onClick={selectImages}
-							style={{ marginRight: "2px" }}>
-							<span
-								className="codicon codicon-device-camera"
-								style={{ fontSize: 18, marginLeft: -2, marginBottom: 1 }}></span>
-						</VSCodeButton>
-						<VSCodeButton
-							disabled={textAreaDisabled}
-							appearance="icon"
-							aria-label="Send Message"
-							onClick={handleSendMessage}>
-							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
-						</VSCodeButton>
+						<div
+							className={`input-icon-button ${
+								shouldDisableImages ? "disabled" : ""
+							} codicon codicon-device-camera`}
+							onClick={() => {
+								if (!shouldDisableImages) {
+									selectImages()
+								}
+							}}
+							style={{
+								marginRight: 5.5,
+								fontSize: 16.5,
+							}}
+						/>
+						<div
+							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+							onClick={() => {
+								if (!textAreaDisabled) {
+									handleSendMessage()
+								}
+							}}
+							style={{ fontSize: 15 }}></div>
 					</div>
 				</div>
 			</div>
