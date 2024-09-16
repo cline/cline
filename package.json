@@ -2,10 +2,10 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "icon": "icons/icon.png",
   "galleryBanner": {
-    "color": "#232323",
+    "color": "#1E1E1E",
     "theme": "dark"
   },
   "engines": {
