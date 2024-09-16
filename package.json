@@ -2,11 +2,11 @@
   "name": "claude-dev",
   "displayName": "Claude Dev",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "1.6.4",
+  "version": "1.7.2",
   "icon": "icons/icon.png",
   "galleryBanner": {
-    "color": "#F9E1D2",
-    "theme": "light"
+    "color": "#232323",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.84.0"
@@ -25,7 +25,6 @@
     "Chat",
     "Programming Languages",
     "Education",
-    "Machine Learning",
     "Snippets",
     "Testing"
   ],
@@ -36,8 +35,6 @@
     "autonomous",
     "chatgpt",
     "sonnet",
-    "mistral",
-    "codestral",
     "ai",
     "llama"
   ],
@@ -151,6 +148,7 @@
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
     "@anthropic-ai/sdk": "^0.26.0",
     "@anthropic-ai/vertex-sdk": "^0.4.1",
+    "@google/generative-ai": "^0.18.0",
     "@types/clone-deep": "^4.0.4",
     "@types/pdf-parse": "^1.1.4",
     "@vscode/codicons": "^0.0.36",
@@ -159,10 +157,11 @@
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
     "diff": "^5.2.0",
+    "fast-deep-equal": "^3.1.3",
     "globby": "^14.0.2",
     "mammoth": "^1.8.0",
     "monaco-vscode-textmate-theme-converter": "^0.1.7",
-    "openai": "^4.54.0",
+    "openai": "^4.61.0",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",

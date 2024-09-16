@@ -1,13 +1,14 @@
 import {
+	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
 	VSCodeOption,
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
-	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -15,7 +16,11 @@ import {
 	anthropicModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	geminiDefaultModelId,
+	geminiModels,
 	openAiModelInfoSaneDefaults,
+	openAiNativeDefaultModelId,
+	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterModels,
 	vertexDefaultModelId,
@@ -23,11 +28,10 @@ import {
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
 } from "../../../src/shared/api"
-import { useExtensionState } from "../context/ExtensionStateContext"
-import VSCodeButtonLink from "./VSCodeButtonLink"
 import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { useEvent, useInterval } from "react-use"
+import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
+import VSCodeButtonLink from "./VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -111,10 +115,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130 }}>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
+					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
@@ -164,8 +170,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.apiKey && (
-							<VSCodeLink href="https://console.anthropic.com/" style={{ display: "inline" }}>
+							<VSCodeLink
+								href="https://console.anthropic.com/"
+								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an Anthropic API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "openai-native" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.openAiNativeApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("openAiNativeApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>OpenAI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.openAiNativeApiKey && (
+							<VSCodeLink
+								href="https://platform.openai.com/api-keys"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								You can get an OpenAI API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -314,16 +350,44 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						To use Google Cloud Vertex AI, you need to
 						<VSCodeLink
 							href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
-							style={{ display: "inline" }}>
+							style={{ display: "inline", fontSize: "inherit" }}>
 							{
 								"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"
 							}
 						</VSCodeLink>{" "}
 						<VSCodeLink
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
-							style={{ display: "inline" }}>
+							style={{ display: "inline", fontSize: "inherit" }}>
 							{"2) install the Google Cloud CLI › configure Application Default Credentials."}
 						</VSCodeLink>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "gemini" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.geminiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("geminiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.geminiApiKey && (
+							<VSCodeLink
+								href="https://ai.google.dev/"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								You can get a Gemini API key by signing up here.
+							</VSCodeLink>
+						)}
 					</p>
 				</div>
 			)}
@@ -421,11 +485,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						started, see their
 						<VSCodeLink
 							href="https://github.com/ollama/ollama/blob/main/README.md"
-							style={{ display: "inline" }}>
+							style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
 						</VSCodeLink>{" "}
 						You can use any model that supports{" "}
-						<VSCodeLink href="https://ollama.com/search?c=tools" style={{ display: "inline" }}>
+						<VSCodeLink
+							href="https://ollama.com/search?c=tools"
+							style={{ display: "inline", fontSize: "inherit" }}>
 							tool use.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
@@ -503,10 +569,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 						{selectedProvider === "vertex" && createDropdown(vertexModels)}
+						{selectedProvider === "gemini" && createDropdown(geminiModels)}
+						{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 						{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 					</div>
 
-					<ModelInfoView modelInfo={selectedModelInfo} />
+					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
 				</>
 			)}
 		</div>
@@ -526,7 +594,9 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
-const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
+const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
+	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const isO1 = selectedModelId && selectedModelId.includes("o1")
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			<ModelInfoSupportsItem
@@ -535,15 +605,24 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 				doesNotSupportLabel="Does not support images"
 			/>
 			<br />
-			<ModelInfoSupportsItem
-				isSupported={modelInfo.supportsPromptCache}
-				supportsLabel="Supports prompt caching"
-				doesNotSupportLabel="Does not support prompt caching"
-			/>
-			<br />
+			{!isGemini && (
+				<>
+					<ModelInfoSupportsItem
+						isSupported={modelInfo.supportsPromptCache}
+						supportsLabel="Supports prompt caching"
+						doesNotSupportLabel="Does not support prompt caching"
+					/>
+					<br />
+				</>
+			)}
 			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo?.maxTokens?.toLocaleString()} tokens
-			<br />
-			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+			{modelInfo.inputPrice > 0 && (
+				<>
+					<br />
+					<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million
+					tokens
+				</>
+			)}
 			{modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice && (
 				<>
 					<br />
@@ -554,8 +633,43 @@ const ModelInfoView = ({ modelInfo }: { modelInfo: ModelInfo }) => {
 					{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
 				</>
 			)}
-			<br />
-			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+			{modelInfo.outputPrice > 0 && (
+				<>
+					<br />
+					<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
+					tokens
+				</>
+			)}
+			{isGemini && (
+				<>
+					<br />
+					<span
+						style={{
+							fontStyle: "italic",
+						}}>
+						* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per
+						minute. After that, billing depends on prompt size.{" "}
+						<VSCodeLink
+							href="https://ai.google.dev/pricing"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							For more info, see pricing details.
+						</VSCodeLink>
+					</span>
+				</>
+			)}
+			{isO1 && (
+				<>
+					<br />
+					<span
+						style={{
+							fontStyle: "italic",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						* This model does not support tool use or system prompts, so Claude Dev uses structured output
+						prompting to achieve similar results. Your mileage may vary.
+					</span>
+				</>
+			)}
 		</p>
 	)
 }
@@ -613,6 +727,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
+		case "gemini":
+			return getProviderData(geminiModels, geminiDefaultModelId)
+		case "openai-native":
+			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "openai":
 			return {
 				selectedProvider: provider,

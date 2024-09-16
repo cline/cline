@@ -50,13 +50,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
-
-	const toggleRowExpansion = (ts: number) => {
-		setExpandedRows((prev) => ({
-			...prev,
-			[ts]: !prev[ts],
-		}))
-	}
+	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [didScrollFromApiReqTs, setDidScrollFromApiReqTs] = useState<number | undefined>(undefined)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -426,16 +421,64 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
+	const toggleRowExpansion = useCallback(
+		(ts: number) => {
+			const isCollapsing = expandedRows[ts] ?? false
+			const isLastMessage = visibleMessages.at(-1)?.ts === ts
+			setExpandedRows((prev) => ({
+				...prev,
+				[ts]: !prev[ts],
+			}))
+
+			if (isCollapsing && isAtBottom) {
+				const timer = setTimeout(() => {
+					virtuosoRef.current?.scrollToIndex({
+						index: visibleMessages.length - 1,
+						align: "end",
+					})
+				}, 0)
+				return () => clearTimeout(timer)
+			} else if (isLastMessage) {
+				if (isCollapsing) {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
+							index: visibleMessages.length - 1,
+							align: "end",
+						})
+					}, 0)
+					return () => clearTimeout(timer)
+				} else {
+					const timer = setTimeout(() => {
+						virtuosoRef.current?.scrollToIndex({
+							index: visibleMessages.length - 1,
+							align: "start",
+						})
+					}, 0)
+					return () => clearTimeout(timer)
+				}
+			}
+		},
+		[isAtBottom, visibleMessages, expandedRows]
+	)
+
 	useEffect(() => {
+		// dont scroll if we're just updating the api req started informational body
+		const lastMessage = visibleMessages.at(-1)
+		const isLastApiReqStarted = lastMessage?.say === "api_req_started"
+		if (didScrollFromApiReqTs && isLastApiReqStarted && lastMessage?.ts === didScrollFromApiReqTs) {
+			return
+		}
+
 		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
 		const timer = setTimeout(() => {
 			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
 			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
 			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
+			setDidScrollFromApiReqTs(isLastApiReqStarted ? lastMessage?.ts : undefined) // need to do this in timer since this effect can get called a few times simultaneously
 		}, 50)
 
 		return () => clearTimeout(timer)
-	}, [visibleMessages])
+	}, [visibleMessages, didScrollFromApiReqTs])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -453,7 +496,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				isLast={index === visibleMessages.length - 1}
 			/>
 		),
-		[expandedRows, modifiedMessages, visibleMessages.length]
+		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion]
 	)
 
 	return (
@@ -480,9 +523,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onClose={handleTaskCloseButtonClick}
 				/>
 			) : (
-				<>
+				<div
+					style={{
+						flexGrow: 1,
+						overflowY: "auto",
+						display: "flex",
+						flexDirection: "column",
+					}}>
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
-					<div style={{ padding: "0 20px", flexGrow: taskHistory.length > 0 ? undefined : 1 }}>
+					<div style={{ padding: "0 20px", flexShrink: 0 }}>
 						<h2>What can I do for you?</h2>
 						<p>
 							Thanks to{" "}
@@ -497,7 +546,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-				</>
+				</div>
 			)}
 			{task && (
 				<>
@@ -515,9 +564,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						// 	}
 						// 	return false
 						// }}
-						increaseViewportBy={{ top: 0, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+						// increasing top by 1_000 to prevent jumping around when user collapses a row
+						increaseViewportBy={{ top: 1_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 						itemContent={itemContent}
+						atBottomStateChange={setIsAtBottom}
+						atBottomThreshold={100}
 					/>
 					<div
 						style={{
@@ -607,7 +659,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-						padding: "0 53px 0 9px",
+						padding: "0 49px 0 9px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 					}}
@@ -629,30 +681,35 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				<div
 					style={{
 						position: "absolute",
-						right: 20,
+						right: 23,
 						display: "flex",
 						alignItems: "flex-center",
 						height: textAreaBaseHeight || 31,
-						bottom: 10,
+						bottom: 9, // should be 10 but doesnt look good on mac
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
-						<VSCodeButton
-							disabled={shouldDisableImages}
-							appearance="icon"
-							aria-label="Attach Images"
-							onClick={selectImages}
-							style={{ marginRight: "2px" }}>
-							<span
-								className="codicon codicon-device-camera"
-								style={{ fontSize: 18, marginLeft: -2, marginBottom: 1 }}></span>
-						</VSCodeButton>
-						<VSCodeButton
-							disabled={textAreaDisabled}
-							appearance="icon"
-							aria-label="Send Message"
-							onClick={handleSendMessage}>
-							<span className="codicon codicon-send" style={{ fontSize: 16, marginBottom: -1 }}></span>
-						</VSCodeButton>
+						<div
+							className={`input-icon-button ${
+								shouldDisableImages ? "disabled" : ""
+							} codicon codicon-device-camera`}
+							onClick={() => {
+								if (!shouldDisableImages) {
+									selectImages()
+								}
+							}}
+							style={{
+								marginRight: 5.5,
+								fontSize: 16.5,
+							}}
+						/>
+						<div
+							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+							onClick={() => {
+								if (!textAreaDisabled) {
+									handleSendMessage()
+								}
+							}}
+							style={{ fontSize: 15 }}></div>
 					</div>
 				</div>
 			</div>

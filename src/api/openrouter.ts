@@ -9,6 +9,8 @@ import {
 	openRouterModels,
 } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import axios from "axios"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../utils/o1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -37,6 +39,44 @@ export class OpenRouterHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
+		// prompt caching: https://openrouter.ai/docs/prompt-caching
+		switch (this.getModel().id) {
+			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3-haiku:beta":
+			case "anthropic/claude-3-opus:beta":
+				openAiMessages[0] = {
+					role: "system",
+					content: [
+						{
+							type: "text",
+							text: systemPrompt,
+							// @ts-ignore-next-line
+							cache_control: { type: "ephemeral" },
+						},
+					],
+				}
+				// Add cache_control to the last two user messages
+				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
+				lastTwoUserMessages.forEach((msg) => {
+					if (typeof msg.content === "string") {
+						msg.content = [{ type: "text", text: msg.content }]
+					}
+					if (Array.isArray(msg.content)) {
+						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+						if (!lastTextPart) {
+							lastTextPart = { type: "text", text: "..." }
+							msg.content.push(lastTextPart)
+						}
+						// @ts-ignore-next-line
+						lastTextPart["cache_control"] = { type: "ephemeral" }
+					}
+				})
+				break
+			default:
+				break
+		}
+
 		// Convert Anthropic tools to OpenAI tools
 		const openAiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((tool) => ({
 			type: "function",
@@ -47,12 +87,26 @@ export class OpenRouterHandler implements ApiHandler {
 			},
 		}))
 
-		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
-			messages: openAiMessages,
-			tools: openAiTools,
-			tool_choice: "auto",
+		let createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+
+		switch (this.getModel().id) {
+			case "openai/o1-preview":
+			case "openai/o1-mini":
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
+				}
+				break
+			default:
+				createParams = {
+					model: this.getModel().id,
+					max_tokens: this.getModel().info.maxTokens,
+					messages: openAiMessages,
+					tools: openAiTools,
+					tool_choice: "auto",
+				}
+				break
 		}
 
 		let completion: OpenAI.Chat.Completions.ChatCompletion
@@ -68,7 +122,52 @@ export class OpenRouterHandler implements ApiHandler {
 			throw new Error(errorMessage)
 		}
 
-		const anthropicMessage = convertToAnthropicMessage(completion)
+		let anthropicMessage: Anthropic.Messages.Message
+		switch (this.getModel().id) {
+			case "openai/o1-preview":
+			case "openai/o1-mini":
+				anthropicMessage = convertO1ResponseToAnthropicMessage(completion)
+				break
+			default:
+				anthropicMessage = convertToAnthropicMessage(completion)
+				break
+		}
+
+		// Check if the model is Gemini Flash and remove extra escapes in tool result args
+		// switch (this.getModel().id) {
+		// 	case "google/gemini-pro-1.5":
+		// 	case "google/gemini-flash-1.5":
+		// 		const content = anthropicMessage.content
+		// 		for (const block of content) {
+		// 			if (
+		// 				block.type === "tool_use" &&
+		// 				typeof block.input === "object" &&
+		// 				block.input !== null &&
+		// 				"content" in block.input &&
+		// 				typeof block.input.content === "string"
+		// 			) {
+		// 				block.input.content = unescapeGeminiContent(block.input.content)
+		// 			}
+		// 		}
+		// 		break
+		// 	default:
+		// 		break
+		// }
+
+		const genId = completion.id
+		// Log the generation details from OpenRouter API
+		try {
+			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+				headers: {
+					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+				},
+			})
+			// @ts-ignore-next-line
+			anthropicMessage.usage.total_cost = response.data?.data?.total_cost
+			console.log("OpenRouter generation details:", response.data)
+		} catch (error) {
+			console.error("Error fetching OpenRouter generation details:", error)
+		}
 
 		return { message: anthropicMessage }
 	}
@@ -160,6 +259,7 @@ export class OpenRouterHandler implements ApiHandler {
 						role: "assistant",
 						content: textContent,
 						tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+						refusal: null,
 					},
 					finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop",
 					index: 0,
