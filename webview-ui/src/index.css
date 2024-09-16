@@ -142,3 +142,15 @@ vscode-dropdown::part(listbox) {
 .input-icon-button.disabled:hover {
 	opacity: 0.4;
 }
+
+.mention-context-highlight {
+	background-color: var(--vscode-textLink-activeForeground, #3794ff);
+	opacity: 0.3;
+	border-radius: 2px;
+	box-shadow: 0 0 0 0.5px var(--vscode-textLink-activeForeground, #3794ff);
+	color: transparent;
+	padding: 0.5px;
+	margin: -0.5px;
+	position: relative;
+	bottom: -0.5px;
+}

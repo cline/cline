@@ -1,7 +1,9 @@
-import React, { forwardRef, useState, useCallback, useEffect } from "react"
+import React, { forwardRef, useCallback, useEffect, useRef, useState, useLayoutEffect } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import Thumbnails from "./Thumbnails"
+import { insertMention, shouldShowContextMenu, getContextMenuOptions, removeMention } from "../utils/mention-context"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
+import ContextMenu from "./ContextMenu"
+import Thumbnails from "./Thumbnails"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -35,17 +37,172 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
+		const [showContextMenu, setShowContextMenu] = useState(false)
+		const [cursorPosition, setCursorPosition] = useState(0)
+		const [searchQuery, setSearchQuery] = useState("")
+		const containerRef = useRef<HTMLDivElement>(null)
+		const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
+		const [isMouseDownOnMenu, setIsMouseDownOnMenu] = useState(false)
+		const highlightLayerRef = useRef<HTMLDivElement>(null)
+		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
+		const [selectedType, setSelectedType] = useState<string | null>(null)
+		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
+		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
+		const handleMentionSelect = useCallback(
+			(type: string, value: string) => {
+				if (value === "File" || value === "Folder") {
+					setSelectedType(type.toLowerCase())
+					setSearchQuery("")
+					setSelectedMenuIndex(0)
+					return
+				}
+
+				setShowContextMenu(false)
+				setSelectedType(null)
+				if (textAreaRef.current) {
+					let insertValue = value
+					if (type === "url") {
+						// For URLs, we insert the value as is
+						insertValue = value
+					} else if (type === "file" || type === "folder") {
+						// For files and folders, we insert the path
+						insertValue = value
+					}
+
+					const newValue = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					setInputValue(newValue)
+					const newCursorPosition = newValue.indexOf(" ", newValue.lastIndexOf("@")) + 1
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition) // Update intended cursor position
+					textAreaRef.current.focus()
+					// Remove the direct setSelectionRange call
+					// textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition)
+				}
+			},
+			[setInputValue, cursorPosition]
+		)
 
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				if (showContextMenu) {
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault()
+						setSelectedMenuIndex((prevIndex) => {
+							const direction = event.key === "ArrowUp" ? -1 : 1
+							let newIndex = prevIndex + direction
+							const options = getContextMenuOptions(searchQuery, selectedType)
+							const optionsLength = options.length
+
+							if (newIndex < 0) newIndex = optionsLength - 1
+							if (newIndex >= optionsLength) newIndex = 0
+
+							while (options[newIndex]?.type === "url") {
+								newIndex = (newIndex + direction + optionsLength) % optionsLength
+							}
+
+							return newIndex
+						})
+						return
+					}
+					if (event.key === "Enter" && selectedMenuIndex !== -1) {
+						event.preventDefault()
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType)[selectedMenuIndex]
+						if (selectedOption && selectedOption.type !== "url") {
+							handleMentionSelect(selectedOption.type, selectedOption.value)
+						}
+						return
+					}
+				}
+
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 					onSend()
 				}
+
+				if (event.key === "Backspace" && !isComposing) {
+					const charBeforeCursor = inputValue[cursorPosition - 1]
+					const charAfterCursor = inputValue[cursorPosition + 1]
+
+					const charBeforeIsWhitespace =
+						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
+					const charAfterIsWhitespace =
+						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
+					if (
+						charBeforeIsWhitespace &&
+						inputValue.slice(0, cursorPosition - 1).match(/@(\/|\w+:\/\/)[^\s]+$/)
+					) {
+						const newCursorPosition = cursorPosition - 1
+						if (!charAfterIsWhitespace) {
+							event.preventDefault()
+							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
+							setCursorPosition(newCursorPosition)
+						}
+						setCursorPosition(newCursorPosition)
+						setJustDeletedSpaceAfterMention(true)
+					} else if (justDeletedSpaceAfterMention) {
+						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
+						if (newText !== inputValue) {
+							event.preventDefault()
+							setInputValue(newText)
+							setIntendedCursorPosition(newPosition) // Store the new cursor position in state
+						}
+						setJustDeletedSpaceAfterMention(false)
+						setShowContextMenu(false)
+					} else {
+						setJustDeletedSpaceAfterMention(false)
+					}
+				}
 			},
-			[onSend]
+			[
+				onSend,
+				showContextMenu,
+				searchQuery,
+				selectedMenuIndex,
+				handleMentionSelect,
+				selectedType,
+				inputValue,
+				cursorPosition,
+				setInputValue,
+				justDeletedSpaceAfterMention,
+			]
 		)
+
+		useLayoutEffect(() => {
+			if (intendedCursorPosition !== null && textAreaRef.current) {
+				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
+				setIntendedCursorPosition(null) // Reset the state
+			}
+		}, [inputValue, intendedCursorPosition])
+
+		const handleInputChange = useCallback(
+			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+				const newValue = e.target.value
+				const newCursorPosition = e.target.selectionStart
+				setInputValue(newValue)
+				setCursorPosition(newCursorPosition)
+				const showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+
+				setShowContextMenu(showMenu)
+				if (showMenu) {
+					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
+					setSearchQuery(newValue.slice(lastAtIndex + 1, newCursorPosition))
+					setSelectedMenuIndex(2) // Set to "File" option by default
+				} else {
+					setSearchQuery("")
+					setSelectedMenuIndex(-1)
+				}
+			},
+			[setInputValue]
+		)
+
+		const handleBlur = useCallback(() => {
+			// Only hide the context menu if the user didn't click on it
+			if (!isMouseDownOnMenu) {
+				setShowContextMenu(false)
+			}
+			setIsTextAreaFocused(false)
+		}, [isMouseDownOnMenu])
 
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
@@ -100,14 +257,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [selectedImages])
 
+		const handleMenuMouseDown = useCallback(() => {
+			setIsMouseDownOnMenu(true)
+		}, [])
+
+		const updateHighlights = useCallback(() => {
+			if (!textAreaRef.current || !highlightLayerRef.current) return
+
+			const text = textAreaRef.current.value
+			const mentionRegex = /@(\/|\w+:\/\/)[^\s]+/g
+
+			highlightLayerRef.current.innerHTML = text
+				.replace(/\n$/, "\n\n")
+				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] || c))
+				.replace(mentionRegex, '<mark class="mention-context-highlight">$&</mark>')
+
+			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
+			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
+		}, [])
+
+		useLayoutEffect(() => {
+			updateHighlights()
+		}, [inputValue, updateHighlights])
+
+		const updateCursorPosition = useCallback(() => {
+			if (textAreaRef.current) {
+				setCursorPosition(textAreaRef.current.selectionStart)
+			}
+		}, [])
+
+		const handleKeyUp = useCallback(
+			(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+					updateCursorPosition()
+				}
+			},
+			[updateCursorPosition]
+		)
+
 		return (
 			<div
+				ref={containerRef}
 				style={{
 					padding: "10px 15px",
 					opacity: textAreaDisabled ? 0.5 : 1,
 					position: "relative",
 					display: "flex",
 				}}>
+				{showContextMenu && (
+					<ContextMenu
+						containerWidth={containerRef.current?.clientWidth || 0}
+						onSelect={handleMentionSelect}
+						searchQuery={searchQuery}
+						onMouseDown={handleMenuMouseDown}
+						selectedIndex={selectedMenuIndex}
+						setSelectedIndex={setSelectedMenuIndex}
+						selectedType={selectedType}
+					/>
+				)}
 				{!isTextAreaFocused && (
 					<div
 						style={{
@@ -116,18 +323,58 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							border: "1px solid var(--vscode-input-border)",
 							borderRadius: 2,
 							pointerEvents: "none",
+							zIndex: 5,
 						}}
 					/>
 				)}
+				<div
+					ref={highlightLayerRef}
+					style={{
+						position: "absolute",
+						top: 10,
+						left: 15,
+						right: 15,
+						bottom: 10,
+						pointerEvents: "none",
+						whiteSpace: "pre-wrap",
+						wordWrap: "break-word",
+						color: "transparent",
+						overflow: "hidden",
+						backgroundColor: "var(--vscode-input-background)",
+						fontFamily: "var(--vscode-font-family)",
+						fontSize: "var(--vscode-editor-font-size)",
+						lineHeight: "var(--vscode-editor-line-height)",
+						borderRadius: 2,
+						borderLeft: 0,
+						borderRight: 0,
+						borderTop: 0,
+						borderColor: "transparent",
+						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+						padding: "9px 49px 3px 9px",
+					}}
+				/>
 				<DynamicTextArea
-					ref={ref}
+					ref={(el) => {
+						if (typeof ref === "function") {
+							ref(el)
+						} else if (ref) {
+							ref.current = el
+						}
+						textAreaRef.current = el
+					}}
 					value={inputValue}
 					disabled={textAreaDisabled}
-					onChange={(e) => setInputValue(e.target.value)}
+					onChange={(e) => {
+						handleInputChange(e)
+						updateHighlights()
+					}}
 					onKeyDown={handleKeyDown}
+					onKeyUp={handleKeyUp}
 					onFocus={() => setIsTextAreaFocused(true)}
-					onBlur={() => setIsTextAreaFocused(false)}
+					onBlur={handleBlur}
 					onPaste={handlePaste}
+					onSelect={updateCursorPosition}
+					onMouseUp={updateCursorPosition}
 					onHeightChange={(height) => {
 						if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
 							setTextAreaBaseHeight(height)
@@ -140,7 +387,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					style={{
 						width: "100%",
 						boxSizing: "border-box",
-						backgroundColor: "var(--vscode-input-background)",
+						backgroundColor: "transparent",
 						color: "var(--vscode-input-foreground)",
 						//border: "1px solid var(--vscode-input-border)",
 						borderRadius: 2,
@@ -148,19 +395,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						fontSize: "var(--vscode-editor-font-size)",
 						lineHeight: "var(--vscode-editor-line-height)",
 						resize: "none",
-						overflow: "hidden",
+						overflowX: "hidden",
+						overflowY: "scroll",
+						scrollbarWidth: "none",
 						// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-						borderTop: "9px solid transparent",
-						borderBottom: `${thumbnailsHeight + 9}px solid transparent`,
+						// borderTop: "9px solid transparent",
+						borderLeft: 0,
+						borderRight: 0,
+						borderTop: 0,
+						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 						borderColor: "transparent",
 						// borderRight: "54px solid transparent",
 						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-						padding: "0 49px 0 9px",
+						padding: "9px 49px 3px 9px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
+						zIndex: 1,
 					}}
+					onScroll={() => updateHighlights()}
 				/>
 				{selectedImages.length > 0 && (
 					<Thumbnails
@@ -173,6 +427,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							bottom: 14,
 							left: 22,
 							right: 67, // (54 + 9) + 4 extra padding
+							zIndex: 2,
 						}}
 					/>
 				)}
@@ -184,6 +439,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						alignItems: "flex-center",
 						height: textAreaBaseHeight || 31,
 						bottom: 9, // should be 10 but doesnt look good on mac
+						zIndex: 2,
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
 						<div
