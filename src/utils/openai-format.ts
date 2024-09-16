@@ -65,6 +65,7 @@ export function convertToOpenAiMessages(
 				// I ran into an issue where if I gave feedback for one of many tool uses, the request would fail.
 				// "Messages following `tool_use` blocks must begin with a matching number of `tool_result` blocks."
 				// Therefore we need to send these images after the tool result messages
+				// NOTE: it's actually okay to have multiple user messages in a row, the model will treat them as a continuation of the same input (this way works better than combining them into one message, since the tool result specifically mentions (see following user message for image)
 				if (toolResultImages.length > 0) {
 					openAiMessages.push({
 						role: "user",
@@ -106,7 +107,7 @@ export function convertToOpenAiMessages(
 					{ nonToolMessages: [], toolMessages: [] }
 				)
 
-				// Process non-tool messages FIRST
+				// Process non-tool messages
 				let content: string | undefined
 				if (nonToolMessages.length > 0) {
 					content = nonToolMessages

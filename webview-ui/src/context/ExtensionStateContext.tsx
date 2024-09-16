@@ -40,6 +40,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 						config.vertexProjectId,
 						config.openAiApiKey,
 						config.ollamaModelId,
+						config.geminiApiKey,
+						config.openAiNativeApiKey,
 						config.sapAiCoreClientId,
 				  ].some((key) => key !== undefined)
 				: false

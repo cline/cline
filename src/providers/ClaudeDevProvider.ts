@@ -10,7 +10,7 @@ import fs from "fs/promises"
 import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
 import { getTheme } from "../utils/getTheme"
-import { openImage } from "../utils/open-image"
+import { openFile, openImage } from "../utils/open-file"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -25,6 +25,8 @@ type SecretKey =
 	| "awsSecretKey"
 	| "awsSessionToken"
 	| "openAiApiKey"
+	| "geminiApiKey"
+	| "openAiNativeApiKey"
 	| "sapAiCoreClientId"
 	| "sapAiCoreClientSecret"
 type GlobalStateKey =
@@ -44,6 +46,8 @@ type GlobalStateKey =
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "anthropicBaseUrl"
+	| "sapAiCoreTokenUrl"
+	| "sapAiCoreBaseUrl"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -52,7 +56,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
-	private latestAnnouncementId = "sep-9-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "sep-14-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
@@ -339,6 +343,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								ollamaModelId,
 								ollamaBaseUrl,
 								anthropicBaseUrl,
+								geminiApiKey,
+								openAiNativeApiKey,
 								sapAiCoreClientId,
 								sapAiCoreClientSecret,
 								sapAiCoreTokenUrl,
@@ -360,6 +366,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+							await this.storeSecret("geminiApiKey", geminiApiKey)
+							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("sapAiCoreClientId", sapAiCoreClientId)
 							await this.storeSecret("sapAiCoreClientSecret", sapAiCoreClientSecret)
 							await this.updateGlobalState("sapAiCoreTokenUrl", sapAiCoreTokenUrl)
@@ -419,6 +427,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "openImage":
 						openImage(message.text!)
+						break
+					case "openFile":
+						openFile(message.text!)
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -682,6 +693,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			ollamaModelId,
 			ollamaBaseUrl,
 			anthropicBaseUrl,
+			geminiApiKey,
+			openAiNativeApiKey,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -707,6 +720,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+			this.getSecret("geminiApiKey") as Promise<string | undefined>,
+			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -726,8 +741,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to anthropic for now, but will change to openrouter after fast edit mode
-				apiProvider = "anthropic"
+				// New users should default to openrouter
+				apiProvider = "openrouter"
 			}
 		}
 
@@ -749,6 +764,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				ollamaModelId,
 				ollamaBaseUrl,
 				anthropicBaseUrl,
+				geminiApiKey,
+				openAiNativeApiKey,
 				sapAiCoreClientId,
 				sapAiCoreClientSecret,
 				sapAiCoreTokenUrl,
@@ -831,6 +848,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			"awsSecretKey",
 			"awsSessionToken",
 			"openAiApiKey",
+			"geminiApiKey",
+			"openAiNativeApiKey",
 			"sapAiCoreClientId",
 			"sapAiCoreClientSecret",
 		]

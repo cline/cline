@@ -18,7 +18,7 @@ We need to remove leading non-alphanumeric characters from the path in order for
 [^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
 The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
 */
-const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+export const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
 
 const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onToggleExpand }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
@@ -41,7 +41,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
-						padding: "6px 10px",
+						padding: "9px 10px",
 						cursor: "pointer",
 						userSelect: "none",
 						WebkitUserSelect: "none",
@@ -49,24 +49,35 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						msUserSelect: "none",
 					}}
 					onClick={onToggleExpand}>
-					<div style={{ display: "flex", alignItems: "center" }}>
-						{isFeedback && (
+					{isFeedback ? (
+						<div style={{ display: "flex", alignItems: "center" }}>
 							<span className="codicon codicon-feedback" style={{ marginRight: "6px" }}></span>
-						)}
-						<span
-							style={{
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								marginRight: "8px",
-								fontSize: "11px",
-								// trick to get ellipsis at beginning of string
-								direction: "rtl",
-								textAlign: "left",
-							}}>
-							{isFeedback ? "User Edits" : removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
-						</span>
-					</div>
+							<span
+								style={{
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									marginRight: "8px",
+								}}>
+								User Edits
+							</span>
+						</div>
+					) : (
+						<>
+							<span
+								style={{
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									marginRight: "8px",
+									// trick to get ellipsis at beginning of string
+									direction: "rtl",
+									textAlign: "left",
+								}}>
+								{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
+							</span>
+						</>
+					)}
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}

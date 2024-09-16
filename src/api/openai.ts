@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
+import OpenAI, { AzureOpenAI } from "openai"
 import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
@@ -10,10 +10,21 @@ export class OpenAiHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: this.options.openAiBaseUrl,
-			apiKey: this.options.openAiApiKey,
-		})
+		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
+		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
+			this.client = new AzureOpenAI({
+				baseURL: this.options.openAiBaseUrl,
+				apiKey: this.options.openAiApiKey,
+				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
+				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
+				apiVersion: "2024-08-01-preview",
+			})
+		} else {
+			this.client = new OpenAI({
+				baseURL: this.options.openAiBaseUrl,
+				apiKey: this.options.openAiApiKey,
+			})
+		}
 	}
 
 	async createMessage(
