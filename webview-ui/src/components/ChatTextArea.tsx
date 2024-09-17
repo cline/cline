@@ -109,18 +109,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							let newIndex = prevIndex + direction
 							const options = getContextMenuOptions(searchQuery, selectedType)
 							const optionsLength = options.length
 
-							if (newIndex < 0) newIndex = optionsLength - 1
-							if (newIndex >= optionsLength) newIndex = 0
+							if (optionsLength === 0) return prevIndex
 
-							while (options[newIndex]?.type === "url") {
-								newIndex = (newIndex + direction + optionsLength) % optionsLength
-							}
+							// Find selectable options (non-URL types)
+							const selectableOptions = options.filter((option) => option.type !== "url")
 
-							return newIndex
+							if (selectableOptions.length === 0) return -1 // No selectable options
+
+							// Find the index of the next selectable option
+							const currentSelectableIndex = selectableOptions.findIndex(
+								(option) => option === options[prevIndex]
+							)
+
+							const newSelectableIndex =
+								(currentSelectableIndex + direction + selectableOptions.length) %
+								selectableOptions.length
+
+							// Find the index of the selected option in the original options array
+							return options.findIndex((option) => option === selectableOptions[newSelectableIndex])
 						})
 						return
 					}

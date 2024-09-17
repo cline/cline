@@ -117,6 +117,9 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	// Check if there's any whitespace after the '@'
 	if (/\s/.test(textAfterAt)) return false
 
-	// Show the menu if there's just '@' or '@' followed by some text
+	// Don't show the menu if it's a URL
+	if (textAfterAt.toLowerCase().startsWith("http")) return false
+
+	// Show the menu if there's just '@' or '@' followed by some text (but not a URL)
 	return true
 }
