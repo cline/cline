@@ -108,11 +108,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				if (showContextMenu) {
-					if (event.key === "Escape") {
-						// event.preventDefault()
-						setShowContextMenu(false)
-						return
-					}
+					// if (event.key === "Escape") {
+					// 	// event.preventDefault()
+					// 	setShowContextMenu(false)
+					// 	return
+					// }
 
 					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
 						event.preventDefault()

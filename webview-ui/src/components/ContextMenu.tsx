@@ -85,9 +85,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<i className={`codicon codicon-${option.icon}`} style={{ marginRight: "8px" }} />
 							{option.value === "File"
-								? "Add file"
+								? "Add File"
 								: option.value === "Folder"
-								? "Add folder"
+								? "Add Folder"
 								: option.value === "Problems"
 								? "Workspace Problems"
 								: option.value === "URL"
