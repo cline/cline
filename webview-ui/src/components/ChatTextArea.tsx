@@ -55,10 +55,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const searchPaths = React.useMemo(() => {
 			return [
 				{ type: "problems", path: "problems" },
-				...filePaths.map((path) => ({
-					type: path.endsWith("/") ? "folder" : "file",
-					path: path,
-				})),
+				...filePaths
+					.map((file) => "/" + file)
+					.map((path) => ({
+						type: path.endsWith("/") ? "folder" : "file",
+						path: path,
+					})),
 			]
 		}, [filePaths])
 

@@ -3,6 +3,8 @@ import * as path from "path"
 import { listFiles } from "../parse-source-code/index"
 import { ClaudeDevProvider } from "../providers/ClaudeDevProvider"
 
+const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+
 class WorkspaceTracker {
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private disposables: vscode.Disposable[] = []
@@ -15,12 +17,17 @@ class WorkspaceTracker {
 
 	async initializeFilePaths() {
 		// should not auto get filepaths for desktop since it would immediately show permission popup before claude every creates a file
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+
 		if (!cwd) {
 			return
 		}
 		const [files, _] = await listFiles(cwd, true, 500)
-		files.forEach((file) => this.filePaths.add(file))
+		files
+			.map((file) => {
+				const relativePath = path.relative(cwd, file)
+				return file.endsWith("/") ? relativePath + "/" : relativePath
+			})
+			.forEach((file) => this.filePaths.add(file))
 		this.workspaceDidUpdate()
 	}
 
@@ -74,8 +81,16 @@ class WorkspaceTracker {
 
 	private async onWorkspaceFoldersChanged(event: vscode.WorkspaceFoldersChangeEvent) {
 		for (const folder of event.added) {
-			const [files, _] = await listFiles(folder.uri.fsPath, true, 50)
-			files.forEach((file) => this.filePaths.add(file))
+			const [files, _] = await listFiles(folder.uri.fsPath, true, 50) // at most 50 files
+			if (!cwd) {
+				continue
+			}
+			files
+				.map((file) => {
+					const relativePath = path.relative(cwd, file)
+					return file.endsWith("/") ? relativePath + "/" : relativePath
+				})
+				.forEach((file) => this.filePaths.add(file))
 		}
 		for (const folder of event.removed) {
 			this.filePaths.forEach((filePath) => {
