@@ -1,9 +1,10 @@
+/*
 import * as vscode from "vscode"
 import deepEqual from "fast-deep-equal"
 
 type FileDiagnostics = [vscode.Uri, vscode.Diagnostic[]][]
 
-/*
+
 About Diagnostics:
 The Problems tab shows diagnostics that have been reported for your project. These diagnostics are categorized into:
 Errors: Critical issues that usually prevent your code from compiling or running correctly.
@@ -30,7 +31,10 @@ Notes on diagnostics:
 - linter diagnostics are only captured for open editors
 - this works great for us since when claude edits/creates files its through vscode's textedit api's and we get those diagnostics for free
 - some tools might require you to save the file or manually refresh to clear the problem from the list.
-*/
+
+System Prompt
+- You will automatically receive workspace error diagnostics in environment_details. Be mindful that this may include issues beyond the scope of your task or the user's request. Only address errors relevant to your work, and avoid fixing pre-existing or unrelated issues unless the user specifically instructs you to do so.
+- If you are unable to resolve errors provided in environment_details after two attempts, consider using ask_followup_question to ask the user for additional information, such as the latest documentation related to a problematic framework, to help you make progress on the task. If the error remains unresolved after this step, proceed with your task while disregarding the error.
 
 class DiagnosticsMonitor {
 	private diagnosticsChangeEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>()
@@ -46,19 +50,18 @@ class DiagnosticsMonitor {
 	}
 
 	public async getCurrentDiagnostics(shouldWaitForChanges: boolean): Promise<FileDiagnostics> {
-		const currentDiagnostics = this.getDiagnostics() // get all diagnostics for files open in workspace (not just errors/warnings so our did update check is more likely to detect updated diagnostics)
+		const currentDiagnostics = this.getDiagnostics()
 		if (!shouldWaitForChanges) {
 			this.lastDiagnostics = currentDiagnostics
 			return currentDiagnostics
 		}
 
-		// it doesn't matter if we don't even have all the diagnostics yet, since claude will get the rest in the next request. as long as somethings changed, he can react to that in this request.
 		if (!deepEqual(this.lastDiagnostics, currentDiagnostics)) {
 			this.lastDiagnostics = currentDiagnostics
 			return currentDiagnostics
 		}
 
-		let timeout = 300
+		let timeout = 300 // only way this happens is if theres no errors
 
 		// if diagnostics contain existing errors (since the check above didn't trigger) then it's likely claude just did something that should have fixed the error, so we'll give a longer grace period for diagnostics to catch up
 		const hasErrors = currentDiagnostics.some(([_, diagnostics]) =>
@@ -66,7 +69,7 @@ class DiagnosticsMonitor {
 		)
 		if (hasErrors) {
 			console.log("Existing errors detected, extending timeout", currentDiagnostics)
-			timeout = 5_000
+			timeout = 10_000
 		}
 
 		return this.waitForUpdatedDiagnostics(timeout)
@@ -101,8 +104,12 @@ class DiagnosticsMonitor {
 
 	private getDiagnostics(): FileDiagnostics {
 		const allDiagnostics = vscode.languages.getDiagnostics()
-		// for our deep comparison concept to work, we can't be comparing when new open files with 0 diagnostics to report are added to the list
-		return allDiagnostics.filter(([_, diagnostics]) => diagnostics.length > 0)
+		return allDiagnostics
+			.filter(([_, diagnostics]) => diagnostics.some((d) => d.severity === vscode.DiagnosticSeverity.Error))
+			.map(([uri, diagnostics]) => [
+				uri,
+				diagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error),
+			])
 	}
 
 	public dispose() {
@@ -113,3 +120,4 @@ class DiagnosticsMonitor {
 }
 
 export default DiagnosticsMonitor
+*/
