@@ -88,6 +88,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								? "Add file"
 								: option.value === "Folder"
 								? "Add folder"
+								: option.value === "Problems"
+								? "Workspace Problems"
 								: option.value === "URL"
 								? "Paste URL to scrape"
 								: option.value}
@@ -95,11 +97,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						{(option.value === "File" || option.value === "Folder") && (
 							<i className="codicon codicon-chevron-right" style={{ fontSize: "14px" }} />
 						)}
-						{(option.type === "file" || option.type === "folder") &&
-							option.value !== "File" &&
-							option.value !== "Folder" && (
-								<i className="codicon codicon-add" style={{ fontSize: "14px" }} />
-							)}
+						{(option.type === "problems" ||
+							((option.type === "file" || option.type === "folder") &&
+								option.value !== "File" &&
+								option.value !== "Folder")) && (
+							<i className="codicon codicon-add" style={{ fontSize: "14px" }} />
+						)}
 					</div>
 				))}
 			</div>

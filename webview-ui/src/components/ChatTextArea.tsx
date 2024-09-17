@@ -87,6 +87,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					} else if (type === "file" || type === "folder") {
 						// For files and folders, we insert the path
 						insertValue = value
+					} else if (type === "problems") {
+						// For workspace problems, we insert @problems
+						insertValue = "problems"
 					}
 
 					const newValue = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
@@ -105,6 +108,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				if (showContextMenu) {
+					if (event.key === "Escape") {
+						// event.preventDefault()
+						setShowContextMenu(false)
+						return
+					}
+
 					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
@@ -159,7 +168,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(/@(\/|\w+:\/\/)[^\s]+$/)
+						inputValue.slice(0, cursorPosition - 1).match(/@((?:\/|\w+:\/\/)[^\s]+|problems)$/)
 					) {
 						const newCursorPosition = cursorPosition - 1
 						if (!charAfterIsWhitespace) {
@@ -220,7 +229,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (query.length > 0) {
 						setSelectedMenuIndex(0)
 					} else {
-						setSelectedMenuIndex(2) // Set to "File" option by default
+						setSelectedMenuIndex(3) // Set to "File" option by default
 					}
 				} else {
 					setSearchQuery("")
@@ -229,6 +238,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[setInputValue]
 		)
+
+		useEffect(() => {
+			if (!showContextMenu) {
+				setSelectedType(null)
+			}
+		}, [showContextMenu])
 
 		const handleBlur = useCallback(() => {
 			// Only hide the context menu if the user didn't click on it
@@ -299,7 +314,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!textAreaRef.current || !highlightLayerRef.current) return
 
 			const text = textAreaRef.current.value
-			const mentionRegex = /@(\/|\w+:\/\/)[^\s]+/g
+			const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+|problems\b)/g
 
 			highlightLayerRef.current.innerHTML = text
 				.replace(/\n$/, "\n\n")

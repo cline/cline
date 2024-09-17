@@ -1,4 +1,5 @@
 export const mockPaths = [
+	{ type: "problems", path: "Problems" },
 	{ type: "file", path: "/src/components/Header.tsx" },
 	{ type: "file", path: "/src/components/Footer.tsx" },
 	{ type: "file", path: "/src/utils/helpers.ts" },
@@ -29,7 +30,7 @@ export function insertMention(text: string, position: number, value: string): st
 }
 
 export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
-	const mentionRegex = /@(\/|\w+:\/\/)[^\s]+/
+	const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+|problems\b)/
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
@@ -73,6 +74,11 @@ export function getContextMenuOptions(
 	if (query === "") {
 		return [
 			{ type: "url", value: "URL", icon: "link" },
+			{
+				type: "problems",
+				value: "Problems",
+				icon: "warning",
+			},
 			{ type: "folder", value: "Folder", icon: "folder" },
 			{ type: "file", value: "File", icon: "file" },
 		]
@@ -93,12 +99,17 @@ export function getContextMenuOptions(
 			return matchingPaths.map((item) => ({
 				type: item.type,
 				value: item.path,
-				icon: item.type === "file" ? "file" : "folder",
+				icon: item.type === "file" ? "file" : item.type === "problems" ? "warning" : "folder",
 			}))
 		} else {
 			// If no matches, show all options
 			return [
 				{ type: "url", value: "URL", icon: "link" },
+				{
+					type: "problems",
+					value: "Problems",
+					icon: "warning",
+				},
 				{ type: "folder", value: "Folder", icon: "folder" },
 				{ type: "file", value: "File", icon: "file" },
 			]
@@ -119,6 +130,9 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 
 	// Don't show the menu if it's a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) return false
+
+	// Don't show the menu if it's a problems
+	if (textAfterAt.toLowerCase().startsWith("problems")) return false
 
 	// Show the menu if there's just '@' or '@' followed by some text (but not a URL)
 	return true
