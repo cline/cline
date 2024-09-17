@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react"
 import { getContextMenuOptions } from "../utils/mention-context"
-import { removeLeadingNonAlphanumeric } from "./CodeAccordian"
+import { formatFilePathForTruncation } from "./CodeAccordian"
 
 interface ContextMenuProps {
 	onSelect: (type: string, value: string) => void
@@ -79,8 +79,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							textOverflow: "ellipsis",
 							direction: "rtl",
 							textAlign: "left",
+							unicodeBidi: "plaintext",
 						}}>
-						{removeLeadingNonAlphanumeric(option.value) + "\u200E"}
+						{formatFilePathForTruncation(option.value) + "\u200E"}
 					</span>
 				)
 		}

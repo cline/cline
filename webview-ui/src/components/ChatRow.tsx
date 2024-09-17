@@ -4,7 +4,7 @@ import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
-import CodeAccordian, { removeLeadingNonAlphanumeric } from "./CodeAccordian"
+import CodeAccordian, { formatFilePathForTruncation } from "./CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
 import { vscode } from "../utils/vscode"
@@ -228,8 +228,9 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										marginRight: "8px",
 										direction: "rtl",
 										textAlign: "left",
+										unicodeBidi: "plaintext",
 									}}>
-									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+									{formatFilePathForTruncation(tool.path ?? "") + "\u200E"}
 								</span>
 								<span
 									className={`codicon codicon-link-external`}

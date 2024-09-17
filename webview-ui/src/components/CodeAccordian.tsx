@@ -13,12 +13,12 @@ interface CodeAccordianProps {
 }
 
 /*
-We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
+We need to remove leading non-alphanumeric/period characters from the path in order for our leading ellipses trick to work.
 ^: Anchors the match to the start of the string.
-[^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
-The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
+[^a-zA-Z0-9.]+: Matches one or more characters that are not alphanumeric or a dot.
+The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric/period character.
 */
-export const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+export const formatFilePathForTruncation = (path: string): string => path.replace(/^[^a-zA-Z0-9.]+/, "")
 
 const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onToggleExpand }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
@@ -73,8 +73,9 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 									// trick to get ellipsis at beginning of string
 									direction: "rtl",
 									textAlign: "left",
+									unicodeBidi: "plaintext",
 								}}>
-								{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
+								{formatFilePathForTruncation(path ?? "") + "\u200E"}
 							</span>
 						</>
 					)}
