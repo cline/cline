@@ -275,6 +275,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
+
+				const pastedText = e.clipboardData.getData("text")
+				// Check if the pasted content is a URL, add space after so user can easily delete if they don't want it
+				const urlRegex = /^\S+:\/\/\S+$/
+				if (urlRegex.test(pastedText.trim())) {
+					e.preventDefault()
+					const trimmedUrl = pastedText.trim()
+					const newValue =
+						inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
+					setInputValue(newValue)
+					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition)
+					return
+				}
+
 				const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
 				const imageItems = Array.from(items).filter((item) => {
 					const [type, subtype] = item.type.split("/")
@@ -312,7 +328,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages]
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue]
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
