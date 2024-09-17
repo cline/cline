@@ -67,9 +67,9 @@ with older VSCode versions. Users on older versions will automatically fall back
 for terminal command execution.
 Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
 This approach allows us to leverage advanced features when available while ensuring broad compatibility.
-https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
 */
 declare module "vscode" {
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
 	interface Terminal {
 		shellIntegration?: {
 			cwd?: vscode.Uri
@@ -77,6 +77,14 @@ declare module "vscode" {
 				read: () => AsyncIterable<string>
 			}
 		}
+	}
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
+	interface Window {
+		onDidEndTerminalShellExecution?: (
+			listener: (e: any) => any,
+			thisArgs?: any,
+			disposables?: vscode.Disposable[]
+		) => vscode.Disposable
 	}
 }
 
@@ -136,6 +144,24 @@ class TerminalRegistry {
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, TerminalProcess> = new Map()
+	private disposables: vscode.Disposable[] = []
+
+	constructor() {
+		// Listening to this reduces the # of empty terminal outputs!
+		const disposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
+			// console.log(`Terminal shell execution ended. Command line:`, e.execution.commandLine.value)
+			const stream = e?.execution?.read()
+			if (stream) {
+				for await (let _ of stream) {
+					// console.log(`from onDidEndTerminalShellExecution, read:`, data)
+				}
+			}
+		})
+		if (disposable) {
+			this.disposables.push(disposable)
+		}
+		// Oddly if we listen to `onDidStartTerminalShellExecution` or `onDidChangeTerminalShellIntegration` this hack doesn't work...
+	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
@@ -232,6 +258,8 @@ export class TerminalManager {
 		// }
 		this.terminalIds.clear()
 		this.processes.clear()
+		this.disposables.forEach((disposable) => disposable.dispose())
+		this.disposables = []
 	}
 }
 
@@ -280,11 +308,33 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					/*
 					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
 					*/
+
+					// bug where sometimes the command output makes its way into vscode shell integration metadata
+					/*
+					]633 is a custom sequence number used by VSCode shell integration:
+					- OSC 633 ; A ST - Mark prompt start
+					- OSC 633 ; B ST - Mark prompt end
+					- OSC 633 ; C ST - Mark pre-execution (start of command output)
+					- OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
+					- OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
+					*/
+					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
+					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
+					// Gets output between ]633;C (command start) and ]633;D (command end)
+					const outputBetweenSequences = this.removeLastLineArtifacts(
+						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+					).trim()
+
+					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
 					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
 					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
 					if (lastMatch && lastMatch.index !== undefined) {
 						data = data.slice(lastMatch.index + lastMatch[0].length)
+					}
+					// Place output back after removing vscode sequences
+					if (outputBetweenSequences) {
+						data = outputBetweenSequences + "\n" + data
 					}
 					// remove ansi
 					data = stripAnsi(data)
@@ -313,6 +363,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				// first few chunks could be the command being echoed back, so we must ignore
+				// note this means that 'echo' commands wont work
 				if (!didOutputNonCommand) {
 					const lines = data.split("\n")
 					for (let i = 0; i < lines.length; i++) {
