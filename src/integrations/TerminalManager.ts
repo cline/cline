@@ -148,15 +148,20 @@ export class TerminalManager {
 
 	constructor() {
 		// Listening to this reduces the # of empty terminal outputs!
-		const disposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-			// console.log(`Terminal shell execution ended. Command line:`, e.execution.commandLine.value)
-			const stream = e?.execution?.read()
-			if (stream) {
-				for await (let _ of stream) {
-					// console.log(`from onDidEndTerminalShellExecution, read:`, data)
+		let disposable: vscode.Disposable | undefined
+		try {
+			disposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
+				// console.log(`Terminal shell execution ended. Command line:`, e.execution.commandLine.value)
+				const stream = e?.execution?.read()
+				if (stream) {
+					for await (let _ of stream) {
+						// console.log(`from onDidEndTerminalShellExecution, read:`, data)
+					}
 				}
-			}
-		})
+			})
+		} catch (error) {
+			console.error("Error setting up onDidEndTerminalShellExecution", error)
+		}
 		if (disposable) {
 			this.disposables.push(disposable)
 		}
