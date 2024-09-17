@@ -160,7 +160,7 @@ export class TerminalManager {
 				}
 			})
 		} catch (error) {
-			console.error("Error setting up onDidEndTerminalShellExecution", error)
+			// console.error("Error setting up onDidEndTerminalShellExecution", error)
 		}
 		if (disposable) {
 			this.disposables.push(disposable)
