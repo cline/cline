@@ -4,8 +4,6 @@ import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
-export const LIST_FILES_LIMIT = 200
-
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
 	// check if the path exists
@@ -18,7 +16,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	}
 
 	// Get all files at top level (not gitignored)
-	const allFiles = await listFiles(dirPath, false)
+	const [allFiles, _] = await listFiles(dirPath, false, 200)
 
 	let result = ""
 
@@ -55,18 +53,18 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	return result ? result : "No source code definitions found."
 }
 
-export async function listFiles(dirPath: string, recursive: boolean): Promise<string[]> {
+export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which Claude tends to want to do when the user's prompt is vague.
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
 	const isRoot = absolutePath === root
 	if (isRoot) {
-		return [root]
+		return [[root], false]
 	}
 	const homeDir = os.homedir()
 	const isHomeDir = absolutePath === homeDir
 	if (isHomeDir) {
-		return [homeDir]
+		return [[homeDir], false]
 	}
 
 	const dirsToIgnore = [
@@ -98,26 +96,24 @@ export async function listFiles(dirPath: string, recursive: boolean): Promise<st
 		onlyFiles: false, // true by default, false means it will list directories on their own too
 	}
 	// * globs all files in one dir, ** globs files in nested directories
-	const files = recursive
-		? await globbyLevelByLevel(options)
-		: (await globby("*", options)).slice(0, LIST_FILES_LIMIT)
-	return files
+	const files = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
+	return [files, files.length >= limit]
 }
 
 // globby doesnt natively support top down level by level globbing, so we implement it ourselves
-async function globbyLevelByLevel(options?: Options) {
+async function globbyLevelByLevel(limit: number, options?: Options) {
 	let results: string[] = []
 	const globbingProcess = async () => {
 		let currentLevel = 0
-		while (results.length < LIST_FILES_LIMIT) {
+		while (results.length < limit) {
 			const pattern = currentLevel === 0 ? "*" : `${"*/".repeat(currentLevel)}*`
 			const filesAtLevel = await globby(pattern, options)
 			if (filesAtLevel.length === 0) {
 				break
 			}
 			results.push(...filesAtLevel)
-			if (results.length >= LIST_FILES_LIMIT) {
-				results = results.slice(0, LIST_FILES_LIMIT)
+			if (results.length >= limit) {
+				results = results.slice(0, limit)
 				break
 			}
 			currentLevel++

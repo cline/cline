@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { getContextMenuOptions } from "../utils/mention-context"
 
 interface ContextMenuProps {
@@ -8,6 +8,7 @@ interface ContextMenuProps {
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
 	selectedType: string | null
+	searchPaths: { type: string; path: string }[]
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -17,13 +18,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedIndex,
 	setSelectedIndex,
 	selectedType,
+	searchPaths,
 }) => {
-	const [filteredOptions, setFilteredOptions] = useState(getContextMenuOptions(searchQuery, selectedType))
+	const [filteredOptions, setFilteredOptions] = useState(
+		getContextMenuOptions(searchQuery, selectedType, searchPaths)
+	)
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
-		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType))
-	}, [searchQuery, selectedType])
+		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType, searchPaths))
+	}, [searchQuery, selectedType, searchPaths])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -84,23 +88,23 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						onMouseEnter={() => option.type !== "url" && setSelectedIndex(index)}>
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<i className={`codicon codicon-${option.icon}`} style={{ marginRight: "8px" }} />
-							{option.value === "File"
+							{option.value === "file"
 								? "Add File"
-								: option.value === "Folder"
+								: option.value === "folder"
 								? "Add Folder"
-								: option.value === "Problems"
-								? "Workspace Problems"
-								: option.value === "URL"
+								: option.value === "problems"
+								? "Problems"
+								: option.value === "url"
 								? "Paste URL to scrape"
 								: option.value}
 						</div>
-						{(option.value === "File" || option.value === "Folder") && (
+						{(option.value === "file" || option.value === "folder") && (
 							<i className="codicon codicon-chevron-right" style={{ fontSize: "14px" }} />
 						)}
 						{(option.type === "problems" ||
 							((option.type === "file" || option.type === "folder") &&
-								option.value !== "File" &&
-								option.value !== "Folder")) && (
+								option.value !== "file" &&
+								option.value !== "folder")) && (
 							<i className="codicon codicon-add" style={{ fontSize: "14px" }} />
 						)}
 					</div>

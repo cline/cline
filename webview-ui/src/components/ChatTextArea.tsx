@@ -1,6 +1,7 @@
-import React, { forwardRef, useCallback, useEffect, useRef, useState, useLayoutEffect } from "react"
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { insertMention, shouldShowContextMenu, getContextMenuOptions, removeMention } from "../utils/mention-context"
+import { useExtensionState } from "../context/ExtensionStateContext"
+import { getContextMenuOptions, insertMention, removeMention, shouldShowContextMenu } from "../utils/mention-context"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "./Thumbnails"
@@ -49,6 +50,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 
+		const { filePaths } = useExtensionState()
+
+		const searchPaths = React.useMemo(() => {
+			return [
+				{ type: "problems", path: "problems" },
+				...filePaths.map((path) => ({
+					type: path.endsWith("/") ? "folder" : "file",
+					path: path,
+				})),
+			]
+		}, [filePaths])
+
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
 				if (
@@ -70,7 +83,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const handleMentionSelect = useCallback(
 			(type: string, value: string) => {
-				if (value === "File" || value === "Folder") {
+				if (value === "file" || value === "folder") {
 					setSelectedType(type.toLowerCase())
 					setSearchQuery("")
 					setSelectedMenuIndex(0)
@@ -108,17 +121,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				if (showContextMenu) {
-					// if (event.key === "Escape") {
-					// 	// event.preventDefault()
-					// 	setShowContextMenu(false)
-					// 	return
-					// }
+					if (event.key === "Escape") {
+						// event.preventDefault()
+						setSelectedType(null)
+						setSelectedMenuIndex(3) // File by default
+						return
+					}
 
 					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType)
+							const options = getContextMenuOptions(searchQuery, selectedType, searchPaths)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -144,7 +158,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if (event.key === "Enter" && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType)[selectedMenuIndex]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, searchPaths)[
+							selectedMenuIndex
+						]
 						if (selectedOption && selectedOption.type !== "url") {
 							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
@@ -203,6 +219,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				cursorPosition,
 				setInputValue,
 				justDeletedSpaceAfterMention,
+				searchPaths,
 			]
 		)
 
@@ -361,6 +378,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedIndex={selectedMenuIndex}
 							setSelectedIndex={setSelectedMenuIndex}
 							selectedType={selectedType}
+							searchPaths={searchPaths}
 						/>
 					</div>
 				)}

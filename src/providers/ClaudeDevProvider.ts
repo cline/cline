@@ -11,6 +11,7 @@ import { HistoryItem } from "../shared/HistoryItem"
 import axios from "axios"
 import { getTheme } from "../utils/getTheme"
 import { openFile, openImage } from "../utils/open-file"
+import WorkspaceTracker from "../integrations/WorkspaceTracker"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -50,11 +51,13 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
+	private workspaceTracker?: WorkspaceTracker
 	private latestAnnouncementId = "sep-14-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
 		ClaudeDevProvider.activeInstances.add(this)
+		this.workspaceTracker = new WorkspaceTracker(this)
 		this.revertKodu()
 	}
 
@@ -98,6 +101,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				x.dispose()
 			}
 		}
+		this.workspaceTracker?.dispose()
+		this.workspaceTracker = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClaudeDevProvider.activeInstances.delete(this)
 	}
@@ -306,6 +311,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						const theme = await getTheme()
 						await this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
+						this.workspaceTracker?.initializeFilePaths()
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command

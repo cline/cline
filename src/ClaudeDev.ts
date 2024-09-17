@@ -11,7 +11,7 @@ import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "./api"
 import { TerminalManager } from "./integrations/TerminalManager"
-import { LIST_FILES_LIMIT, listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
+import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
@@ -1187,8 +1187,8 @@ export class ClaudeDev {
 		try {
 			const recursive = recursiveRaw?.toLowerCase() === "true"
 			const absolutePath = path.resolve(cwd, relDirPath)
-			const files = await listFiles(absolutePath, recursive)
-			const result = this.formatFilesList(absolutePath, files)
+			const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+			const result = this.formatFilesList(absolutePath, files, didHitLimit)
 
 			const message = JSON.stringify({
 				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
@@ -1245,7 +1245,7 @@ export class ClaudeDev {
 		}
 	}
 
-	formatFilesList(absolutePath: string, files: string[]): string {
+	formatFilesList(absolutePath: string, files: string[], didHitLimit: boolean): string {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
@@ -1273,11 +1273,12 @@ export class ClaudeDev {
 				// the shorter one comes first
 				return aParts.length - bParts.length
 			})
-		if (sorted.length >= LIST_FILES_LIMIT) {
-			const truncatedList = sorted.slice(0, LIST_FILES_LIMIT).join("\n")
-			return `${truncatedList}\n\n(Truncated at ${LIST_FILES_LIMIT} results. Try listing files in subdirectories if you need to explore further.)`
+		if (didHitLimit) {
+			return `${sorted.join(
+				"\n"
+			)}\n\n(Truncated at 200 results. Try listing files in subdirectories if you need to explore further.)`
 		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
-			return "No files found or you do not have permission to view this directory."
+			return "No files found."
 		} else {
 			return sorted.join("\n")
 		}
@@ -1937,8 +1938,8 @@ ${this.customInstructions.trim()}
 
 		if (includeFileDetails) {
 			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
-			const files = await listFiles(cwd, !isDesktop)
-			const result = this.formatFilesList(cwd, files)
+			const [files, didHitLimit] = await listFiles(cwd, !isDesktop, 200)
+			const result = this.formatFilesList(cwd, files, didHitLimit)
 			details += `\n\n# Current Working Directory (${cwd}) Files\n${result}${
 				isDesktop
 					? "\n(Note: Only top-level contents shown for Desktop by default. Use list_files to explore further if necessary.)"

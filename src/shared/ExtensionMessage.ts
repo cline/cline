@@ -5,12 +5,13 @@ import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme"
+	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme" | "workspaceUpdated"
 	text?: string
 	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	state?: ExtensionState
 	images?: string[]
 	models?: string[]
+	filePaths?: string[]
 }
 
 export interface ExtensionState {

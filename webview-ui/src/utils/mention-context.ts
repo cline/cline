@@ -1,16 +1,16 @@
-export const mockPaths = [
-	{ type: "problems", path: "Problems" },
-	{ type: "file", path: "/src/components/Header.tsx" },
-	{ type: "file", path: "/src/components/Footer.tsx" },
-	{ type: "file", path: "/src/utils/helpers.ts" },
-	{ type: "folder", path: "/src/components" },
-	{ type: "folder", path: "/src/utils" },
-	{ type: "folder", path: "/public/images" },
-	{ type: "file", path: "/public/index.html" },
-	{ type: "file", path: "/package.json" },
-	{ type: "folder", path: "/node_modules" },
-	{ type: "file", path: "/README.md" },
-]
+// export const mockPaths = [
+// 	{ type: "problems", path: "Problems" },
+// 	{ type: "file", path: "/src/components/Header.tsx" },
+// 	{ type: "file", path: "/src/components/Footer.tsx" },
+// 	{ type: "file", path: "/src/utils/helpers.ts" },
+// 	{ type: "folder", path: "/src/components" },
+// 	{ type: "folder", path: "/src/utils" },
+// 	{ type: "folder", path: "/public/images" },
+// 	{ type: "file", path: "/public/index.html" },
+// 	{ type: "file", path: "/package.json" },
+// 	{ type: "folder", path: "/node_modules" },
+// 	{ type: "file", path: "/README.md" },
+// ]
 
 export function insertMention(text: string, position: number, value: string): string {
 	const beforeCursor = text.slice(0, position)
@@ -48,39 +48,42 @@ export function removeMention(text: string, position: number): { newText: string
 	return { newText: text, newPosition: position }
 }
 
-export function searchPaths(query: string): { type: string; path: string }[] {
-	const lowerQuery = query.toLowerCase()
-	return mockPaths.filter(
-		(item) => item.path.toLowerCase().includes(lowerQuery) || item.type.toLowerCase().includes(lowerQuery)
-	)
-}
+// export function queryPaths(
+// 	query: string,
+// 	searchPaths: { type: string; path: string }[]
+// ): { type: string; path: string }[] {
+// 	const lowerQuery = query.toLowerCase()
+// 	return searchPaths.filter(
+// 		(item) => item.path.toLowerCase().includes(lowerQuery) || item.type.toLowerCase().includes(lowerQuery)
+// 	)
+// }
 
 export function getContextMenuOptions(
 	query: string,
-	selectedType: string | null = null
+	selectedType: string | null = null,
+	searchPaths: { type: string; path: string }[]
 ): { type: string; value: string; icon: string }[] {
-	if (selectedType === "file") {
-		return mockPaths
-			.filter((item) => item.type === "file")
-			.map((item) => ({ type: "file", value: item.path, icon: "file" }))
-	}
-
-	if (selectedType === "folder") {
-		return mockPaths
-			.filter((item) => item.type === "folder")
-			.map((item) => ({ type: "folder", value: item.path, icon: "folder" }))
-	}
-
 	if (query === "") {
+		if (selectedType === "file") {
+			return searchPaths
+				.filter((item) => item.type === "file")
+				.map((item) => ({ type: "file", value: item.path, icon: "file" }))
+		}
+
+		if (selectedType === "folder") {
+			return searchPaths
+				.filter((item) => item.type === "folder")
+				.map((item) => ({ type: "folder", value: item.path, icon: "folder" }))
+		}
 		return [
-			{ type: "url", value: "URL", icon: "link" },
+			{ type: "url", value: "url", icon: "link" },
 			{
 				type: "problems",
-				value: "Problems",
+				value: "problems",
 				icon: "warning",
 			},
-			{ type: "folder", value: "Folder", icon: "folder" },
-			{ type: "file", value: "File", icon: "file" },
+			{ type: "folder", value: "folder", icon: "folder" },
+			{ type: "file", value: "file", icon: "file" },
 		]
 	}
 
@@ -91,9 +94,7 @@ export function getContextMenuOptions(
 		return [{ type: "url", value: query, icon: "link" }]
 	} else {
 		// Search for files and folders
-		const matchingPaths = mockPaths.filter(
-			(item) => item.path.toLowerCase().includes(lowerQuery) || item.type.toLowerCase().includes(lowerQuery)
-		)
+		const matchingPaths = searchPaths.filter((item) => item.path.toLowerCase().includes(lowerQuery))
 
 		if (matchingPaths.length > 0) {
 			return matchingPaths.map((item) => ({
@@ -104,14 +105,14 @@ export function getContextMenuOptions(
 		} else {
 			// If no matches, show all options
 			return [
-				{ type: "url", value: "URL", icon: "link" },
+				{ type: "url", value: "url", icon: "link" },
 				{
 					type: "problems",
-					value: "Problems",
+					value: "problems",
 					icon: "warning",
 				},
-				{ type: "folder", value: "Folder", icon: "folder" },
-				{ type: "file", value: "File", icon: "file" },
+				{ type: "folder", value: "folder", icon: "folder" },
+				{ type: "file", value: "file", icon: "file" },
 			]
 		}
 	}
