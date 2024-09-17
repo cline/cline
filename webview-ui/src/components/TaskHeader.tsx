@@ -148,7 +148,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
 							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text)}</span>}
+							{!isTaskExpanded && (
+								<span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>
+							)}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
@@ -194,7 +196,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{highlightMentions(task.text)}
+								{highlightMentions(task.text, false)}
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div
@@ -337,23 +339,26 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	)
 }
 
-const highlightMentions = (text?: string) => {
-	if (!text) return []
+export const highlightMentions = (text?: string, withShadow = true) => {
+	if (!text) return text
 	const parts = text.split(mentionRegexGlobal)
-	return parts.reduce((acc, part, index) => {
+	return parts.map((part, index) => {
 		if (index % 2 === 0) {
 			// This is regular text
-			acc.push(part)
+			return part
 		} else {
 			// This is a mention
-			acc.push(
-				<span style={{ backgroundColor: "yellow" }} key={`mention-${index}`}>
+			return (
+				<span
+					key={index}
+					className={`mention-context-highlight-${
+						withShadow ? "visible-with-shadow" : "visible-without-shadow"
+					}`}>
 					@{part}
 				</span>
 			)
 		}
-		return acc
-	}, [] as (string | JSX.Element)[])
+	})
 }
 
 const ExportButton = () => (

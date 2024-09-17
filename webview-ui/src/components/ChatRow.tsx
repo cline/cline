@@ -8,6 +8,7 @@ import CodeAccordian, { formatFilePathForTruncation } from "./CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 import Thumbnails from "./Thumbnails"
 import { vscode } from "../utils/vscode"
+import { highlightMentions } from "./TaskHeader"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -425,7 +426,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								whiteSpace: "pre-line",
 								wordWrap: "break-word",
 							}}>
-							<span style={{ display: "block" }}>{message.text}</span>
+							<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
 							{message.images && message.images.length > 0 && (
 								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
 							)}
