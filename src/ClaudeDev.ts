@@ -26,7 +26,6 @@ import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
-import DiagnosticsMonitor from "./integrations/DiagnosticsMonitor"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -65,8 +64,6 @@ RULES
 - Feel free to use markdown as much as you'd like in your responses. When using code blocks, always include a language specifier.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
-- You will automatically receive workspace error diagnostics in environment_details. Be mindful that this may include issues beyond the scope of your task or the user's request. Focus on addressing errors and warnings relevant to your work, and avoid fixing pre-existing or unrelated issues unless the user specifically instructs you to do so.
-- If you are unable to resolve errors provided in environment_details after a few attempts, consider using ask_followup_question to ask the user for additional information, such as the latest documentation related to a problematic framework, to help you make progress on the task.
 - CRITICAL: When editing files with write_to_file, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 
 ====
@@ -252,7 +249,6 @@ export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
 	private terminalManager: TerminalManager
-	private diagnosticsMonitor: DiagnosticsMonitor
 	private didEditFile: boolean = false
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
@@ -278,7 +274,6 @@ export class ClaudeDev {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
-		this.diagnosticsMonitor = new DiagnosticsMonitor()
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -679,7 +674,6 @@ export class ClaudeDev {
 	abortTask() {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
-		this.diagnosticsMonitor.dispose()
 	}
 
 	async executeTool(toolName: ToolName, toolInput: any): Promise<[boolean, ToolResponse]> {
@@ -1858,24 +1852,25 @@ ${this.customInstructions.trim()}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
 		const inactiveTerminals = this.terminalManager.getTerminals(false)
-		const allTerminals = [...busyTerminals, ...inactiveTerminals]
+		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
 
-		if (busyTerminals.length > 0 || this.didEditFile) {
-			await delay(300) // delay after saving file to let terminals/diagnostics catch up
+		if (busyTerminals.length > 0 && this.didEditFile) {
+			//  || this.didEditFile
+			await delay(300) // delay after saving file to let terminals catch up
 		}
 
-		let terminalWasBusy = false
-		if (allTerminals.length > 0) {
+		// let terminalWasBusy = false
+		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
-			// note this does not mean they're actively running just that they recently output something
-			terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
-			await pWaitFor(() => allTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
+			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
+			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
 			}).catch(() => {})
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
+		/*
 		let diagnosticsDetails = ""
 		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if claude ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
 		for (const [uri, fileDiagnostics] of diagnostics) {
@@ -1890,7 +1885,8 @@ ${this.customInstructions.trim()}
 				}
 			}
 		}
-		this.didEditFile = false // reset, this lets us know when to wait for saved files to update diagnostics
+		*/
+		this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
 		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
 		let terminalDetails = ""
@@ -1928,12 +1924,12 @@ ${this.customInstructions.trim()}
 			}
 		}
 
-		details += "\n\n# VSCode Workspace Errors"
-		if (diagnosticsDetails) {
-			details += diagnosticsDetails
-		} else {
-			details += "\n(No errors detected)"
-		}
+		// details += "\n\n# VSCode Workspace Errors"
+		// if (diagnosticsDetails) {
+		// 	details += diagnosticsDetails
+		// } else {
+		// 	details += "\n(No errors detected)"
+		// }
 
 		if (terminalDetails) {
 			details += terminalDetails

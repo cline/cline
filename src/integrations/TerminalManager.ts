@@ -428,11 +428,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.emitRemainingBufferIfListening()
 
-			// even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up
-			// if (this.hotTimer) {
-			// 	clearTimeout(this.hotTimer)
-			// }
-			// this.isHot = false
+			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
+			if (this.hotTimer) {
+				clearTimeout(this.hotTimer)
+			}
+			this.isHot = false
 
 			this.emit("completed")
 			this.emit("continue")
