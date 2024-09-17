@@ -1,7 +1,14 @@
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { useExtensionState } from "../context/ExtensionStateContext"
-import { getContextMenuOptions, insertMention, removeMention, shouldShowContextMenu } from "../utils/mention-context"
+import {
+	getContextMenuOptions,
+	insertMention,
+	mentionRegex,
+	mentionRegexGlobal,
+	removeMention,
+	shouldShowContextMenu,
+} from "../utils/mention-context"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "./Thumbnails"
@@ -184,11 +191,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
+					// checks if char before cusor is whitespace after a mention
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(/@((?:\/|\w+:\/\/)[^\s]+|problems)$/)
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
 					) {
 						const newCursorPosition = cursorPosition - 1
+						// if mention is followed by another word, then instead of deleting the space separating them we just move the cursor to the end of the mention
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
 							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
@@ -349,12 +358,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!textAreaRef.current || !highlightLayerRef.current) return
 
 			const text = textAreaRef.current.value
-			const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+|problems\b)/g
 
 			highlightLayerRef.current.innerHTML = text
 				.replace(/\n$/, "\n\n")
 				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] || c))
-				.replace(mentionRegex, '<mark class="mention-context-highlight">$&</mark>')
+				.replace(mentionRegexGlobal, '<mark class="mention-context-highlight">$&</mark>')
 
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft

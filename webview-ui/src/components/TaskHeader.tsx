@@ -3,6 +3,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../context/ExtensionStateContext"
+import { mentionRegexGlobal } from "../utils/mention-context"
 import { vscode } from "../utils/vscode"
 import Thumbnails from "./Thumbnails"
 
@@ -147,7 +148,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
 							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{task.text}</span>}
+							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text)}</span>}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
@@ -193,7 +194,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{task.text}
+								{highlightMentions(task.text)}
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div
@@ -334,6 +335,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			)} */}
 		</div>
 	)
+}
+
+const highlightMentions = (text?: string) => {
+	if (!text) return []
+	const parts = text.split(mentionRegexGlobal)
+	return parts.reduce((acc, part, index) => {
+		if (index % 2 === 0) {
+			// This is regular text
+			acc.push(part)
+		} else {
+			// This is a mention
+			acc.push(
+				<span style={{ backgroundColor: "yellow" }} key={`mention-${index}`}>
+					@{part}
+				</span>
+			)
+		}
+		return acc
+	}, [] as (string | JSX.Element)[])
 }
 
 const ExportButton = () => (

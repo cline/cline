@@ -1,16 +1,12 @@
-// export const mockPaths = [
-// 	{ type: "problems", path: "Problems" },
-// 	{ type: "file", path: "/src/components/Header.tsx" },
-// 	{ type: "file", path: "/src/components/Footer.tsx" },
-// 	{ type: "file", path: "/src/utils/helpers.ts" },
-// 	{ type: "folder", path: "/src/components" },
-// 	{ type: "folder", path: "/src/utils" },
-// 	{ type: "folder", path: "/public/images" },
-// 	{ type: "file", path: "/public/index.html" },
-// 	{ type: "file", path: "/package.json" },
-// 	{ type: "folder", path: "/node_modules" },
-// 	{ type: "file", path: "/README.md" },
-// ]
+/*
+Mention regex
+- File and folder paths (starting with '/')
+- URLs (containing '://')
+- The 'problems' keyword
+- Word boundary after 'problems' to avoid partial matches
+*/
+export const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+|problems\b)/
+export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
 
 export function insertMention(text: string, position: number, value: string): string {
 	const beforeCursor = text.slice(0, position)
@@ -30,7 +26,6 @@ export function insertMention(text: string, position: number, value: string): st
 }
 
 export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
-	const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+|problems\b)/
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
