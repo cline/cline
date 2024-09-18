@@ -90,7 +90,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		cwd: dirPath,
 		dot: true, // do not ignore hidden files/directories
 		absolute: true,
-		markDirectories: true, // Append a / on any directories matched
+		markDirectories: true, // Append a / on any directories matched (/ is used on windows as well, so dont use path.sep)
 		gitignore: recursive, // globby ignores any files that are gitignored
 		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
 		onlyFiles: false, // true by default, false means it will list directories on their own too

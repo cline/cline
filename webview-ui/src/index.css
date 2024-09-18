@@ -144,24 +144,23 @@ vscode-dropdown::part(listbox) {
 }
 
 .mention-context-highlight {
-	background-color: var(--vscode-textLink-activeForeground, #3794ff);
-	opacity: 0.3;
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px var(--vscode-textLink-activeForeground, #3794ff);
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	color: transparent;
-	padding: 0.5px;
+	/* padding: 0.5px;
 	margin: -0.5px;
 	position: relative;
-	bottom: -0.5px;
+	bottom: -0.5px; */
 }
 
 .mention-context-highlight-visible-with-shadow {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 35%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 35%, transparent);
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }
 
 .mention-context-highlight-visible-without-shadow {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 35%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;
 }

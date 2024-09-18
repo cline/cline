@@ -11,27 +11,28 @@ class WorkspaceTracker {
 	private filePaths: Set<string> = new Set()
 
 	constructor(provider: ClaudeDevProvider) {
+		console.log("WorkspaceTracker: Initializing")
 		this.providerRef = new WeakRef(provider)
 		this.registerListeners()
 	}
 
 	async initializeFilePaths() {
+		console.log("WorkspaceTracker: Initializing file paths")
 		// should not auto get filepaths for desktop since it would immediately show permission popup before claude every creates a file
 
 		if (!cwd) {
+			console.log("WorkspaceTracker: No workspace folder found")
 			return
 		}
 		const [files, _] = await listFiles(cwd, true, 500)
-		files
-			.map((file) => {
-				const relativePath = path.relative(cwd, file)
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			})
-			.forEach((file) => this.filePaths.add(file))
+		console.log(`WorkspaceTracker: Found ${files.length} files`)
+		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
+		console.log(this.filePaths)
 		this.workspaceDidUpdate()
 	}
 
 	private registerListeners() {
+		console.log("WorkspaceTracker: Registering listeners")
 		// Listen for file creation
 		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
 
@@ -48,53 +49,65 @@ class WorkspaceTracker {
 		this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
 	}
 
-	private onFilesCreated(event: vscode.FileCreateEvent) {
-		event.files.forEach(async (file) => {
-			this.filePaths.add(file.fsPath)
-			this.workspaceDidUpdate()
-		})
+	private async onFilesCreated(event: vscode.FileCreateEvent) {
+		console.log(`WorkspaceTracker: Files created - ${event.files.length} file(s)`)
+		await Promise.all(
+			event.files.map(async (file) => {
+				await this.addFilePath(file.fsPath)
+			})
+		)
+		this.workspaceDidUpdate()
 	}
 
-	private onFilesDeleted(event: vscode.FileDeleteEvent) {
-		event.files.forEach((file) => {
-			if (this.filePaths.delete(file.fsPath)) {
-				this.workspaceDidUpdate()
-			}
-		})
+	private async onFilesDeleted(event: vscode.FileDeleteEvent) {
+		console.log(`WorkspaceTracker: Files deleted - ${event.files.length} file(s)`)
+		let updated = false
+		await Promise.all(
+			event.files.map(async (file) => {
+				if (await this.removeFilePath(file.fsPath)) {
+					updated = true
+				}
+			})
+		)
+		if (updated) {
+			this.workspaceDidUpdate()
+		}
 	}
 
-	private onFilesRenamed(event: vscode.FileRenameEvent) {
-		event.files.forEach(async (file) => {
-			this.filePaths.delete(file.oldUri.fsPath)
-			this.filePaths.add(file.newUri.fsPath)
-			this.workspaceDidUpdate()
-		})
+	private async onFilesRenamed(event: vscode.FileRenameEvent) {
+		console.log(`WorkspaceTracker: Files renamed - ${event.files.length} file(s)`)
+		await Promise.all(
+			event.files.map(async (file) => {
+				await this.removeFilePath(file.oldUri.fsPath)
+				await this.addFilePath(file.newUri.fsPath)
+			})
+		)
+		this.workspaceDidUpdate()
 	}
 
 	private async onFileChanged(event: vscode.TextDocumentChangeEvent) {
-		const filePath = event.document.uri.fsPath
+		const filePath = await this.addFilePath(event.document.uri.fsPath)
 		if (!this.filePaths.has(filePath)) {
+			console.log(`WorkspaceTracker: New file changed - ${filePath}`)
 			this.filePaths.add(filePath)
 			this.workspaceDidUpdate()
 		}
 	}
 
 	private async onWorkspaceFoldersChanged(event: vscode.WorkspaceFoldersChangeEvent) {
+		console.log(
+			`WorkspaceTracker: Workspace folders changed - Added: ${event.added.length}, Removed: ${event.removed.length}`
+		)
 		for (const folder of event.added) {
 			const [files, _] = await listFiles(folder.uri.fsPath, true, 50) // at most 50 files
-			if (!cwd) {
-				continue
-			}
-			files
-				.map((file) => {
-					const relativePath = path.relative(cwd, file)
-					return file.endsWith("/") ? relativePath + "/" : relativePath
-				})
-				.forEach((file) => this.filePaths.add(file))
+			console.log(`WorkspaceTracker: Adding ${files.length} files from new folder`)
+			await Promise.all(files.map((file) => this.addFilePath(file)))
 		}
 		for (const folder of event.removed) {
+			const folderPath = await this.addFilePath(folder.uri.fsPath)
+			console.log(`WorkspaceTracker: Removing files from deleted folder - ${folderPath}`)
 			this.filePaths.forEach((filePath) => {
-				if (filePath.startsWith(folder.uri.fsPath)) {
+				if (filePath.startsWith(folderPath)) {
 					this.filePaths.delete(filePath)
 				}
 			})
@@ -103,19 +116,46 @@ class WorkspaceTracker {
 	}
 
 	private workspaceDidUpdate() {
-		console.log("Workspace updated. Current file paths:", Array.from(this.filePaths))
-		// Add your logic here for when the workspace is updated
+		console.log(`WorkspaceTracker: Workspace updated. Current file count: ${this.filePaths.size}`)
+		if (!cwd) {
+			return
+		}
 		this.providerRef.deref()?.postMessageToWebview({
 			type: "workspaceUpdated",
-			filePaths: Array.from(this.filePaths),
+			filePaths: Array.from(this.filePaths).map((file) => {
+				const relativePath = path.relative(cwd, file)
+				return file.endsWith("/") ? relativePath + "/" : relativePath
+			}),
 		})
 	}
 
-	public getFilePaths(): string[] {
-		return Array.from(this.filePaths)
+	private normalizeFilePath(filePath: string): string {
+		const resolvedPath = path.resolve(filePath)
+		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
+	}
+
+	private async addFilePath(filePath: string): Promise<string> {
+		const normalizedPath = this.normalizeFilePath(filePath)
+		try {
+			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
+			const isDirectory = (stat.type & vscode.FileType.Directory) !== 0
+			const pathWithSlash = isDirectory && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
+			this.filePaths.add(pathWithSlash)
+			return pathWithSlash
+		} catch {
+			// If stat fails, assume it's a file (this can happen for newly created files)
+			this.filePaths.add(normalizedPath)
+			return normalizedPath
+		}
+	}
+
+	private async removeFilePath(filePath: string): Promise<boolean> {
+		const normalizedPath = this.normalizeFilePath(filePath)
+		return this.filePaths.delete(normalizedPath) || this.filePaths.delete(normalizedPath + "/")
 	}
 
 	public dispose() {
+		console.log("WorkspaceTracker: Disposing")
 		this.disposables.forEach((d) => d.dispose())
 	}
 }
