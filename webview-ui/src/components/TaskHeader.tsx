@@ -351,9 +351,7 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 			return (
 				<span
 					key={index}
-					className={`mention-context-highlight-${
-						withShadow ? "visible-with-shadow" : "visible-without-shadow"
-					}`}>
+					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
 					@{part}
 				</span>
 			)
