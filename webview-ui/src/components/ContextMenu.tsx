@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react"
-import { getContextMenuOptions, ContextMenuOptionType, ContextMenuQueryItem } from "../utils/mention-context"
+import React, { useEffect, useMemo, useRef } from "react"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../utils/mention-context"
 import { formatFilePathForTruncation } from "./CodeAccordian"
 
 interface ContextMenuProps {
@@ -21,14 +21,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedType,
 	queryItems,
 }) => {
-	const [filteredOptions, setFilteredOptions] = useState<ContextMenuQueryItem[]>(
-		getContextMenuOptions(searchQuery, selectedType, queryItems)
-	)
 	const menuRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType, queryItems))
-	}, [searchQuery, selectedType, queryItems])
+	const filteredOptions = useMemo(
+		() => getContextMenuOptions(searchQuery, selectedType, queryItems),
+		[searchQuery, selectedType, queryItems]
+	)
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -120,6 +118,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					maxHeight: "200px",
 					overflowY: "auto",
 				}}>
+				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
 				{filteredOptions.map((option, index) => (
 					<div
 						key={`${option.type}-${option.value || index}`}
