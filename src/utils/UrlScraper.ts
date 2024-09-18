@@ -11,11 +11,14 @@ import PCR from "puppeteer-chromium-resolver"
 const PUPPETEER_DIR = "puppeteer"
 
 export class UrlScraper {
-	private static context?: vscode.ExtensionContext
+	private context: vscode.ExtensionContext
 
-	static async ensureChromiumExists(context?: vscode.ExtensionContext): Promise<void> {
+	constructor(context: vscode.ExtensionContext) {
 		this.context = context
-		const globalStoragePath = context?.globalStorageUri?.fsPath
+	}
+
+	private async ensureChromiumExists(): Promise<void> {
+		const globalStoragePath = this.context?.globalStorageUri?.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
@@ -36,8 +39,8 @@ export class UrlScraper {
 		}
 	}
 
-	static async urlToMarkdown(url: string): Promise<string> {
-		await this.ensureChromiumExists(this.context)
+	async urlToMarkdown(url: string): Promise<string> {
+		await this.ensureChromiumExists()
 
 		const globalStoragePath = this.context?.globalStorageUri?.fsPath
 		if (!globalStoragePath) {
@@ -77,8 +80,8 @@ export class UrlScraper {
 
 	// page.goto { waitUntil: "networkidle0" } may not ever resolve, and not waiting could return page content too early before js has loaded
 	// https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
-	private static async waitTillHTMLRendered(page: Page, timeout = 10_000) {
-		const checkDurationMsecs = 1000
+	private async waitTillHTMLRendered(page: Page, timeout = 10_000) {
+		const checkDurationMsecs = 500
 		const maxChecks = timeout / checkDurationMsecs
 		let lastHTMLSize = 0
 		let checkCounts = 1

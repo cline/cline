@@ -40,11 +40,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
 
-	// Installs chromium for puppeteer url scraping
-	UrlScraper.ensureChromiumExists(context).catch((error) => {
-		outputChannel.appendLine(`Error installing Chromium: ${JSON.stringify(error)}`)
-	})
-
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
