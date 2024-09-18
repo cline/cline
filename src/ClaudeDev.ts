@@ -421,9 +421,6 @@ export class ClaudeDev {
 		if (this.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
-		if (this.askResponse === "messageResponse" && this.askResponseText) {
-			this.askResponseText = await parseMentions(this.askResponseText, cwd, this.providerRef.deref()?.urlScraper)
-		}
 		const result = { response: this.askResponse!, text: this.askResponseText, images: this.askResponseImages }
 		this.askResponse = undefined
 		this.askResponseText = undefined
@@ -1630,12 +1627,59 @@ ${this.customInstructions.trim()}
 				request:
 					userContent
 						.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
-						.join("\n\n") + "\n\n<environment_details>\nLoading...\n</environment_details>",
+						.join("\n\n") + "\n\nLoading...",
 			})
 		)
 
-		// potentially expensive operation
-		const environmentDetails = await this.getEnvironmentDetails(includeFileDetails)
+		// potentially expensive operations
+		const [parsedUserContent, environmentDetails] = await Promise.all([
+			// Process userContent array, which contains various block types:
+			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
+			// We need to apply parseMentions() to:
+			// 1. All TextBlockParam's text (first user message with task)
+			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback and consecutiveMistakeCount >= 3 above, we place all user generated tool results in <feedback> tags)
+			Promise.all(
+				userContent.map(async (block) => {
+					if (block.type === "text") {
+						return {
+							...block,
+							text: await parseMentions(block.text, cwd, this.providerRef.deref()?.urlScraper),
+						}
+					} else if (block.type === "tool_result") {
+						if (typeof block.content === "string" && block.content.includes("<feedback>")) {
+							return {
+								...block,
+								content: await parseMentions(block.content, cwd, this.providerRef.deref()?.urlScraper),
+							}
+						} else if (Array.isArray(block.content)) {
+							const parsedContent = await Promise.all(
+								block.content.map(async (contentBlock) => {
+									if (contentBlock.type === "text" && contentBlock.text.includes("<feedback>")) {
+										return {
+											...contentBlock,
+											text: await parseMentions(
+												contentBlock.text,
+												cwd,
+												this.providerRef.deref()?.urlScraper
+											),
+										}
+									}
+									return contentBlock
+								})
+							)
+							return {
+								...block,
+								content: parsedContent,
+							}
+						}
+					}
+					return block
+				})
+			),
+			this.getEnvironmentDetails(includeFileDetails),
+		])
+
+		userContent = parsedUserContent
 
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
