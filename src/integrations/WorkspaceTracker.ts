@@ -28,6 +28,7 @@ class WorkspaceTracker {
 
 	private registerListeners() {
 		// Listen for file creation
+		// .bind(this) ensures the callback refers to class instance when using this, not necessary when using arrow function
 		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
 
 		// Listen for file deletion

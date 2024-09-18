@@ -3,9 +3,9 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../context/ExtensionStateContext"
-import { mentionRegexGlobal } from "../utils/mention-context"
 import { vscode } from "../utils/vscode"
 import Thumbnails from "./Thumbnails"
+import { mentionRegexGlobal } from "../../../src/shared/context-mentions"
 
 interface TaskHeaderProps {
 	task: ClaudeMessage
@@ -351,7 +351,9 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 			return (
 				<span
 					key={index}
-					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
+					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
+					style={{ cursor: "pointer" }}
+					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
 					@{part}
 				</span>
 			)

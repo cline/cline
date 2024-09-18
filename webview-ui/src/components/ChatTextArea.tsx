@@ -4,15 +4,14 @@ import { useExtensionState } from "../context/ExtensionStateContext"
 import {
 	getContextMenuOptions,
 	insertMention,
-	mentionRegex,
-	mentionRegexGlobal,
 	removeMention,
 	shouldShowContextMenu,
 	ContextMenuOptionType,
-} from "../utils/mention-context"
+} from "../utils/context-mentions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "./Thumbnails"
+import { mentionRegex, mentionRegexGlobal } from "../../../src/shared/context-mentions"
 
 interface ChatTextAreaProps {
 	inputValue: string

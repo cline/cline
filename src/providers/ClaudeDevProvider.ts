@@ -12,6 +12,7 @@ import axios from "axios"
 import { getTheme } from "../utils/getTheme"
 import { openFile, openImage } from "../utils/open-file"
 import WorkspaceTracker from "../integrations/WorkspaceTracker"
+import { openMention } from "../utils/context-mentions"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -422,6 +423,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "openFile":
 						openFile(message.text!)
+						break
+					case "openMention":
+						openMention(message.text)
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
