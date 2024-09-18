@@ -38,6 +38,7 @@ type GlobalStateKey =
 	| "alwaysAllowReadOnly"
 	| "taskHistory"
 	| "openAiBaseUrl"
+	| "azureApiVersion"
 	| "openAiModelId"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
@@ -332,6 +333,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								vertexProjectId,
 								vertexRegion,
 								openAiBaseUrl,
+								azureApiVersion,
 								openAiApiKey,
 								openAiModelId,
 								ollamaModelId,
@@ -351,6 +353,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
+							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
@@ -674,6 +677,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
+			azureApiVersion,
 			openAiApiKey,
 			openAiModelId,
 			ollamaModelId,
@@ -697,6 +701,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
@@ -737,6 +742,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				vertexProjectId,
 				vertexRegion,
 				openAiBaseUrl,
+				azureApiVersion,
 				openAiApiKey,
 				openAiModelId,
 				ollamaModelId,

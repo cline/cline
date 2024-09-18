@@ -399,6 +399,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
+					{apiConfiguration?.openAiBaseUrl?.includes("azure.com") && (
+						<VSCodeTextField
+							value={apiConfiguration?.azureApiVersion || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="text"
+							onInput={handleInputChange("azureApiVersion")}
+							placeholder="2024-08-01-preview">
+							<span style={{ fontWeight: 500 }}>Azure API Version</span>
+						</VSCodeTextField>
+					)}
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%" }}

@@ -13,11 +13,12 @@ export class OpenAiHandler implements ApiHandler {
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
 			this.client = new AzureOpenAI({
+				// eg. base url: https://your-resource.openai.azure.com/openai
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
 				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
-				apiVersion: "2024-08-01-preview",
+				apiVersion: this.options.azureApiVersion,
 			})
 		} else {
 			this.client = new OpenAI({
