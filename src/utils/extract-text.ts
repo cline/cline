@@ -18,6 +18,17 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
+		case ".jpg":
+		case ".jpeg":
+		case ".png":
+		case ".gif":
+		case ".webp":
+		case ".mp4":
+		case ".mp3":
+		case ".wav":
+		case ".avi":
+		case ".mov":
+			return "Cannot read media file."
 		default:
 			return await fs.readFile(filePath, "utf8")
 	}

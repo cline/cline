@@ -54,7 +54,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private workspaceTracker?: WorkspaceTracker
-	private urlScraper?: UrlScraper
+	urlScraper?: UrlScraper
 	private latestAnnouncementId = "sep-14-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {

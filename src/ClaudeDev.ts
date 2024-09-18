@@ -26,6 +26,7 @@ import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
+import { parseMentions } from "./utils/context-mentions"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -419,6 +420,9 @@ export class ClaudeDev {
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
 		if (this.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
+		}
+		if (this.askResponse === "messageResponse" && this.askResponseText) {
+			this.askResponseText = await parseMentions(this.askResponseText, cwd, this.providerRef.deref()?.urlScraper)
 		}
 		const result = { response: this.askResponse!, text: this.askResponseText, images: this.askResponseImages }
 		this.askResponse = undefined
