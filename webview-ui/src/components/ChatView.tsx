@@ -413,7 +413,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [visibleMessages, didScrollFromApiReqTs])
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message..." : "Type your task here..."
+		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
 		return text
 	}, [task])
 
