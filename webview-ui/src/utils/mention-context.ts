@@ -43,65 +43,61 @@ export function removeMention(text: string, position: number): { newText: string
 	return { newText: text, newPosition: position }
 }
 
-// export function queryPaths(
-// 	query: string,
-// 	searchPaths: { type: string; path: string }[]
-// ): { type: string; path: string }[] {
-// 	const lowerQuery = query.toLowerCase()
-// 	return searchPaths.filter(
-// 		(item) => item.path.toLowerCase().includes(lowerQuery) || item.type.toLowerCase().includes(lowerQuery)
-// 	)
-// }
+export enum ContextMenuOptionType {
+	File = "file",
+	Folder = "folder",
+	Problems = "problems",
+	URL = "url",
+	NoResults = "noResults",
+}
+
+export interface ContextMenuQueryItem {
+	type: ContextMenuOptionType
+	value?: string
+}
 
 export function getContextMenuOptions(
 	query: string,
-	selectedType: string | null = null,
-	searchPaths: { type: string; path: string }[]
-): { type: string; value: string; icon: string }[] {
+	selectedType: ContextMenuOptionType | null = null,
+	queryItems: ContextMenuQueryItem[]
+): ContextMenuQueryItem[] {
 	if (query === "") {
-		if (selectedType === "file") {
-			const files = searchPaths
-				.filter((item) => item.type === "file")
-				.map((item) => ({ type: "file", value: item.path, icon: "file" }))
-			return files.length > 0 ? files : [{ type: "noResults", value: "noResults", icon: "info" }]
+		if (selectedType === ContextMenuOptionType.File) {
+			const files = queryItems
+				.filter((item) => item.type === ContextMenuOptionType.File)
+				.map((item) => ({ type: ContextMenuOptionType.File, value: item.value }))
+			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
-		if (selectedType === "folder") {
-			const folders = searchPaths
-				.filter((item) => item.type === "folder")
-				.map((item) => ({ type: "folder", value: item.path, icon: "folder" }))
-			return folders.length > 0 ? folders : [{ type: "noResults", value: "noResults", icon: "info" }]
+		if (selectedType === ContextMenuOptionType.Folder) {
+			const folders = queryItems
+				.filter((item) => item.type === ContextMenuOptionType.Folder)
+				.map((item) => ({ type: ContextMenuOptionType.Folder, value: item.value }))
+			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		return [
-			{ type: "url", value: "url", icon: "link" },
-			{
-				type: "problems",
-				value: "problems",
-				icon: "warning",
-			},
-			{ type: "folder", value: "folder", icon: "folder" },
-			{ type: "file", value: "file", icon: "file" },
+			{ type: ContextMenuOptionType.URL },
+			{ type: ContextMenuOptionType.Problems },
+			{ type: ContextMenuOptionType.Folder },
+			{ type: ContextMenuOptionType.File },
 		]
 	}
 
 	const lowerQuery = query.toLowerCase()
 
 	if (query.startsWith("http")) {
-		// URLs
-		return [{ type: "url", value: query, icon: "link" }]
+		return [{ type: ContextMenuOptionType.URL, value: query }]
 	} else {
-		// Search for files and folders
-		const matchingPaths = searchPaths.filter((item) => item.path.toLowerCase().includes(lowerQuery))
+		const matchingItems = queryItems.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
 
-		if (matchingPaths.length > 0) {
-			return matchingPaths.map((item) => ({
+		if (matchingItems.length > 0) {
+			return matchingItems.map((item) => ({
 				type: item.type,
-				value: item.path,
-				icon: item.type === "file" ? "file" : item.type === "problems" ? "warning" : "folder",
+				value: item.value,
 			}))
 		} else {
-			return [{ type: "noResults", value: "noResults", icon: "info" }]
+			return [{ type: ContextMenuOptionType.NoResults }]
 		}
 	}
 }

@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from "react"
-import { getContextMenuOptions } from "../utils/mention-context"
+import { getContextMenuOptions, ContextMenuOptionType, ContextMenuQueryItem } from "../utils/mention-context"
 import { formatFilePathForTruncation } from "./CodeAccordian"
 
 interface ContextMenuProps {
-	onSelect: (type: string, value: string) => void
+	onSelect: (type: ContextMenuOptionType, value?: string) => void
 	searchQuery: string
 	onMouseDown: () => void
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
-	selectedType: string | null
-	searchPaths: { type: string; path: string }[]
+	selectedType: ContextMenuOptionType | null
+	queryItems: ContextMenuQueryItem[]
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -19,16 +19,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedIndex,
 	setSelectedIndex,
 	selectedType,
-	searchPaths,
+	queryItems,
 }) => {
-	const [filteredOptions, setFilteredOptions] = useState(
-		getContextMenuOptions(searchQuery, selectedType, searchPaths)
+	const [filteredOptions, setFilteredOptions] = useState<ContextMenuQueryItem[]>(
+		getContextMenuOptions(searchQuery, selectedType, queryItems)
 	)
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
-		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType, searchPaths))
-	}, [searchQuery, selectedType, searchPaths])
+		setFilteredOptions(getContextMenuOptions(searchQuery, selectedType, queryItems))
+	}, [searchQuery, selectedType, queryItems])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -46,46 +46,55 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		}
 	}, [selectedIndex])
 
-	const renderOptionContent = (option: { type: string; value: string }) => {
-		switch (option.value) {
-			case "file":
-			case "folder":
-			case "problems":
-			case "url":
-			case "noResults":
-				return (
-					<span
-						style={{
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-						}}>
-						{option.value === "file"
-							? "Add File"
-							: option.value === "folder"
-							? "Add Folder"
-							: option.value === "problems"
-							? "Problems"
-							: option.value === "url"
-							? "Paste URL to scrape"
-							: "No results found"}
-					</span>
-				)
-			default:
-				return (
-					<span
-						style={{
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							direction: "rtl",
-							textAlign: "left",
-							unicodeBidi: "plaintext",
-						}}>
-						{formatFilePathForTruncation(option.value) + "\u200E"}
-					</span>
-				)
+	const renderOptionContent = (option: ContextMenuQueryItem) => {
+		switch (option.type) {
+			case ContextMenuOptionType.Problems:
+				return <span>Problems</span>
+			case ContextMenuOptionType.URL:
+				return <span>Paste URL to scrape</span>
+			case ContextMenuOptionType.NoResults:
+				return <span>No results found</span>
+			case ContextMenuOptionType.File:
+			case ContextMenuOptionType.Folder:
+				if (option.value) {
+					return (
+						<span
+							style={{
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								direction: "rtl",
+								textAlign: "left",
+								unicodeBidi: "plaintext",
+							}}>
+							{formatFilePathForTruncation(option.value || "") + "\u200E"}
+						</span>
+					)
+				} else {
+					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
+				}
 		}
+	}
+
+	const getIconForOption = (option: ContextMenuQueryItem): string => {
+		switch (option.type) {
+			case ContextMenuOptionType.File:
+				return "file"
+			case ContextMenuOptionType.Folder:
+				return "folder"
+			case ContextMenuOptionType.Problems:
+				return "warning"
+			case ContextMenuOptionType.URL:
+				return "link"
+			case ContextMenuOptionType.NoResults:
+				return "info"
+			default:
+				return "file"
+		}
+	}
+
+	const isOptionSelectable = (option: ContextMenuQueryItem): boolean => {
+		return option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL
 	}
 
 	return (
@@ -113,50 +122,47 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				}}>
 				{filteredOptions.map((option, index) => (
 					<div
-						key={option.value}
-						onClick={() =>
-							option.type !== "url" && option.type !== "noResults" && onSelect(option.type, option.value)
-						}
+						key={`${option.type}-${option.value || index}`}
+						onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
 						style={{
 							padding: "8px 12px",
-							cursor: option.type !== "url" && option.type !== "noResults" ? "pointer" : "default",
+							cursor: isOptionSelectable(option) ? "pointer" : "default",
 							color: "var(--vscode-dropdown-foreground)",
 							borderBottom: "1px solid var(--vscode-dropdown-border)",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
 							backgroundColor:
-								index === selectedIndex && option.type !== "url" && option.type !== "noResults"
+								index === selectedIndex && isOptionSelectable(option)
 									? "var(--vscode-list-activeSelectionBackground)"
 									: "",
 						}}
-						onMouseEnter={() =>
-							option.type !== "url" && option.type !== "noResults" && setSelectedIndex(index)
-						}>
+						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
 						<div
 							style={{
 								display: "flex",
 								alignItems: "center",
 								flex: 1,
-								minWidth: 0, // Allows child to shrink below content size
-								overflow: "hidden", // Ensures content doesn't overflow
+								minWidth: 0,
+								overflow: "hidden",
 							}}>
 							<i
-								className={`codicon codicon-${option.icon}`}
+								className={`codicon codicon-${getIconForOption(option)}`}
 								style={{ marginRight: "8px", flexShrink: 0, fontSize: "14px" }}
 							/>
 							{renderOptionContent(option)}
 						</div>
-						{(option.value === "file" || option.value === "folder") && (
-							<i
-								className="codicon codicon-chevron-right"
-								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
-							/>
-						)}
-						{(option.type === "problems" ||
-							((option.type === "file" || option.type === "folder") &&
-								option.value !== "file" &&
-								option.value !== "folder")) && (
+						{(option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
+							!option.value && (
+								<i
+									className="codicon codicon-chevron-right"
+									style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
+								/>
+							)}
+						{(option.type === ContextMenuOptionType.Problems ||
+							((option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder) &&
+								option.value)) && (
 							<i
 								className="codicon codicon-add"
 								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}

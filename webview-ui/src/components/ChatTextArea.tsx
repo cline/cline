@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import {
@@ -8,6 +8,7 @@ import {
 	mentionRegexGlobal,
 	removeMention,
 	shouldShowContextMenu,
+	ContextMenuOptionType,
 } from "../utils/mention-context"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
@@ -42,6 +43,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref
 	) => {
+		const { filePaths } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -52,21 +54,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isMouseDownOnMenu, setIsMouseDownOnMenu] = useState(false)
 		const highlightLayerRef = useRef<HTMLDivElement>(null)
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
-		const [selectedType, setSelectedType] = useState<string | null>(null)
+		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 
-		const { filePaths } = useExtensionState()
-
-		const searchPaths = React.useMemo(() => {
+		const queryItems = useMemo(() => {
 			return [
-				{ type: "problems", path: "problems" },
+				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
-						type: path.endsWith("/") ? "folder" : "file",
-						path: path,
+						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+						value: path,
 					})),
 			]
 		}, [filePaths])
@@ -91,30 +91,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [showContextMenu, setShowContextMenu])
 
 		const handleMentionSelect = useCallback(
-			(type: string, value: string) => {
-				if (type === "noResults") {
+			(type: ContextMenuOptionType, value?: string) => {
+				if (type === ContextMenuOptionType.NoResults) {
 					return
 				}
 
-				if (value === "file" || value === "folder") {
-					setSelectedType(type.toLowerCase())
-					setSearchQuery("")
-					setSelectedMenuIndex(0)
-					return
+				if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+					if (!value) {
+						setSelectedType(type)
+						setSearchQuery("")
+						setSelectedMenuIndex(0)
+						return
+					}
 				}
 
 				setShowContextMenu(false)
 				setSelectedType(null)
 				if (textAreaRef.current) {
-					let insertValue = value
-					if (type === "url") {
-						// For URLs, we insert the value as is
-						insertValue = value
-					} else if (type === "file" || type === "folder") {
-						// For files and folders, we insert the path
-						insertValue = value
-					} else if (type === "problems") {
-						// For workspace problems, we insert @problems
+					let insertValue = value || ""
+					if (type === ContextMenuOptionType.URL) {
+						insertValue = value || ""
+					} else if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+						insertValue = value || ""
+					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
 					}
 
@@ -122,10 +121,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", newValue.lastIndexOf("@")) + 1
 					setCursorPosition(newCursorPosition)
-					setIntendedCursorPosition(newCursorPosition) // Update intended cursor position
+					setIntendedCursorPosition(newCursorPosition)
 					textAreaRef.current.focus()
-					// Remove the direct setSelectionRange call
-					// textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition)
 				}
 			},
 			[setInputValue, cursorPosition]
@@ -145,14 +142,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType, searchPaths)
+							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
 
 							// Find selectable options (non-URL types)
 							const selectableOptions = options.filter(
-								(option) => option.type !== "url" && option.type !== "noResults"
+								(option) =>
+									option.type !== ContextMenuOptionType.URL &&
+									option.type !== ContextMenuOptionType.NoResults
 							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
@@ -173,10 +172,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if (event.key === "Enter" && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, searchPaths)[
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[
 							selectedMenuIndex
 						]
-						if (selectedOption && selectedOption.type !== "url" && selectedOption.type !== "noResults") {
+						if (
+							selectedOption &&
+							selectedOption.type !== ContextMenuOptionType.URL &&
+							selectedOption.type !== ContextMenuOptionType.NoResults
+						) {
 							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
 						return
@@ -236,7 +239,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				cursorPosition,
 				setInputValue,
 				justDeletedSpaceAfterMention,
-				searchPaths,
+				queryItems,
 			]
 		)
 
@@ -411,7 +414,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedIndex={selectedMenuIndex}
 							setSelectedIndex={setSelectedMenuIndex}
 							selectedType={selectedType}
-							searchPaths={searchPaths}
+							queryItems={queryItems}
 						/>
 					</div>
 				)}
