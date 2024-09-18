@@ -1937,14 +1937,16 @@ ${this.customInstructions.trim()}
 		}
 
 		if (includeFileDetails) {
+			details += `\n\n# Current Working Directory (${cwd}) Files\n`
 			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
-			const [files, didHitLimit] = await listFiles(cwd, !isDesktop, 200)
-			const result = this.formatFilesList(cwd, files, didHitLimit)
-			details += `\n\n# Current Working Directory (${cwd}) Files\n${result}${
-				isDesktop
-					? "\n(Note: Only top-level contents shown for Desktop by default. Use list_files to explore further if necessary.)"
-					: ""
-			}`
+			if (isDesktop) {
+				// don't want to immediately access desktop since it would show permission popup
+				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
+			} else {
+				const [files, didHitLimit] = await listFiles(cwd, true, 200)
+				const result = this.formatFilesList(cwd, files, didHitLimit)
+				details += result
+			}
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
