@@ -5,6 +5,7 @@ import { ClaudeDevProvider } from "../providers/ClaudeDevProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
+// Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private disposables: vscode.Disposable[] = []

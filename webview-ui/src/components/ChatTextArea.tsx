@@ -92,6 +92,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const handleMentionSelect = useCallback(
 			(type: string, value: string) => {
+				if (type === "noResults") {
+					return
+				}
+
 				if (value === "file" || value === "folder") {
 					setSelectedType(type.toLowerCase())
 					setSearchQuery("")
@@ -147,7 +151,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							if (optionsLength === 0) return prevIndex
 
 							// Find selectable options (non-URL types)
-							const selectableOptions = options.filter((option) => option.type !== "url")
+							const selectableOptions = options.filter(
+								(option) => option.type !== "url" && option.type !== "noResults"
+							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
 
@@ -170,7 +176,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						const selectedOption = getContextMenuOptions(searchQuery, selectedType, searchPaths)[
 							selectedMenuIndex
 						]
-						if (selectedOption && selectedOption.type !== "url") {
+						if (selectedOption && selectedOption.type !== "url" && selectedOption.type !== "noResults") {
 							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
 						return
@@ -297,6 +303,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
+					setShowContextMenu(false)
 					return
 				}
 

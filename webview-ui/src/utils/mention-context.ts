@@ -60,16 +60,19 @@ export function getContextMenuOptions(
 ): { type: string; value: string; icon: string }[] {
 	if (query === "") {
 		if (selectedType === "file") {
-			return searchPaths
+			const files = searchPaths
 				.filter((item) => item.type === "file")
 				.map((item) => ({ type: "file", value: item.path, icon: "file" }))
+			return files.length > 0 ? files : [{ type: "noResults", value: "noResults", icon: "info" }]
 		}
 
 		if (selectedType === "folder") {
-			return searchPaths
+			const folders = searchPaths
 				.filter((item) => item.type === "folder")
 				.map((item) => ({ type: "folder", value: item.path, icon: "folder" }))
+			return folders.length > 0 ? folders : [{ type: "noResults", value: "noResults", icon: "info" }]
 		}
+
 		return [
 			{ type: "url", value: "url", icon: "link" },
 			{
@@ -98,17 +101,7 @@ export function getContextMenuOptions(
 				icon: item.type === "file" ? "file" : item.type === "problems" ? "warning" : "folder",
 			}))
 		} else {
-			// If no matches, show all options
-			return [
-				{ type: "url", value: "url", icon: "link" },
-				{
-					type: "problems",
-					value: "problems",
-					icon: "warning",
-				},
-				{ type: "folder", value: "folder", icon: "folder" },
-				{ type: "file", value: "file", icon: "file" },
-			]
+			return [{ type: "noResults", value: "noResults", icon: "info" }]
 		}
 	}
 }

@@ -52,6 +52,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case "folder":
 			case "problems":
 			case "url":
+			case "noResults":
 				return (
 					<span
 						style={{
@@ -67,7 +68,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							? "Problems"
 							: option.value === "url"
 							? "Paste URL to scrape"
-							: ""}
+							: "No results found"}
 					</span>
 				)
 			default:
@@ -113,21 +114,25 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				{filteredOptions.map((option, index) => (
 					<div
 						key={option.value}
-						onClick={() => option.type !== "url" && onSelect(option.type, option.value)}
+						onClick={() =>
+							option.type !== "url" && option.type !== "noResults" && onSelect(option.type, option.value)
+						}
 						style={{
 							padding: "8px 12px",
-							cursor: option.type !== "url" ? "pointer" : "default",
+							cursor: option.type !== "url" && option.type !== "noResults" ? "pointer" : "default",
 							color: "var(--vscode-dropdown-foreground)",
 							borderBottom: "1px solid var(--vscode-dropdown-border)",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
 							backgroundColor:
-								index === selectedIndex && option.type !== "url"
+								index === selectedIndex && option.type !== "url" && option.type !== "noResults"
 									? "var(--vscode-list-activeSelectionBackground)"
 									: "",
 						}}
-						onMouseEnter={() => option.type !== "url" && setSelectedIndex(index)}>
+						onMouseEnter={() =>
+							option.type !== "url" && option.type !== "noResults" && setSelectedIndex(index)
+						}>
 						<div
 							style={{
 								display: "flex",
