@@ -12,28 +12,21 @@ class WorkspaceTracker {
 	private filePaths: Set<string> = new Set()
 
 	constructor(provider: ClaudeDevProvider) {
-		console.log("WorkspaceTracker: Initializing")
 		this.providerRef = new WeakRef(provider)
 		this.registerListeners()
 	}
 
 	async initializeFilePaths() {
-		console.log("WorkspaceTracker: Initializing file paths")
 		// should not auto get filepaths for desktop since it would immediately show permission popup before claude every creates a file
-
 		if (!cwd) {
-			console.log("WorkspaceTracker: No workspace folder found")
 			return
 		}
 		const [files, _] = await listFiles(cwd, true, 500)
-		console.log(`WorkspaceTracker: Found ${files.length} files`)
 		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
-		console.log(this.filePaths)
 		this.workspaceDidUpdate()
 	}
 
 	private registerListeners() {
-		console.log("WorkspaceTracker: Registering listeners")
 		// Listen for file creation
 		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
 
@@ -43,15 +36,18 @@ class WorkspaceTracker {
 		// Listen for file renaming
 		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
 
-		// Listen for file changes
-		this.disposables.push(vscode.workspace.onDidChangeTextDocument(this.onFileChanged.bind(this)))
-
-		// Listen for workspace folder changes
-		this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
+		/*
+		 An event that is emitted when a workspace folder is added or removed.
+		 **Note:** this event will not fire if the first workspace folder is added, removed or changed,
+		 because in that case the currently executing extensions (including the one that listens to this
+		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
+		 to point to the first workspace folder.
+		 */
+		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since claude will only be working within the root folder cwd)
+		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
 	}
 
 	private async onFilesCreated(event: vscode.FileCreateEvent) {
-		console.log(`WorkspaceTracker: Files created - ${event.files.length} file(s)`)
 		await Promise.all(
 			event.files.map(async (file) => {
 				await this.addFilePath(file.fsPath)
@@ -61,7 +57,6 @@ class WorkspaceTracker {
 	}
 
 	private async onFilesDeleted(event: vscode.FileDeleteEvent) {
-		console.log(`WorkspaceTracker: Files deleted - ${event.files.length} file(s)`)
 		let updated = false
 		await Promise.all(
 			event.files.map(async (file) => {
@@ -76,7 +71,6 @@ class WorkspaceTracker {
 	}
 
 	private async onFilesRenamed(event: vscode.FileRenameEvent) {
-		console.log(`WorkspaceTracker: Files renamed - ${event.files.length} file(s)`)
 		await Promise.all(
 			event.files.map(async (file) => {
 				await this.removeFilePath(file.oldUri.fsPath)
@@ -86,38 +80,7 @@ class WorkspaceTracker {
 		this.workspaceDidUpdate()
 	}
 
-	private async onFileChanged(event: vscode.TextDocumentChangeEvent) {
-		const filePath = await this.addFilePath(event.document.uri.fsPath)
-		if (!this.filePaths.has(filePath)) {
-			console.log(`WorkspaceTracker: New file changed - ${filePath}`)
-			this.filePaths.add(filePath)
-			this.workspaceDidUpdate()
-		}
-	}
-
-	private async onWorkspaceFoldersChanged(event: vscode.WorkspaceFoldersChangeEvent) {
-		console.log(
-			`WorkspaceTracker: Workspace folders changed - Added: ${event.added.length}, Removed: ${event.removed.length}`
-		)
-		for (const folder of event.added) {
-			const [files, _] = await listFiles(folder.uri.fsPath, true, 50) // at most 50 files
-			console.log(`WorkspaceTracker: Adding ${files.length} files from new folder`)
-			await Promise.all(files.map((file) => this.addFilePath(file)))
-		}
-		for (const folder of event.removed) {
-			const folderPath = await this.addFilePath(folder.uri.fsPath)
-			console.log(`WorkspaceTracker: Removing files from deleted folder - ${folderPath}`)
-			this.filePaths.forEach((filePath) => {
-				if (filePath.startsWith(folderPath)) {
-					this.filePaths.delete(filePath)
-				}
-			})
-		}
-		this.workspaceDidUpdate()
-	}
-
 	private workspaceDidUpdate() {
-		console.log(`WorkspaceTracker: Workspace updated. Current file count: ${this.filePaths.size}`)
 		if (!cwd) {
 			return
 		}
@@ -156,7 +119,6 @@ class WorkspaceTracker {
 	}
 
 	public dispose() {
-		console.log("WorkspaceTracker: Disposing")
 		this.disposables.forEach((d) => d.dispose())
 	}
 }
