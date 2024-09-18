@@ -151,8 +151,10 @@
     "@google/generative-ai": "^0.18.0",
     "@types/clone-deep": "^4.0.4",
     "@types/pdf-parse": "^1.1.4",
+    "@types/turndown": "^5.0.5",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
+    "cheerio": "^1.0.0",
     "clone-deep": "^4.0.1",
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
@@ -165,9 +167,12 @@
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
+    "puppeteer-chromium-resolver": "^23.0.0",
+    "puppeteer-core": "^23.4.0",
     "serialize-error": "^11.0.3",
     "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
+    "turndown": "^7.2.0",
     "web-tree-sitter": "^0.22.6"
   }
 }

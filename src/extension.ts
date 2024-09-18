@@ -3,6 +3,7 @@
 import * as vscode from "vscode"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import delay from "delay"
+import { UrlScraper } from "./utils/UrlScraper"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -38,6 +39,11 @@ export function activate(context: vscode.ExtensionContext) {
 	// context.subscriptions.push(disposable)
 
 	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
+
+	// Installs chromium for puppeteer url scraping
+	UrlScraper.ensureChromiumExists(context).catch((error) => {
+		outputChannel.appendLine(`Error installing Chromium: ${JSON.stringify(error)}`)
+	})
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.sideBarId, sidebarProvider, {
