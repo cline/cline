@@ -1,17 +1,17 @@
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
+import { mentionRegex, mentionRegexGlobal } from "../../../src/shared/context-mentions"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import {
+	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
 	removeMention,
 	shouldShowContextMenu,
-	ContextMenuOptionType,
 } from "../utils/context-mentions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "./Thumbnails"
-import { mentionRegex, mentionRegexGlobal } from "../../../src/shared/context-mentions"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -116,9 +116,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = "problems"
 					}
 
-					const newValue = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					const { newValue, mentionIndex } = insertMention(
+						textAreaRef.current.value,
+						cursorPosition,
+						insertValue
+					)
+
 					setInputValue(newValue)
-					const newCursorPosition = newValue.indexOf(" ", newValue.lastIndexOf("@")) + 1
+					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
 					textAreaRef.current.focus()

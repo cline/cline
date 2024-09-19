@@ -39,9 +39,10 @@ export async function parseMentions(text: string, cwd: string, urlScraper: UrlSc
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
 		} else if (mention.startsWith("/")) {
-			return mention.endsWith("/")
-				? `'${mention}' (see below for folder content)`
-				: `'${mention}' (see below for file content)`
+			const mentionPath = mention.slice(1) // Remove the leading '/'
+			return mentionPath.endsWith("/")
+				? `'${mentionPath}' (see below for folder content)`
+				: `'${mentionPath}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
 		}
@@ -75,7 +76,7 @@ export async function parseMentions(text: string, cwd: string, urlScraper: UrlSc
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
 		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1) // Remove the leading '/'
+			const mentionPath = mention.slice(1)
 			try {
 				const content = await getFileOrFolderContent(mentionPath, cwd)
 				if (mention.endsWith("/")) {
@@ -126,11 +127,13 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
-			let directoryContent = ""
+			let folderContent = ""
 			const fileContentPromises: Promise<string | undefined>[] = []
-			entries.forEach((entry) => {
+			entries.forEach((entry, index) => {
+				const isLast = index === entries.length - 1
+				const linePrefix = isLast ? "└── " : "├── "
 				if (entry.isFile()) {
-					directoryContent += `- File: ${entry.name}\n`
+					folderContent += `${linePrefix}${entry.name}\n`
 					const filePath = path.join(mentionPath, entry.name)
 					const absoluteFilePath = path.resolve(absPath, entry.name)
 					// const relativeFilePath = path.relative(cwd, absoluteFilePath);
@@ -149,14 +152,14 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 						})()
 					)
 				} else if (entry.isDirectory()) {
-					directoryContent += `- Directory: ${entry.name}/\n`
+					folderContent += `${linePrefix}${entry.name}/\n`
 					// not recursively getting folder contents
 				} else {
-					directoryContent += `- Other: ${entry.name}\n`
+					folderContent += `${linePrefix}${entry.name}\n`
 				}
 			})
 			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
-			return `${directoryContent}\n${fileContents.join("\n")}`.trim()
+			return `${folderContent}\n${fileContents.join("\n\n")}`.trim()
 		} else {
 			return `(Failed to read contents of ${mentionPath})`
 		}

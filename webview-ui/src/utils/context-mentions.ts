@@ -1,20 +1,31 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
 
-export function insertMention(text: string, position: number, value: string): string {
+export function insertMention(
+	text: string,
+	position: number,
+	value: string
+): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
 	// Find the position of the last '@' symbol before the cursor
 	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
+	let newValue: string
+	let mentionIndex: number
+
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
 		const beforeMention = text.slice(0, lastAtIndex)
-		return beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		newValue = beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
-		return beforeCursor + "@" + value + " " + afterCursor
+		newValue = beforeCursor + "@" + value + " " + afterCursor
+		mentionIndex = position
 	}
+
+	return { newValue, mentionIndex }
 }
 
 export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
@@ -110,6 +121,8 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 
 	// Don't show the menu if it's a problems
 	if (textAfterAt.toLowerCase().startsWith("problems")) return false
+
+	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
 
 	// Show the menu if there's just '@' or '@' followed by some text (but not a URL)
 	return true
