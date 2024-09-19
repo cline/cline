@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react"
 import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../utils/context-mentions"
-import { formatFilePathForTruncation } from "./CodeAccordian"
+import { removeLeadingNonAlphanumeric } from "./CodeAccordian"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -56,17 +56,20 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
 					return (
-						<span
-							style={{
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								direction: "rtl",
-								textAlign: "left",
-								unicodeBidi: "plaintext",
-							}}>
-							{formatFilePathForTruncation(option.value || "") + "\u200E"}
-						</span>
+						<>
+							<span>/</span>
+							{option.value?.startsWith("/.") && <span>.</span>}
+							<span
+								style={{
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									direction: "rtl",
+									textAlign: "left",
+								}}>
+								{removeLeadingNonAlphanumeric(option.value || "") + "\u200E"}
+							</span>
+						</>
 					)
 				} else {
 					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>

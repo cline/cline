@@ -4,11 +4,11 @@ import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
-import CodeAccordian, { formatFilePathForTruncation } from "./CodeAccordian"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import Thumbnails from "./Thumbnails"
 import { vscode } from "../utils/vscode"
+import CodeAccordian, { removeLeadingNonAlphanumeric } from "./CodeAccordian"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
 import { highlightMentions } from "./TaskHeader"
+import Thumbnails from "./Thumbnails"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -209,7 +209,6 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								style={{
 									color: "var(--vscode-descriptionForeground)",
 									display: "flex",
-									justifyContent: "space-between",
 									alignItems: "center",
 									padding: "9px 10px",
 									cursor: "pointer",
@@ -221,6 +220,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								onClick={() => {
 									vscode.postMessage({ type: "openFile", text: tool.content })
 								}}>
+								{tool.path?.startsWith(".") && <span>.</span>}
 								<span
 									style={{
 										whiteSpace: "nowrap",
@@ -229,10 +229,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										marginRight: "8px",
 										direction: "rtl",
 										textAlign: "left",
-										unicodeBidi: "plaintext",
 									}}>
-									{formatFilePathForTruncation(tool.path ?? "") + "\u200E"}
+									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
 								</span>
+								<div style={{ flexGrow: 1 }}></div>
 								<span
 									className={`codicon codicon-link-external`}
 									style={{ fontSize: 13.5, margin: "1px 0" }}></span>
