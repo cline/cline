@@ -117,7 +117,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					flexDirection: "column",
 					maxHeight: "200px",
 					overflowY: "auto",
-					overflow: "hidden",
 				}}>
 				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
 				{filteredOptions.map((option, index) => (

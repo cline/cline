@@ -126,7 +126,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
-					textAreaRef.current.focus()
+					// textAreaRef.current.focus()
+
+					// scroll to cursor
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.blur()
+							textAreaRef.current.focus()
+						}
+					}, 0)
 				}
 			},
 			[setInputValue, cursorPosition]
@@ -311,6 +319,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
 					setShowContextMenu(false)
+
+					// Scroll to new cursor position
+					// https://stackoverflow.com/questions/29899364/how-do-you-scroll-to-the-position-of-the-cursor-in-a-textarea/40951875#40951875
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.blur()
+							textAreaRef.current.focus()
+						}
+					}, 0)
+					// NOTE: callbacks dont utilize return function to cleanup, but it's fine since this timeout immediately executes and will be cleaned up by the browser (no chance component unmounts before it executes)
+
 					return
 				}
 
