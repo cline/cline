@@ -359,7 +359,20 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								<>
 									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
 										{apiRequestFailedMessage}
+										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
+											<>
+												<br />
+												It seems like you're having Windows PowerShell issues, please see this{" "}
+												<a
+													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-Windows-PowerShell-Errors"
+													style={{ color: "inherit", textDecoration: "underline" }}>
+													troubleshooting guide
+												</a>
+												.
+											</>
+										)}
 									</p>
+
 									{/* {apiProvider === "kodu" && (
 											<div
 												style={{
