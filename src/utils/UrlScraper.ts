@@ -1,10 +1,9 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Page } from "puppeteer-core"
+import { Browser } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
-import delay from "delay"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 
@@ -51,7 +50,7 @@ export class UrlScraper {
 		const stats = await PCR({
 			downloadPath: puppeteerDir,
 		})
-		const browser = await stats.puppeteer.launch({
+		const browser: Browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36",
 			],
