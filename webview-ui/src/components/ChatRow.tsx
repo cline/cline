@@ -362,6 +362,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
+												<br />
 												It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
 													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-Windows-PowerShell-Errors"
