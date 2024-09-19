@@ -5,6 +5,7 @@ import { UrlScraper } from "./UrlScraper"
 import { mentionRegexGlobal } from "../shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "./extract-text"
+import { isBinaryFile } from "isbinaryfile"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
@@ -92,12 +93,16 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 		const stats = await fs.stat(absPath)
 
 		if (stats.isFile()) {
+			const isBinary = await isBinaryFile(absPath).catch(() => false)
+			if (isBinary) {
+				return "(Binary file)"
+			}
 			const content = await extractTextFromFile(absPath)
 			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
 			let directoryContent = ""
-			const fileContentPromises: Promise<string>[] = []
+			const fileContentPromises: Promise<string | undefined>[] = []
 			entries.forEach((entry) => {
 				if (entry.isFile()) {
 					directoryContent += `- File: ${entry.name}\n`
@@ -105,12 +110,18 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 					const absoluteFilePath = path.resolve(absPath, entry.name)
 					// const relativeFilePath = path.relative(cwd, absoluteFilePath);
 					fileContentPromises.push(
-						extractTextFromFile(absoluteFilePath)
-							.then((content) => `<file_content path="${filePath}">\n${content}\n</file_content>`)
-							.catch(
-								(error) =>
-									`<file_content path="${filePath}">\nError fetching content: ${error.message}\n</file_content>`
-							)
+						(async () => {
+							try {
+								const isBinary = await isBinaryFile(absoluteFilePath).catch(() => false)
+								if (isBinary) {
+									return undefined
+								}
+								const content = await extractTextFromFile(absoluteFilePath)
+								return `<file_content path="${filePath}">\n${content}\n</file_content>`
+							} catch (error) {
+								return undefined
+							}
+						})()
 					)
 				} else if (entry.isDirectory()) {
 					directoryContent += `- Directory: ${entry.name}/\n`
@@ -119,10 +130,10 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 					directoryContent += `- Other: ${entry.name}\n`
 				}
 			})
-			const fileContents = await Promise.all(fileContentPromises)
-			return `${directoryContent}\n${fileContents.join("\n")}`
+			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
+			return `${directoryContent}\n${fileContents.join("\n")}`.trim()
 		} else {
-			return "Unsupported file type."
+			return `(Failed to read contents of ${mentionPath})`
 		}
 	} catch (error) {
 		throw new Error(`Failed to access path "${mentionPath}": ${error.message}`)
@@ -149,7 +160,7 @@ async function getWorkspaceDiagnostics(cwd: string): Promise<string> {
 	}
 
 	if (!diagnosticsDetails) {
-		return "No problems detected."
+		return "No errors or warnings detected."
 	}
 
 	return diagnosticsDetails.trim()
