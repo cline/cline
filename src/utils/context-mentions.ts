@@ -53,6 +53,7 @@ export async function parseMentions(text: string, cwd: string, urlScraper?: UrlS
 				const markdown = await urlScraper.urlToMarkdown(mention)
 				parsedText += `\n\n<url_content url="${mention}">\n${markdown}\n</url_content>`
 			} catch (error) {
+				vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${JSON.stringify(error)}`)
 				parsedText += `\n\n<url_content url="${mention}">\nError fetching content: ${error.message}\n</url_content>`
 			}
 		} else if (mention.startsWith("/")) {
