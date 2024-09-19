@@ -42,7 +42,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					back-and-forth about debugging
 				</li>
 				<li>
-					<strong>@file:</strong> Adds a file's contents so you don't have to waste an API request approving a
+					<strong>@file:</strong> Adds a file's contents so you don't have to waste API requests approving
 					read file (+ type to search files)
 				</li>
 				<li>

@@ -9,7 +9,7 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 - You can now use '@' in the textarea to add context!
     - @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
     - @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
-    - @file: Adds a file's contents so you dont have to waste an API request approving a read file (+ type to search files)
+    - @file: Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
     - @folder: Adds folder's files all at once to speed up your workflow even more
 
 ## [1.7.0]
