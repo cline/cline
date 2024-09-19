@@ -365,7 +365,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 												<br />
 												It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
-													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-Windows-PowerShell-Errors"
+													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
 													style={{ color: "inherit", textDecoration: "underline" }}>
 													troubleshooting guide
 												</a>
