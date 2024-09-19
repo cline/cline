@@ -13,6 +13,7 @@ import {
 	javaQuery,
 	phpQuery,
 	swiftQuery,
+	dartQuery,
 } from "./queries"
 
 export interface LanguageParser {
@@ -119,6 +120,10 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 			case "swift":
 				language = await loadLanguage("swift")
 				query = language.query(swiftQuery)
+				break
+			case "dart":
+				language = await loadLanguage("dart")
+				query = language.query(dartQuery)
 				break
 			default:
 				throw new Error(`Unsupported language: ${ext}`)
