@@ -12,7 +12,7 @@ interface PCRStats {
 	executablePath: string
 }
 
-export class UrlScraper {
+export class UrlContentFetcher {
 	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
@@ -74,8 +74,7 @@ export class UrlScraper {
 		/*
 		- networkidle2 is equivalent to playwright's networkidle where it waits until there are no more than 2 network connections for at least 500 ms.
 		- domcontentloaded is when the basic DOM is loaded
-		this should be sufficient for most doc sites, but we can use the more elaborate waitTillHTMLRendered if we find users are scraping more dynamic complex sites
-		https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
+		this should be sufficient for most doc sites
 		*/
 		await this.page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle2"] })
 		const content = await this.page.content()

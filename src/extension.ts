@@ -3,7 +3,6 @@
 import * as vscode from "vscode"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import delay from "delay"
-import { UrlScraper } from "./utils/UrlScraper"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit

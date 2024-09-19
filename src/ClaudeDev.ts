@@ -27,7 +27,7 @@ import { truncateHalfConversation } from "./utils/context-management"
 import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { parseMentions } from "./utils/context-mentions"
-import { UrlScraper } from "./utils/UrlScraper"
+import { UrlContentFetcher } from "./utils/UrlContentFetcher"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -251,7 +251,7 @@ export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
 	private terminalManager: TerminalManager
-	private urlScraper: UrlScraper
+	private urlContentFetcher: UrlContentFetcher
 	private didEditFile: boolean = false
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
@@ -277,7 +277,7 @@ export class ClaudeDev {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
-		this.urlScraper = new UrlScraper(provider.context)
+		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -678,7 +678,7 @@ export class ClaudeDev {
 	abortTask() {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
-		this.urlScraper.closeBrowser()
+		this.urlContentFetcher.closeBrowser()
 	}
 
 	async executeTool(toolName: ToolName, toolInput: any): Promise<[boolean, ToolResponse]> {
@@ -1647,14 +1647,14 @@ ${this.customInstructions.trim()}
 					if (block.type === "text") {
 						return {
 							...block,
-							text: await parseMentions(block.text, cwd, this.urlScraper),
+							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
 						}
 					} else if (block.type === "tool_result") {
 						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
 						if (typeof block.content === "string" && isUserMessage(block.content)) {
 							return {
 								...block,
-								content: await parseMentions(block.content, cwd, this.urlScraper),
+								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
 							}
 						} else if (Array.isArray(block.content)) {
 							const parsedContent = await Promise.all(
@@ -1662,7 +1662,7 @@ ${this.customInstructions.trim()}
 									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
 										return {
 											...contentBlock,
-											text: await parseMentions(contentBlock.text, cwd, this.urlScraper),
+											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
 										}
 									}
 									return contentBlock

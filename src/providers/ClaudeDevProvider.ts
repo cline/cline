@@ -13,7 +13,6 @@ import { getTheme } from "../utils/getTheme"
 import { openFile, openImage } from "../utils/open-file"
 import WorkspaceTracker from "../integrations/WorkspaceTracker"
 import { openMention } from "../utils/context-mentions"
-import { UrlScraper } from "../utils/UrlScraper"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

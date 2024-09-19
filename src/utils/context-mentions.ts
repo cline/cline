@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import { openFile } from "./open-file"
-import { UrlScraper } from "./UrlScraper"
+import { UrlContentFetcher } from "./UrlContentFetcher"
 import { mentionRegexGlobal } from "../shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "./extract-text"
@@ -32,7 +32,7 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlScraper: UrlScraper): Promise<string> {
+export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -53,7 +53,7 @@ export async function parseMentions(text: string, cwd: string, urlScraper: UrlSc
 	let launchBrowserError: Error | undefined
 	if (urlMention) {
 		try {
-			await urlScraper.launchBrowser()
+			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
 			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
@@ -67,7 +67,7 @@ export async function parseMentions(text: string, cwd: string, urlScraper: UrlSc
 				result = `Error fetching content: ${launchBrowserError.message}`
 			} else {
 				try {
-					const markdown = await urlScraper.urlToMarkdown(mention)
+					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
 					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
@@ -103,7 +103,7 @@ export async function parseMentions(text: string, cwd: string, urlScraper: UrlSc
 
 	if (urlMention) {
 		try {
-			await urlScraper.closeBrowser()
+			await urlContentFetcher.closeBrowser()
 		} catch (error) {
 			console.error(`Error closing browser: ${error.message}`)
 		}
