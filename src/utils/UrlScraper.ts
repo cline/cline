@@ -60,13 +60,19 @@ export class UrlScraper {
 
 		try {
 			const page = await browser.newPage()
-			await page.goto(url, { timeout: 5_000, waitUntil: "load" })
-			await this.waitTillHTMLRendered(page)
+
+			/*
+			- networkidle2 is equivalent to playwright's networkidle where it waits until there are no more than 2 network connections for at least 500 ms.
+			- domcontentloaded is when the basic DOM is loaded
+			this should be sufficient for most doc sites, but we can use the more elaborate waitTillHTMLRendered if we find users are scraping more dynamic complex sites
+			*/
+			await page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+			// await this.waitTillHTMLRendered(page)
 			const content = await page.content()
 
 			// Use Cheerio to parse and clean up the HTML
 			const $ = cheerio.load(content)
-			$("script, style, nav, footer").remove() // Remove unnecessary elements
+			$("script, style, nav, footer").remove() // Remove unnecessary elements (todo: make this more robust)
 
 			// Convert cleaned HTML to Markdown
 			const turndownService = new TurndownService()
@@ -80,6 +86,7 @@ export class UrlScraper {
 
 	// page.goto { waitUntil: "networkidle0" } may not ever resolve, and not waiting could return page content too early before js has loaded
 	// https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
+	/*
 	private async waitTillHTMLRendered(page: Page, timeout = 10_000) {
 		const checkDurationMsecs = 500 // 1000
 		const maxChecks = timeout / checkDurationMsecs
@@ -110,6 +117,7 @@ export class UrlScraper {
 			await delay(checkDurationMsecs)
 		}
 	}
+	*/
 }
 
 async function fileExists(path: string): Promise<boolean> {
