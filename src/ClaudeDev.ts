@@ -776,7 +776,7 @@ export class ClaudeDev {
 
 			// Keep track of newly created directories
 			const createdDirs: string[] = await this.createDirectoriesForFile(absolutePath)
-			console.log(`Created directories: ${createdDirs.join(", ")}`)
+			// console.log(`Created directories: ${createdDirs.join(", ")}`)
 			// make sure the file exists before we open it
 			if (!fileExists) {
 				await fs.writeFile(absolutePath, "")
@@ -827,11 +827,11 @@ export class ClaudeDev {
 				.filter((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === absolutePath)
 			for (const tab of tabs) {
 				await vscode.window.tabGroups.close(tab)
-				console.log(`Closed tab for ${absolutePath}`)
+				// console.log(`Closed tab for ${absolutePath}`)
 				documentWasOpen = true
 			}
 
-			console.log(`Document was open: ${documentWasOpen}`)
+			// console.log(`Document was open: ${documentWasOpen}`)
 
 			// edit needs to happen after we close the original tab
 			const edit = new vscode.WorkspaceEdit()

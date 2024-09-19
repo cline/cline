@@ -81,7 +81,7 @@ export class UrlScraper {
 	// page.goto { waitUntil: "networkidle0" } may not ever resolve, and not waiting could return page content too early before js has loaded
 	// https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
 	private async waitTillHTMLRendered(page: Page, timeout = 10_000) {
-		const checkDurationMsecs = 500
+		const checkDurationMsecs = 500 // 1000
 		const maxChecks = timeout / checkDurationMsecs
 		let lastHTMLSize = 0
 		let checkCounts = 1
@@ -92,9 +92,8 @@ export class UrlScraper {
 			let html = await page.content()
 			let currentHTMLSize = html.length
 
-			let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
-
-			console.log("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize, " body html size: ", bodyHTMLSize)
+			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
+			console.log("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
 
 			if (lastHTMLSize !== 0 && currentHTMLSize === lastHTMLSize) {
 				countStableSizeIterations++
@@ -103,7 +102,7 @@ export class UrlScraper {
 			}
 
 			if (countStableSizeIterations >= minStableSizeIterations) {
-				console.log("Page rendered fully..")
+				console.log("Page rendered fully...")
 				break
 			}
 

@@ -151,5 +151,5 @@ async function getWorkspaceDiagnostics(cwd: string): Promise<string> {
 		return "No problems detected."
 	}
 
-	return diagnosticsDetails
+	return diagnosticsDetails.trim()
 }
