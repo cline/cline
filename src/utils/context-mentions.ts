@@ -32,7 +32,7 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlScraper?: UrlScraper): Promise<string> {
+export async function parseMentions(text: string, cwd: string, urlScraper: UrlScraper): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -48,15 +48,32 @@ export async function parseMentions(text: string, cwd: string, urlScraper?: UrlS
 		return match
 	})
 
+	const urlMention = Array.from(mentions).find((mention) => mention.startsWith("http"))
+	let launchBrowserError: Error | undefined
+	if (urlMention) {
+		try {
+			await urlScraper.launchBrowser()
+		} catch (error) {
+			launchBrowserError = error
+			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
+		}
+	}
+
 	for (const mention of mentions) {
-		if (mention.startsWith("http") && urlScraper) {
-			try {
-				const markdown = await urlScraper.urlToMarkdown(mention)
-				parsedText += `\n\n<url_content url="${mention}">\n${markdown}\n</url_content>`
-			} catch (error) {
-				vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${JSON.stringify(error)}`)
-				parsedText += `\n\n<url_content url="${mention}">\nError fetching content: ${error.message}\n</url_content>`
+		if (mention.startsWith("http")) {
+			let result: string
+			if (launchBrowserError) {
+				result = `Error fetching content: ${launchBrowserError.message}`
+			} else {
+				try {
+					const markdown = await urlScraper.urlToMarkdown(mention)
+					result = markdown
+				} catch (error) {
+					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
+					result = `Error fetching content: ${error.message}`
+				}
 			}
+			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
 		} else if (mention.startsWith("/")) {
 			const mentionPath = mention.slice(1) // Remove the leading '/'
 			try {
@@ -83,6 +100,14 @@ export async function parseMentions(text: string, cwd: string, urlScraper?: UrlS
 		}
 	}
 
+	if (urlMention) {
+		try {
+			await urlScraper.closeBrowser()
+		} catch (error) {
+			console.error(`Error closing browser: ${error.message}`)
+		}
+	}
+
 	return parsedText
 }
 
@@ -95,7 +120,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 		if (stats.isFile()) {
 			const isBinary = await isBinaryFile(absPath).catch(() => false)
 			if (isBinary) {
-				return "(Binary file)"
+				return "(Binary file, unable to display content)"
 			}
 			const content = await extractTextFromFile(absPath)
 			return content

@@ -54,14 +54,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
 	private workspaceTracker?: WorkspaceTracker
-	urlScraper?: UrlScraper
 	private latestAnnouncementId = "sep-14-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
 		ClaudeDevProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
-		this.urlScraper = new UrlScraper(this.context)
 		this.revertKodu()
 	}
 
@@ -107,7 +105,6 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		}
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
-		this.urlScraper = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClaudeDevProvider.activeInstances.delete(this)
 	}
