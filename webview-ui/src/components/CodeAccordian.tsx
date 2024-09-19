@@ -76,9 +76,9 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 								}}>
 								{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
 							</span>
-							<div style={{ flexGrow: 1 }}></div>
 						</>
 					)}
+					<div style={{ flexGrow: 1 }}></div>
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
