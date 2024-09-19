@@ -40,8 +40,8 @@ export async function parseMentions(text: string, cwd: string, urlScraper?: UrlS
 			return `'${mention}' (see below for site content)`
 		} else if (mention.startsWith("/")) {
 			return mention.endsWith("/")
-				? `'${mention}' (see below for folder contents)`
-				: `'${mention}' (see below for file contents)`
+				? `'${mention}' (see below for folder content)`
+				: `'${mention}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
 		}
