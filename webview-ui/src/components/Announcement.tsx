@@ -31,14 +31,24 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<p style={{ margin: "5px 0px" }}>
-				Commands now run directly in your terminal thanks to VSCode 1.93's new shell integration updates! Plus a
-				new 'Proceed While Running' button to let Claude continue working while commands run, sending him new
-				output along the way (i.e. letting him react to server errors as he edits files).{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1833316974518014072">
-					See a demo here.
-				</VSCodeLink>
-			</p>
+			<p style={{ margin: "5px 0px" }}>You can now use '@' in the textarea to add context!</p>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				<li>
+					<strong>@url:</strong> Paste in a URL for the extension to fetch and convert to markdown, useful
+					when you want to give Claude the latest docs!
+				</li>
+				<li>
+					<strong>@problems:</strong> Add workspace errors and warnings for Claude to fix, no more
+					back-and-forth about debugging
+				</li>
+				<li>
+					<strong>@file:</strong> Adds a file's contents so you don't have to waste an API request approving a
+					read file (+ type to search files)
+				</li>
+				<li>
+					<strong>@folder:</strong> Adds folder's files all at once to speed up your workflow even more
+				</li>
+			</ul>
 			{/* <p style={{ margin: "5px 0px" }}>
 				Claude can now monitor workspace problems to keep updated on linter/compiler/build issues, letting him
 				proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)

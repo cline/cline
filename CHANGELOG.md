@@ -4,6 +4,14 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.8.0]
+
+- You can now use '@' in the textarea to add context!
+    - @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
+    - @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
+    - @file: Adds a file's contents so you dont have to waste an API request approving a read file (+ type to search files)
+    - @folder: Adds folder's files all at once to speed up your workflow even more
+
 ## [1.7.0]
 
 - Adds problems monitoring to keep Claude updated on linter/compiler/build issues, letting him proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)

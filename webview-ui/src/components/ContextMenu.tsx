@@ -49,7 +49,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Problems:
 				return <span>Problems</span>
 			case ContextMenuOptionType.URL:
-				return <span>Paste URL to scrape</span>
+				return <span>Paste URL to fetch contents</span>
 			case ContextMenuOptionType.NoResults:
 				return <span>No results found</span>
 			case ContextMenuOptionType.File:
