@@ -5,6 +5,7 @@ import { ClaudeMessage } from "../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../context/ExtensionStateContext"
 import { vscode } from "../utils/vscode"
 import Thumbnails from "./Thumbnails"
+import { mentionRegexGlobal } from "../../../src/shared/context-mentions"
 
 interface TaskHeaderProps {
 	task: ClaudeMessage
@@ -147,7 +148,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
 							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{task.text}</span>}
+							{!isTaskExpanded && (
+								<span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>
+							)}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
@@ -193,7 +196,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{task.text}
+								{highlightMentions(task.text, false)}
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div
@@ -334,6 +337,28 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			)} */}
 		</div>
 	)
+}
+
+export const highlightMentions = (text?: string, withShadow = true) => {
+	if (!text) return text
+	const parts = text.split(mentionRegexGlobal)
+	return parts.map((part, index) => {
+		if (index % 2 === 0) {
+			// This is regular text
+			return part
+		} else {
+			// This is a mention
+			return (
+				<span
+					key={index}
+					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
+					style={{ cursor: "pointer" }}
+					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
+					@{part}
+				</span>
+			)
+		}
+	})
 }
 
 const ExportButton = () => (

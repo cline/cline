@@ -3,6 +3,7 @@ import * as path from "path"
 import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
@@ -19,7 +20,12 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
 		default:
-			return await fs.readFile(filePath, "utf8")
+			const isBinary = await isBinaryFile(filePath).catch(() => false)
+			if (!isBinary) {
+				return await fs.readFile(filePath, "utf8")
+			} else {
+				throw new Error(`Cannot read text for file type: ${fileExtension}`)
+			}
 	}
 }
 

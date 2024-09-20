@@ -11,7 +11,7 @@ import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "./api"
 import { TerminalManager } from "./integrations/TerminalManager"
-import { LIST_FILES_LIMIT, listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
+import { listFiles, parseSourceCodeForDefinitionsTopLevel } from "./parse-source-code"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import { ApiConfiguration } from "./shared/api"
 import { ClaudeRequestResult } from "./shared/ClaudeRequestResult"
@@ -26,6 +26,8 @@ import { findLast, findLastIndex, formatContentBlockToMarkdown } from "./utils"
 import { truncateHalfConversation } from "./utils/context-management"
 import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
+import { parseMentions } from "./utils/context-mentions"
+import { UrlContentFetcher } from "./utils/UrlContentFetcher"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -249,6 +251,7 @@ export class ClaudeDev {
 	readonly taskId: string
 	private api: ApiHandler
 	private terminalManager: TerminalManager
+	private urlContentFetcher: UrlContentFetcher
 	private didEditFile: boolean = false
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
@@ -274,6 +277,7 @@ export class ClaudeDev {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
+		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -674,6 +678,7 @@ export class ClaudeDev {
 	abortTask() {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
+		this.urlContentFetcher.closeBrowser()
 	}
 
 	async executeTool(toolName: ToolName, toolInput: any): Promise<[boolean, ToolResponse]> {
@@ -775,7 +780,7 @@ export class ClaudeDev {
 
 			// Keep track of newly created directories
 			const createdDirs: string[] = await this.createDirectoriesForFile(absolutePath)
-			console.log(`Created directories: ${createdDirs.join(", ")}`)
+			// console.log(`Created directories: ${createdDirs.join(", ")}`)
 			// make sure the file exists before we open it
 			if (!fileExists) {
 				await fs.writeFile(absolutePath, "")
@@ -826,11 +831,11 @@ export class ClaudeDev {
 				.filter((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === absolutePath)
 			for (const tab of tabs) {
 				await vscode.window.tabGroups.close(tab)
-				console.log(`Closed tab for ${absolutePath}`)
+				// console.log(`Closed tab for ${absolutePath}`)
 				documentWasOpen = true
 			}
 
-			console.log(`Document was open: ${documentWasOpen}`)
+			// console.log(`Document was open: ${documentWasOpen}`)
 
 			// edit needs to happen after we close the original tab
 			const edit = new vscode.WorkspaceEdit()
@@ -1187,8 +1192,8 @@ export class ClaudeDev {
 		try {
 			const recursive = recursiveRaw?.toLowerCase() === "true"
 			const absolutePath = path.resolve(cwd, relDirPath)
-			const files = await listFiles(absolutePath, recursive)
-			const result = this.formatFilesList(absolutePath, files)
+			const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+			const result = this.formatFilesList(absolutePath, files, didHitLimit)
 
 			const message = JSON.stringify({
 				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
@@ -1245,7 +1250,7 @@ export class ClaudeDev {
 		}
 	}
 
-	formatFilesList(absolutePath: string, files: string[]): string {
+	formatFilesList(absolutePath: string, files: string[], didHitLimit: boolean): string {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
@@ -1273,11 +1278,12 @@ export class ClaudeDev {
 				// the shorter one comes first
 				return aParts.length - bParts.length
 			})
-		if (sorted.length >= LIST_FILES_LIMIT) {
-			const truncatedList = sorted.slice(0, LIST_FILES_LIMIT).join("\n")
-			return `${truncatedList}\n\n(Truncated at ${LIST_FILES_LIMIT} results. Try listing files in subdirectories if you need to explore further.)`
+		if (didHitLimit) {
+			return `${sorted.join(
+				"\n"
+			)}\n\n(Truncated at 200 results. Try listing files in subdirectories if you need to explore further.)`
 		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
-			return "No files found or you do not have permission to view this directory."
+			return "No files found."
 		} else {
 			return sorted.join("\n")
 		}
@@ -1625,12 +1631,56 @@ ${this.customInstructions.trim()}
 				request:
 					userContent
 						.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
-						.join("\n\n") + "\n\n<environment_details>\nLoading...\n</environment_details>",
+						.join("\n\n") + "\n\nLoading...",
 			})
 		)
 
-		// potentially expensive operation
-		const environmentDetails = await this.getEnvironmentDetails(includeFileDetails)
+		// potentially expensive operations
+		const [parsedUserContent, environmentDetails] = await Promise.all([
+			// Process userContent array, which contains various block types:
+			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
+			// We need to apply parseMentions() to:
+			// 1. All TextBlockParam's text (first user message with task)
+			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
+			Promise.all(
+				userContent.map(async (block) => {
+					if (block.type === "text") {
+						return {
+							...block,
+							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+						}
+					} else if (block.type === "tool_result") {
+						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
+						if (typeof block.content === "string" && isUserMessage(block.content)) {
+							return {
+								...block,
+								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
+							}
+						} else if (Array.isArray(block.content)) {
+							const parsedContent = await Promise.all(
+								block.content.map(async (contentBlock) => {
+									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
+										return {
+											...contentBlock,
+											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
+										}
+									}
+									return contentBlock
+								})
+							)
+							return {
+								...block,
+								content: parsedContent,
+							}
+						}
+					}
+					return block
+				})
+			),
+			this.getEnvironmentDetails(includeFileDetails),
+		])
+
+		userContent = parsedUserContent
 
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
@@ -1936,14 +1986,16 @@ ${this.customInstructions.trim()}
 		}
 
 		if (includeFileDetails) {
+			details += `\n\n# Current Working Directory (${cwd}) Files\n`
 			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
-			const files = await listFiles(cwd, !isDesktop)
-			const result = this.formatFilesList(cwd, files)
-			details += `\n\n# Current Working Directory (${cwd}) Files\n${result}${
-				isDesktop
-					? "\n(Note: Only top-level contents shown for Desktop by default. Use list_files to explore further if necessary.)"
-					: ""
-			}`
+			if (isDesktop) {
+				// don't want to immediately access desktop since it would show permission popup
+				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
+			} else {
+				const [files, didHitLimit] = await listFiles(cwd, true, 200)
+				const result = this.formatFilesList(cwd, files, didHitLimit)
+				details += result
+			}
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

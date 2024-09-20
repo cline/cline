@@ -9,6 +9,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	theme: any
+	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
@@ -27,6 +28,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
+	const [filePaths, setFilePaths] = useState<string[]>([])
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "state" && message.state) {
@@ -50,6 +53,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		if (message.type === "theme" && message.text) {
 			setTheme(convertTextMateToHljs(JSON.parse(message.text)))
 		}
+		if (message.type === "workspaceUpdated" && message.filePaths) {
+			setFilePaths(message.filePaths)
+		}
 	}, [])
 
 	useEvent("message", handleMessage)
@@ -63,6 +69,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		didHydrateState,
 		showWelcome,
 		theme,
+		filePaths,
 		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
