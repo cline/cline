@@ -39,7 +39,6 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 					style={{
 						color: "var(--vscode-descriptionForeground)",
 						display: "flex",
-						justifyContent: "space-between",
 						alignItems: "center",
 						padding: "9px 10px",
 						cursor: "pointer",
@@ -64,6 +63,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						</div>
 					) : (
 						<>
+							{path?.startsWith(".") && <span>.</span>}
 							<span
 								style={{
 									whiteSpace: "nowrap",
@@ -78,6 +78,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 							</span>
 						</>
 					)}
+					<div style={{ flexGrow: 1 }}></div>
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
