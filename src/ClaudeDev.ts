@@ -28,6 +28,7 @@ import { extractTextFromFile } from "./utils/extract-text"
 import { regexSearchFiles } from "./utils/ripgrep"
 import { parseMentions } from "./utils/context-mentions"
 import { UrlContentFetcher } from "./utils/UrlContentFetcher"
+import { diagnosticsToProblemsString, getNewDiagnostics } from "./utils/diagnostics"
 
 const SYSTEM_PROMPT =
 	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -762,6 +763,9 @@ export class ClaudeDev {
 				}
 			}
 
+			// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if claude needs to fix anything
+			const preDiagnostics = vscode.languages.getDiagnostics()
+
 			let originalContent: string
 			if (fileExists) {
 				originalContent = await fs.readFile(absolutePath, "utf-8")
@@ -1037,6 +1041,27 @@ export class ClaudeDev {
 
 			await this.closeDiffViews()
 
+			/*
+			Getting diagnostics before and after the file edit is a better approach than
+			automatically tracking problems in real-time. This method ensures we only
+			report new problems that are a direct result of this specific edit.
+			Since these are new problems resulting from Claude's edit, we know they're
+			directly related to the work he's doing. This eliminates the risk of Claude
+			going off-task or getting distracted by unrelated issues, which was a problem
+			with the previous auto-debug approach. Some users' machines may be slow to
+			update diagnostics, so this approach provides a good balance between automation
+			and avoiding potential issues where Claude might get stuck in loops due to
+			outdated problem information. If no new problems show up by the time the user
+			accepts the changes, they can always debug later using the '@problems' mention.
+			This way, Claude only becomes aware of new problems resulting from his edits
+			and can address them accordingly. If problems don't change immediately after
+			applying a fix, Claude won't be notified, which is generally fine since the
+			initial fix is usually correct and it may just take time for linters to catch up.
+			*/
+			const postDiagnostics = vscode.languages.getDiagnostics()
+			const newProblems = diagnosticsToProblemsString(getNewDiagnostics(preDiagnostics, postDiagnostics), cwd) // will be empty string if no errors/warnings
+			const newProblemsMessage =
+				newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 			// await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 
 			// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
@@ -1056,11 +1081,16 @@ export class ClaudeDev {
 				return [
 					false,
 					await this.formatToolResult(
-						`The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath}. Note this does not mean you need to re-write the file with the user's changes, they have already been applied to the file.`
+						`The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)${newProblemsMessage}`
 					),
 				]
 			} else {
-				return [false, await this.formatToolResult(`The content was successfully saved to ${relPath}.`)]
+				return [
+					false,
+					await this.formatToolResult(
+						`The content was successfully saved to ${relPath}.${newProblemsMessage}`
+					),
+				]
 			}
 		} catch (error) {
 			const errorString = `Error writing file: ${JSON.stringify(serializeError(error))}`
