@@ -44,6 +44,7 @@ type GlobalStateKey =
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "anthropicBaseUrl"
+	| "azureApiVersion"
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -346,6 +347,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								anthropicBaseUrl,
 								geminiApiKey,
 								openAiNativeApiKey,
+								azureApiVersion,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -365,6 +367,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
+							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							this.claudeDev?.updateApi(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -691,6 +694,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			anthropicBaseUrl,
 			geminiApiKey,
 			openAiNativeApiKey,
+			azureApiVersion,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -714,6 +718,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
+			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -754,6 +759,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				anthropicBaseUrl,
 				geminiApiKey,
 				openAiNativeApiKey,
+				azureApiVersion,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
