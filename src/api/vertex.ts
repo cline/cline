@@ -25,6 +25,7 @@ export class VertexHandler implements ApiHandler {
 		const message = await this.client.messages.create({
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens,
+			temperature: 0.2,
 			system: systemPrompt,
 			messages,
 			tools,

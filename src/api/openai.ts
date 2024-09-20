@@ -47,6 +47,7 @@ export class OpenAiHandler implements ApiHandler {
 		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
+			temperature: 0.2,
 			tools: openAiTools,
 			tool_choice: "auto",
 		}
