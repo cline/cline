@@ -29,6 +29,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
+	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
 }
