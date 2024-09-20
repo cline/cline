@@ -76,7 +76,9 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	private async getDeploymentForModel(modelId: string): Promise<string> {
-		if (!this.deployments) {
+
+		// If deployments are not fetched yet or the model is not found in the fetched deployments, fetch deployments
+		if (!this.deployments || !this.hasDeploymentForModel(modelId)) {
 			this.deployments = await this.getAiCoreDeployments()
 		}
 
@@ -86,6 +88,10 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		return deployment.id
+	}
+
+	private hasDeploymentForModel(modelId: string): boolean {
+		return this.deployments?.some((d) => d.name.toLowerCase().includes(modelId.toLowerCase())) ?? false
 	}
 
 	async createMessage(
