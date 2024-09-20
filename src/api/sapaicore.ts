@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiHandlerMessageResponse } from "."
 import {
 	ApiHandlerOptions,
-	ApiModelId,
 	ModelInfo,
 	SapAiCoreModelId,
 	sapAiCoreModels,
@@ -14,35 +13,43 @@ interface Deployment {
 	id: string
 	name: string
 }
-
+interface Token {
+	access_token: string
+	expires_in: number
+	scope: string
+	jti: string
+	token_type: string
+	exipres_at: number
+}
 export class SapAiCoreHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private token: string | null = null
-	private deployments: Deployment[] | null = null
+	private token?: Token
+	private deployments?: Deployment[]
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 	}
 
-	private async authenticate(): Promise<string> {
-		const payload = new URLSearchParams({
+	private async authenticate(): Promise<Token> {
+		const payload = {
 			grant_type: "client_credentials",
 			client_id: this.options.sapAiCoreClientId || "",
 			client_secret: this.options.sapAiCoreClientSecret || "",
-		})
+		}
 
 		const response = await axios.post(this.options.sapAiCoreTokenUrl || "", payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
-
-		return response.data.access_token
+		const token = response.data as Token
+		token.exipres_at = Date.now() + token.expires_in * 1000
+		return token
 	}
 
 	private async getToken(): Promise<string> {
-		if (!this.token) {
+		if (!this.token || this.token.exipres_at < Date.now()) {
 			this.token = await this.authenticate()
 		}
-		return this.token
+		return this.token.access_token
 	}
 
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
@@ -53,7 +60,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
-			"AI-Resource-Group": "default",
+			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
 		}
 
@@ -91,7 +98,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	private hasDeploymentForModel(modelId: string): boolean {
-		return this.deployments?.some((d) => d.name.toLowerCase().includes(modelId.toLowerCase())) ?? false
+		return this.deployments?.some((d) => d.name.toLowerCase().includes(modelId.toLowerCase())) ? true : false
 	}
 
 	async createMessage(
@@ -102,7 +109,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
-			"AI-Resource-Group": "default",
+			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
 		}
 
