@@ -1281,7 +1281,7 @@ export class ClaudeDev {
 		if (didHitLimit) {
 			return `${sorted.join(
 				"\n"
-			)}\n\n(Truncated at 200 results. Try listing files in subdirectories if you need to explore further.)`
+			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
 		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
 			return "No files found."
 		} else {

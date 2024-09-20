@@ -27,6 +27,7 @@ export interface ApiHandlerOptions {
 	ollamaBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
+	azureApiVersion?: string
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string

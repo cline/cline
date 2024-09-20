@@ -47,6 +47,7 @@ type GlobalStateKey =
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "anthropicBaseUrl"
+	| "azureApiVersion"
 	| "sapAiCoreTokenUrl"
 	| "sapAiCoreBaseUrl"
 	| "sapAiResourceGroup"
@@ -352,11 +353,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								anthropicBaseUrl,
 								geminiApiKey,
 								openAiNativeApiKey,
+								azureApiVersion,
 								sapAiCoreClientId,
 								sapAiCoreClientSecret,
 								sapAiCoreTokenUrl,
 								sapAiCoreBaseUrl,
-								sapAiResourceGroup
+								sapAiResourceGroup,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -376,6 +378,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
+							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.storeSecret("sapAiCoreClientId", sapAiCoreClientId)
 							await this.storeSecret("sapAiCoreClientSecret", sapAiCoreClientSecret)
 							await this.updateGlobalState("sapAiCoreTokenUrl", sapAiCoreTokenUrl)
@@ -707,6 +710,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			anthropicBaseUrl,
 			geminiApiKey,
 			openAiNativeApiKey,
+			azureApiVersion,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -715,7 +719,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			sapAiCoreTokenUrl,
 			sapAiCoreBaseUrl,
 			taskHistory,
-			sapAiResourceGroup
+			sapAiResourceGroup,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -735,6 +739,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
+			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -780,11 +785,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				anthropicBaseUrl,
 				geminiApiKey,
 				openAiNativeApiKey,
+				azureApiVersion,
 				sapAiCoreClientId,
 				sapAiCoreClientSecret,
 				sapAiCoreTokenUrl,
 				sapAiCoreBaseUrl,
-				sapAiResourceGroup
+				sapAiResourceGroup,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
