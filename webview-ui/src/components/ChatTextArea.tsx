@@ -182,7 +182,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						})
 						return
 					}
-					if (event.key === "Enter" && selectedMenuIndex !== -1) {
+					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
 						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[
 							selectedMenuIndex
