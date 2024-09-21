@@ -37,7 +37,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Claude can now use a browser! This update adds a new <code>inspect_site</code> tool that captures
 					screenshots and console logs from websites (including localhost), making it easier for Claude to
 					troubleshoot issues on his own.
-					<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1835100787275419829">
+					<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1837559914023342129">
 						See a demo here.
 					</VSCodeLink>
 				</li>
