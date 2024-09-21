@@ -31,22 +31,38 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<p style={{ margin: "5px 0px" }}>You can now use '@' in the textarea to add context!</p>
+			<p style={{ margin: "5px 0px" }}></p>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<strong>@url:</strong> Paste in a URL for the extension to fetch and convert to markdown, useful
-					when you want to give Claude the latest docs!
+					Claude can now use a browser! This update adds a new <code>inspect_site</code> tool that captures
+					screenshots and console logs from websites (including localhost), making it easier for Claude to
+					troubleshoot issues on his own.
+					<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1835100787275419829">
+						See a demo here.
+					</VSCodeLink>
 				</li>
 				<li>
-					<strong>@problems:</strong> Add workspace errors and warnings for Claude to fix, no more
-					back-and-forth about debugging
+					Improved automatic linter/compiler debugging by only sending Claude new errors that result from his
+					edits, rather than reporting all workspace problems.
 				</li>
 				<li>
-					<strong>@file:</strong> Adds a file's contents so you don't have to waste API requests approving
-					read file (+ type to search files)
-				</li>
-				<li>
-					<strong>@folder:</strong> Adds folder's files all at once to speed up your workflow even more
+					You can now use '@' in the textarea to add context:
+					<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
+						<li>
+							<strong>@url:</strong> Paste in a URL for the extension to fetch and convert to markdown
+							(i.e. give Claude the latest docs)
+						</li>
+						<li>
+							<strong>@problems:</strong> Add workspace errors and warnings for Claude to fix
+						</li>
+						<li>
+							<strong>@file:</strong> Adds a file's contents so you don't have to waste API requests
+							approving read file (+ type to search files)
+						</li>
+						<li>
+							<strong>@folder:</strong> Adds folder's files all at once
+						</li>
+					</ul>
 				</li>
 			</ul>
 			{/* <p style={{ margin: "5px 0px" }}>

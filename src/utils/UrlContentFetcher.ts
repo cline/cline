@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
 // @ts-ignore
@@ -113,18 +113,18 @@ export class UrlContentFetcher {
 		})
 
 		try {
-			// networkidle0 is when there are no more than 0 network connections - this is better for local dev servers that often have fewer concurrent connections than production sites
-			await this.page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle0"] })
+			// networkidle2 is a good point to take a screenshot without having to wait for the timeout to hit if the site never reaches networkidle0
+			await this.page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle2"] })
 		} catch (err) {
-			// don't want to log in case of timeout error, that likely means the site just never reached networkidle0 but claude can still inspect the page and logs
-			if (!(err instanceof TimeoutError)) {
-				logs.push(`[Navigation Error] ${err.toString()}`)
-			}
+			// if (!(err instanceof TimeoutError)) {
+			// 	logs.push(`[Navigation Error] ${err.toString()}`)
+			// }
+			logs.push(`[Navigation Error] ${err.toString()}`)
 		}
 
 		// Wait for console inactivity, with a timeout
 		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
-			timeout: 5_000,
+			timeout: 3_000,
 			interval: 100,
 		}).catch(() => {})
 

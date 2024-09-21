@@ -4,6 +4,11 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.9.0]
+
+- Claude can now use a browser! This update adds a new `inspect_site` tool that captures screenshots and console logs from websites (including localhost), making it easier for Claude to troubleshoot issues on his own.
+- Improved automatic linter/compiler debugging by only sending Claude new errors that result from his edits, rather than reporting all workspace problems.
+
 ## [1.8.0]
 
 - You can now use '@' in the textarea to add context!
