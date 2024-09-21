@@ -133,7 +133,7 @@ export class UrlContentFetcher {
 		// image cannot exceed 8_000 pixels
 		const pageHeight = await this.page.evaluate(() => document.documentElement.scrollHeight)
 		let options: ScreenshotOptions = {
-			fullPage: true,
+			// fullPage: true, // clip and fullPage are mutually exclusive
 			encoding: "base64",
 			// quality: 80,
 			clip: {
