@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
 // @ts-ignore
@@ -130,14 +130,38 @@ export class UrlContentFetcher {
 			interval: 100,
 		}).catch(() => {})
 
-		const screenshotBase64 = await this.page.screenshot({
+		// image cannot exceed 8_000 pixels
+		const pageHeight = await this.page.evaluate(() => document.documentElement.scrollHeight)
+		let options: ScreenshotOptions = {
 			fullPage: true,
-			type: "webp",
 			encoding: "base64",
 			// quality: 80,
-		})
+			clip: {
+				x: 0,
+				y: 0,
+				width: await this.page.evaluate(() => document.documentElement.clientWidth),
+				height: Math.min(pageHeight, 8_000),
+			},
+		}
 
-		const screenshot = `data:image/webp;base64,${screenshotBase64}`
+		let screenshotBase64 = await this.page.screenshot({
+			...options,
+			type: "webp",
+		})
+		let screenshot = `data:image/webp;base64,${screenshotBase64}`
+
+		if (!screenshotBase64) {
+			console.log("webp screenshot failed, trying png")
+			screenshotBase64 = await this.page.screenshot({
+				...options,
+				type: "png",
+			})
+			screenshot = `data:image/png;base64,${screenshotBase64}`
+		}
+
+		if (!screenshotBase64) {
+			throw new Error("Failed to take screenshot.")
+		}
 
 		this.page.removeAllListeners()
 

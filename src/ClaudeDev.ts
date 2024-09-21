@@ -1471,8 +1471,16 @@ export class ClaudeDev {
 
 			await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
 			await this.urlContentFetcher.launchBrowser()
-			const { screenshot, logs } = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
-			await this.urlContentFetcher.closeBrowser()
+			let result: {
+				screenshot: string
+				logs: string
+			}
+			try {
+				result = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
+			} finally {
+				await this.urlContentFetcher.closeBrowser()
+			}
+			const { screenshot, logs } = result
 			await this.say("inspect_site_result", logs, [screenshot])
 
 			return [
