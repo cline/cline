@@ -8,6 +8,7 @@ interface CodeAccordianProps {
 	language?: string | undefined
 	path?: string
 	isFeedback?: boolean
+	isConsoleLogs?: boolean
 	isExpanded: boolean
 	onToggleExpand: () => void
 }
@@ -20,7 +21,16 @@ The replace method removes these matched characters, effectively trimming the st
 */
 export const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
 
-const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onToggleExpand }: CodeAccordianProps) => {
+const CodeAccordian = ({
+	code,
+	diff,
+	language,
+	path,
+	isFeedback,
+	isConsoleLogs,
+	isExpanded,
+	onToggleExpand,
+}: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code]
@@ -34,7 +44,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
-			{(path || isFeedback) && (
+			{(path || isFeedback || isConsoleLogs) && (
 				<div
 					style={{
 						color: "var(--vscode-descriptionForeground)",
@@ -48,9 +58,11 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 						msUserSelect: "none",
 					}}
 					onClick={onToggleExpand}>
-					{isFeedback ? (
+					{isFeedback || isConsoleLogs ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
-							<span className="codicon codicon-feedback" style={{ marginRight: "6px" }}></span>
+							<span
+								className={`codicon codicon-${isFeedback ? "feedback" : "output"}`}
+								style={{ marginRight: "6px" }}></span>
 							<span
 								style={{
 									whiteSpace: "nowrap",
@@ -58,7 +70,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 									textOverflow: "ellipsis",
 									marginRight: "8px",
 								}}>
-								User Edits
+								{isFeedback ? "User Edits" : "Console Logs"}
 							</span>
 						</div>
 					) : (
@@ -82,7 +94,7 @@ const CodeAccordian = ({ code, diff, language, path, isFeedback, isExpanded, onT
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
-			{(!(path || isFeedback) || isExpanded) && (
+			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
 				<div
 					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{

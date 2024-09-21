@@ -30,8 +30,9 @@ import { parseMentions } from "./utils/context-mentions"
 import { UrlContentFetcher } from "./utils/UrlContentFetcher"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "./utils/diagnostics"
 
-const SYSTEM_PROMPT =
-	async () => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+const SYSTEM_PROMPT = async (
+	supportsImages: boolean
+) => `You are Claude Dev, a highly skilled software developer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
  
@@ -39,12 +40,18 @@ CAPABILITIES
 
 - You can read and analyze code in various programming languages, and can write clean, efficient, and well-documented code.
 - You can debug complex issues and providing detailed explanations, offering architectural insights and design patterns.
-- You have access to tools that let you execute CLI commands on the user's computer, list files in a directory (top level or recursively), extract source code definitions, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
+- You have access to tools that let you execute CLI commands on the user's computer, list files, view source code definitions, regex search${
+	supportsImages ? ", inspect websites" : ""
+}, read and write files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('${cwd}') will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
 	- For example, when asked to make edits or improvements you might analyze the file structure in the initial environment_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
-- The execute_command tool lets you run commands on the user's computer and should be used whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.
+- You can use the execute_command tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.${
+	supportsImages
+		? "\n- You can use the inspect_site tool to capture a screenshot and console logs of a website (including static/dynamic sites and locally running development servers) when you feel it can help in better accomplishing the user's task. Consider using this tool judiciously at key stages of web development tasks—such as after implementing new features, making substantial changes, when troubleshooting issues, or to verify the result of your work. You can analyze the provided screenshot to verify correct rendering or identify errors, and review console logs for runtime issues."
+		: ""
+}
 
 ====
 
@@ -76,7 +83,7 @@ OBJECTIVE
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.
-2. Work through these goals sequentially, utilizing available tools as necessary. Each goal should correspond to a distinct step in your problem-solving process. It is okay for certain steps to take multiple iterations, i.e. if you need to create many files but are limited by your max output limitations, it's okay to create a few files at a time as each subsequent iteration will keep you informed on the work completed and what's remaining. 
+2. Work through these goals sequentially, utilizing available tools as necessary. Each goal should correspond to a distinct step in your problem-solving process. It is okay for certain steps to take multiple iterations, i.e. if you need to create many files, it's okay to create a few files at a time as each subsequent iteration will keep you informed on the work completed and what's remaining. 
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, analyze the file structure provided in environment_details to gain context and insights for proceeding effectively. Then, think about which of the provided tools is the most relevant tool to accomplish the user's task. Next, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool call. BUT, if one of the values for a required parameter is missing, DO NOT invoke the function (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
@@ -94,7 +101,7 @@ Current Working Directory: ${cwd}
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
-const tools: Tool[] = [
+const tools = (supportsImages: boolean): Tool[] => [
 	{
 		name: "execute_command",
 		description: `Execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd}`,
@@ -204,6 +211,26 @@ const tools: Tool[] = [
 			required: ["path"],
 		},
 	},
+	...(supportsImages
+		? [
+				{
+					name: "inspect_site",
+					description:
+						"Inspect a website by capturing a screenshot and console logs. This tool navigates to the specified URL, takes a full-page screenshot, and collects any console logs or errors that occur during page load.",
+					input_schema: {
+						type: "object",
+						properties: {
+							url: {
+								type: "string",
+								description:
+									"The URL of the site to inspect. This should be a valid URL including the protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.)",
+							},
+						},
+						required: ["url"],
+					},
+				} satisfies Tool,
+		  ]
+		: []),
 	{
 		name: "ask_followup_question",
 		description:
@@ -696,6 +723,8 @@ export class ClaudeDev {
 				return this.searchFiles(toolInput.path, toolInput.regex, toolInput.filePattern)
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
+			case "inspect_site":
+				return this.inspectSite(toolInput.url)
 			case "ask_followup_question":
 				return this.askFollowupQuestion(toolInput.question)
 			case "attempt_completion":
@@ -1412,6 +1441,59 @@ export class ClaudeDev {
 		}
 	}
 
+	async inspectSite(url?: string): Promise<[boolean, ToolResponse]> {
+		if (url === undefined) {
+			this.consecutiveMistakeCount++
+			return [false, await this.sayAndCreateMissingParamError("inspect_site", "url")]
+		}
+		this.consecutiveMistakeCount = 0
+		try {
+			const message = JSON.stringify({
+				tool: "inspectSite",
+				path: url,
+			} satisfies ClaudeSayTool)
+
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return [
+							true,
+							this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images),
+						]
+					}
+					return [true, await this.formatToolDenied()]
+				}
+			}
+
+			await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
+			await this.urlContentFetcher.launchBrowser()
+			const { screenshot, logs } = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
+			await this.urlContentFetcher.closeBrowser()
+			await this.say("inspect_site_result", logs, [screenshot])
+
+			return [
+				false,
+				this.formatToolResponseWithImages(
+					`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
+						logs || "(No logs)"
+					}`,
+					[screenshot]
+				),
+			]
+		} catch (error) {
+			const errorString = `Error inspecting site: ${JSON.stringify(serializeError(error))}`
+			await this.say(
+				"error",
+				`Error inspecting site:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
+			return [false, await this.formatToolError(errorString)]
+		}
+	}
+
 	async executeCommand(
 		command?: string,
 		returnEmptyStringOnSuccess: boolean = false
@@ -1567,7 +1649,7 @@ export class ClaudeDev {
 
 	async attemptApiRequest(): Promise<Anthropic.Messages.Message> {
 		try {
-			let systemPrompt = await SYSTEM_PROMPT()
+			let systemPrompt = await SYSTEM_PROMPT(this.api.getModel().info.supportsImages)
 			if (this.customInstructions && this.customInstructions.trim()) {
 				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 				systemPrompt += `
@@ -1603,7 +1685,7 @@ ${this.customInstructions.trim()}
 			const { message, userCredits } = await this.api.createMessage(
 				systemPrompt,
 				this.apiConversationHistory,
-				tools
+				tools(this.api.getModel().info.supportsImages)
 			)
 			if (userCredits !== undefined) {
 				console.log("Updating credits", userCredits)

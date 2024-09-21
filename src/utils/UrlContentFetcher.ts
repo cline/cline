@@ -1,11 +1,12 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, launch } from "puppeteer-core"
+import { Browser, Page, TimeoutError, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
+import pWaitFor from "p-wait-for"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -88,5 +89,59 @@ export class UrlContentFetcher {
 		const markdown = turndownService.turndown($.html())
 
 		return markdown
+	}
+
+	async urlToScreenshotAndLogs(url: string): Promise<{ screenshot: string; logs: string }> {
+		if (!this.browser || !this.page) {
+			throw new Error("Browser not initialized")
+		}
+
+		const logs: string[] = []
+		let lastLogTs = Date.now()
+
+		this.page.on("console", (msg) => {
+			if (msg.type() === "log") {
+				logs.push(msg.text())
+			} else {
+				logs.push(`[${msg.type()}] ${msg.text()}`)
+			}
+			lastLogTs = Date.now()
+		})
+		this.page.on("pageerror", (err) => {
+			logs.push(`[Page Error] ${err.toString()}`)
+			lastLogTs = Date.now()
+		})
+
+		try {
+			// networkidle0 is when there are no more than 0 network connections - this is better for local dev servers that often have fewer concurrent connections than production sites
+			await this.page.goto(url, { timeout: 10_000, waitUntil: ["domcontentloaded", "networkidle0"] })
+		} catch (err) {
+			// don't want to log in case of timeout error, that likely means the site just never reached networkidle0 but claude can still inspect the page and logs
+			if (!(err instanceof TimeoutError)) {
+				logs.push(`[Navigation Error] ${err.toString()}`)
+			}
+		}
+
+		// Wait for console inactivity, with a timeout
+		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
+			timeout: 5_000,
+			interval: 100,
+		}).catch(() => {})
+
+		const screenshotBase64 = await this.page.screenshot({
+			fullPage: true,
+			type: "webp",
+			encoding: "base64",
+			// quality: 80,
+		})
+
+		const screenshot = `data:image/webp;base64,${screenshotBase64}`
+
+		this.page.removeAllListeners()
+
+		return {
+			screenshot,
+			logs: logs.join("\n"),
+		}
 	}
 }

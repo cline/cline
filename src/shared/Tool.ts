@@ -7,6 +7,7 @@ export type ToolName =
 	| "list_code_definition_names"
 	| "search_files"
 	| "execute_command"
+	| "inspect_site"
 	| "ask_followup_question"
 	| "attempt_completion"
 

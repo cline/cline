@@ -153,6 +153,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "error":
 						case "api_req_finished":
 						case "text":
+						case "inspect_site_result":
 						case "command_output":
 						case "completion_result":
 						case "tool":
@@ -348,6 +349,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
+				case "inspect_site_result":
+					// don't show row for inspect site result until a screenshot is captured
+					return !!message.images
 			}
 			return true
 		})
@@ -545,8 +549,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onSelectImages={selectImages}
 				shouldDisableImages={shouldDisableImages}
 				onHeightChange={() => {
-					//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
-					virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
+					if (isAtBottom) {
+						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
+						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
+					}
 				}}
 			/>
 		</div>
