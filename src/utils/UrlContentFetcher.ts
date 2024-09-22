@@ -140,16 +140,25 @@ export class UrlContentFetcher {
 			}
 		})
 		// const defaultViewport = this.page.viewport(); // width 800 height 600 by default
-		let options: ScreenshotOptions = {
-			// fullPage: true, // clip and fullPage are mutually exclusive
-			encoding: "base64",
-			// quality: 80,
-			clip: {
-				x: 0,
-				y: 0,
-				width: pageWidth,
-				height: Math.min(pageHeight, 8_000),
-			},
+		let options: ScreenshotOptions
+		if (pageHeight && pageWidth) {
+			options = {
+				// fullPage: true, // clip and fullPage are mutually exclusive
+				encoding: "base64",
+				// quality: 80,
+				clip: {
+					x: 0,
+					y: 0,
+					width: pageWidth,
+					height: Math.min(pageHeight, 8_000),
+				},
+			}
+		} else {
+			// if we can't get the page dimensions, fallback to full page screenshot
+			options = {
+				encoding: "base64",
+				fullPage: true,
+			}
 		}
 
 		let screenshotBase64 = await this.page.screenshot({
