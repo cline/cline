@@ -325,6 +325,31 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						/>
 					</>
 				)
+			case "inspectSite":
+				const isInspecting = lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+				return (
+					<>
+						<div style={headerStyle}>
+							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>Claude wants to inspect this website:</>
+								) : (
+									<>Claude is inspecting this website:</>
+								)}
+							</span>
+						</div>
+						<div
+							style={{
+								borderRadius: 3,
+								border: "1px solid var(--vscode-editorGroup-border)",
+								overflow: "hidden",
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+							}}>
+							<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
+						</div>
+					</>
+				)
 			default:
 				return null
 		}
@@ -460,6 +485,42 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								isExpanded={isExpanded}
 								onToggleExpand={onToggleExpand}
 							/>
+						</div>
+					)
+				case "inspect_site_result":
+					const logs = message.text || ""
+					const screenshot = message.images?.[0]
+					return (
+						<div
+							style={{
+								marginTop: -10,
+								width: "100%",
+							}}>
+							{screenshot && (
+								<img
+									src={screenshot}
+									alt="Inspect screenshot"
+									style={{
+										width: "calc(100% - 2px)",
+										height: "auto",
+										objectFit: "contain",
+										marginBottom: logs ? 7 : 0,
+										borderRadius: 3,
+										cursor: "pointer",
+										marginLeft: "1px",
+									}}
+									onClick={() => vscode.postMessage({ type: "openImage", text: screenshot })}
+								/>
+							)}
+							{logs && (
+								<CodeAccordian
+									code={logs}
+									language="shell"
+									isConsoleLogs={true}
+									isExpanded={isExpanded}
+									onToggleExpand={onToggleExpand}
+								/>
+							)}
 						</div>
 					)
 				case "error":

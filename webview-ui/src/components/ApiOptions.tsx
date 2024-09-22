@@ -40,6 +40,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -414,10 +415,31 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<div style={{ marginTop: 2 }}>
+						<VSCodeCheckbox
+							checked={azureApiVersionSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAzureApiVersionSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
+								}
+							}}>
+							Set Azure API version
+						</VSCodeCheckbox>
+					</div>
+					{azureApiVersionSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.azureApiVersion || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							onInput={handleInputChange("azureApiVersion")}
+							placeholder="Default: 2024-08-01-preview"
+						/>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
-							marginTop: "5px",
+							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						You can use any OpenAI compatible API with models that support tool use.{" "}

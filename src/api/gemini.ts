@@ -39,6 +39,7 @@ export class GeminiHandler implements ApiHandler {
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
 				maxOutputTokens: this.getModel().info.maxTokens,
+				temperature: 0.2,
 			},
 		})
 		const message = convertGeminiResponseToAnthropic(result.response)

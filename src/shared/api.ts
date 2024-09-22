@@ -26,6 +26,7 @@ export interface ApiHandlerOptions {
 	ollamaBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
+	azureApiVersion?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

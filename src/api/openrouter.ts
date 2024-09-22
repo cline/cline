@@ -95,6 +95,7 @@ export class OpenRouterHandler implements ApiHandler {
 				createParams = {
 					model: this.getModel().id,
 					max_tokens: this.getModel().info.maxTokens,
+					temperature: 0.2,
 					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
 				}
 				break
@@ -102,6 +103,7 @@ export class OpenRouterHandler implements ApiHandler {
 				createParams = {
 					model: this.getModel().id,
 					max_tokens: this.getModel().info.maxTokens,
+					temperature: 0.2,
 					messages: openAiMessages,
 					tools: openAiTools,
 					tool_choice: "auto",

@@ -36,6 +36,7 @@ export class OllamaHandler implements ApiHandler {
 		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 			model: this.options.ollamaModelId ?? "",
 			messages: openAiMessages,
+			temperature: 0.2,
 			tools: openAiTools,
 			tool_choice: "auto",
 		}

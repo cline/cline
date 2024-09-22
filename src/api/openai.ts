@@ -17,7 +17,8 @@ export class OpenAiHandler implements ApiHandler {
 				apiKey: this.options.openAiApiKey,
 				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
-				apiVersion: "2024-08-01-preview",
+				// (make sure to update API options placeholder)
+				apiVersion: this.options.azureApiVersion || "2024-08-01-preview",
 			})
 		} else {
 			this.client = new OpenAI({
@@ -47,6 +48,7 @@ export class OpenAiHandler implements ApiHandler {
 		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
+			temperature: 0.2,
 			tools: openAiTools,
 			tool_choice: "auto",
 		}

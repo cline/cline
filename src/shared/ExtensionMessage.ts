@@ -58,6 +58,7 @@ export type ClaudeSay =
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
+	| "inspect_site_result"
 
 export interface ClaudeSayTool {
 	tool:
@@ -68,6 +69,7 @@ export interface ClaudeSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "inspectSite"
 	path?: string
 	diff?: string
 	content?: string

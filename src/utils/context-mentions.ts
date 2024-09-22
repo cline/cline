@@ -6,6 +6,7 @@ import { mentionRegexGlobal } from "../shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "./extract-text"
 import { isBinaryFile } from "isbinaryfile"
+import { diagnosticsToProblemsString } from "./diagnostics"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
@@ -93,8 +94,8 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			}
 		} else if (mention === "problems") {
 			try {
-				const diagnostics = await getWorkspaceDiagnostics(cwd)
-				parsedText += `\n\n<workspace_diagnostics>\n${diagnostics}\n</workspace_diagnostics>`
+				const problems = getWorkspaceProblems(cwd)
+				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
 			}
@@ -168,28 +169,11 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 	}
 }
 
-async function getWorkspaceDiagnostics(cwd: string): Promise<string> {
+function getWorkspaceProblems(cwd: string): string {
 	const diagnostics = vscode.languages.getDiagnostics()
-
-	let diagnosticsDetails = ""
-	for (const [uri, fileDiagnostics] of diagnostics) {
-		const problems = fileDiagnostics.filter(
-			(d) => d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-		)
-		if (problems.length > 0) {
-			diagnosticsDetails += `\nFile: ${path.relative(cwd, uri.fsPath)}`
-			for (const diagnostic of problems) {
-				let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-				const source = diagnostic.source ? `${diagnostic.source} ` : ""
-				diagnosticsDetails += `\n- [${source}${severity}] Line ${line}: ${diagnostic.message}`
-			}
-		}
-	}
-
-	if (!diagnosticsDetails) {
+	const result = diagnosticsToProblemsString(diagnostics, cwd)
+	if (!result) {
 		return "No errors or warnings detected."
 	}
-
-	return diagnosticsDetails.trim()
+	return result
 }
