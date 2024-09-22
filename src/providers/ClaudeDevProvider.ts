@@ -373,10 +373,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "customInstructions":
-						// User may be clearing the field
-						await this.updateGlobalState("customInstructions", message.text || undefined)
-						this.claudeDev?.updateCustomInstructions(message.text || undefined)
-						await this.postStateToWebview()
+						await this.updateCustomInstructions(message.text)
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
@@ -437,6 +434,13 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables
 		)
+	}
+
+	async updateCustomInstructions(instructions?: string) {
+		// User may be clearing the field
+		await this.updateGlobalState("customInstructions", instructions || undefined)
+		this.claudeDev?.updateCustomInstructions(instructions || undefined)
+		await this.postStateToWebview()
 	}
 
 	// Ollama
@@ -782,11 +786,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	// global
 
-	private async updateGlobalState(key: GlobalStateKey, value: any) {
+	async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
 
-	private async getGlobalState(key: GlobalStateKey) {
+	async getGlobalState(key: GlobalStateKey) {
 		return await this.context.globalState.get(key)
 	}
 

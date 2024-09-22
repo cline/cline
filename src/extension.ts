@@ -3,6 +3,7 @@
 import * as vscode from "vscode"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import delay from "delay"
+import { createClaudeDevAPI } from "./extension-api"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -141,6 +142,8 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	return createClaudeDevAPI(outputChannel, sidebarProvider)
 }
 
 // This method is called when your extension is deactivated
