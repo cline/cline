@@ -131,7 +131,15 @@ export class UrlContentFetcher {
 		}).catch(() => {})
 
 		// image cannot exceed 8_000 pixels
-		const pageHeight = await this.page.evaluate(() => document.documentElement.scrollHeight)
+		const { pageHeight, pageWidth } = await this.page.evaluate(() => {
+			const html: HTMLElement | null = document.documentElement
+			const body: HTMLElement | null = document.body
+			return {
+				pageHeight: html?.scrollHeight || body?.scrollHeight,
+				pageWidth: html?.clientWidth || body?.clientWidth,
+			}
+		})
+		// const defaultViewport = this.page.viewport(); // width 800 height 600 by default
 		let options: ScreenshotOptions = {
 			// fullPage: true, // clip and fullPage are mutually exclusive
 			encoding: "base64",
@@ -139,7 +147,7 @@ export class UrlContentFetcher {
 			clip: {
 				x: 0,
 				y: 0,
-				width: await this.page.evaluate(() => document.documentElement.clientWidth),
+				width: pageWidth,
 				height: Math.min(pageHeight, 8_000),
 			},
 		}
