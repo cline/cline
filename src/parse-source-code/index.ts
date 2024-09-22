@@ -30,7 +30,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	for (const file of filesToParse) {
 		const definitions = await parseFile(file, languageParsers)
 		if (definitions) {
-			result += `${path.relative(dirPath, file)}\n${definitions}\n`
+			result += `${path.relative(dirPath, file).toPosix()}\n${definitions}\n`
 		}
 		// else {
 		// 	filesWithoutDefinitions.push(file)

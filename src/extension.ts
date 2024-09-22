@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import delay from "delay"
 import { createClaudeDevAPI } from "./extension-api"
+import "./utils/path-helpers" // necessary to have access to String.prototype.toPosix
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit

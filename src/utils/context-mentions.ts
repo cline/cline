@@ -146,7 +146,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 									return undefined
 								}
 								const content = await extractTextFromFile(absoluteFilePath)
-								return `<file_content path="${filePath}">\n${content}\n</file_content>`
+								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {
 								return undefined
 							}
