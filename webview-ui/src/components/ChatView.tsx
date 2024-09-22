@@ -319,7 +319,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			// textAreaRef.current is not explicitly required here since react gaurantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, textAreaDisabled, enableButtons]
+		[
+			isHidden,
+			textAreaDisabled,
+			enableButtons,
+			handleSendMessage,
+			handlePrimaryButtonClick,
+			handleSecondaryButtonClick,
+		]
 	)
 
 	useEvent("message", handleMessage)
