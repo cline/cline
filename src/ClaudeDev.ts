@@ -29,6 +29,7 @@ import { regexSearchFiles } from "./utils/ripgrep"
 import { parseMentions } from "./utils/context-mentions"
 import { UrlContentFetcher } from "./utils/UrlContentFetcher"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "./utils/diagnostics"
+import { arePathsEqual } from "./utils/path-helpers"
 
 const SYSTEM_PROMPT = async (
 	supportsImages: boolean
@@ -786,7 +787,9 @@ export class ClaudeDev {
 
 			// if the file is already open, ensure it's not dirty before getting its contents
 			if (fileExists) {
-				const existingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === absolutePath)
+				const existingDocument = vscode.workspace.textDocuments.find((doc) =>
+					arePathsEqual(doc.uri.fsPath, absolutePath)
+				)
 				if (existingDocument && existingDocument.isDirty) {
 					await existingDocument.save()
 				}
@@ -861,7 +864,10 @@ export class ClaudeDev {
 			const tabs = vscode.window.tabGroups.all
 				.map((tg) => tg.tabs)
 				.flat()
-				.filter((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === absolutePath)
+				.filter(
+					(tab) =>
+						tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
+				)
 			for (const tab of tabs) {
 				await vscode.window.tabGroups.close(tab)
 				// console.log(`Closed tab for ${absolutePath}`)
@@ -1291,11 +1297,11 @@ export class ClaudeDev {
 	getReadablePath(relPath: string): string {
 		// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
 		const absolutePath = path.resolve(cwd, relPath)
-		if (cwd === path.join(os.homedir(), "Desktop")) {
+		if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
 			// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
 			return absolutePath.toPosix()
 		}
-		if (path.normalize(absolutePath) === path.normalize(cwd)) {
+		if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
 			return path.basename(absolutePath).toPosix()
 		} else {
 			// show the relative path to the cwd
@@ -2107,7 +2113,7 @@ ${this.customInstructions.trim()}
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
-			const isDesktop = cwd === path.join(os.homedir(), "Desktop")
+			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"

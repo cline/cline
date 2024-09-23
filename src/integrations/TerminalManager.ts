@@ -2,6 +2,7 @@ import { EventEmitter } from "events"
 import pWaitFor from "p-wait-for"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
+import { arePathsEqual } from "../utils/path-helpers"
 
 /*
 TerminalManager:
@@ -225,7 +226,7 @@ export class TerminalManager {
 			if (!terminalCwd) {
 				return false
 			}
-			return vscode.Uri.file(cwd).fsPath === terminalCwd.fsPath
+			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
 		})
 		if (availableTerminal) {
 			this.terminalIds.add(availableTerminal.id)

@@ -1,6 +1,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
+import { arePathsEqual } from "./path-helpers"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -27,7 +28,7 @@ export async function openFile(absolutePath: string) {
 		try {
 			for (const group of vscode.window.tabGroups.all) {
 				const existingTab = group.tabs.find(
-					(tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === uri.fsPath
+					(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, uri.fsPath)
 				)
 				if (existingTab) {
 					const activeColumn = vscode.window.activeTextEditor?.viewColumn

@@ -3,6 +3,7 @@ import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+import { arePathsEqual } from "../utils/path-helpers"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
@@ -57,12 +58,12 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which Claude tends to want to do when the user's prompt is vague.
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
-	const isRoot = absolutePath === root
+	const isRoot = arePathsEqual(absolutePath, root)
 	if (isRoot) {
 		return [[root], false]
 	}
 	const homeDir = os.homedir()
-	const isHomeDir = absolutePath === homeDir
+	const isHomeDir = arePathsEqual(absolutePath, homeDir)
 	if (isHomeDir) {
 		return [[homeDir], false]
 	}
