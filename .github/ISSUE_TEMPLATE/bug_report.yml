@@ -1,0 +1,67 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+body:
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Which Provider are you using?
+      multiple: false
+      options:
+        - OpenRouter
+        - Anthropic
+        - Google Gemini
+        - GCP Vertex AI
+        - AWS Bedrock
+        - OpenAI
+        - OpenAI Compatible
+        - Ollama
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Which Model are you using?
+      description: Please specify the model you're using (e.g., Claude 3.5 Sonnet, etc.)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How do you trigger this bug? Please walk us through it step by step.
+      value: |
+        1.
+        2.
+        3.
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant API REQUEST output
+      description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here, such as screenshots or related issues.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before you submit
+      options:
+        - label: I have checked existing issues
+          required: true
+        - label: I am using the latest version of Claude Dev and VS Code
+          required: true

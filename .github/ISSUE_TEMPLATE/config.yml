@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature Request & Ideas
+    url: https://github.com/saoudrizwan/claude-dev/discussions/categories/ideas
+    about: Share your ideas and feature requests for Claude Dev
+  - name: Claude Dev Discord Community
+    url: https://discord.gg/claudedev
+    about: Join our Discord community for discussions and support
+  - name: Other Questions?
+    url: https://x.com/sdrzn
+    about: Contact the developer on X @sdrzn for other inquiries
