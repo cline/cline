@@ -20,6 +20,9 @@ path handling capabilities across different platforms.
 Note: When interacting with the file system or VS Code APIs, we still use the native path module
 to ensure correct behavior on all platforms. The toPosixPath and arePathsEqual functions are
 primarily used for presentation and comparison purposes, not for actual file system operations.
+
+Observations:
+- Macos isn't so flexible with mixed separators, whereas windows can handle both. ("Node.js does automatically handle path separators on Windows, converting forward slashes to backslashes as needed. However, on macOS and other Unix-like systems, the path separator is always a forward slash (/), and backslashes are treated as regular characters.")
 */
 
 function toPosixPath(p: string) {
