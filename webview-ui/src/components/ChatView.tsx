@@ -382,7 +382,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
-			const isLastMessage = visibleMessages.at(-1)?.ts === ts
+			const isLast = visibleMessages.at(-1)?.ts === ts
+			const isSecondToLast = visibleMessages.at(-2)?.ts === ts
+			const isLastCollapsed = !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
 			setExpandedRows((prev) => ({
 				...prev,
 				[ts]: !prev[ts],
@@ -396,8 +398,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					})
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isLastMessage) {
+			} else if (isLast || isSecondToLast) {
 				if (isCollapsing) {
+					if (isSecondToLast && !isLastCollapsed) {
+						return
+					}
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
 							index: visibleMessages.length - 1,
@@ -408,7 +413,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				} else {
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
-							index: visibleMessages.length - 1,
+							index: visibleMessages.length - (isLast ? 1 : 2),
 							align: "start",
 						})
 					}, 0)
