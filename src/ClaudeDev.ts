@@ -112,7 +112,7 @@ const tools = (supportsImages: boolean): Tool[] => [
 				command: {
 					type: "string",
 					description:
-						"The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
+						"The CLI command to execute. This should be valid for the current operating system (see LOCAL SYSTEM INFORMATION section in <environment_details> ). Ensure the command is properly formatted and does not contain any harmful instructions.",
 				},
 			},
 			required: ["command"],
@@ -2012,6 +2012,10 @@ ${this.customInstructions.trim()}
 		} else {
 			details += "\n(No visible files)"
 		}
+
+		details += "\n\n# LOCAL SYSTEM INFORMATION\n"
+		details += `Operating System: ${osName()}\n`
+		details += `Default Shell: ${defaultShell}\n`
 
 		details += "\n\n# VSCode Open Tabs"
 		const openTabs = vscode.window.tabGroups.all
