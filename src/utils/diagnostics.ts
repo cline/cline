@@ -77,7 +77,7 @@ export function diagnosticsToProblemsString(diagnostics: [vscode.Uri, vscode.Dia
 			(d) => d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
 		)
 		if (problems.length > 0) {
-			result += `\n\n${path.relative(cwd, uri.fsPath)}`
+			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
 			for (const diagnostic of problems) {
 				let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
 				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed

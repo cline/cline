@@ -101,7 +101,7 @@ This project is licensed under the MIT License. See the [LICENSE](./LICENSE) fil
 
 ## Questions?
 
-Contact me on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please create an <a href="https://github.com/saoudrizwan/claude-dev/issues">issue</a> if you come across a bug or would like a feature to be added.
+Contact me on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please create an <a href="https://github.com/saoudrizwan/claude-dev/issues">issue</a> if you come across a bug or post an <a href="https://github.com/saoudrizwan/claude-dev/discussions/categories/ideas">idea</a> if you would like a feature to be added.
 
 ## Acknowledgments
 

@@ -181,40 +181,43 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [messages.length])
 
-	const handleSendMessage = useCallback(() => {
-		const text = inputValue.trim()
-		if (text || selectedImages.length > 0) {
-			if (messages.length === 0) {
-				vscode.postMessage({ type: "newTask", text, images: selectedImages })
-			} else if (claudeAsk) {
-				switch (claudeAsk) {
-					case "followup":
-					case "tool":
-					case "command": // user can provide feedback to a tool or command use
-					case "command_output": // user can send input to command stdin
-					case "completion_result": // if this happens then the user has feedback for the completion result
-					case "resume_task":
-					case "resume_completed_task":
-					case "mistake_limit_reached":
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "messageResponse",
-							text,
-							images: selectedImages,
-						})
-						break
-					// there is no other case that a textfield should be enabled
+	const handleSendMessage = useCallback(
+		(text: string, images: string[]) => {
+			text = text.trim()
+			if (text || images.length > 0) {
+				if (messages.length === 0) {
+					vscode.postMessage({ type: "newTask", text, images })
+				} else if (claudeAsk) {
+					switch (claudeAsk) {
+						case "followup":
+						case "tool":
+						case "command": // user can provide feedback to a tool or command use
+						case "command_output": // user can send input to command stdin
+						case "completion_result": // if this happens then the user has feedback for the completion result
+						case "resume_task":
+						case "resume_completed_task":
+						case "mistake_limit_reached":
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text,
+								images,
+							})
+							break
+						// there is no other case that a textfield should be enabled
+					}
 				}
+				setInputValue("")
+				setTextAreaDisabled(true)
+				setSelectedImages([])
+				setClaudeAsk(undefined)
+				setEnableButtons(false)
+				// setPrimaryButtonText(undefined)
+				// setSecondaryButtonText(undefined)
 			}
-			setInputValue("")
-			setTextAreaDisabled(true)
-			setSelectedImages([])
-			setClaudeAsk(undefined)
-			setEnableButtons(false)
-			// setPrimaryButtonText(undefined)
-			// setSecondaryButtonText(undefined)
-		}
-	}, [inputValue, selectedImages, messages.length, claudeAsk])
+		},
+		[messages.length, claudeAsk]
+	)
 
 	const startNewTask = useCallback(() => {
 		vscode.postMessage({ type: "clearTask" })
@@ -301,10 +304,29 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						)
 					}
 					break
+				case "invoke":
+					switch (message.invoke!) {
+						case "sendMessage":
+							handleSendMessage(message.text ?? "", message.images ?? [])
+							break
+						case "primaryButtonClick":
+							handlePrimaryButtonClick()
+							break
+						case "secondaryButtonClick":
+							handleSecondaryButtonClick()
+							break
+					}
 			}
 			// textAreaRef.current is not explicitly required here since react gaurantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, textAreaDisabled, enableButtons]
+		[
+			isHidden,
+			textAreaDisabled,
+			enableButtons,
+			handleSendMessage,
+			handlePrimaryButtonClick,
+			handleSecondaryButtonClick,
+		]
 	)
 
 	useEvent("message", handleMessage)
@@ -360,7 +382,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
-			const isLastMessage = visibleMessages.at(-1)?.ts === ts
+			const isLast = visibleMessages.at(-1)?.ts === ts
+			const isSecondToLast = visibleMessages.at(-2)?.ts === ts
+			const isLastCollapsed = !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
 			setExpandedRows((prev) => ({
 				...prev,
 				[ts]: !prev[ts],
@@ -374,8 +398,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					})
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isLastMessage) {
+			} else if (isLast || isSecondToLast) {
 				if (isCollapsing) {
+					if (isSecondToLast && !isLastCollapsed) {
+						return
+					}
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
 							index: visibleMessages.length - 1,
@@ -386,7 +413,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				} else {
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
-							index: visibleMessages.length - 1,
+							index: visibleMessages.length - (isLast ? 1 : 2),
 							align: "start",
 						})
 					}, 0)
@@ -545,7 +572,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				placeholderText={placeholderText}
 				selectedImages={selectedImages}
 				setSelectedImages={setSelectedImages}
-				onSend={handleSendMessage}
+				onSend={() => handleSendMessage(inputValue, selectedImages)}
 				onSelectImages={selectImages}
 				shouldDisableImages={shouldDisableImages}
 				onHeightChange={() => {
