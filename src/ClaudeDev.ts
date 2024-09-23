@@ -258,7 +258,7 @@ const tools = (supportsImages: boolean): Tool[] => [
 				command: {
 					type: "string",
 					description:
-						"A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. Avoid using commands like 'echo' or 'cat' that merely print text. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
+						"A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. DO NOT use commands like 'echo' or 'cat' that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.",
 				},
 				result: {
 					type: "string",
