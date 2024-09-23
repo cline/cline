@@ -937,7 +937,7 @@ export class ClaudeDev {
 						tool: "editedExistingFile",
 						path: this.getReadablePath(relPath),
 						diff: this.createPrettyPatch(relPath, originalContent, newContent),
-					} as ClaudeSayTool)
+					} satisfies ClaudeSayTool)
 				)
 			} else {
 				userResponse = await this.ask(
@@ -946,7 +946,7 @@ export class ClaudeDev {
 						tool: "newFileCreated",
 						path: this.getReadablePath(relPath),
 						content: newContent,
-					} as ClaudeSayTool)
+					} satisfies ClaudeSayTool)
 				)
 			}
 			const { response, text, images } = userResponse
@@ -1111,7 +1111,7 @@ export class ClaudeDev {
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: this.getReadablePath(relPath),
 						diff: this.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
-					} as ClaudeSayTool)
+					} satisfies ClaudeSayTool)
 				)
 				return [
 					false,
@@ -1220,7 +1220,7 @@ export class ClaudeDev {
 				tool: "readFile",
 				path: this.getReadablePath(relPath),
 				content: absolutePath,
-			} as ClaudeSayTool)
+			} satisfies ClaudeSayTool)
 			if (this.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
@@ -1264,7 +1264,7 @@ export class ClaudeDev {
 				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
 				path: this.getReadablePath(relDirPath),
 				content: result,
-			} as ClaudeSayTool)
+			} satisfies ClaudeSayTool)
 			if (this.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
@@ -1368,7 +1368,7 @@ export class ClaudeDev {
 				tool: "listCodeDefinitionNames",
 				path: this.getReadablePath(relDirPath),
 				content: result,
-			} as ClaudeSayTool)
+			} satisfies ClaudeSayTool)
 			if (this.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
@@ -1418,7 +1418,7 @@ export class ClaudeDev {
 				regex: regex,
 				filePattern: filePattern,
 				content: results,
-			} as ClaudeSayTool)
+			} satisfies ClaudeSayTool)
 
 			if (this.alwaysAllowReadOnly) {
 				await this.say("tool", message)
