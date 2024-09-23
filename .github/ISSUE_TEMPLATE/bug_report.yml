@@ -2,21 +2,6 @@ name: Bug Report
 description: File a bug report
 title: "[Bug]: "
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for taking the time to fill out this bug report!
-  - type: dropdown
-    id: os
-    attributes:
-      label: What operating system are you using?
-      multiple: false
-      options:
-        - Linux
-        - macOS
-        - Windows
-    validations:
-      required: true
   - type: dropdown
     id: provider
     attributes:
@@ -63,7 +48,7 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Relevant **API Request** output
+      label: Relevant API REQUEST output
       description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
       render: shell
   - type: textarea
