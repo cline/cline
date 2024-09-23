@@ -1,6 +1,6 @@
 name: Bug Report
 description: File a bug report
-title: "[Bug]: "
+title: ""
 body:
     - type: dropdown
       id: provider
@@ -42,7 +42,6 @@ body:
               1.
               2.
               3.
-              ...
       validations:
           required: true
     - type: textarea
@@ -56,12 +55,3 @@ body:
       attributes:
           label: Additional context
           description: Add any other context about the problem here, such as screenshots or related issues.
-    - type: checkboxes
-      id: terms
-      attributes:
-          label: Before you submit
-          options:
-              - label: I have checked existing issues
-                required: true
-              - label: I am using the latest version of Claude Dev and VSCode
-                required: true
