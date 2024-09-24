@@ -1,6 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../shared/api"
+import { ApiHandler, ApiHandlerMessageResponse } from "../index"
+import {
+	anthropicDefaultModelId,
+	AnthropicModelId,
+	anthropicModels,
+	ApiHandlerOptions,
+	ModelInfo,
+} from "../../shared/api"
 
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions

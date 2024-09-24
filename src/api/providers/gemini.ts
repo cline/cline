@@ -6,7 +6,7 @@ import {
 	convertAnthropicMessageToGemini,
 	convertAnthropicToolToGemini,
 	convertGeminiResponseToAnthropic,
-} from "../utils/gemini-format"
+} from "./transform/gemini-format"
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions

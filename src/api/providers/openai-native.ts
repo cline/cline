@@ -8,8 +8,8 @@ import {
 	OpenAiNativeModelId,
 	openAiNativeModels,
 } from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../utils/o1-format"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "./transform/o1-format"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions

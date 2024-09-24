@@ -1,19 +1,31 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import OpenAI, { AzureOpenAI } from "openai"
+import { ApiHandler, ApiHandlerMessageResponse } from "../index"
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
 
-export class OllamaHandler implements ApiHandler {
+export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
-			apiKey: "ollama",
-		})
+		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
+		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
+			this.client = new AzureOpenAI({
+				baseURL: this.options.openAiBaseUrl,
+				apiKey: this.options.openAiApiKey,
+				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
+				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
+				// (make sure to update API options placeholder)
+				apiVersion: this.options.azureApiVersion || "2024-08-01-preview",
+			})
+		} else {
+			this.client = new OpenAI({
+				baseURL: this.options.openAiBaseUrl,
+				apiKey: this.options.openAiApiKey,
+			})
+		}
 	}
 
 	async createMessage(
@@ -34,7 +46,7 @@ export class OllamaHandler implements ApiHandler {
 			},
 		}))
 		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: this.options.ollamaModelId ?? "",
+			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
 			temperature: 0.2,
 			tools: openAiTools,
@@ -51,7 +63,7 @@ export class OllamaHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		return {
-			id: this.options.ollamaModelId ?? "",
+			id: this.options.openAiModelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}

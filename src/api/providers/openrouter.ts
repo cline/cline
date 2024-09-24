@@ -8,9 +8,9 @@ import {
 	OpenRouterModelId,
 	openRouterModels,
 } from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
 import axios from "axios"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../utils/o1-format"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "./transform/o1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions

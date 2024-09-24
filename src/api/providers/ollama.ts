@@ -1,31 +1,19 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI, { AzureOpenAI } from "openai"
+import OpenAI from "openai"
 import { ApiHandler, ApiHandlerMessageResponse } from "."
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../utils/openai-format"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
 
-export class OpenAiHandler implements ApiHandler {
+export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
-			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
-				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
-				// (make sure to update API options placeholder)
-				apiVersion: this.options.azureApiVersion || "2024-08-01-preview",
-			})
-		} else {
-			this.client = new OpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-			})
-		}
+		this.client = new OpenAI({
+			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
+			apiKey: "ollama",
+		})
 	}
 
 	async createMessage(
@@ -46,7 +34,7 @@ export class OpenAiHandler implements ApiHandler {
 			},
 		}))
 		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: this.options.openAiModelId ?? "",
+			model: this.options.ollamaModelId ?? "",
 			messages: openAiMessages,
 			temperature: 0.2,
 			tools: openAiTools,
@@ -63,7 +51,7 @@ export class OpenAiHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		return {
-			id: this.options.openAiModelId ?? "",
+			id: this.options.ollamaModelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}
