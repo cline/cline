@@ -11,7 +11,7 @@ import { HistoryItem } from "../../shared/HistoryItem"
 import axios from "axios"
 import { getTheme } from "../../integrations/theme/getTheme"
 import { openFile, openImage } from "../../utils/open-file"
-import WorkspaceTracker from "../../integrations/WorkspaceTracker"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { openMention } from "../../utils/context-mentions"
 
 /*
