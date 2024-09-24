@@ -16,7 +16,7 @@ import axios from "axios"
 import { getTheme } from "../../integrations/theme/getTheme"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { openMention } from "../mentions/context-mentions"
+import { openMention } from "../mentions"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
