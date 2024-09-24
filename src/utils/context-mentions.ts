@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import { openFile } from "./open-file"
-import { UrlContentFetcher } from "./UrlContentFetcher"
+import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "../shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "./extract-text"
