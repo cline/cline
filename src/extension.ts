@@ -3,7 +3,7 @@
 import * as vscode from "vscode"
 import { ClaudeDevProvider } from "./providers/ClaudeDevProvider"
 import delay from "delay"
-import { createClaudeDevAPI } from "./extension-api"
+import { createClaudeDevAPI } from "./exports"
 import "./utils/path-helpers" // necessary to have access to String.prototype.toPosix
 
 /*
