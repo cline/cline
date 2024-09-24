@@ -2,13 +2,13 @@ import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/reac
 import deepEqual from "fast-deep-equal"
 import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
-import { ClaudeMessage, ClaudeSayTool } from "../../../src/shared/ExtensionMessage"
-import { COMMAND_OUTPUT_STRING } from "../../../src/shared/combineCommandSequences"
-import { vscode } from "../utils/vscode"
-import CodeAccordian, { removeLeadingNonAlphanumeric } from "./CodeAccordian"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
+import { ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
+import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
+import { vscode } from "../../utils/vscode"
+import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlightMentions } from "./TaskHeader"
-import Thumbnails from "./Thumbnails"
+import Thumbnails from "../common/Thumbnails"
 
 interface ChatRowProps {
 	message: ClaudeMessage

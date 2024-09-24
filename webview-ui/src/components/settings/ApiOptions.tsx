@@ -25,11 +25,11 @@ import {
 	openRouterModels,
 	vertexDefaultModelId,
 	vertexModels,
-} from "../../../src/shared/api"
-import { ExtensionMessage } from "../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../context/ExtensionStateContext"
-import { vscode } from "../utils/vscode"
-import VSCodeButtonLink from "./VSCodeButtonLink"
+} from "../../../../src/shared/api"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { vscode } from "../../utils/vscode"
+import VSCodeButtonLink from "../VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean

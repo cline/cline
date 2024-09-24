@@ -1,8 +1,8 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import { useExtensionState } from "../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../utils/validate"
-import { vscode } from "../utils/vscode"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { validateApiConfiguration } from "../../utils/validate"
+import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
 const IS_DEV = false // FIXME: use flags when packaging
