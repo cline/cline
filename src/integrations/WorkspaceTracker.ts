@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { listFiles } from "../parse-source-code/index"
+import { listFiles } from "../core/tree-sitter/index"
 import { ClaudeDevProvider } from "../providers/ClaudeDevProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)

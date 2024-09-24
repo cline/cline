@@ -3,7 +3,7 @@ import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
-import { arePathsEqual } from "../utils/path-helpers"
+import { arePathsEqual } from "../../utils/path-helpers"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
