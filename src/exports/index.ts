@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { ClaudeDevProvider } from "../providers/ClaudeDevProvider"
+import { ClaudeDevProvider } from "../core/webviews/ClaudeDevProvider"
 import { ClaudeDevAPI } from "./claude-dev"
 
 export function createClaudeDevAPI(
