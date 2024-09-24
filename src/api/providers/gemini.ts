@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { FunctionCallingMode, GoogleGenerativeAI } from "@google/generative-ai"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../shared/api"
+import { ApiHandler, ApiHandlerMessageResponse } from "../"
+import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
 import {
 	convertAnthropicMessageToGemini,
 	convertAnthropicToolToGemini,
 	convertGeminiResponseToAnthropic,
-} from "./transform/gemini-format"
+} from "../transform/gemini-format"
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions

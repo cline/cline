@@ -1,16 +1,16 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "../"
 import {
 	ApiHandlerOptions,
 	ModelInfo,
 	openRouterDefaultModelId,
 	OpenRouterModelId,
 	openRouterModels,
-} from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
+} from "../../shared/api"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
 import axios from "axios"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "./transform/o1-format"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../transform/o1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions

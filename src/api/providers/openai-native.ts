@@ -1,15 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
+import { ApiHandler, ApiHandlerMessageResponse } from "../"
 import {
 	ApiHandlerOptions,
 	ModelInfo,
 	openAiNativeDefaultModelId,
 	OpenAiNativeModelId,
 	openAiNativeModels,
-} from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "./transform/o1-format"
+} from "../../shared/api"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
+import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../transform/o1-format"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions

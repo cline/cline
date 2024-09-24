@@ -2,7 +2,7 @@ import { EventEmitter } from "events"
 import pWaitFor from "p-wait-for"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
-import { arePathsEqual } from "../utils/path-helpers"
+import { arePathsEqual } from "../../utils/path"
 
 /*
 TerminalManager:

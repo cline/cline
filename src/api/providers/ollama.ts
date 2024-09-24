@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "."
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "./transform/openai-format"
+import { ApiHandler, ApiHandlerMessageResponse } from "../"
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
 
 export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
