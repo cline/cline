@@ -19,9 +19,7 @@ html {
 
 body {
 	margin: 0;
-}
-body, body * {
-	line-height: 1.5em;
+	line-height: 1.3;
 }
 
 body.scrollable,

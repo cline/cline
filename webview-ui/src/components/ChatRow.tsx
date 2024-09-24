@@ -840,7 +840,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 									fontSize: "var(--vscode-editor-font-size)",
 									borderRadius: "3px",
 									border: "1px solid var(--vscode-textSeparator-foreground)",
-									// padding: "2px 4px",
+									padding: "0px 2px",
 								}}>
 								{children}
 							</code>
