@@ -399,3 +399,8 @@ export const openAiNativeModels = {
 		outputPrice: 0.6,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Azure OpenAI
+// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
+// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
+export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"

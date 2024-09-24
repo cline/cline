@@ -1,7 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { ApiHandler, ApiHandlerMessageResponse } from "../index"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	azureOpenAiDefaultApiVersion,
+	ModelInfo,
+	openAiModelInfoSaneDefaults,
+} from "../../shared/api"
 import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
 
 export class OpenAiHandler implements ApiHandler {
@@ -15,10 +20,7 @@ export class OpenAiHandler implements ApiHandler {
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
-				// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
-				// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
-				// (make sure to update API options placeholder)
-				apiVersion: this.options.azureApiVersion || "2024-08-01-preview",
+				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 			})
 		} else {
 			this.client = new OpenAI({

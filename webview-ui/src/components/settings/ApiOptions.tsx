@@ -14,6 +14,7 @@ import {
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
+	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
 	geminiDefaultModelId,
@@ -429,7 +430,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 							value={apiConfiguration?.azureApiVersion || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							onInput={handleInputChange("azureApiVersion")}
-							placeholder="Default: 2024-08-01-preview"
+							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
 					<p
