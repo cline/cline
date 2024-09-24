@@ -1,12 +1,12 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { openFile } from "./open-file"
-import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { mentionRegexGlobal } from "../shared/context-mentions"
+import { openFile } from "../../integrations/misc/open-file"
+import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
+import { mentionRegexGlobal } from "../../shared/context-mentions"
 import fs from "fs/promises"
-import { extractTextFromFile } from "./extract-text"
+import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString } from "./diagnostics"
+import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 
 export function openMention(mention?: string): void {
 	if (!mention) {

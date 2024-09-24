@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode"
-import { ClaudeDevProvider } from "./core/webviews/ClaudeDevProvider"
+import { ClaudeDevProvider } from "./core/webview/ClaudeDevProvider"
 import delay from "delay"
 import { createClaudeDevAPI } from "./exports"
 import "./utils/path-helpers" // necessary to have access to String.prototype.toPosix
