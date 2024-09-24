@@ -169,7 +169,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.apiKey && (
 							<VSCodeLink
-								href="https://console.anthropic.com/"
+								href="https://console.anthropic.com/settings/keys"
 								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
