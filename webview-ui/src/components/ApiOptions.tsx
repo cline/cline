@@ -136,19 +136,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
 
-					<div style={{ marginTop: 2 }}>
-						<VSCodeCheckbox
-							checked={anthropicBaseUrlSelected}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked === true
-								setAnthropicBaseUrlSelected(isChecked)
-								if (!isChecked) {
-									setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
-								}
-							}}>
-							Use custom base URL
-						</VSCodeCheckbox>
-					</div>
+					<VSCodeCheckbox
+						checked={anthropicBaseUrlSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setAnthropicBaseUrlSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+							}
+						}}>
+						Use custom base URL
+					</VSCodeCheckbox>
 
 					{anthropicBaseUrlSelected && (
 						<VSCodeTextField
@@ -169,7 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.apiKey && (
 							<VSCodeLink
-								href="https://console.anthropic.com/"
+								href="https://console.anthropic.com/settings/keys"
 								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
@@ -415,19 +413,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
-					<div style={{ marginTop: 2 }}>
-						<VSCodeCheckbox
-							checked={azureApiVersionSelected}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked === true
-								setAzureApiVersionSelected(isChecked)
-								if (!isChecked) {
-									setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
-								}
-							}}>
-							Set Azure API version
-						</VSCodeCheckbox>
-					</div>
+					<VSCodeCheckbox
+						checked={azureApiVersionSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setAzureApiVersionSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
+							}
+						}}>
+						Set Azure API version
+					</VSCodeCheckbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
