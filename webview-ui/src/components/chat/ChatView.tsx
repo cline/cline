@@ -384,7 +384,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			const isCollapsing = expandedRows[ts] ?? false
 			const isLast = visibleMessages.at(-1)?.ts === ts
 			const isSecondToLast = visibleMessages.at(-2)?.ts === ts
-			const isLastCollapsed = !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
+			const isLastCollapsedApiReq =
+				visibleMessages.at(-1)?.say === "api_req_started" && !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
 			setExpandedRows((prev) => ({
 				...prev,
 				[ts]: !prev[ts],
@@ -400,7 +401,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				return () => clearTimeout(timer)
 			} else if (isLast || isSecondToLast) {
 				if (isCollapsing) {
-					if (isSecondToLast && !isLastCollapsed) {
+					if (isSecondToLast && !isLastCollapsedApiReq) {
 						return
 					}
 					const timer = setTimeout(() => {
