@@ -29,7 +29,7 @@ import { ClaudeAskResponse } from "../shared/WebviewMessage"
 import { findLast, findLastIndex } from "../utils/array"
 import { arePathsEqual } from "../utils/path"
 import { parseMentions } from "./mentions"
-import { tools } from "./prompts/tools"
+import { TOOLS } from "./prompts/tools"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
 
@@ -1464,7 +1464,7 @@ ${this.customInstructions.trim()}
 			const { message, userCredits } = await this.api.createMessage(
 				systemPrompt,
 				this.apiConversationHistory,
-				tools(cwd, this.api.getModel().info.supportsImages)
+				TOOLS(cwd, this.api.getModel().info.supportsImages)
 			)
 			if (userCredits !== undefined) {
 				console.log("Updating credits", userCredits)

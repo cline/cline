@@ -1,6 +1,6 @@
 import { Tool } from "../../shared/Tool"
 
-export const tools = (cwd: string, supportsImages: boolean): Tool[] => [
+export const TOOLS = (cwd: string, supportsImages: boolean): Tool[] => [
 	{
 		name: "execute_command",
 		description: `Execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}`,
