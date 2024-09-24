@@ -29,7 +29,7 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import VSCodeButtonLink from "../VSCodeButtonLink"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean

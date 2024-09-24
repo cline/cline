@@ -1,6 +1,6 @@
 import React, { useState, useRef, useLayoutEffect, memo } from "react"
 import { useWindowSize } from "react-use"
-import { vscode } from "../utils/vscode"
+import { vscode } from "../../utils/vscode"
 
 interface ThumbnailsProps {
 	images: string[]

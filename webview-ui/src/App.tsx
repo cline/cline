@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
-import ChatView from "./components/ChatView"
-import HistoryView from "./components/HistoryView"
+import ChatView from "./components/chat/ChatView"
+import HistoryView from "./components/history/HistoryView"
 import SettingsView from "./components/settings/SettingsView"
-import WelcomeView from "./components/WelcomeView"
+import WelcomeView from "./components/welcome/WelcomeView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 

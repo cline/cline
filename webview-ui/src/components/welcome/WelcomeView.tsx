@@ -1,9 +1,9 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
-import { useExtensionState } from "../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../utils/validate"
-import { vscode } from "../utils/vscode"
-import ApiOptions from "./settings/ApiOptions"
+import { useEffect, useState } from "react"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { validateApiConfiguration } from "../../utils/validate"
+import { vscode } from "../../utils/vscode"
+import ApiOptions from "../settings/ApiOptions"
 
 const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()

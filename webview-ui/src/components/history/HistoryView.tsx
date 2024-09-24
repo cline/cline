@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "../context/ExtensionStateContext"
-import { vscode } from "../utils/vscode"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
