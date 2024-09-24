@@ -11,6 +11,7 @@ export class PromptBuilder {
     private noImagesSystemPrompt: string = ""
     private imagesSystemPrompt: string = ""
     private customInstructions: string = ""
+    private claudePromptsTools: { [key: string]: string } = {}
 
     constructor(_cwd : string){
         this.cwd = _cwd
@@ -54,6 +55,11 @@ export class PromptBuilder {
         this.noImagesSystemPrompt = this.concatenateArray(claudePromptsContent.no_images_system_prompt);
         this.imagesSystemPrompt = this.concatenateArray(claudePromptsContent.images_system_prompt);
         this.customInstructions = this.concatenateArray(claudePromptsContent.custom_instructions);
+        
+        // Read tools descriptions if available
+        if (claudePromptsContent.tools) {
+            this.claudePromptsTools = claudePromptsContent.tools;
+        }
     }
 
     private concatenateArray(arr: string[]): string {
@@ -61,7 +67,22 @@ export class PromptBuilder {
     }
 
     getTools(supportsImages: boolean): Tool[] {
-        return tools(supportsImages, this.cwd);
+        const defaultTools = tools(supportsImages, this.cwd);
+        
+        // Override descriptions if custom descriptions are available
+        if (Object.keys(this.claudePromptsTools).length > 0) {
+            return defaultTools.map(tool => {
+                if (this.claudePromptsTools[tool.name]) {
+                    return {
+                        ...tool,
+                        description: this.claudePromptsTools[tool.name]
+                    };
+                }
+                return tool;
+            });
+        }
+        
+        return defaultTools;
     }
 
     getSystemPrompt(supportsImages: boolean, defaultShell: string): string {
