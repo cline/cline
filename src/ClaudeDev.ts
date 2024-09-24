@@ -1999,42 +1999,16 @@ ${this.customInstructions.trim()}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
-
-		// It could be useful for claude to know if the user went from one or no file to another between messages, so we always include this context
-		details += "\n\n# VSCode Visible Files"
-		const visibleFiles = vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
-			.join("\n")
-		if (visibleFiles) {
-			details += `\n${visibleFiles}`
-		} else {
-			details += "\n(No visible files)"
-		}
-
-		details += "\n\n# VSCode Open Tabs"
-		const openTabs = vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
-			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
-			.join("\n")
-		if (openTabs) {
-			details += `\n${openTabs}`
-		} else {
-			details += "\n(No open tabs)"
-		}
-
+	
 		const busyTerminals = this.terminalManager.getTerminals(true)
 		const inactiveTerminals = this.terminalManager.getTerminals(false)
 		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
-
+	
 		if (busyTerminals.length > 0 && this.didEditFile) {
 			//  || this.didEditFile
 			await delay(300) // delay after saving file to let terminals catch up
 		}
-
+	
 		// let terminalWasBusy = false
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
@@ -2044,7 +2018,7 @@ ${this.customInstructions.trim()}
 				timeout: 15_000,
 			}).catch(() => {})
 		}
-
+	
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
 		/*
 		let diagnosticsDetails = ""
@@ -2063,7 +2037,7 @@ ${this.customInstructions.trim()}
 		}
 		*/
 		this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
-
+	
 		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
 		let terminalDetails = ""
 		if (busyTerminals.length > 0) {
@@ -2099,18 +2073,18 @@ ${this.customInstructions.trim()}
 				}
 			}
 		}
-
+	
 		// details += "\n\n# VSCode Workspace Errors"
 		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
+		//  details += diagnosticsDetails
 		// } else {
-		// 	details += "\n(No errors detected)"
+		//  details += "\n(No errors detected)"
 		// }
-
+	
 		if (terminalDetails) {
 			details += terminalDetails
 		}
-
+	
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
 			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
@@ -2123,9 +2097,35 @@ ${this.customInstructions.trim()}
 				details += result
 			}
 		}
-
+	
+		// Moved sections about visible files and open tabs further down
+		details += "\n\n# VSCode Visible Files (These may not be important)"
+		const visibleFiles = vscode.window.visibleTextEditors
+			?.map((editor) => editor.document?.uri?.fsPath)
+			.filter(Boolean)
+			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+			.join("\n")
+		if (visibleFiles) {
+			details += `\n${visibleFiles}`
+		} else {
+			details += "\n(No visible files)"
+		}
+	
+		details += "\n\n# VSCode Open Tabs (These may not be important)"
+		const openTabs = vscode.window.tabGroups.all
+			.flatMap((group) => group.tabs)
+			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+			.filter(Boolean)
+			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+			.join("\n")
+		if (openTabs) {
+			details += `\n${openTabs}`
+		} else {
+			details += "\n(No open tabs)"
+		}
+	
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
-	}
+	}	
 
 	async formatToolDeniedFeedback(feedback?: string) {
 		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`
