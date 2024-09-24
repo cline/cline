@@ -54,7 +54,7 @@ export async function getTheme() {
 		if (currentTheme === undefined && defaultThemes[colorTheme]) {
 			const filename = `${defaultThemes[colorTheme]}.json`
 			currentTheme = await fs.readFile(
-				path.join(getExtensionUri().fsPath, "src", "utils", "default-themes", filename),
+				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", filename),
 				"utf-8"
 			)
 		}
@@ -64,7 +64,7 @@ export async function getTheme() {
 
 		if (parsed.include) {
 			const includeThemeString = await fs.readFile(
-				path.join(getExtensionUri().fsPath, "src", "utils", "default-themes", parsed.include),
+				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", parsed.include),
 				"utf-8"
 			)
 			const includeTheme = parseThemeString(includeThemeString)
