@@ -23,14 +23,15 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { Tool, ToolName } from "../shared/Tool"
 import { ClaudeAskResponse } from "../shared/WebviewMessage"
-import { findLast, findLastIndex, formatContentBlockToMarkdown } from "../utils"
-import { truncateHalfConversation } from "../utils/context-management"
+import { findLast, findLastIndex } from "../utils/array"
+import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
+import { truncateHalfConversation } from "./sliding-window"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseMentions } from "./mentions/context-mentions"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../integrations/diagnostics"
-import { arePathsEqual } from "../utils/path-helpers"
+import { arePathsEqual } from "../utils/path"
 
 const SYSTEM_PROMPT = async (
 	supportsImages: boolean
