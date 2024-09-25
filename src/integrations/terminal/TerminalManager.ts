@@ -81,7 +81,7 @@ declare module "vscode" {
 	}
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
 	interface Window {
-		onDidEndTerminalShellExecution?: (
+		onDidStartTerminalShellExecution?: (
 			listener: (e: any) => any,
 			thisArgs?: any,
 			disposables?: vscode.Disposable[]
@@ -95,17 +95,11 @@ export class TerminalManager {
 	private disposables: vscode.Disposable[] = []
 
 	constructor() {
-		// Listening to this reduces the # of empty terminal outputs!
 		let disposable: vscode.Disposable | undefined
 		try {
-			disposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-				// console.log(`Terminal shell execution ended. Command line:`, e.execution.commandLine.value)
-				const stream = e?.execution?.read()
-				if (stream) {
-					for await (let _ of stream) {
-						// console.log(`from onDidEndTerminalShellExecution, read:`, data)
-					}
-				}
+			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
+				e?.execution?.read()
 			})
 		} catch (error) {
 			// console.error("Error setting up onDidEndTerminalShellExecution", error)
@@ -113,7 +107,6 @@ export class TerminalManager {
 		if (disposable) {
 			this.disposables.push(disposable)
 		}
-		// Oddly if we listen to `onDidStartTerminalShellExecution` or `onDidChangeTerminalShellIntegration` this hack doesn't work...
 	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
