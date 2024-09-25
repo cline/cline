@@ -118,8 +118,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Claude will automatically read files and view directories without requiring you to
-						click the Allow button.
+						When enabled, Claude will automatically read files, view directories, and inspect sites without
+						requiring you to click the Allow button.
 					</p>
 				</div>
 
