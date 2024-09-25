@@ -2,6 +2,7 @@ import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiHandlerMessageResponse } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
+import { HttpProxyAgent } from "hpagent"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -20,6 +21,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			// awsRegion changes the aws region to which the request is made. By default, we read AWS_REGION,
 			// and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.
 			awsRegion: this.options.awsRegion,
+			// AnthropicBedrock client does not read https_proxy environment variable by default.
+			// So we need to pass it explicitly.
+			httpAgent: new HttpProxyAgent({ proxy: process.env.HTTP_PROXY as string }),
 		})
 	}
 
