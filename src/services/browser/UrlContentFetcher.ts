@@ -8,6 +8,7 @@ import TurndownService from "turndown"
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
+import { Settings } from "../../core/Settings"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -52,10 +53,17 @@ export class UrlContentFetcher {
 			return
 		}
 		const stats = await this.ensureChromiumExists()
+		const settings = Settings.getInstance()
+		const customLaunchArgs = settings.puppeteerLaunchArgs
+
+		const defaultArgs = [
+			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+		]
+
+		const launchArgs = [...defaultArgs, ...customLaunchArgs]
+
 		this.browser = await stats.puppeteer.launch({
-			args: [
-				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-			],
+			args: launchArgs,
 			executablePath: stats.executablePath,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
