@@ -109,6 +109,16 @@
           "when": "view == claude-dev.SidebarProvider"
         }
       ]
+    },
+    "configuration": {
+      "title": "Claude Dev",
+      "properties": {
+        "claudeDev.alwaysAllowReadOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, Claude will automatically read files and view directories without requiring you to click the Allow button."
+        }
+      }
     }
   },
   "scripts": {

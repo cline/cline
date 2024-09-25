@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../../utils/validate"
@@ -17,8 +17,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		version,
 		customInstructions,
 		setCustomInstructions,
-		alwaysAllowReadOnly,
-		setAlwaysAllowReadOnly,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
@@ -30,7 +28,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		if (!apiValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
-			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
 		}
 	}
@@ -42,7 +39,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	// validate as soon as the component is mounted
 	/*
 	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
+
 	useEffect(() => {
 		// uses someVar and anotherVar
 	// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,23 +100,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Claude will automatically read files and view directories without requiring you to
-						click the Allow button.
 					</p>
 				</div>
 

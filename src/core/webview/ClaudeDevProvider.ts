@@ -199,18 +199,17 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 
 	async initClaudeDevWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.claudeDev = new ClaudeDev(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
+		const { apiConfiguration, customInstructions } = await this.getState()
+		this.claudeDev = new ClaudeDev(this, apiConfiguration, customInstructions, task, images)
 	}
 
 	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { apiConfiguration, customInstructions } = await this.getState()
 		this.claudeDev = new ClaudeDev(
 			this,
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly,
 			undefined,
 			undefined,
 			historyItem

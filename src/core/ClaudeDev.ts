@@ -32,6 +32,7 @@ import { parseMentions } from "./mentions"
 import { TOOLS } from "./prompts/tools"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
+import { Settings } from "./Settings"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -48,7 +49,7 @@ export class ClaudeDev {
 	private urlContentFetcher: UrlContentFetcher
 	private didEditFile: boolean = false
 	private customInstructions?: string
-	private alwaysAllowReadOnly: boolean
+	private settings: Settings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
 	private askResponse?: ClaudeAskResponse
@@ -63,7 +64,6 @@ export class ClaudeDev {
 		provider: ClaudeDevProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
-		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem
@@ -73,7 +73,7 @@ export class ClaudeDev {
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.customInstructions = customInstructions
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.settings = Settings.getInstance()
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -95,7 +95,7 @@ export class ClaudeDev {
 	}
 
 	updateAlwaysAllowReadOnly(alwaysAllowReadOnly: boolean | undefined) {
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.settings.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 	}
 
 	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
@@ -986,7 +986,7 @@ export class ClaudeDev {
 				path: this.getReadablePath(relPath),
 				content: absolutePath,
 			} satisfies ClaudeSayTool)
-			if (this.alwaysAllowReadOnly) {
+			if (this.settings.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
 				const { response, text, images } = await this.ask("tool", message)
@@ -1030,7 +1030,7 @@ export class ClaudeDev {
 				path: this.getReadablePath(relDirPath),
 				content: result,
 			} satisfies ClaudeSayTool)
-			if (this.alwaysAllowReadOnly) {
+			if (this.settings.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
 				const { response, text, images } = await this.ask("tool", message)
@@ -1134,7 +1134,7 @@ export class ClaudeDev {
 				path: this.getReadablePath(relDirPath),
 				content: result,
 			} satisfies ClaudeSayTool)
-			if (this.alwaysAllowReadOnly) {
+			if (this.settings.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
 				const { response, text, images } = await this.ask("tool", message)
@@ -1185,7 +1185,7 @@ export class ClaudeDev {
 				content: results,
 			} satisfies ClaudeSayTool)
 
-			if (this.alwaysAllowReadOnly) {
+			if (this.settings.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
 				const { response, text, images } = await this.ask("tool", message)
@@ -1224,7 +1224,7 @@ export class ClaudeDev {
 				path: url,
 			} satisfies ClaudeSayTool)
 
-			if (this.alwaysAllowReadOnly) {
+			if (this.settings.alwaysAllowReadOnly) {
 				await this.say("tool", message)
 			} else {
 				const { response, text, images } = await this.ask("tool", message)
