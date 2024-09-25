@@ -4,6 +4,13 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.9.6]
+
+- Added support for new Google Gemini models `gemini-1.5-flash-002` and `gemini-1.5-pro-002`
+- Updated system prompt to be more lenient when terminal output doesn't stream back properly
+- Adjusted system prompt to prevent overuse of the inspect_site tool
+- Increased global line height for improved readability
+
 ## [1.9.0]
 
 - Claude can now use a browser! This update adds a new `inspect_site` tool that captures screenshots and console logs from websites (including localhost), making it easier for Claude to troubleshoot issues on his own.
