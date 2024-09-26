@@ -69,20 +69,38 @@ export function getNewDiagnostics(
 // // File: /path/to/file3.ts
 // // - New error in file3 (1:1)
 
-// will return empty string if no errors/warnings
-export function diagnosticsToProblemsString(diagnostics: [vscode.Uri, vscode.Diagnostic[]][], cwd: string): string {
+// will return empty string if no problems with the given severity are found
+export function diagnosticsToProblemsString(
+	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
+	severities: vscode.DiagnosticSeverity[],
+	cwd: string
+): string {
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {
-		const problems = fileDiagnostics.filter(
-			(d) => d.severity === vscode.DiagnosticSeverity.Error || d.severity === vscode.DiagnosticSeverity.Warning
-		)
+		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))
 		if (problems.length > 0) {
 			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
 			for (const diagnostic of problems) {
-				let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+				let label: string
+				switch (diagnostic.severity) {
+					case vscode.DiagnosticSeverity.Error:
+						label = "Error"
+						break
+					case vscode.DiagnosticSeverity.Warning:
+						label = "Warning"
+						break
+					case vscode.DiagnosticSeverity.Information:
+						label = "Information"
+						break
+					case vscode.DiagnosticSeverity.Hint:
+						label = "Hint"
+						break
+					default:
+						label = "Diagnostic"
+				}
 				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
 				const source = diagnostic.source ? `${diagnostic.source} ` : ""
-				result += `\n- [${source}${severity}] Line ${line}: ${diagnostic.message}`
+				result += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
 			}
 		}
 	}
