@@ -4,6 +4,10 @@ All notable changes to the "claude-dev" extension will be documented in this fil
 
 <!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
 
+## [1.9.7]
+
+- Only auto-include error diagnostics after file edits, removed warnings to keep Claude from getting distracted in projects with strict linting rules
+
 ## [1.9.6]
 
 - Added support for new Google Gemini models `gemini-1.5-flash-002` and `gemini-1.5-pro-002`
