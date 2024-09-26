@@ -171,7 +171,11 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 
 function getWorkspaceProblems(cwd: string): string {
 	const diagnostics = vscode.languages.getDiagnostics()
-	const result = diagnosticsToProblemsString(diagnostics, cwd)
+	const result = diagnosticsToProblemsString(
+		diagnostics,
+		[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
+		cwd
+	)
 	if (!result) {
 		return "No errors or warnings detected."
 	}
