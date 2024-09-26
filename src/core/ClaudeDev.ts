@@ -859,7 +859,13 @@ export class ClaudeDev {
 			initial fix is usually correct and it may just take time for linters to catch up.
 			*/
 			const postDiagnostics = vscode.languages.getDiagnostics()
-			const newProblems = diagnosticsToProblemsString(getNewDiagnostics(preDiagnostics, postDiagnostics), cwd) // will be empty string if no errors/warnings
+			const newProblems = diagnosticsToProblemsString(
+				getNewDiagnostics(preDiagnostics, postDiagnostics),
+				[
+					vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+				],
+				cwd
+			) // will be empty string if no errors
 			const newProblemsMessage =
 				newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 			// await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
