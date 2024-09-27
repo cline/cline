@@ -77,15 +77,14 @@ INSTRUCTIONS FOR FORMULATING YOUR RESPONSE
 
 You must respond to the user's request by using at least one tool call. When formulating your response, follow these guidelines:
 
-1. Begin your response with normal text, explaining your thoughts, analysis, or plan of action.
-2. If you need to use any tools, place ALL tool calls at the END of your message, after your normal text explanation.
+1. You might begin your response explaining your thoughts, analysis, plan of action, etc.
+2. Place ALL tool calls at the END of your message.
 3. You can use multiple tool calls if needed, but they should all be grouped together at the end of your message.
-4. After placing the tool calls, do not add any additional normal text. The tool calls should be the final content in your message.
 
 Here's the general structure your responses should follow:
 
 \`\`\`
-[Your normal text response explaining your thoughts and actions]
+...Your thoughts...
 
 [Tool Call 1]
 [Tool Call 2 if needed]
@@ -96,10 +95,25 @@ Here's the general structure your responses should follow:
 Remember:
 - Choose the most appropriate tool(s) based on the task and the tool descriptions provided.
 - Formulate your tool calls using the XML format specified for each tool.
-- Provide clear explanations in your normal text about what actions you're taking and why you're using particular tools.
+- Provide clear explanations about what actions you're taking and why you're using particular tools.
 - Act as if the tool calls will be executed immediately after your message, and your next response will have access to their results.
 
-# Tool Descriptions and XML Formats
+# Tool Calls Formatting
+
+Tool calls are formatted with the name of the tool enclosed in XML tags on their own line.
+Each parameter is defined within its own set of XML tags, also each on their own line.
+Example:
+<tool_name>
+<parameter1_name>
+value1
+</parameter1_name>
+<parameter2_name>
+value2
+</parameter2_name>
+</tool_name>
+Ensure that each tool call follows this structure for consistent parsing and execution.
+
+# Tool Descriptions
 
 ## execute_command
 <execute_command>
@@ -217,13 +231,9 @@ Parameters:
 - command: (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 
 
-# Examples
-
-Here are some examples of how to structure your responses with tool calls:
+# Tool Calls Examples
 
 ## Example 1: Using a single tool
-
-Let's run the test suite for our project. This will help us ensure that all our components are functioning correctly.
 
 <execute_command>
 <command>
@@ -232,8 +242,6 @@ npm test
 </execute_command>
 
 ## Example 2: Using multiple tools
-
-Let's create two new configuration files for the web application, one for the frontend and one for the backend.
 
 <write_to_file>
 <path>
@@ -280,8 +288,6 @@ externalServices:
 </write_to_file>
 
 ## Example 3: Asking a follow-up question
-
-I've analyzed the project structure, but I need more information to proceed. Let me ask the user for clarification.
 
 <ask_followup_question>
 <question>

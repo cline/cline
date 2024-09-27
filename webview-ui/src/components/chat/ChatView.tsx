@@ -426,23 +426,29 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[isAtBottom, visibleMessages, expandedRows]
 	)
 
+	const [lastScrollMessageCount, setLastScrollMessageCount] = useState<number>(0)
+
 	useEffect(() => {
-		// dont scroll if we're just updating the api req started informational body
 		const lastMessage = visibleMessages.at(-1)
-		const isLastApiReqStarted = lastMessage?.say === "api_req_started"
-		if (didScrollFromApiReqTs && isLastApiReqStarted && lastMessage?.ts === didScrollFromApiReqTs) {
-			return
+		if (lastMessage?.partial && isAtBottom) {
+			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
+		} else {
+			// dont scroll if we're just updating the api req started informational body
+
+			const isLastApiReqStarted = lastMessage?.say === "api_req_started"
+			if (didScrollFromApiReqTs && isLastApiReqStarted && lastMessage?.ts === didScrollFromApiReqTs) {
+				return
+			}
+			// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
+			const timer = setTimeout(() => {
+				// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
+				// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
+				virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
+				setDidScrollFromApiReqTs(isLastApiReqStarted ? lastMessage?.ts : undefined) // need to do this in timer since this effect can get called a few times simultaneously
+			}, 50)
+
+			return () => clearTimeout(timer)
 		}
-
-		// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
-		const timer = setTimeout(() => {
-			// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
-			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
-			setDidScrollFromApiReqTs(isLastApiReqStarted ? lastMessage?.ts : undefined) // need to do this in timer since this effect can get called a few times simultaneously
-		}, 50)
-
-		return () => clearTimeout(timer)
 	}, [visibleMessages, didScrollFromApiReqTs])
 
 	const placeholderText = useMemo(() => {

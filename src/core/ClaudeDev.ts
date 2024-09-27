@@ -227,21 +227,24 @@ export class ClaudeDev {
 		}
 		let askTs: number
 		if (partial !== undefined) {
-			const lastMessage = this.claudeMessages.at(-1)
+			const lastMessageOfType = findLast(this.claudeMessages, (m) => m.ask === type)
 			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
+				lastMessageOfType &&
+				lastMessageOfType.partial &&
+				lastMessageOfType.type === "ask" &&
+				lastMessageOfType.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.partial = partial
+					lastMessageOfType.text = text
+					lastMessageOfType.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClaudeMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
-					throw new Error("Current ask promise was ignored")
+						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessageOfType })
+					throw new Error("Current ask promise was ignored 1")
 				} else {
 					// this is a new partial message, so add it with partial state
 					// this.askResponse = undefined
@@ -251,7 +254,7 @@ export class ClaudeDev {
 					// this.lastMessageTs = askTs
 					await this.addToClaudeMessages({ ts: Date.now(), type: "ask", ask: type, text, partial })
 					await this.providerRef.deref()?.postStateToWebview()
-					throw new Error("Current ask promise was ignored")
+					throw new Error("Current ask promise was ignored 2")
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -262,9 +265,9 @@ export class ClaudeDev {
 					this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					lastMessage.ts = askTs
-					lastMessage.text = text
-					lastMessage.partial = false
+					lastMessageOfType.ts = askTs
+					lastMessageOfType.text = text
+					lastMessageOfType.partial = false
 					await this.saveClaudeMessages()
 					await this.providerRef.deref()?.postStateToWebview()
 				} else {
@@ -319,20 +322,23 @@ export class ClaudeDev {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.claudeMessages.at(-1)
+			const lastMessageOfType = findLast(this.claudeMessages, (m) => m.say === type)
 			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+				lastMessageOfType &&
+				lastMessageOfType.partial &&
+				lastMessageOfType.type === "say" &&
+				lastMessageOfType.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.partial = partial
+					lastMessageOfType.text = text
+					lastMessageOfType.images = images
+					lastMessageOfType.partial = partial
 					// await this.saveClaudeMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessageOfType })
 				} else {
 					// this is a new partial message, so add it with partial state
 
@@ -345,10 +351,10 @@ export class ClaudeDev {
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					lastMessage.ts = sayTs
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.partial = false
+					lastMessageOfType.ts = sayTs
+					lastMessageOfType.text = text
+					lastMessageOfType.images = images
+					lastMessageOfType.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClaudeMessages()
@@ -1673,16 +1679,22 @@ ${this.customInstructions.trim()}
 			}
 
 			// If the last API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-			const lastApiReqFinished = findLast(this.claudeMessages, (m) => m.say === "api_req_finished")
-			if (lastApiReqFinished && lastApiReqFinished.text) {
+			const lastApiReqStarted = findLast(this.claudeMessages, (m) => m.say === "api_req_started")
+			if (lastApiReqStarted && lastApiReqStarted.text) {
 				const {
 					tokensIn,
 					tokensOut,
 					cacheWrites,
 					cacheReads,
 				}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } = JSON.parse(
-					lastApiReqFinished.text
+					lastApiReqStarted.text
 				)
+				console.log("lastApiReqStarted", lastApiReqStarted.text, {
+					tokensIn,
+					tokensOut,
+					cacheWrites,
+					cacheReads,
+				})
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				const contextWindow = this.api.getModel().info.contextWindow
 				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
@@ -2494,9 +2506,6 @@ ${this.customInstructions.trim()}
 		textContent.content = textContentLines.join("\n")
 
 		this.assistantMessageContent = [textContent, ...toolCalls]
-
-		// Present the updated content
-		this.presentAssistantMessage()
 	}
 
 	async recursivelyMakeClaudeRequests(
@@ -2692,23 +2701,31 @@ ${this.customInstructions.trim()}
 
 			let totalCost: string | undefined
 
-			await this.say(
-				"api_req_finished",
-				JSON.stringify({
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWrites: cacheCreationInputTokens,
-					cacheReads: cacheReadInputTokens,
-					cost:
-						totalCost ||
-						this.calculateApiCost(
-							inputTokens,
-							outputTokens,
-							cacheCreationInputTokens,
-							cacheReadInputTokens
-						),
-				})
-			)
+			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
+			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
+			// (it's worth removing a few months from now)
+			this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
+				...JSON.parse(this.claudeMessages[lastApiReqIndex].text),
+				tokensIn: inputTokens,
+				tokensOut: outputTokens,
+				cacheWrites: cacheCreationInputTokens,
+				cacheReads: cacheReadInputTokens,
+				cost:
+					totalCost ||
+					this.calculateApiCost(inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens),
+			})
+			await this.saveClaudeMessages()
+			await this.providerRef.deref()?.postStateToWebview()
+
+			// await this.say(
+			// 	"api_req_finished",
+			// 	JSON.stringify({
+
+			// 	})
+			// )
+
+			// console.log("apiContentBlocks", apiContentBlocks)
+			// throw new Error("ClaudeDev fail")
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
@@ -2724,6 +2741,10 @@ ${this.customInstructions.trim()}
 				await this.addToApiConversationHistory({ role: "assistant", content: apiContentBlocks })
 
 				await pWaitFor(() => this.userMessageContentReady)
+
+				console.log("attempted to send new request")
+
+				// throw new Error("ClaudeDev fail")
 
 				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
