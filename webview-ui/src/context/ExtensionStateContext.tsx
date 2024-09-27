@@ -4,6 +4,7 @@ import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionM
 import { ApiConfiguration } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
+import { findLastIndex } from "../../../src/shared/array"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -32,29 +33,49 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-		if (message.type === "state" && message.state) {
-			setState(message.state)
-			const config = message.state?.apiConfiguration
-			const hasKey = config
-				? [
-						config.apiKey,
-						config.openRouterApiKey,
-						config.awsRegion,
-						config.vertexProjectId,
-						config.openAiApiKey,
-						config.ollamaModelId,
-						config.geminiApiKey,
-						config.openAiNativeApiKey,
-				  ].some((key) => key !== undefined)
-				: false
-			setShowWelcome(!hasKey)
-			setDidHydrateState(true)
-		}
-		if (message.type === "theme" && message.text) {
-			setTheme(convertTextMateToHljs(JSON.parse(message.text)))
-		}
-		if (message.type === "workspaceUpdated" && message.filePaths) {
-			setFilePaths(message.filePaths)
+		switch (message.type) {
+			case "state": {
+				setState(message.state!)
+				const config = message.state?.apiConfiguration
+				const hasKey = config
+					? [
+							config.apiKey,
+							config.openRouterApiKey,
+							config.awsRegion,
+							config.vertexProjectId,
+							config.openAiApiKey,
+							config.ollamaModelId,
+							config.geminiApiKey,
+							config.openAiNativeApiKey,
+					  ].some((key) => key !== undefined)
+					: false
+				setShowWelcome(!hasKey)
+				setDidHydrateState(true)
+				break
+			}
+			case "theme": {
+				if (message.text) {
+					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
+				}
+				break
+			}
+			case "workspaceUpdated": {
+				setFilePaths(message.filePaths ?? [])
+				break
+			}
+			case "partialMessage": {
+				const partialMessage = message.partialMessage!
+				setState((prevState) => {
+					// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
+					const lastIndex = findLastIndex(prevState.claudeMessages, (msg) => msg.ts === partialMessage.ts)
+					if (lastIndex !== -1) {
+						const newClaudeMessages = [...prevState.claudeMessages]
+						newClaudeMessages[lastIndex] = partialMessage
+						return { ...prevState, claudeMessages: newClaudeMessages }
+					}
+					return prevState
+				})
+			}
 		}
 	}, [])
 

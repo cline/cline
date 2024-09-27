@@ -5,7 +5,15 @@ import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme" | "workspaceUpdated" | "invoke"
+	type:
+		| "action"
+		| "state"
+		| "selectedImages"
+		| "ollamaModels"
+		| "theme"
+		| "workspaceUpdated"
+		| "invoke"
+		| "partialMessage"
 	text?: string
 	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -13,6 +21,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	models?: string[]
 	filePaths?: string[]
+	partialMessage?: ClaudeMessage
 }
 
 export interface ExtensionState {
@@ -33,6 +42,7 @@ export interface ClaudeMessage {
 	say?: ClaudeSay
 	text?: string
 	images?: string[]
+	partial?: boolean
 }
 
 export type ClaudeAsk =

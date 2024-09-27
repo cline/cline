@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { Stream } from "@anthropic-ai/sdk/streaming"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
@@ -14,12 +15,14 @@ export interface ApiHandlerMessageResponse {
 	userCredits?: number
 }
 
+export type AnthropicStream = Stream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+
 export interface ApiHandler {
 	createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse>
+	): Promise<AnthropicStream>
 
 	getModel(): { id: string; info: ModelInfo }
 }

@@ -59,6 +59,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		if (lastMessage) {
 			switch (lastMessage.type) {
 				case "ask":
+					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
 							setTextAreaDisabled(true)
@@ -75,16 +76,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
-							setTextAreaDisabled(false)
+							setTextAreaDisabled(isPartial)
 							setClaudeAsk("followup")
-							setEnableButtons(false)
+							setEnableButtons(isPartial)
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
-							setTextAreaDisabled(false)
+							setTextAreaDisabled(isPartial)
 							setClaudeAsk("tool")
-							setEnableButtons(true)
+							setEnableButtons(!isPartial)
 							const tool = JSON.parse(lastMessage.text || "{}") as ClaudeSayTool
 							switch (tool.tool) {
 								case "editedExistingFile":
@@ -99,9 +100,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}
 							break
 						case "command":
-							setTextAreaDisabled(false)
+							setTextAreaDisabled(isPartial)
 							setClaudeAsk("command")
-							setEnableButtons(true)
+							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Run Command")
 							setSecondaryButtonText("Reject")
 							break
@@ -114,9 +115,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
-							setTextAreaDisabled(false)
+							setTextAreaDisabled(isPartial)
 							setClaudeAsk("completion_result")
-							setEnableButtons(true)
+							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
 							break

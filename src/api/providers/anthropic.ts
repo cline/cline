@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse } from "../index"
+import { AnthropicStream, ApiHandler, ApiHandlerMessageResponse } from "../index"
 import {
 	anthropicDefaultModelId,
 	AnthropicModelId,
@@ -24,7 +24,7 @@ export class AnthropicHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
+	): Promise<AnthropicStream> {
 		const modelId = this.getModel().id
 		switch (modelId) {
 			case "claude-3-5-sonnet-20240620":
@@ -39,7 +39,7 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				const message = await this.client.beta.promptCaching.messages.create(
+				const stream = this.client.beta.promptCaching.messages.create(
 					{
 						model: modelId,
 						max_tokens: this.getModel().info.maxTokens,
@@ -69,6 +69,7 @@ export class AnthropicHandler implements ApiHandler {
 						}),
 						tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						tool_choice: { type: "auto" },
+						stream: true,
 					},
 					(() => {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
@@ -90,10 +91,14 @@ export class AnthropicHandler implements ApiHandler {
 						}
 					})()
 				)
-				return { message }
+
+				return stream
+
+				// throw new Error("Not implemented")
+				// return { message }
 			}
 			default: {
-				const message = await this.client.messages.create({
+				const stream = await this.client.messages.create({
 					model: modelId,
 					max_tokens: this.getModel().info.maxTokens,
 					temperature: 0.2,
@@ -101,8 +106,9 @@ export class AnthropicHandler implements ApiHandler {
 					messages,
 					tools,
 					tool_choice: { type: "auto" },
+					stream: true,
 				})
-				return { message }
+				return stream as AnthropicStream
 			}
 		}
 	}
