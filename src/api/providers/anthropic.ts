@@ -43,7 +43,7 @@ export class AnthropicHandler implements ApiHandler {
 					{
 						model: modelId,
 						max_tokens: this.getModel().info.maxTokens,
-						temperature: 0.2,
+						temperature: 0,
 						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }], // setting cache breakpoint for system prompt so new tasks can reuse it
 						messages: messages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
@@ -67,8 +67,8 @@ export class AnthropicHandler implements ApiHandler {
 							}
 							return message
 						}),
-						tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						tool_choice: { type: "auto" },
+						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
+						// tool_choice: { type: "auto" },
 						stream: true,
 					},
 					(() => {
@@ -101,11 +101,11 @@ export class AnthropicHandler implements ApiHandler {
 				const stream = await this.client.messages.create({
 					model: modelId,
 					max_tokens: this.getModel().info.maxTokens,
-					temperature: 0.2,
+					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
-					tools,
-					tool_choice: { type: "auto" },
+					// tools,
+					// tool_choice: { type: "auto" },
 					stream: true,
 				})
 				return stream as AnthropicStream

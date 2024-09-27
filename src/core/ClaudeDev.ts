@@ -34,6 +34,15 @@ import { TOOLS } from "./prompts/tools"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
 import cloneDeep from "clone-deep"
+import {
+	AssistantMessageContent,
+	TextContent,
+	ToolCall,
+	ToolCallName,
+	toolCallNames,
+	ToolParamName,
+	toolParamNames,
+} from "./AssistantMessage"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -43,9 +52,9 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
-type AnthropicPartialContentBlock = Anthropic.Messages.ContentBlock & {
-	partial?: boolean
-}
+// type AnthropicPartialContentBlock = Anthropic.Messages.ContentBlock & {
+// 	partial?: boolean
+// }
 
 export class ClaudeDev {
 	readonly taskId: string
@@ -64,29 +73,6 @@ export class ClaudeDev {
 	private consecutiveMistakeCount: number = 0
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
-
-	// streaming
-	private currentStreamingContentBlockIndex = 0
-	private didCompleteReadingStream = false
-	private assistantContentBlocks: AnthropicPartialContentBlock[] = []
-	private toolResults: Anthropic.ToolResultBlockParam[] = []
-	private toolResultsReady = false
-	private didRejectTool = false
-	private presentAssistantContentLocked = false
-	private partialJsonParser: JSONParser | undefined
-	private partialJsonParserState: {
-		partialObject: Record<string, string>
-		currentKey: string
-		currentValue: string
-		parsingKey: boolean
-		parsingValue: boolean
-	} = {
-		partialObject: {},
-		currentKey: "",
-		currentValue: "",
-		parsingKey: false,
-		parsingValue: false,
-	}
 
 	constructor(
 		provider: ClaudeDevProvider,
@@ -1725,40 +1711,74 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	private presentAssistantContentHasPendingUpdates = false
-	async presentAssistantContent() {
-		if (this.presentAssistantContentLocked) {
-			this.presentAssistantContentHasPendingUpdates = true
+	async presentAssistantMessage() {
+		if (this.presentAssistantMessageLocked) {
+			this.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
-		this.presentAssistantContentLocked = true
-		this.presentAssistantContentHasPendingUpdates = false
+		this.presentAssistantMessageLocked = true
+		this.presentAssistantMessageHasPendingUpdates = false
 
-		if (this.currentStreamingContentBlockIndex >= this.assistantContentBlocks.length) {
+		if (this.currentStreamingContentIndex >= this.assistantMessageContent.length) {
 			throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
 		}
 
-		const block = cloneDeep(this.assistantContentBlocks[this.currentStreamingContentBlockIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
+		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text":
-				await this.say("text", block.text, undefined, block.partial)
+				await this.say("text", block.content, undefined, block.partial)
 				break
-			case "tool_use":
-				const toolName = block.name as ToolName
-				const toolInput = block.input as any
-				const toolUseId = block.id
+			case "tool_call":
+				const toolDescription = () => {
+					switch (block.name) {
+						case "execute_command":
+							return `[${block.name} for '${block.params.command}']`
+						case "read_file":
+							return `[${block.name} for '${block.params.path}']`
+						case "write_to_file":
+							return `[${block.name} for '${block.params.path}']`
+						case "search_files":
+							return `[${block.name} for '${block.params.regex}'${
+								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+							}]`
+						case "list_files":
+							return `[${block.name} for '${block.params.path}']`
+						case "list_code_definition_names":
+							return `[${block.name} for '${block.params.path}']`
+						case "inspect_site":
+							return `[${block.name} for '${block.params.url}']`
+						case "ask_followup_question":
+							return `[${block.name} for '${block.params.question}']`
+						case "attempt_completion":
+							return `[${block.name}]`
+					}
+				}
 
 				if (this.didRejectTool) {
 					// ignore any tool content after user has rejected tool once
 					// we'll fill it in with a rejection message when the message is complete
 					if (!block.partial) {
-						this.toolResults.push({
-							type: "tool_result",
-							tool_use_id: toolUseId,
-							content: "Skipping tool execution due to previous tool user rejection.",
+						this.userMessageContent.push({
+							type: "text",
+							text: `Skipping tool ${toolDescription()} due to user rejecting a previous tool.`,
 						})
 					}
 					break
+				}
+
+				const pushToolResult = (content: ToolResponse) => {
+					this.userMessageContent.push({
+						type: "text",
+						text: `${toolDescription()} Result:`,
+					})
+					if (typeof content === "string") {
+						this.userMessageContent.push({
+							type: "text",
+							text: content,
+						})
+					} else {
+						this.userMessageContent.push(...content)
+					}
 				}
 
 				const askApproval = async (type: ClaudeAsk, partialMessage?: string) => {
@@ -1766,22 +1786,30 @@ ${this.customInstructions.trim()}
 					if (response !== "yesButtonTapped") {
 						if (response === "messageResponse") {
 							await this.say("user_feedback", text, images)
-							this.toolResults.push({
-								type: "tool_result",
-								tool_use_id: toolUseId,
-								content: this.formatToolResponseWithImages(
-									await this.formatToolDeniedFeedback(text),
-									images
-								),
-							})
+							pushToolResult(
+								this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
+							)
+							// this.userMessageContent.push({
+							// 	type: "text",
+							// 	text: `${toolDescription()}`,
+							// })
+							// this.toolResults.push({
+							// 	type: "tool_result",
+							// 	tool_use_id: toolUseId,
+							// 	content: this.formatToolResponseWithImages(
+							// 		await this.formatToolDeniedFeedback(text),
+							// 		images
+							// 	),
+							// })
 							this.didRejectTool = true
 							return false
 						}
-						this.toolResults.push({
-							type: "tool_result",
-							tool_use_id: toolUseId,
-							content: await this.formatToolDenied(),
-						})
+						pushToolResult(await this.formatToolDenied())
+						// this.toolResults.push({
+						// 	type: "tool_result",
+						// 	tool_use_id: toolUseId,
+						// 	content: await this.formatToolDenied(),
+						// })
 						this.didRejectTool = true
 						return false
 					}
@@ -1794,24 +1822,17 @@ ${this.customInstructions.trim()}
 						"error",
 						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 					)
-					this.toolResults.push({
-						type: "tool_result",
-						tool_use_id: toolUseId,
-						content: await this.formatToolError(errorString),
-					})
+					// this.toolResults.push({
+					// 	type: "tool_result",
+					// 	tool_use_id: toolUseId,
+					// 	content: await this.formatToolError(errorString),
+					// })
+					pushToolResult(await this.formatToolError(errorString))
 				}
 
-				const pushToolResult = (content: ToolResponse) => {
-					this.toolResults.push({
-						type: "tool_result",
-						tool_use_id: toolUseId,
-						content,
-					})
-				}
-
-				switch (toolName) {
+				switch (block.name) {
 					case "read_file": {
-						const relPath: string | undefined = toolInput.path
+						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "readFile",
 							path: relPath || "", //this.getReadablePath(relPath || ""),
@@ -1859,8 +1880,8 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "list_files": {
-						const relDirPath: string | undefined = toolInput.path
-						const recursiveRaw: string | undefined = toolInput.path
+						const relDirPath: string | undefined = block.params.path
+						const recursiveRaw: string | undefined = block.params.path
 						const recursive = recursiveRaw?.toLowerCase() === "true"
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
@@ -1909,7 +1930,7 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "list_code_definition_names": {
-						const relDirPath: string | undefined = toolInput.path
+						const relDirPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "listCodeDefinitionNames",
 							path: relDirPath || "",
@@ -1958,9 +1979,9 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "search_files": {
-						const relDirPath: string | undefined = toolInput.path
-						const regex: string | undefined = toolInput.regex
-						const filePattern: string | undefined = toolInput.filePattern
+						const relDirPath: string | undefined = block.params.path
+						const regex: string | undefined = block.params.regex
+						const filePattern: string | undefined = block.params.file_pattern
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "searchFiles",
 							path: relDirPath || "",
@@ -2014,7 +2035,7 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "inspect_site": {
-						const url: string | undefined = toolInput.url
+						const url: string | undefined = block.params.url
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "inspectSite",
 							path: url || "",
@@ -2076,7 +2097,7 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "execute_command": {
-						const command: string | undefined = toolInput.command
+						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
 								await this.ask("command", command || "", block.partial).catch(() => {})
@@ -2108,7 +2129,7 @@ ${this.customInstructions.trim()}
 					}
 
 					case "ask_followup_question": {
-						const question: string | undefined = toolInput.question
+						const question: string | undefined = block.params.question
 						try {
 							if (block.partial) {
 								await this.ask("followup", question || "", block.partial).catch(() => {})
@@ -2135,8 +2156,8 @@ ${this.customInstructions.trim()}
 						}
 					}
 					case "attempt_completion": {
-						const result: string | undefined = toolInput.result
-						const command: string | undefined = toolInput.command
+						const result: string | undefined = block.params.result
+						const command: string | undefined = block.params.command
 						try {
 							const lastMessage = this.claudeMessages.at(-1)
 							if (block.partial) {
@@ -2214,135 +2235,268 @@ ${this.customInstructions.trim()}
 				break
 		}
 
-		this.presentAssistantContentLocked = false
+		this.presentAssistantMessageLocked = false
 		if (!block.partial) {
 			// block is finished streaming and executing
 			if (
-				this.currentStreamingContentBlockIndex === this.assistantContentBlocks.length - 1 &&
+				this.currentStreamingContentIndex === this.assistantMessageContent.length - 1 &&
 				this.didCompleteReadingStream
 			) {
 				// last block is complete and it is finished executing
-				this.toolResultsReady = true // will allow pwaitfor to continue
+				this.userMessageContentReady = true // will allow pwaitfor to continue
 			} else {
 				// call next block if it exists (if not then read stream will call it when its ready)
-				this.currentStreamingContentBlockIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
-				if (this.currentStreamingContentBlockIndex < this.assistantContentBlocks.length) {
+				this.currentStreamingContentIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
+				if (this.currentStreamingContentIndex < this.assistantMessageContent.length) {
 					// there are already more content blocks to stream, so we'll call this function ourselves
 					// await this.presentAssistantContent()
-					this.presentAssistantContent()
+					this.presentAssistantMessage()
 					return
 				}
 			}
 		}
 		// block is partial, but the read stream may have finished
-		if (this.presentAssistantContentHasPendingUpdates) {
-			this.presentAssistantContent()
+		if (this.presentAssistantMessageHasPendingUpdates) {
+			this.presentAssistantMessage()
 		}
 	}
 
-	//
+	// //
+	// private partialJsonParser: JSONParser | undefined
+	// private partialJsonParserState: {
+	// 	partialObject: Record<string, string>
+	// 	currentKey: string
+	// 	currentValue: string
+	// 	parsingKey: boolean
+	// 	parsingValue: boolean
+	// } = {
+	// 	partialObject: {},
+	// 	currentKey: "",
+	// 	currentValue: "",
+	// 	parsingKey: false,
+	// 	parsingValue: false,
+	// }
+	// private chunkIndexToJsonParser = new Map<number, JSONParser>()
+	// getJsonParserForChunk(chunkIndex: number): JSONParser {
+	// 	if (!this.chunkIndexToJsonParser.has(chunkIndex)) {
+	// 		const parser = new JSONParser({ emitPartialTokens: true, emitPartialValues: true })
+	// 		// this package enforces setting up an onValue listener ("Can't emit data before the "onValue" callback has been set up."), even though we don't need it.
+	// 		parser.onValue = () => console.log(`onValue for chunk ${chunkIndex}`)
+	// 		// parser.onError = (error) => console.error(`Error parsing JSON for chunk ${chunkIndex}:`, error);
+	// 		// parser.onEnd = () => console.log(`JSON parsing ended for chunk ${chunkIndex}`);
 
-	private chunkIndexToJsonParser = new Map<number, JSONParser>()
-	getJsonParserForChunk(chunkIndex: number): JSONParser {
-		if (!this.chunkIndexToJsonParser.has(chunkIndex)) {
-			const parser = new JSONParser({ emitPartialTokens: true, emitPartialValues: true })
-			// this package enforces setting up an onValue listener ("Can't emit data before the "onValue" callback has been set up."), even though we don't need it.
-			parser.onValue = () => console.log(`onValue for chunk ${chunkIndex}`)
-			// parser.onError = (error) => console.error(`Error parsing JSON for chunk ${chunkIndex}:`, error);
-			// parser.onEnd = () => console.log(`JSON parsing ended for chunk ${chunkIndex}`);
+	// 		let partialObject: Record<string, string> = {}
+	// 		let currentKey: string = ""
+	// 		let currentValue: string = ""
+	// 		let parsingKey: boolean = false
+	// 		let parsingValue: boolean = false
 
-			let partialObject: Record<string, string> = {}
-			let currentKey: string = ""
-			let currentValue: string = ""
-			let parsingKey: boolean = false
-			let parsingValue: boolean = false
+	// 		// our json will only ever be string to string maps
+	// 		// { "key": "value", "key2": "value2" }
+	// 		// so left brace, string, colon, comma, right brace
+	// 		// (need to recreate this listener each time to update the resolve ref)
+	// 		parser.onToken = ({ token, value, offset, partial }) => {
+	// 			console.log("onToken")
 
-			// our json will only ever be string to string maps
-			// { "key": "value", "key2": "value2" }
-			// so left brace, string, colon, comma, right brace
-			// (need to recreate this listener each time to update the resolve ref)
-			parser.onToken = ({ token, value, offset, partial }) => {
-				console.log("onToken")
+	// 			try {
+	// 				switch (token) {
+	// 					case TokenType.LEFT_BRACE:
+	// 						// Start of a new JSON object
+	// 						partialObject = {}
+	// 						currentKey = ""
+	// 						parsingKey = false
+	// 						parsingValue = false
+	// 						break
+	// 					case TokenType.RIGHT_BRACE:
+	// 						// End of the current JSON object
+	// 						currentKey = ""
+	// 						currentValue = ""
+	// 						parsingKey = false
+	// 						parsingValue = false
 
-				try {
-					switch (token) {
-						case TokenType.LEFT_BRACE:
-							// Start of a new JSON object
-							partialObject = {}
-							currentKey = ""
-							parsingKey = false
-							parsingValue = false
-							break
-						case TokenType.RIGHT_BRACE:
-							// End of the current JSON object
-							currentKey = ""
-							currentValue = ""
-							parsingKey = false
-							parsingValue = false
+	// 						// Finalize the object once parsing is complete
+	// 						// ;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = this.partialObject
+	// 						// this.assistantContentBlocks[chunkIndex]!.partial = false
+	// 						// await this.presentAssistantContent() // NOTE: only set partial = false and call this once, since doing it several times will create duplicate messages.
+	// 						console.log("Final parsed object:", partialObject)
+	// 						break
+	// 					case TokenType.STRING:
+	// 						if (!parsingValue && !parsingKey) {
+	// 							// Starting to parse a key
+	// 							currentKey = value as string
+	// 							parsingKey = !!partial // if not partial, we are done parsing key
+	// 						} else if (parsingKey) {
+	// 							// Continuing to parse a key
+	// 							currentKey = value as string
+	// 							parsingKey = !!partial
+	// 						} else if (parsingValue) {
+	// 							// Parsing a value
+	// 							// Accumulate partial value and update the object
+	// 							currentValue = value as string
+	// 							if (currentKey) {
+	// 								partialObject[currentKey] = currentValue
+	// 							}
+	// 							parsingValue = !!partial // if not partial, complete value
+	// 						}
+	// 						break
+	// 					case TokenType.COLON:
+	// 						// After a key and colon, expect a value
+	// 						if (currentKey !== null) {
+	// 							parsingValue = true
+	// 						}
+	// 						break
+	// 					case TokenType.COMMA:
+	// 						// Reset for the next key-value pair
+	// 						currentKey = ""
+	// 						currentValue = ""
+	// 						parsingKey = false
+	// 						parsingValue = false
+	// 						break
+	// 					default:
+	// 						console.error("Unexpected token:", token)
+	// 				}
 
-							// Finalize the object once parsing is complete
-							// ;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = this.partialObject
-							// this.assistantContentBlocks[chunkIndex]!.partial = false
-							// await this.presentAssistantContent() // NOTE: only set partial = false and call this once, since doing it several times will create duplicate messages.
-							console.log("Final parsed object:", partialObject)
-							break
-						case TokenType.STRING:
-							if (!parsingValue && !parsingKey) {
-								// Starting to parse a key
-								currentKey = value as string
-								parsingKey = !!partial // if not partial, we are done parsing key
-							} else if (parsingKey) {
-								// Continuing to parse a key
-								currentKey = value as string
-								parsingKey = !!partial
-							} else if (parsingValue) {
-								// Parsing a value
-								// Accumulate partial value and update the object
-								currentValue = value as string
-								if (currentKey) {
-									partialObject[currentKey] = currentValue
-								}
-								parsingValue = !!partial // if not partial, complete value
-							}
-							break
-						case TokenType.COLON:
-							// After a key and colon, expect a value
-							if (currentKey !== null) {
-								parsingValue = true
-							}
-							break
-						case TokenType.COMMA:
-							// Reset for the next key-value pair
-							currentKey = ""
-							currentValue = ""
-							parsingKey = false
-							parsingValue = false
-							break
-						default:
-							console.error("Unexpected token:", token)
-					}
+	// 				// Debugging logs to trace the parsing process
+	// 				console.log("Partial object:", partialObject)
+	// 				console.log("Offset:", offset, "isPartialToken:", partial)
 
-					// Debugging logs to trace the parsing process
-					console.log("Partial object:", partialObject)
-					console.log("Offset:", offset, "isPartialToken:", partial)
+	// 				// Update the contentBlock with the current state of the partial object
+	// 				// Use spread operator to ensure a new object reference
+	// 				;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = {
+	// 					...partialObject,
+	// 				}
+	// 				// right brace indicates the end of the json object
+	// 				this.assistantContentBlocks[chunkIndex]!.partial = token !== TokenType.RIGHT_BRACE
 
-					// Update the contentBlock with the current state of the partial object
-					// Use spread operator to ensure a new object reference
-					;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = {
-						...partialObject,
-					}
-					// right brace indicates the end of the json object
-					this.assistantContentBlocks[chunkIndex]!.partial = token !== TokenType.RIGHT_BRACE
+	// 				this.presentAssistantContent()
+	// 			} catch (error) {
+	// 				console.error("Error parsing input_json_delta", error)
+	// 			}
+	// 		}
 
-					this.presentAssistantContent()
-				} catch (error) {
-					console.error("Error parsing input_json_delta", error)
+	// 		this.chunkIndexToJsonParser.set(chunkIndex, parser)
+	// 	}
+	// 	return this.chunkIndexToJsonParser.get(chunkIndex)!
+	// }
+
+	// streaming
+	private currentStreamingContentIndex = 0
+	private assistantMessageContent: AssistantMessageContent[] = []
+	private didCompleteReadingStream = false
+	// private assistantMessage?: AssistantMessage
+	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	private userMessageContentReady = false
+	private didRejectTool = false
+	private presentAssistantMessageLocked = false
+	private presentAssistantMessageHasPendingUpdates = false
+
+	private parseTextStreamAccumulator = ""
+
+	parseTextStream(chunk: string) {
+		this.parseTextStreamAccumulator += chunk
+
+		// let text = ""
+		let textContent: TextContent = {
+			type: "text",
+			content: "",
+			partial: true,
+		}
+		let toolCalls: ToolCall[] = []
+
+		let currentToolCall: ToolCall | undefined = undefined
+		let currentParamName: ToolParamName | undefined = undefined
+		let currentParamValueLines: string[] = []
+		let textContentLines: string[] = []
+
+		const rawLines = this.parseTextStreamAccumulator.split("\n")
+
+		if (rawLines.length === 1) {
+			const firstLine = rawLines[0].trim()
+			if (!firstLine.startsWith("<t") && firstLine.startsWith("<")) {
+				// (we ignore tags that start with <t since it's most like a <thinking> tag (and none of our tags start with t)
+				// content is just starting, if it starts with < we can assume it's a tool call, so we'll wait for the next line
+				console.log("skipping reason 1")
+				return
+			}
+		}
+
+		if (
+			this.assistantMessageContent.length === 1 &&
+			this.assistantMessageContent[0].partial // first element is always TextContent
+		) {
+			// we're updating text content, so if we have a partial xml tag on the last line we can ignore it until we get the full line.
+			const lastLine = rawLines.at(-1)?.trim()
+			if (lastLine && !lastLine.startsWith("<t") && lastLine.startsWith("<") && !lastLine.endsWith(">")) {
+				console.log("skipping reason 2")
+				return
+			}
+		}
+
+		for (const line of rawLines) {
+			const trimmed = line.trim()
+			// if currenttoolcall or currentparamname look for closing tag, more efficient and safe
+			if (currentToolCall && currentParamName && trimmed === `</${currentParamName}>`) {
+				// End of a tool parameter
+				currentToolCall.params[currentParamName] = currentParamValueLines.join("\n")
+				currentParamName = undefined
+				currentParamValueLines = []
+				// currentParamValue = undefined
+				continue
+			} else if (currentToolCall && !currentParamName && trimmed === `</${currentToolCall.name}>`) {
+				// End of a tool call
+				currentToolCall.partial = false
+				toolCalls.push(currentToolCall)
+				currentToolCall = undefined
+				continue
+			}
+			if (!currentParamName && trimmed.startsWith("<") && trimmed.endsWith(">")) {
+				const tag = trimmed.slice(1, -1)
+				if (toolCallNames.includes(tag as ToolCallName)) {
+					// Start of a new tool call
+					currentToolCall = { type: "tool_call", name: tag as ToolCallName, params: {}, partial: true }
+					// This also indicates the end of the text content
+					textContent.partial = false
+					continue
+				} else if (currentToolCall && toolParamNames.includes(tag as ToolParamName)) {
+					// Start of a parameter
+					currentParamName = tag as ToolParamName
+					// currentToolCall.params[currentParamName] = ""
+					continue
 				}
 			}
 
-			this.chunkIndexToJsonParser.set(chunkIndex, parser)
+			if (currentToolCall && !currentParamName) {
+				// current tool doesn't have a param match yet, it's likely partial so ignore
+				continue
+			}
+
+			if (currentToolCall && currentParamName) {
+				// add line to current param value
+				currentParamValueLines.push(line)
+				continue
+			}
+
+			// only add text content if we haven't started a tool yet
+			if (textContent.partial) {
+				textContentLines.push(line)
+			}
 		}
-		return this.chunkIndexToJsonParser.get(chunkIndex)!
+
+		if (currentToolCall) {
+			// stream did not complete tool call, add it as partial
+			if (currentParamName) {
+				// tool call has a parameter that was not completed
+				currentToolCall.params[currentParamName] = currentParamValueLines.join("\n")
+			}
+			toolCalls.push(currentToolCall)
+		}
+
+		textContent.content = textContentLines.join("\n")
+
+		this.assistantMessageContent = [textContent, ...toolCalls]
+
+		// Present the updated content
+		this.presentAssistantMessage()
 	}
 
 	async recursivelyMakeClaudeRequests(
@@ -2412,11 +2566,18 @@ ${this.customInstructions.trim()}
 
 			// todo add error listeners so we can return api error? or wil lfor await handle that below?
 
-			// let contentBlocks: AnthropicPartialContentBlock[] = []
-			this.assistantContentBlocks = []
+			let apiContentBlocks: Anthropic.ContentBlock[] = []
+			this.currentStreamingContentIndex = 0
+			this.assistantMessageContent = []
 			this.didCompleteReadingStream = false
-			this.currentStreamingContentBlockIndex = 0
-			this.chunkIndexToJsonParser.clear()
+			this.userMessageContent = []
+			this.userMessageContentReady = false
+			this.didRejectTool = false
+			this.presentAssistantMessageLocked = false
+			this.presentAssistantMessageHasPendingUpdates = false
+			this.parseTextStreamAccumulator = ""
+
+			// this.chunkIndexToJsonParser.clear()
 			for await (const chunk of stream) {
 				switch (chunk.type) {
 					case "message_start":
@@ -2443,24 +2604,37 @@ ${this.customInstructions.trim()}
 						switch (chunk.content_block.type) {
 							case "text":
 								console.log("text", chunk.content_block.text)
-								this.assistantContentBlocks.push(chunk.content_block)
-								this.assistantContentBlocks.at(-1)!.partial = true
-								this.presentAssistantContent()
+								// this.assistantContentBlocks.push({
+								// 	text: chunk.content_block.text,
+								// 	toolCalls: [],
+								// 	partial: true,
+								// })
+								apiContentBlocks.push(chunk.content_block)
+
+								// we may receive multiple text blocks, in which case just insert a line break between them
+								if (chunk.index > 0) {
+									this.parseTextStream("\n")
+								}
+
+								this.parseTextStream(chunk.content_block.text)
+								// this.assistantContentBlocks.at(-1)!.partial = true
+								this.presentAssistantMessage()
 								break
-							case "tool_use":
-								console.log(
-									"tool_use",
-									chunk.index,
-									chunk.content_block.id,
-									chunk.content_block.name,
-									chunk.content_block.input // input is always object, which will be streamed as partial json in content_block_delta. (this initial 'input' will always be an empty object)
-								)
-								this.assistantContentBlocks.push(chunk.content_block)
-								this.assistantContentBlocks.at(-1)!.partial = true
-								this.presentAssistantContent()
-								// Initialize the JSON parser with partial tokens enabled
-								// partialJsonParser =
-								this.getJsonParserForChunk(chunk.index)
+							// case "tool_use":
+							// 	console.log(
+							// 		"tool_use",
+							// 		chunk.index,
+							// 		chunk.content_block.id,
+							// 		chunk.content_block.name,
+							// 		chunk.content_block.input // input is always object, which will be streamed as partial json in content_block_delta. (this initial 'input' will always be an empty object)
+							// 	)
+							// 	apiContentBlocks.push(chunk.content_block)
+							// 	this.assistantContentBlocks.push(chunk.content_block)
+							// 	this.assistantContentBlocks.at(-1)!.partial = true
+							// 	this.presentAssistantContent()
+							// // Initialize the JSON parser with partial tokens enabled
+							// // partialJsonParser =
+							// this.getJsonParserForChunk(chunk.index)
 						}
 						break
 					case "content_block_delta":
@@ -2468,42 +2642,42 @@ ${this.customInstructions.trim()}
 						switch (chunk.delta.type) {
 							case "text_delta":
 								console.log("text_delta", chunk.delta.text)
-								;(this.assistantContentBlocks[chunk.index] as Anthropic.TextBlock).text +=
-									chunk.delta.text
-								this.presentAssistantContent()
+								;(apiContentBlocks[chunk.index] as Anthropic.TextBlock).text += chunk.delta.text
+								this.parseTextStream(chunk.delta.text)
+								this.presentAssistantMessage()
 								break
-							case "input_json_delta":
-								console.log("input_json_delta", chunk.delta.partial_json)
-								try {
-									this.getJsonParserForChunk(chunk.index).write(chunk.delta.partial_json)
-								} catch (error) {
-									console.error("Error parsing input_json_delta", error)
-								}
+							// case "input_json_delta":
+							// 	console.log("input_json_delta", chunk.delta.partial_json)
+							// 	try {
+							// 		// this.getJsonParserForChunk(chunk.index).write(chunk.delta.partial_json)
+							// 	} catch (error) {
+							// 		console.error("Error parsing input_json_delta", error)
+							// 	}
 
-								// try {
-								// 	// JSONParser will always give us a token unless we pass in an empty/undefined value (in which case the promise would never resolve)
-								// 	if (chunk.delta.partial_json) {
-								// 		// need to await this since we dont want to create multiple jsonparsers in case the read stream comes in faster than the jsonparser can parse
-								// 		await this.updateAssistantContentWithPartialJson(
-								// 			chunk.index,
-								// 			chunk.delta.partial_json
-								// 		)
-								// 	}
-								// } catch (error) {
-								// 	// may be due to timeout, in which case we can safely ignore
-								// 	console.error("Error parsing input_json_delta", error)
-								// }
-								// this.presentAssistantContent()
-								break
+							// 	// try {
+							// 	// 	// JSONParser will always give us a token unless we pass in an empty/undefined value (in which case the promise would never resolve)
+							// 	// 	if (chunk.delta.partial_json) {
+							// 	// 		// need to await this since we dont want to create multiple jsonparsers in case the read stream comes in faster than the jsonparser can parse
+							// 	// 		await this.updateAssistantContentWithPartialJson(
+							// 	// 			chunk.index,
+							// 	// 			chunk.delta.partial_json
+							// 	// 		)
+							// 	// 	}
+							// 	// } catch (error) {
+							// 	// 	// may be due to timeout, in which case we can safely ignore
+							// 	// 	console.error("Error parsing input_json_delta", error)
+							// 	// }
+							// 	// this.presentAssistantContent()
+							// 	break
 						}
 						break
 					case "content_block_stop":
-						if (this.assistantContentBlocks[chunk.index]!.type === "text") {
-							// we only call this for text block since partialJsonParser handles calling this for tool_use blocks (we only eve want to set partial to false and presentAssistantContent once for each block)
-							console.log(11)
-							this.assistantContentBlocks[chunk.index]!.partial = false
-							this.presentAssistantContent()
-						}
+						// if (apiContentBlocks[chunk.index]!.type === "text") {
+						// 	// we only call this for text block since partialJsonParser handles calling this for tool_use blocks (we only eve want to set partial to false and presentAssistantContent once for each block)
+						// 	console.log(11)
+						// 	this.assistantContentBlocks[chunk.index]!.partial = false
+						// 	this.presentAssistantContent()
+						// }
 
 						console.log("content_block_stop", chunk.index)
 
@@ -2514,7 +2688,7 @@ ${this.customInstructions.trim()}
 			}
 			this.didCompleteReadingStream = true
 
-			console.log("contentBlocks", this.assistantContentBlocks)
+			console.log("contentBlocks", apiContentBlocks)
 
 			let totalCost: string | undefined
 
@@ -2539,19 +2713,19 @@ ${this.customInstructions.trim()}
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
-			if (this.assistantContentBlocks.length > 0) {
+			if (apiContentBlocks.length > 0) {
 				// Remove 'partial' prop from assistantContentBlocks
-				const blocksWithoutPartial: Anthropic.Messages.ContentBlock[] = this.assistantContentBlocks.map(
-					(block) => {
-						const { partial, ...rest } = block
-						return rest
-					}
-				)
-				await this.addToApiConversationHistory({ role: "assistant", content: blocksWithoutPartial })
+				// const blocksWithoutPartial: Anthropic.Messages.ContentBlock[] = this.assistantContentBlocks.map(
+				// 	(block) => {
+				// 		const { partial, ...rest } = block
+				// 		return rest
+				// 	}
+				// )
+				await this.addToApiConversationHistory({ role: "assistant", content: apiContentBlocks })
 
-				await pWaitFor(() => this.toolResultsReady)
+				await pWaitFor(() => this.userMessageContentReady)
 
-				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.toolResults)
+				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
