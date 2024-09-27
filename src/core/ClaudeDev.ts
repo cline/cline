@@ -239,24 +239,17 @@ export class ClaudeDev {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
-
-		//
-
 		let askTs: number
-
 		if (partial !== undefined) {
-			console.log(13)
 			const lastMessage = this.claudeMessages.at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
-				console.log(14)
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					lastMessage.text = text
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-
 					// await this.saveClaudeMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
@@ -264,7 +257,6 @@ export class ClaudeDev {
 						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
 					throw new Error("Current ask promise was ignored")
 				} else {
-					console.log(15)
 					// this is a new partial message, so add it with partial state
 					// this.askResponse = undefined
 					// this.askResponseText = undefined
@@ -276,10 +268,8 @@ export class ClaudeDev {
 					throw new Error("Current ask promise was ignored")
 				}
 			} else {
-				console.log(16)
 				// partial=false means its a complete version of a previously partial message
 				if (isUpdatingPreviousPartial) {
-					console.log(17)
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
 					this.askResponse = undefined
 					this.askResponseText = undefined
@@ -292,7 +282,6 @@ export class ClaudeDev {
 					await this.saveClaudeMessages()
 					await this.providerRef.deref()?.postStateToWebview()
 				} else {
-					console.log(18)
 					// this is a new partial=false message, so add it like normal
 					this.askResponse = undefined
 					this.askResponseText = undefined
@@ -305,7 +294,6 @@ export class ClaudeDev {
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
-			console.log(19)
 			// const lastMessage = this.claudeMessages.at(-1)
 			this.askResponse = undefined
 			this.askResponseText = undefined
@@ -315,8 +303,6 @@ export class ClaudeDev {
 			await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text })
 			await this.providerRef.deref()?.postStateToWebview()
 		}
-
-		//
 
 		// if (partial) {
 		// 	const lastMessage = this.claudeMessages.at(-1)
@@ -1832,8 +1818,6 @@ ${this.customInstructions.trim()}
 					// case "write_to_file":
 					// 	return this.writeToFile(toolInput.path, toolInput.content)
 
-					// case "list_files":
-					// 	return this.listFiles(toolInput.path, toolInput.recursive)
 					// case "list_code_definition_names":
 					// 	return this.listCodeDefinitionNames(toolInput.path)
 					// case "search_files":
