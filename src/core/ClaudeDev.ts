@@ -66,6 +66,28 @@ export class ClaudeDev {
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
 
+	// streaming
+	private currentStreamingContentBlockIndex = 0
+	private assistantContentBlocks: AnthropicPartialContentBlock[] = []
+	private toolResults: Anthropic.ToolResultBlockParam[] = []
+	private toolResultsReady = false
+	private didRejectTool = false
+	private presentAssistantContentLocked = false
+	private partialJsonParser: JSONParser | undefined
+	private partialJsonParserState: {
+		partialObject: Record<string, string>
+		currentKey: string
+		currentValue: string
+		parsingKey: boolean
+		parsingValue: boolean
+	} = {
+		partialObject: {},
+		currentKey: "",
+		currentValue: "",
+		parsingKey: false,
+		parsingValue: false,
+	}
+
 	constructor(
 		provider: ClaudeDevProvider,
 		apiConfiguration: ApiConfiguration,
@@ -1628,33 +1650,11 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	private currentStreamingContentBlockIndex = 0
-	private assistantContentBlocks: AnthropicPartialContentBlock[] = []
-	private toolResults: Anthropic.ToolResultBlockParam[] = []
-	private toolResultsReady = false
-	private didRejectTool = false
-
-	// lock so it doesnt get spammed ie pwatifor?
-	private isLocked = false
 	async presentAssistantContent() {
-		if (this.isLocked) {
-			console.log("isLocked")
+		if (this.presentAssistantContentLocked) {
 			return
 		}
-		this.isLocked = true
-
-		// when current index finished, then increment and call stream claude content again if contentblocks length has one more.
-		// otherwise check isStreamingComplete, and set toolResultReady for function to continue
-		// if length is more than currentstreamingindex, then ignore it since when currentstreaming is finished it will call this func again
-
-		// if (this.currentStreamingContentBlockIndex !== this.assistantContentBlocks.length - 1) {
-		// 	console.log(10)
-		// 	console.log("currentStreamingContentBlockIndex", this.currentStreamingContentBlockIndex)
-		// 	console.log("assistantContentBlocks.length", this.assistantContentBlocks.length)
-		// 	// new content past the current streaming index, ignore for now
-		// 	// this function will be called one last time for a completed block
-		// 	return
-		// }
+		this.presentAssistantContentLocked = true
 
 		const block = cloneDeep(this.assistantContentBlocks[this.currentStreamingContentBlockIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
@@ -1684,8 +1684,6 @@ ${this.customInstructions.trim()}
 					if (response !== "yesButtonTapped") {
 						if (response === "messageResponse") {
 							await this.say("user_feedback", text, images)
-							// this.toolResults.push()
-							// const [didUserReject, result] = await this.executeTool(toolName, toolInput)
 							this.toolResults.push({
 								type: "tool_result",
 								tool_use_id: toolUseId,
@@ -1697,7 +1695,6 @@ ${this.customInstructions.trim()}
 							this.didRejectTool = true
 							return false
 						}
-
 						this.toolResults.push({
 							type: "tool_result",
 							tool_use_id: toolUseId,
@@ -1856,19 +1853,12 @@ ${this.customInstructions.trim()}
 				break
 		}
 
-		console.log("unlocking")
-		this.isLocked = false
-
-		console.log(4)
+		this.presentAssistantContentLocked = false
 		if (!block.partial) {
-			console.log(5)
 			// content is complete, call next block if it exists (if not then read stream will call it when its ready)
 			// even if this.didRejectTool, we still need to fill in the tool results with rejection messages
 			this.currentStreamingContentBlockIndex++ // need to increment regardless, so when read stream calls this functio again it will be streaming the next block
-
 			if (this.currentStreamingContentBlockIndex < this.assistantContentBlocks.length) {
-				console.log(6)
-
 				// there are already more content blocks to stream, so we'll call this function ourselves
 				// await this.presentAssistantContent()
 				this.presentAssistantContent()
@@ -1876,13 +1866,6 @@ ${this.customInstructions.trim()}
 		}
 	}
 
-	private partialJsonParser: JSONParser | undefined
-	// object being built incrementally
-	private partialObject: Record<string, string> = {}
-	private currentKey = ""
-	private currentValue = ""
-	private parsingKey: boolean = false
-	private parsingValue: boolean = false
 	updateAssistantContentWithPartialJson(chunkIndex: number, partialJson: string): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const timeoutId = setTimeout(() => {
@@ -1919,76 +1902,76 @@ ${this.customInstructions.trim()}
 			// our json will only ever be string to string maps
 			// { "key": "value", "key2": "value2" }
 			// so left brace, string, colon, comma, right brace
-			// Handle each token emitted by the parser
-			// need to recreate this listener each time to update the resolve ref
+			// (need to recreate this listener each time to update the resolve ref)
 			this.partialJsonParser.onToken = async ({ token, value, offset, partial }) => {
 				console.log("onToken")
+				const state = this.partialJsonParserState
 				try {
 					switch (token) {
 						case TokenType.LEFT_BRACE:
 							// Start of a new JSON object
-							this.partialObject = {}
-							this.currentKey = ""
-							this.parsingKey = false
-							this.parsingValue = false
+							state.partialObject = {}
+							state.currentKey = ""
+							state.parsingKey = false
+							state.parsingValue = false
 							break
 						case TokenType.RIGHT_BRACE:
 							// End of the current JSON object
-							this.currentKey = ""
-							this.currentValue = ""
-							this.parsingKey = false
-							this.parsingValue = false
+							state.currentKey = ""
+							state.currentValue = ""
+							state.parsingKey = false
+							state.parsingValue = false
 
 							// Finalize the object once parsing is complete
 							// ;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = this.partialObject
 							// this.assistantContentBlocks[chunkIndex]!.partial = false
 							// await this.presentAssistantContent() // NOTE: only set partial = false and call this once, since doing it several times will create duplicate messages.
-							console.log("Final parsed object:", this.partialObject)
+							console.log("Final parsed object:", state.partialObject)
 							break
 						case TokenType.STRING:
-							if (!this.parsingValue && !this.parsingKey) {
+							if (!state.parsingValue && !state.parsingKey) {
 								// Starting to parse a key
-								this.currentKey = value as string
-								this.parsingKey = !!partial // if not partial, we are done parsing key
-							} else if (this.parsingKey) {
+								state.currentKey = value as string
+								state.parsingKey = !!partial // if not partial, we are done parsing key
+							} else if (state.parsingKey) {
 								// Continuing to parse a key
-								this.currentKey = value as string
-								this.parsingKey = !!partial
-							} else if (this.parsingValue) {
+								state.currentKey = value as string
+								state.parsingKey = !!partial
+							} else if (state.parsingValue) {
 								// Parsing a value
 								// Accumulate partial value and update the object
-								this.currentValue = value as string
-								if (this.currentKey) {
-									this.partialObject[this.currentKey] = this.currentValue
+								state.currentValue = value as string
+								if (state.currentKey) {
+									state.partialObject[state.currentKey] = state.currentValue
 								}
-								this.parsingValue = !!partial // if not partial, complete value
+								state.parsingValue = !!partial // if not partial, complete value
 							}
 							break
 						case TokenType.COLON:
 							// After a key and colon, expect a value
-							if (this.currentKey !== null) {
-								this.parsingValue = true
+							if (state.currentKey !== null) {
+								state.parsingValue = true
 							}
 							break
 						case TokenType.COMMA:
 							// Reset for the next key-value pair
-							this.currentKey = ""
-							this.currentValue = ""
-							this.parsingKey = false
-							this.parsingValue = false
+							state.currentKey = ""
+							state.currentValue = ""
+							state.parsingKey = false
+							state.parsingValue = false
 							break
 						default:
 							console.error("Unexpected token:", token)
 					}
 
 					// Debugging logs to trace the parsing process
-					console.log("Partial object:", this.partialObject)
+					console.log("Partial object:", state.partialObject)
 					console.log("Offset:", offset, "isPartialToken:", partial)
 
 					// Update the contentBlock with the current state of the partial object
 					// Use spread operator to ensure a new object reference
 					;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = {
-						...this.partialObject,
+						...state.partialObject,
 					}
 					// right brace indicates the end of the json object
 					this.assistantContentBlocks[chunkIndex]!.partial = token !== TokenType.RIGHT_BRACE
@@ -2048,53 +2031,8 @@ ${this.customInstructions.trim()}
 			})
 		)
 
-		// potentially expensive operations
-		const [parsedUserContent, environmentDetails] = await Promise.all([
-			// Process userContent array, which contains various block types:
-			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
-			// We need to apply parseMentions() to:
-			// 1. All TextBlockParam's text (first user message with task)
-			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
-			Promise.all(
-				userContent.map(async (block) => {
-					if (block.type === "text") {
-						return {
-							...block,
-							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
-						}
-					} else if (block.type === "tool_result") {
-						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
-						if (typeof block.content === "string" && isUserMessage(block.content)) {
-							return {
-								...block,
-								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
-							}
-						} else if (Array.isArray(block.content)) {
-							const parsedContent = await Promise.all(
-								block.content.map(async (contentBlock) => {
-									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
-										return {
-											...contentBlock,
-											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
-										}
-									}
-									return contentBlock
-								})
-							)
-							return {
-								...block,
-								content: parsedContent,
-							}
-						}
-					}
-					return block
-				})
-			),
-			this.getEnvironmentDetails(includeFileDetails),
-		])
-
+		const [parsedUserContent, environmentDetails] = await this.loadContext(userContent, includeFileDetails)
 		userContent = parsedUserContent
-
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
 
@@ -2414,6 +2352,52 @@ ${this.customInstructions.trim()}
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonTapped, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return { didEndLoop: true, inputTokens: 0, outputTokens: 0 }
 		}
+	}
+
+	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
+		return await Promise.all([
+			// Process userContent array, which contains various block types:
+			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
+			// We need to apply parseMentions() to:
+			// 1. All TextBlockParam's text (first user message with task)
+			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
+			Promise.all(
+				userContent.map(async (block) => {
+					if (block.type === "text") {
+						return {
+							...block,
+							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+						}
+					} else if (block.type === "tool_result") {
+						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
+						if (typeof block.content === "string" && isUserMessage(block.content)) {
+							return {
+								...block,
+								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
+							}
+						} else if (Array.isArray(block.content)) {
+							const parsedContent = await Promise.all(
+								block.content.map(async (contentBlock) => {
+									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
+										return {
+											...contentBlock,
+											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
+										}
+									}
+									return contentBlock
+								})
+							)
+							return {
+								...block,
+								content: parsedContent,
+							}
+						}
+					}
+					return block
+				})
+			),
+			this.getEnvironmentDetails(includeFileDetails),
+		])
 	}
 
 	// Formatting responses to Claude
