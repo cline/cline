@@ -1725,11 +1725,14 @@ ${this.customInstructions.trim()}
 		}
 	}
 
+	private presentAssistantContentHasPendingUpdates = false
 	async presentAssistantContent() {
 		if (this.presentAssistantContentLocked) {
+			this.presentAssistantContentHasPendingUpdates = true
 			return
 		}
 		this.presentAssistantContentLocked = true
+		this.presentAssistantContentHasPendingUpdates = false
 
 		if (this.currentStreamingContentBlockIndex >= this.assistantContentBlocks.length) {
 			throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
@@ -2227,133 +2230,119 @@ ${this.customInstructions.trim()}
 					// there are already more content blocks to stream, so we'll call this function ourselves
 					// await this.presentAssistantContent()
 					this.presentAssistantContent()
+					return
 				}
 			}
 		}
+		// block is partial, but the read stream may have finished
+		if (this.presentAssistantContentHasPendingUpdates) {
+			this.presentAssistantContent()
+		}
 	}
 
-	updateAssistantContentWithPartialJson(chunkIndex: number, partialJson: string): Promise<void> {
-		return new Promise((resolve, reject) => {
-			const timeoutId = setTimeout(() => {
-				// may happen if json parsing class does call onToken, which *shouldnt* happen if passing in non-empty string
-				reject(new Error("Parsing JSON took too long (> 2 seconds)"))
-			}, 2_000)
+	//
 
-			const cleanupAndResolve = () => {
-				clearTimeout(timeoutId)
-				resolve()
-			}
+	private chunkIndexToJsonParser = new Map<number, JSONParser>()
+	getJsonParserForChunk(chunkIndex: number): JSONParser {
+		if (!this.chunkIndexToJsonParser.has(chunkIndex)) {
+			const parser = new JSONParser({ emitPartialTokens: true, emitPartialValues: true })
+			// this package enforces setting up an onValue listener ("Can't emit data before the "onValue" callback has been set up."), even though we don't need it.
+			parser.onValue = () => console.log(`onValue for chunk ${chunkIndex}`)
+			// parser.onError = (error) => console.error(`Error parsing JSON for chunk ${chunkIndex}:`, error);
+			// parser.onEnd = () => console.log(`JSON parsing ended for chunk ${chunkIndex}`);
 
-			const cleanupAndReject = (error: Error) => {
-				clearTimeout(timeoutId)
-				reject(error)
-			}
-
-			if (!this.partialJsonParser) {
-				this.partialJsonParser = new JSONParser({ emitPartialTokens: true, emitPartialValues: true })
-
-				// this package enforces setting up an onValue listener ("Can't emit data before the "onValue" callback has been set up."), even though we don't need it.
-				this.partialJsonParser.onValue = () => {
-					console.log("onValue")
-				}
-
-				this.partialJsonParser.onError = (error) => {
-					console.error("Error parsing input_json_delta", error)
-				}
-				this.partialJsonParser.onEnd = () => {
-					console.log("onEnd")
-				}
-			}
+			let partialObject: Record<string, string> = {}
+			let currentKey: string = ""
+			let currentValue: string = ""
+			let parsingKey: boolean = false
+			let parsingValue: boolean = false
 
 			// our json will only ever be string to string maps
 			// { "key": "value", "key2": "value2" }
 			// so left brace, string, colon, comma, right brace
 			// (need to recreate this listener each time to update the resolve ref)
-			this.partialJsonParser.onToken = async ({ token, value, offset, partial }) => {
+			parser.onToken = ({ token, value, offset, partial }) => {
 				console.log("onToken")
-				const state = this.partialJsonParserState
+
 				try {
 					switch (token) {
 						case TokenType.LEFT_BRACE:
 							// Start of a new JSON object
-							state.partialObject = {}
-							state.currentKey = ""
-							state.parsingKey = false
-							state.parsingValue = false
+							partialObject = {}
+							currentKey = ""
+							parsingKey = false
+							parsingValue = false
 							break
 						case TokenType.RIGHT_BRACE:
 							// End of the current JSON object
-							state.currentKey = ""
-							state.currentValue = ""
-							state.parsingKey = false
-							state.parsingValue = false
+							currentKey = ""
+							currentValue = ""
+							parsingKey = false
+							parsingValue = false
 
 							// Finalize the object once parsing is complete
 							// ;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = this.partialObject
 							// this.assistantContentBlocks[chunkIndex]!.partial = false
 							// await this.presentAssistantContent() // NOTE: only set partial = false and call this once, since doing it several times will create duplicate messages.
-							console.log("Final parsed object:", state.partialObject)
+							console.log("Final parsed object:", partialObject)
 							break
 						case TokenType.STRING:
-							if (!state.parsingValue && !state.parsingKey) {
+							if (!parsingValue && !parsingKey) {
 								// Starting to parse a key
-								state.currentKey = value as string
-								state.parsingKey = !!partial // if not partial, we are done parsing key
-							} else if (state.parsingKey) {
+								currentKey = value as string
+								parsingKey = !!partial // if not partial, we are done parsing key
+							} else if (parsingKey) {
 								// Continuing to parse a key
-								state.currentKey = value as string
-								state.parsingKey = !!partial
-							} else if (state.parsingValue) {
+								currentKey = value as string
+								parsingKey = !!partial
+							} else if (parsingValue) {
 								// Parsing a value
 								// Accumulate partial value and update the object
-								state.currentValue = value as string
-								if (state.currentKey) {
-									state.partialObject[state.currentKey] = state.currentValue
+								currentValue = value as string
+								if (currentKey) {
+									partialObject[currentKey] = currentValue
 								}
-								state.parsingValue = !!partial // if not partial, complete value
+								parsingValue = !!partial // if not partial, complete value
 							}
 							break
 						case TokenType.COLON:
 							// After a key and colon, expect a value
-							if (state.currentKey !== null) {
-								state.parsingValue = true
+							if (currentKey !== null) {
+								parsingValue = true
 							}
 							break
 						case TokenType.COMMA:
 							// Reset for the next key-value pair
-							state.currentKey = ""
-							state.currentValue = ""
-							state.parsingKey = false
-							state.parsingValue = false
+							currentKey = ""
+							currentValue = ""
+							parsingKey = false
+							parsingValue = false
 							break
 						default:
 							console.error("Unexpected token:", token)
 					}
 
 					// Debugging logs to trace the parsing process
-					console.log("Partial object:", state.partialObject)
+					console.log("Partial object:", partialObject)
 					console.log("Offset:", offset, "isPartialToken:", partial)
 
 					// Update the contentBlock with the current state of the partial object
 					// Use spread operator to ensure a new object reference
 					;(this.assistantContentBlocks[chunkIndex] as Anthropic.ToolUseBlock).input = {
-						...state.partialObject,
+						...partialObject,
 					}
 					// right brace indicates the end of the json object
 					this.assistantContentBlocks[chunkIndex]!.partial = token !== TokenType.RIGHT_BRACE
-					cleanupAndResolve()
+
+					this.presentAssistantContent()
 				} catch (error) {
-					cleanupAndReject(error)
+					console.error("Error parsing input_json_delta", error)
 				}
 			}
 
-			try {
-				this.partialJsonParser.write(partialJson)
-			} catch (error) {
-				console.error("Error parsing input_json_delta", error)
-				cleanupAndReject(error)
-			}
-		})
+			this.chunkIndexToJsonParser.set(chunkIndex, parser)
+		}
+		return this.chunkIndexToJsonParser.get(chunkIndex)!
 	}
 
 	async recursivelyMakeClaudeRequests(
@@ -2427,7 +2416,7 @@ ${this.customInstructions.trim()}
 			this.assistantContentBlocks = []
 			this.didCompleteReadingStream = false
 			this.currentStreamingContentBlockIndex = 0
-
+			this.chunkIndexToJsonParser.clear()
 			for await (const chunk of stream) {
 				switch (chunk.type) {
 					case "message_start":
@@ -2469,8 +2458,9 @@ ${this.customInstructions.trim()}
 								this.assistantContentBlocks.push(chunk.content_block)
 								this.assistantContentBlocks.at(-1)!.partial = true
 								this.presentAssistantContent()
-							// Initialize the JSON parser with partial tokens enabled
-							// partialJsonParser =
+								// Initialize the JSON parser with partial tokens enabled
+								// partialJsonParser =
+								this.getJsonParserForChunk(chunk.index)
 						}
 						break
 					case "content_block_delta":
@@ -2484,26 +2474,26 @@ ${this.customInstructions.trim()}
 								break
 							case "input_json_delta":
 								console.log("input_json_delta", chunk.delta.partial_json)
-								// try {
-								// 	partialJsonParser?.write(chunk.delta.partial_json)
-								// } catch (error) {
-								// 	console.error("Error parsing input_json_delta", error)
-								// }
-
 								try {
-									// JSONParser will always give us a token unless we pass in an empty/undefined value (in which case the promise would never resolve)
-									if (chunk.delta.partial_json) {
-										// need to await this since we dont want to create multiple jsonparsers in case the read stream comes in faster than the jsonparser can parse
-										await this.updateAssistantContentWithPartialJson(
-											chunk.index,
-											chunk.delta.partial_json
-										)
-									}
+									this.getJsonParserForChunk(chunk.index).write(chunk.delta.partial_json)
 								} catch (error) {
-									// may be due to timeout, in which case we can safely ignore
 									console.error("Error parsing input_json_delta", error)
 								}
-								this.presentAssistantContent()
+
+								// try {
+								// 	// JSONParser will always give us a token unless we pass in an empty/undefined value (in which case the promise would never resolve)
+								// 	if (chunk.delta.partial_json) {
+								// 		// need to await this since we dont want to create multiple jsonparsers in case the read stream comes in faster than the jsonparser can parse
+								// 		await this.updateAssistantContentWithPartialJson(
+								// 			chunk.index,
+								// 			chunk.delta.partial_json
+								// 		)
+								// 	}
+								// } catch (error) {
+								// 	// may be due to timeout, in which case we can safely ignore
+								// 	console.error("Error parsing input_json_delta", error)
+								// }
+								// this.presentAssistantContent()
 								break
 						}
 						break
