@@ -19,7 +19,6 @@ import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
-import { ClaudeRequestResult } from "../shared/ClaudeRequestResult"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../shared/ExtensionMessage"
@@ -68,6 +67,7 @@ export class ClaudeDev {
 
 	// streaming
 	private currentStreamingContentBlockIndex = 0
+	private didCompleteReadingStream = false
 	private assistantContentBlocks: AnthropicPartialContentBlock[] = []
 	private toolResults: Anthropic.ToolResultBlockParam[] = []
 	private toolResultsReady = false
@@ -591,7 +591,7 @@ export class ClaudeDev {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.abort) {
-			const { didEndLoop } = await this.recursivelyMakeClaudeRequests(nextUserContent, includeFileDetails)
+			const didEndLoop = await this.recursivelyMakeClaudeRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that claude will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
@@ -1428,6 +1428,95 @@ export class ClaudeDev {
 		}
 	}
 
+	async executeCommandTool(
+		command: string,
+		returnEmptyStringOnSuccess: boolean = false
+	): Promise<[boolean, ToolResponse]> {
+		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
+		const process = this.terminalManager.runCommand(terminalInfo, command)
+
+		let userFeedback: { text?: string; images?: string[] } | undefined
+		let didContinue = false
+		const sendCommandOutput = async (line: string): Promise<void> => {
+			try {
+				const { response, text, images } = await this.ask("command_output", line)
+				if (response === "yesButtonTapped") {
+					// proceed while running
+				} else {
+					userFeedback = { text, images }
+				}
+				didContinue = true
+				process.continue() // continue past the await
+			} catch {
+				// This can only happen if this ask promise was ignored, so ignore this error
+			}
+		}
+
+		let result = ""
+		process.on("line", (line) => {
+			result += line + "\n"
+			if (!didContinue) {
+				sendCommandOutput(line)
+			} else {
+				this.say("command_output", line)
+			}
+		})
+
+		let completed = false
+		process.once("completed", () => {
+			completed = true
+		})
+
+		process.once("no_shell_integration", async () => {
+			await this.say("shell_integration_warning")
+		})
+
+		await process
+
+		// Wait for a short delay to ensure all messages are sent to the webview
+		// This delay allows time for non-awaited promises to be created and
+		// for their associated messages to be sent to the webview, maintaining
+		// the correct order of messages (although the webview is smart about
+		// grouping command_output messages despite any gaps anyways)
+		await delay(50)
+
+		result = result.trim()
+
+		if (userFeedback) {
+			await this.say("user_feedback", userFeedback.text, userFeedback.images)
+			return [
+				true,
+				this.formatToolResponseWithImages(
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
+					userFeedback.images
+				),
+			]
+		}
+
+		// for attemptCompletion, we don't want to return the command output
+		if (returnEmptyStringOnSuccess) {
+			return [false, ""]
+		}
+		if (completed) {
+			return [
+				false,
+				await this.formatToolResult(`Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`),
+			]
+		} else {
+			return [
+				false,
+				await this.formatToolResult(
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					}\n\nYou will be updated on the terminal status and new output in the future.`
+				),
+			]
+		}
+	}
+
 	async executeCommand(
 		command?: string,
 		returnEmptyStringOnSuccess: boolean = false
@@ -1642,6 +1731,10 @@ ${this.customInstructions.trim()}
 		}
 		this.presentAssistantContentLocked = true
 
+		if (this.currentStreamingContentBlockIndex >= this.assistantContentBlocks.length) {
+			throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
+		}
+
 		const block = cloneDeep(this.assistantContentBlocks[this.currentStreamingContentBlockIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text":
@@ -1705,9 +1798,7 @@ ${this.customInstructions.trim()}
 					})
 				}
 
-				const pushToolResult = (
-					content: string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
-				) => {
+				const pushToolResult = (content: ToolResponse) => {
 					this.toolResults.push({
 						type: "tool_result",
 						tool_use_id: toolUseId,
@@ -1806,7 +1897,7 @@ ${this.customInstructions.trim()}
 										break
 									}
 								}
-								pushToolResult(await this.formatToolResult(result))
+								pushToolResult(result)
 								break
 							}
 						} catch (error) {
@@ -1814,22 +1905,305 @@ ${this.customInstructions.trim()}
 							break
 						}
 					}
+					case "list_code_definition_names": {
+						const relDirPath: string | undefined = toolInput.path
+						const sharedMessageProps: ClaudeSayTool = {
+							tool: "listCodeDefinitionNames",
+							path: relDirPath || "",
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: "",
+								} satisfies ClaudeSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!relDirPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("list_code_definition_names", "path")
+									)
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relDirPath)
+								const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: result,
+								} satisfies ClaudeSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+								pushToolResult(result)
+								break
+							}
+						} catch (error) {
+							await handleError("parsing source code definitions", error)
+							break
+						}
+					}
+					case "search_files": {
+						const relDirPath: string | undefined = toolInput.path
+						const regex: string | undefined = toolInput.regex
+						const filePattern: string | undefined = toolInput.filePattern
+						const sharedMessageProps: ClaudeSayTool = {
+							tool: "searchFiles",
+							path: relDirPath || "",
+							regex: regex || "",
+							filePattern: filePattern || "",
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: "",
+								} satisfies ClaudeSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!relDirPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "path"))
+									break
+								}
+								if (!regex) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "regex"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relDirPath)
+								const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: results,
+								} satisfies ClaudeSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+								pushToolResult(results)
+								break
+							}
+						} catch (error) {
+							await handleError("searching files", error)
+							break
+						}
+					}
+					case "inspect_site": {
+						const url: string | undefined = toolInput.url
+						const sharedMessageProps: ClaudeSayTool = {
+							tool: "inspectSite",
+							path: url || "",
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify(sharedMessageProps)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!url) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("inspect_site", "url"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify(sharedMessageProps)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+
+								// execute tool
+								await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
+								await this.urlContentFetcher.launchBrowser()
+								let result: {
+									screenshot: string
+									logs: string
+								}
+								try {
+									result = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
+								} finally {
+									await this.urlContentFetcher.closeBrowser()
+								}
+								const { screenshot, logs } = result
+								await this.say("inspect_site_result", logs, [screenshot])
+
+								pushToolResult(
+									this.formatToolResponseWithImages(
+										`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
+											logs || "(No logs)"
+										}`,
+										[screenshot]
+									)
+								)
+								break
+							}
+						} catch (error) {
+							await handleError("inspecting site", error)
+							break
+						}
+					}
+					case "execute_command": {
+						const command: string | undefined = toolInput.command
+						try {
+							if (block.partial) {
+								await this.ask("command", command || "", block.partial).catch(() => {})
+								break
+							} else {
+								if (!command) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("execute_command", "command")
+									)
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const didApprove = await askApproval("command", command)
+								if (!didApprove) {
+									break
+								}
+								const [userRejected, result] = await this.executeCommandTool(command)
+								if (userRejected) {
+									this.didRejectTool = true // test whats going on here
+								}
+								pushToolResult(result)
+								break
+							}
+						} catch (error) {
+							await handleError("inspecting site", error)
+							break
+						}
+					}
+
+					case "ask_followup_question": {
+						const question: string | undefined = toolInput.question
+						try {
+							if (block.partial) {
+								await this.ask("followup", question || "", block.partial).catch(() => {})
+								break
+							} else {
+								if (!question) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("ask_followup_question", "question")
+									)
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const { text, images } = await this.ask("followup", question, false)
+								await this.say("user_feedback", text ?? "", images)
+								pushToolResult(
+									this.formatToolResponseWithImages(`<answer>\n${text}\n</answer>`, images)
+								)
+								break
+							}
+						} catch (error) {
+							await handleError("inspecting site", error)
+							break
+						}
+					}
+					case "attempt_completion": {
+						const result: string | undefined = toolInput.result
+						const command: string | undefined = toolInput.command
+						try {
+							const lastMessage = this.claudeMessages.at(-1)
+							if (block.partial) {
+								if (command) {
+									// the attempt_completion text is done, now we're getting command
+									// remove the previous partial attempt_completion ask, replace with say, post state to webview, then stream command
+
+									// const secondLastMessage = this.claudeMessages.at(-2)
+									if (lastMessage && lastMessage.ask === "command") {
+										// update command
+										await this.ask("command", command || "", block.partial).catch(() => {})
+									} else {
+										// last message is completion_result
+										// we have command string, but last message is attempt_completion, so finish it
+										await this.say("completion_result", result, undefined, false)
+										await this.ask("command", command || "", block.partial).catch(() => {})
+									}
+								} else {
+									// no command, still outputting partial result
+									await this.say("completion_result", result || "", undefined, block.partial)
+								}
+								break
+							} else {
+								if (!result) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("attempt_completion", "result")
+									)
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								if (lastMessage && lastMessage.ask === "command") {
+									// complete command message
+									const didApprove = await askApproval("command", command)
+									if (!didApprove) {
+										break
+									}
+									const [userRejected, result] = await this.executeCommandTool(command!)
+									if (userRejected) {
+										this.didRejectTool = true // test whats going on here
+									}
+									pushToolResult(result)
+									break
+								} else {
+									// last message is completion_result, not command so it wasn't completed, need to complete it
+									// empty string makes it invisible and just shows new task button
+									const { response, text, images } = await this.ask("completion_result", "", false)
+									if (response === "yesButtonTapped") {
+										pushToolResult("") // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
+										break
+									}
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										this.formatToolResponseWithImages(
+											`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
+											images
+										)
+									)
+									break
+								}
+							}
+						} catch (error) {
+							await handleError("inspecting site", error)
+							break
+						}
+					}
 
 					// case "write_to_file":
 					// 	return this.writeToFile(toolInput.path, toolInput.content)
 
-					// case "list_code_definition_names":
-					// 	return this.listCodeDefinitionNames(toolInput.path)
-					// case "search_files":
-					// 	return this.searchFiles(toolInput.path, toolInput.regex, toolInput.filePattern)
-					// case "execute_command":
-					// 	return this.executeCommand(toolInput.command)
-					// case "inspect_site":
-					// 	return this.inspectSite(toolInput.url)
-					// case "ask_followup_question":
-					// 	return this.askFollowupQuestion(toolInput.question)
-					// case "attempt_completion":
-					// 	return this.attemptCompletion(toolInput.result, toolInput.command)
 					// default:
 					// 	return [false, `Unknown tool: ${toolName}`]
 				}
@@ -1839,13 +2213,21 @@ ${this.customInstructions.trim()}
 
 		this.presentAssistantContentLocked = false
 		if (!block.partial) {
-			// content is complete, call next block if it exists (if not then read stream will call it when its ready)
-			// even if this.didRejectTool, we still need to fill in the tool results with rejection messages
-			this.currentStreamingContentBlockIndex++ // need to increment regardless, so when read stream calls this functio again it will be streaming the next block
-			if (this.currentStreamingContentBlockIndex < this.assistantContentBlocks.length) {
-				// there are already more content blocks to stream, so we'll call this function ourselves
-				// await this.presentAssistantContent()
-				this.presentAssistantContent()
+			// block is finished streaming and executing
+			if (
+				this.currentStreamingContentBlockIndex === this.assistantContentBlocks.length - 1 &&
+				this.didCompleteReadingStream
+			) {
+				// last block is complete and it is finished executing
+				this.toolResultsReady = true // will allow pwaitfor to continue
+			} else {
+				// call next block if it exists (if not then read stream will call it when its ready)
+				this.currentStreamingContentBlockIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
+				if (this.currentStreamingContentBlockIndex < this.assistantContentBlocks.length) {
+					// there are already more content blocks to stream, so we'll call this function ourselves
+					// await this.presentAssistantContent()
+					this.presentAssistantContent()
+				}
 			}
 		}
 	}
@@ -1854,8 +2236,8 @@ ${this.customInstructions.trim()}
 		return new Promise((resolve, reject) => {
 			const timeoutId = setTimeout(() => {
 				// may happen if json parsing class does call onToken, which *shouldnt* happen if passing in non-empty string
-				reject(new Error("Parsing JSON took too long (> 5 seconds)"))
-			}, 5_000)
+				reject(new Error("Parsing JSON took too long (> 2 seconds)"))
+			}, 2_000)
 
 			const cleanupAndResolve = () => {
 				clearTimeout(timeoutId)
@@ -1977,7 +2359,7 @@ ${this.customInstructions.trim()}
 	async recursivelyMakeClaudeRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false
-	): Promise<ClaudeRequestResult> {
+	): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
 		}
@@ -2043,7 +2425,7 @@ ${this.customInstructions.trim()}
 
 			// let contentBlocks: AnthropicPartialContentBlock[] = []
 			this.assistantContentBlocks = []
-
+			this.didCompleteReadingStream = false
 			this.currentStreamingContentBlockIndex = 0
 
 			for await (const chunk of stream) {
@@ -2140,6 +2522,7 @@ ${this.customInstructions.trim()}
 						break
 				}
 			}
+			this.didCompleteReadingStream = true
 
 			console.log("contentBlocks", this.assistantContentBlocks)
 
@@ -2165,20 +2548,21 @@ ${this.customInstructions.trim()}
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
-			let didEndLoop = false // do we need this
+			let didEndLoop = false
 			if (this.assistantContentBlocks.length > 0) {
-				await this.addToApiConversationHistory({ role: "assistant", content: this.assistantContentBlocks })
+				// Remove 'partial' prop from assistantContentBlocks
+				const blocksWithoutPartial: Anthropic.Messages.ContentBlock[] = this.assistantContentBlocks.map(
+					(block) => {
+						const { partial, ...rest } = block
+						return rest
+					}
+				)
+				await this.addToApiConversationHistory({ role: "assistant", content: blocksWithoutPartial })
 
 				await pWaitFor(() => this.toolResultsReady)
 
-				const {
-					didEndLoop: recDidEndLoop,
-					inputTokens: recInputTokens,
-					outputTokens: recOutputTokens,
-				} = await this.recursivelyMakeClaudeRequests(this.toolResults)
+				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.toolResults)
 				didEndLoop = recDidEndLoop
-				inputTokens += recInputTokens
-				outputTokens += recOutputTokens
 			} else {
 				// this should never happen! it there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				await this.say(
@@ -2191,7 +2575,7 @@ ${this.customInstructions.trim()}
 				})
 			}
 
-			// return { didEndLoop: false, inputTokens: 0, outputTokens: 0 } // fix
+			return didEndLoop // will always be false for now
 
 			throw new Error("ClaudeDev fail")
 			if (this.abort) {
