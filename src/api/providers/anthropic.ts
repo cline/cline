@@ -69,6 +69,7 @@ export class AnthropicHandler implements ApiHandler {
 						}),
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						// tool_choice: { type: "auto" },
+						// tools: tools,
 						stream: true,
 					},
 					(() => {

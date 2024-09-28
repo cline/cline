@@ -1285,6 +1285,7 @@ ${this.customInstructions.trim()}
 				this.userMessageContentReady = true
 			}
 			// console.log("no more content blocks to stream! this shouldn't happen?")
+			this.presentAssistantMessageLocked = false
 			return
 			//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
 		}
@@ -1403,6 +1404,7 @@ ${this.customInstructions.trim()}
 						if (!relPath || !newContent) {
 							// checking for newContent ensure relPath is complete
 							// wait so we can determine if it's a new file or editing an existing file
+							console.log("no relpath or content")
 							break
 						}
 						// Check if file exists using cached map or fs.access
@@ -2171,31 +2173,36 @@ ${this.customInstructions.trim()}
 				break
 		}
 
-		this.presentAssistantMessageLocked = false
+		/*
+		seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
+
+		*/
+
 		if (!block.partial) {
 			// block is finished streaming and executing
-			if (
-				this.currentStreamingContentIndex === this.assistantMessageContent.length - 1 &&
-				this.didCompleteReadingStream
-			) {
+			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
 				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
 				// last block is complete and it is finished executing
 				this.userMessageContentReady = true // will allow pwaitfor to continue
-			} else {
-				// call next block if it exists (if not then read stream will call it when its ready)
-				this.currentStreamingContentIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
-				if (this.currentStreamingContentIndex < this.assistantMessageContent.length) {
-					// there are already more content blocks to stream, so we'll call this function ourselves
-					// await this.presentAssistantContent()
-					this.presentAssistantMessage()
-					return
-				}
+			}
+
+			// call next block if it exists (if not then read stream will call it when its ready)
+			this.currentStreamingContentIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
+
+			if (this.currentStreamingContentIndex < this.assistantMessageContent.length) {
+				// there are already more content blocks to stream, so we'll call this function ourselves
+				// await this.presentAssistantContent()
+				this.presentAssistantMessageLocked = false
+				this.presentAssistantMessage()
+				return
 			}
 		}
 		// block is partial, but the read stream may have finished
 		if (this.presentAssistantMessageHasPendingUpdates) {
 			this.presentAssistantMessage()
 		}
+		this.presentAssistantMessageLocked = false
 	}
 
 	// streaming
@@ -2316,7 +2323,13 @@ ${this.customInstructions.trim()}
 
 		textContent.content = textContentLines.join("\n")
 
+		const prevLength = this.assistantMessageContent.length
+
 		this.assistantMessageContent = [textContent, ...toolCalls]
+
+		if (this.assistantMessageContent.length > prevLength) {
+			this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+		}
 	}
 
 	async recursivelyMakeClaudeRequests(
@@ -2501,6 +2514,27 @@ ${this.customInstructions.trim()}
 				// 	}
 				// )
 				await this.addToApiConversationHistory({ role: "assistant", content: apiContentBlocks })
+
+				// incase the content blocks finished
+
+				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (not you should not call presentAssistantMessage since if the last block is completed it will be presented again)
+
+				const completeBlocks = this.assistantMessageContent.filter((block) => !block.partial) // if there are any partial blocks after the stream ended we can consider them invalid
+
+				// console.log(
+				// 	"checking userMessageContentReady",
+				// 	this.userMessageContentReady,
+				// 	this.currentStreamingContentIndex,
+				// 	this.assistantMessageContent.length,
+				// 	completeBlocks.length
+				// )
+
+				if (this.currentStreamingContentIndex >= completeBlocks.length) {
+					console.log("setting userMessageContentReady to true")
+					this.userMessageContentReady = true
+					//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
+				}
+
 				await pWaitFor(() => this.userMessageContentReady)
 
 				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)
