@@ -26,6 +26,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anth
 -   Paste images in chat to use Claude's vision capabilities and turn mockups into fully functional applications or fix bugs with screenshots
 -   Review and edit diffs of every change Claude makes right in the editor, or provide feedback in chat until you're satisfied with the result
 -   Executes commands directly in your terminal, keeping Claude updated on any output as he works (letting him react to server errors!)
+-   Captures screenshots and console logs of locally running web apps to help Claude debug and fix runtime issues on his own
 -   Monitors workspace problems to keep Claude updated on linter/compiler/build issues, letting him proactively fix errors on his own (adding missing imports, fixing syntax errors, etc.)
 -   Presents permission buttons (like 'Approve terminal command') before tool use or sending information to the API
 -   Keep track of total tokens and API usage cost for the entire task loop and individual requests
@@ -44,11 +45,12 @@ Claude Dev has access to the following capabilities:
 1. **`execute_command`**: Execute terminal commands on the system (only with your permission, output is streamed into the chat)
 2. **`read_file`**: Read the contents of a file at the specified path
 3. **`write_to_file`**: Write content to a file at the specified path, automatically creating any necessary directories
-4. **`list_files`**: List all paths for files in the specified directory. When `recursive = true`, it recursively lists all files in the directory and its nested folders (excludes files in .gitignore). When `recursive = false`, it lists only top-level files (useful for generic file operations like retrieving a file from your Desktop).
-5. **`list_code_definition_names`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
-6. **`search_files`**: Search files in a specified directory for text that matches a given regex pattern (useful for refactoring code, addressing TODOs and FIXMEs, removing dead code, etc.)
-7. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
-8. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
+4. **`inspect_site`**: Capture a screenshot and console logs of a website (useful for debugging locally running apps)
+5. **`list_files`**: List all paths for files in the specified directory. When `recursive = true`, it recursively lists all files in the directory and its nested folders (excludes files in .gitignore). When `recursive = false`, it lists only top-level files (useful for generic file operations like retrieving a file from your Desktop).
+6. **`list_code_definition_names`**: Parses all source code files at the top level of the specified directory to extract names of key elements like classes and functions (see more below)
+7. **`search_files`**: Search files in a specified directory for text that matches a given regex pattern (useful for refactoring code, addressing TODOs and FIXMEs, removing dead code, etc.)
+8. **`ask_followup_question`**: Ask the user a question to gather additional information needed to complete a task (due to the autonomous nature of the program, this isn't a typical chatbot–Claude Dev must explicitly interrupt his task loop to ask for more information)
+9. **`attempt_completion`**: Present the result to the user after completing a task, potentially with a terminal command to kickoff a demonstration
 
 ### Working in Existing Projects
 
@@ -56,7 +58,7 @@ When given a task in an existing project, Claude will look for the most relevant
 
 1. **File Structure**: When a task is started, Claude is given an overview of your project's file structure. It turns out Claude 3.5 Sonnet is _really_ good at inferring what it needs to process further just from these file names alone.
 
-2. **Source Code Definitions**: Claude may then use the `list_code_definition_names` tool on specific directories of interest. This tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. It works by first identifying source code files that tree-sitter can parse (currently supports `python`, `javascript`, `typescript`, `ruby`, `go`, `java`, `php`, `rust`, `c`, `c++`, `c#`, `swift`), then parsing each file into an abstract syntax tree, and finally applying a language-specific query to extract definition names (you can see the exact query used for each language in `src/parse-source-code/queries`). The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose.
+2. **Source Code Definitions**: Claude may then use the `list_code_definition_names` tool on specific directories of interest. This tool uses [tree-sitter](https://github.com/tree-sitter/tree-sitter) to parse source code with custom tag queries that extract names of classes, functions, methods, and other definitions. It works by first identifying source code files that tree-sitter can parse (currently supports `python`, `javascript`, `typescript`, `ruby`, `go`, `java`, `php`, `rust`, `c`, `c++`, `c#`, `swift`), then parsing each file into an abstract syntax tree, and finally applying a language-specific query to extract definition names. The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose.
 
 3. **Search Files**: Claude can also use the `search_files` tool to search for specific patterns or content across multiple files. This tool uses [ripgrep](https://github.com/BurntSushi/ripgrep) to perform regex searches on files in a specified directory. The results are formatted into a concise & readable output that Claude can easily interpret to quickly understand the code's structure and purpose. This can be useful for tasks like refactoring function names, updating imports, addressing TODOs and FIXMEs, etc.
 
@@ -112,7 +114,7 @@ This project is licensed under the MIT License. See the [LICENSE](./LICENSE) fil
 
 ## Questions?
 
-Contact me on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please create an <a href="https://github.com/saoudrizwan/claude-dev/issues">issue</a> if you come across a bug or would like a feature to be added.
+Contact me on X <a href="https://x.com/sdrzn" target="_blank">@sdrzn</a>. Please create an <a href="https://github.com/saoudrizwan/claude-dev/issues">issue</a> if you come across a bug, or use the <a href="https://github.com/saoudrizwan/claude-dev/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop">feature request board</a> to share & vote on new features.
 
 ## Acknowledgments
 

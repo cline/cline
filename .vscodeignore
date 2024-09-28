@@ -36,7 +36,7 @@ webview-ui/node_modules/**
 !node_modules/@vscode/codicons/dist/codicon.ttf
 
 # Include default themes JSON files used in getTheme
-!src/utils/default-themes/**
+!src/integrations/theme/default-themes/**
 
 # Include icons
 !icons/**

@@ -5,9 +5,10 @@ import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme" | "workspaceUpdated"
+	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme" | "workspaceUpdated" | "invoke"
 	text?: string
 	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
+	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
 	models?: string[]
@@ -58,6 +59,7 @@ export type ClaudeSay =
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
+	| "inspect_site_result"
 
 export interface ClaudeSayTool {
 	tool:
@@ -68,6 +70,7 @@ export interface ClaudeSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "inspectSite"
 	path?: string
 	diff?: string
 	content?: string
