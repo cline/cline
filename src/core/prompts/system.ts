@@ -73,9 +73,9 @@ Current Working Directory: ${cwd.toPosix()}
 
 ====
 
-INSTRUCTIONS FOR FORMULATING YOUR RESPONSE
+INSTRUCTIONS FOR FORMULATING RESPONSE
 
-You must respond to the user's request by using at least one tool call. When formulating your response, follow these guidelines:
+You must respond to the user's message with at least one tool call. When formulating your response, follow these guidelines:
 
 1. You might begin your response explaining your thoughts, analysis, plan of action, etc.
 2. Place ALL tool calls at the END of your message.
@@ -96,7 +96,7 @@ Remember:
 - Choose the most appropriate tool(s) based on the task and the tool descriptions provided.
 - Formulate your tool calls using the XML format specified for each tool.
 - Provide clear explanations about what actions you're taking and why you're using particular tools.
-- Act as if the tool calls will be executed immediately after your message, and your next response will have access to their results.
+- The tool calls will be executed immediately after your message, and the user's next response will include their results.
 
 # Tool Calls Formatting
 
