@@ -2179,6 +2179,7 @@ ${this.customInstructions.trim()}
 
 		*/
 
+		this.presentAssistantMessageLocked = false
 		if (!block.partial) {
 			// block is finished streaming and executing
 			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
@@ -2193,7 +2194,7 @@ ${this.customInstructions.trim()}
 			if (this.currentStreamingContentIndex < this.assistantMessageContent.length) {
 				// there are already more content blocks to stream, so we'll call this function ourselves
 				// await this.presentAssistantContent()
-				this.presentAssistantMessageLocked = false
+
 				this.presentAssistantMessage()
 				return
 			}
@@ -2202,7 +2203,6 @@ ${this.customInstructions.trim()}
 		if (this.presentAssistantMessageHasPendingUpdates) {
 			this.presentAssistantMessage()
 		}
-		this.presentAssistantMessageLocked = false
 	}
 
 	// streaming
