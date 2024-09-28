@@ -1770,35 +1770,37 @@ ${this.customInstructions.trim()}
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
 								if (lastMessage && lastMessage.ask === "command") {
 									// complete command message
 									const didApprove = await askApproval("command", command)
 									if (!didApprove) {
 										break
 									}
-									const [userRejected, result] = await this.executeCommandTool(command!)
-									if (userRejected) {
-										this.didRejectTool = true // test whats going on here
-									}
-									pushToolResult(result)
-									break
-								} else {
-									// last message is completion_result, not command so it wasn't completed, need to complete it
-									// empty string makes it invisible and just shows new task button
-									const { response, text, images } = await this.ask("completion_result", "", false)
-									if (response === "yesButtonTapped") {
-										pushToolResult("") // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
+									const [userRejected, commandResult] = await this.executeCommandTool(command!, true)
+									if (commandResult) {
+										if (userRejected) {
+											this.didRejectTool = true // test whats going on here
+										}
+										pushToolResult(commandResult)
 										break
 									}
-									await this.say("user_feedback", text ?? "", images)
-									pushToolResult(
-										this.formatToolResponseWithImages(
-											`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-											images
-										)
-									)
+								}
+
+								// we already sent completion_result says, an empty string asks relinquishes control over button and field
+								const { response, text, images } = await this.ask("completion_result", "", false)
+								if (response === "yesButtonTapped") {
+									pushToolResult("") // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
 									break
 								}
+								await this.say("user_feedback", text ?? "", images)
+								pushToolResult(
+									this.formatToolResponseWithImages(
+										`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
+										images
+									)
+								)
+								break
 							}
 						} catch (error) {
 							await handleError("inspecting site", error)
@@ -2081,6 +2083,11 @@ ${this.customInstructions.trim()}
 				}
 			}
 
+			// in case no tool calls were made or tool call wasn't closed properly, set partial to false
+			if (this.assistantMessageContent.some((e) => e.partial)) {
+				this.assistantMessageContent.forEach((e) => (e.partial = false))
+				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request
+			}
 			this.didCompleteReadingStream = true
 
 			console.log("contentBlocks", apiContentBlocks)
