@@ -96,7 +96,7 @@ Remember:
 - Choose the most appropriate tool(s) based on the task and the tool descriptions provided.
 - Formulate your tool calls using the XML format specified for each tool.
 - Provide clear explanations about what actions you're taking and why you're using particular tools.
-- The tool calls will be executed immediately after your message, and the user's next response will include their results.
+- After making tool calls, you will receive the results of these calls in the user's next response. These results will provide you with the necessary information to continue your task or make further decisions.
 
 # Tool Calls Formatting
 

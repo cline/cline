@@ -1391,11 +1391,246 @@ ${this.customInstructions.trim()}
 				}
 
 				switch (block.name) {
+					case "write_to_file": {
+						const relPath: string | undefined = block.params.path
+						let newContent: string | undefined = block.params.content
+						if (!relPath || !newContent) {
+							// checking for newContent ensure relPath is complete
+							// wait so we can determine if it's a new file or editing an existing file
+							break
+						}
+						// Check if file exists using cached map or fs.access
+						let fileExists: boolean
+						if (this.fileExistsCache.has(relPath)) {
+							fileExists = this.fileExistsCache.get(relPath)!
+						} else {
+							const absolutePath = path.resolve(cwd, relPath)
+							fileExists = await fs
+								.access(absolutePath)
+								.then(() => true)
+								.catch(() => false)
+							this.fileExistsCache.set(relPath, fileExists)
+						}
+						const sharedMessageProps: ClaudeSayTool = {
+							tool: fileExists ? "editedExistingFile" : "newFileCreated",
+							path: this.getReadablePath(relPath),
+						}
+						try {
+							const absolutePath = path.resolve(cwd, relPath)
+							if (block.partial) {
+								// update gui message
+								const partialMessage = JSON.stringify(sharedMessageProps)
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+
+								if (!this.isEditingFile) {
+									// open the editor and prepare to stream content in
+
+									this.isEditingFile = true
+
+									if (fileExists) {
+										this.editorOriginalContent = await fs.readFile(
+											path.resolve(cwd, relPath),
+											"utf-8"
+										)
+									} else {
+										this.editorOriginalContent = ""
+									}
+
+									const fileName = path.basename(absolutePath)
+									// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+
+									// Keep track of newly created directories
+									this.editFileCreatedDirs = await this.createDirectoriesForFile(absolutePath)
+									// console.log(`Created directories: ${createdDirs.join(", ")}`)
+									// make sure the file exists before we open it
+									if (!fileExists) {
+										await fs.writeFile(absolutePath, "")
+									}
+
+									// Open the existing file with the new contents
+									const updatedDocument = await vscode.workspace.openTextDocument(
+										vscode.Uri.file(absolutePath)
+									)
+
+									// Show diff
+									await vscode.commands.executeCommand(
+										"vscode.diff",
+										vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+											query: Buffer.from(this.editorOriginalContent).toString("base64"),
+										}),
+										updatedDocument.uri,
+										`${fileName}: ${
+											fileExists ? "Original ↔ Claude's Changes" : "New File"
+										} (Editable)`
+									)
+
+									// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+									this.editFileDocumentWasOpen = false
+
+									// close the tab if it's open
+									const tabs = vscode.window.tabGroups.all
+										.map((tg) => tg.tabs)
+										.flat()
+										.filter(
+											(tab) =>
+												tab.input instanceof vscode.TabInputText &&
+												arePathsEqual(tab.input.uri.fsPath, absolutePath)
+										)
+									for (const tab of tabs) {
+										await vscode.window.tabGroups.close(tab)
+										this.editFileDocumentWasOpen = true
+									}
+
+									// edit needs to happen after we close the original tab
+									const edit = new vscode.WorkspaceEdit()
+									if (!fileExists) {
+										edit.insert(updatedDocument.uri, new vscode.Position(0, 0), newContent) // newContent is partial
+									} else {
+										const fullRange = new vscode.Range(
+											updatedDocument.positionAt(0),
+											updatedDocument.positionAt(updatedDocument.getText().length)
+										)
+										edit.replace(updatedDocument.uri, fullRange, newContent)
+									}
+									// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
+									await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
+								}
+
+								// editor is open, stream content in
+
+								const updatedDocument = vscode.workspace.textDocuments.find((doc) =>
+									arePathsEqual(doc.uri.fsPath, absolutePath)
+								)!
+
+								const edit = new vscode.WorkspaceEdit()
+								if (!fileExists) {
+									edit.insert(updatedDocument.uri, new vscode.Position(0, 0), newContent)
+								} else {
+									const fullRange = new vscode.Range(
+										updatedDocument.positionAt(0),
+										updatedDocument.positionAt(updatedDocument.getText().length)
+									)
+									edit.replace(updatedDocument.uri, fullRange, newContent)
+								}
+								await vscode.workspace.applyEdit(edit)
+
+								break
+							} else {
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
+									break
+								}
+								if (!newContent) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								// execute tool
+								const updatedDocument = vscode.workspace.textDocuments.find((doc) =>
+									arePathsEqual(doc.uri.fsPath, absolutePath)
+								)!
+								const originalContent = this.editorOriginalContent!
+								const createdDirs = this.editFileCreatedDirs
+								const documentWasOpen = this.editFileDocumentWasOpen
+
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: fileExists ? undefined : newContent,
+									diff: fileExists
+										? this.createPrettyPatch(relPath, originalContent, newContent)
+										: undefined,
+								} satisfies ClaudeSayTool)
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									if (!fileExists) {
+										if (updatedDocument.isDirty) {
+											await updatedDocument.save()
+										}
+										await this.closeDiffViews()
+										await fs.unlink(absolutePath)
+										// Remove only the directories we created, in reverse order
+										for (let i = createdDirs.length - 1; i >= 0; i--) {
+											await fs.rmdir(createdDirs[i])
+											console.log(`Directory ${createdDirs[i]} has been deleted.`)
+										}
+										console.log(`File ${absolutePath} has been deleted.`)
+									} else {
+										// revert document
+										const edit = new vscode.WorkspaceEdit()
+										const fullRange = new vscode.Range(
+											updatedDocument.positionAt(0),
+											updatedDocument.positionAt(updatedDocument.getText().length)
+										)
+										edit.replace(updatedDocument.uri, fullRange, originalContent)
+										// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
+										await vscode.workspace.applyEdit(edit)
+										await updatedDocument.save()
+										console.log(`File ${absolutePath} has been reverted to its original content.`)
+										if (documentWasOpen) {
+											await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+												preview: false,
+											})
+										}
+										await this.closeDiffViews()
+									}
+									break
+								}
+
+								// Save the changes
+								const editedContent = updatedDocument.getText()
+								if (updatedDocument.isDirty) {
+									await updatedDocument.save()
+								}
+								this.didEditFile = true
+
+								await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+
+								await this.closeDiffViews()
+
+								// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
+								const newContentEOL = newContent.includes("\r\n") ? "\r\n" : "\n"
+								const normalizedEditedContent = editedContent.replace(/\r\n|\n/g, newContentEOL)
+								const normalizedNewContent = newContent.replace(/\r\n|\n/g, newContentEOL) // just in case the new content has a mix of varying EOL characters
+								if (normalizedEditedContent !== normalizedNewContent) {
+									const userDiff = diff.createPatch(
+										relPath.toPosix(),
+										normalizedNewContent,
+										normalizedEditedContent
+									)
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: fileExists ? "editedExistingFile" : "newFileCreated",
+											path: this.getReadablePath(relPath),
+											diff: this.createPrettyPatch(
+												relPath,
+												normalizedNewContent,
+												normalizedEditedContent
+											),
+										} satisfies ClaudeSayTool)
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)`
+									)
+									break
+								} else {
+									pushToolResult(`The content was successfully saved to ${relPath.toPosix()}.`)
+									break
+								}
+							}
+						} catch (error) {
+							await handleError("writing file", error)
+							break
+						}
+					}
 					case "read_file": {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "readFile",
-							path: relPath || "", //this.getReadablePath(relPath || ""),
+							path: this.getReadablePath(relPath),
 						}
 						try {
 							if (block.partial) {
@@ -1785,6 +2020,9 @@ ${this.customInstructions.trim()}
 										pushToolResult(commandResult)
 										break
 									}
+								} else {
+									// last message was not command, so it must be completion_result. complete it
+									await this.say("completion_result", result, undefined, false)
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
@@ -1854,6 +2092,12 @@ ${this.customInstructions.trim()}
 	private presentAssistantMessageLocked = false
 	private presentAssistantMessageHasPendingUpdates = false
 	private parseTextStreamAccumulator = ""
+	//edit
+	private fileExistsCache: Map<string, boolean> = new Map()
+	private isEditingFile = false
+	private editorOriginalContent: string | undefined
+	private editFileCreatedDirs: string[] = []
+	private editFileDocumentWasOpen = false
 
 	parseTextStream(chunk: string) {
 		this.parseTextStreamAccumulator += chunk
@@ -2036,8 +2280,13 @@ ${this.customInstructions.trim()}
 			this.presentAssistantMessageLocked = false
 			this.presentAssistantMessageHasPendingUpdates = false
 			this.parseTextStreamAccumulator = ""
+			// edit
+			this.fileExistsCache.clear()
+			this.isEditingFile = false
+			this.editorOriginalContent = undefined
+			this.editFileCreatedDirs = []
+			this.editFileDocumentWasOpen = false
 
-			// this.chunkIndexToJsonParser.clear()
 			for await (const chunk of stream) {
 				switch (chunk.type) {
 					case "message_start":
