@@ -1280,7 +1280,13 @@ ${this.customInstructions.trim()}
 		this.presentAssistantMessageHasPendingUpdates = false
 
 		if (this.currentStreamingContentIndex >= this.assistantMessageContent.length) {
-			throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
+			// this may happen if the last content block was completed before streaming could finish. if streaming is finished, and we're out of bounds then this means we already presented/executed the last content block and are ready to continue to next request
+			if (this.didCompleteReadingStream) {
+				this.userMessageContentReady = true
+			}
+			// console.log("no more content blocks to stream! this shouldn't happen?")
+			return
+			//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
 		}
 
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
@@ -1401,15 +1407,17 @@ ${this.customInstructions.trim()}
 						}
 						// Check if file exists using cached map or fs.access
 						let fileExists: boolean
-						if (this.fileExistsCache.has(relPath)) {
-							fileExists = this.fileExistsCache.get(relPath)!
+
+						if (this.isEditingExistingFile !== undefined) {
+							fileExists = this.isEditingExistingFile
 						} else {
 							const absolutePath = path.resolve(cwd, relPath)
 							fileExists = await fs
 								.access(absolutePath)
 								.then(() => true)
 								.catch(() => false)
-							this.fileExistsCache.set(relPath, fileExists)
+
+							this.isEditingExistingFile = fileExists
 						}
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
@@ -1422,6 +1430,94 @@ ${this.customInstructions.trim()}
 								const partialMessage = JSON.stringify(sharedMessageProps)
 								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 
+								if (!this.isEditingFile) {
+									// open the editor and prepare to stream content in
+
+									this.isEditingFile = true
+
+									if (fileExists) {
+										this.editorOriginalContent = await fs.readFile(
+											path.resolve(cwd, relPath),
+											"utf-8"
+										)
+									} else {
+										this.editorOriginalContent = ""
+									}
+
+									const fileName = path.basename(absolutePath)
+									// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+
+									// Keep track of newly created directories
+									this.editFileCreatedDirs = await this.createDirectoriesForFile(absolutePath)
+									// console.log(`Created directories: ${createdDirs.join(", ")}`)
+									// make sure the file exists before we open it
+									if (!fileExists) {
+										await fs.writeFile(absolutePath, "")
+									}
+
+									// Open the existing file with the new contents
+									const updatedDocument = await vscode.workspace.openTextDocument(
+										vscode.Uri.file(absolutePath)
+									)
+
+									// Show diff
+									await vscode.commands.executeCommand(
+										"vscode.diff",
+										vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+											query: Buffer.from(this.editorOriginalContent).toString("base64"),
+										}),
+										updatedDocument.uri,
+										`${fileName}: ${
+											fileExists ? "Original ↔ Claude's Changes" : "New File"
+										} (Editable)`
+									)
+
+									// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+									this.editFileDocumentWasOpen = false
+
+									// close the tab if it's open
+									const tabs = vscode.window.tabGroups.all
+										.map((tg) => tg.tabs)
+										.flat()
+										.filter(
+											(tab) =>
+												tab.input instanceof vscode.TabInputText &&
+												arePathsEqual(tab.input.uri.fsPath, absolutePath)
+										)
+									for (const tab of tabs) {
+										await vscode.window.tabGroups.close(tab)
+										this.editFileDocumentWasOpen = true
+									}
+								}
+
+								// editor is open, stream content in
+
+								const updatedDocument = vscode.workspace.textDocuments.find((doc) =>
+									arePathsEqual(doc.uri.fsPath, absolutePath)
+								)!
+
+								const edit = new vscode.WorkspaceEdit()
+								if (!fileExists) {
+									// edit.insert(updatedDocument.uri, new vscode.Position(0, 0), newContent)
+									const fullRange = new vscode.Range(
+										updatedDocument.positionAt(0),
+										updatedDocument.positionAt(updatedDocument.getText().length)
+									)
+									edit.replace(updatedDocument.uri, fullRange, newContent)
+								} else {
+									const fullRange = new vscode.Range(
+										updatedDocument.positionAt(0),
+										updatedDocument.positionAt(updatedDocument.getText().length)
+									)
+									edit.replace(updatedDocument.uri, fullRange, newContent)
+								}
+								await vscode.workspace.applyEdit(edit)
+
+								break
+							} else {
+								// if isEditingFile false, that means we have the full contents of the file already.
+								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
+								// in other words, you must always repeat the block.partial logic here
 								if (!this.isEditingFile) {
 									// open the editor and prepare to stream content in
 
@@ -1496,34 +1592,28 @@ ${this.customInstructions.trim()}
 									await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
 								}
 
-								// editor is open, stream content in
-
-								const updatedDocument = vscode.workspace.textDocuments.find((doc) =>
-									arePathsEqual(doc.uri.fsPath, absolutePath)
-								)!
-
-								const edit = new vscode.WorkspaceEdit()
-								if (!fileExists) {
-									edit.insert(updatedDocument.uri, new vscode.Position(0, 0), newContent)
-								} else {
-									const fullRange = new vscode.Range(
-										updatedDocument.positionAt(0),
-										updatedDocument.positionAt(updatedDocument.getText().length)
-									)
-									edit.replace(updatedDocument.uri, fullRange, newContent)
-								}
-								await vscode.workspace.applyEdit(edit)
-
-								break
-							} else {
 								if (!relPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
+
+									// edit is done
+									this.isEditingExistingFile = undefined
+									this.isEditingFile = false
+									this.editorOriginalContent = undefined
+									this.editFileCreatedDirs = []
+									this.editFileDocumentWasOpen = false
 									break
 								}
 								if (!newContent) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+
+									// edit is done
+									this.isEditingExistingFile = undefined
+									this.isEditingFile = false
+									this.editorOriginalContent = undefined
+									this.editFileCreatedDirs = []
+									this.editFileDocumentWasOpen = false
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -1576,6 +1666,13 @@ ${this.customInstructions.trim()}
 										}
 										await this.closeDiffViews()
 									}
+
+									// edit is done
+									this.isEditingExistingFile = undefined
+									this.isEditingFile = false
+									this.editorOriginalContent = undefined
+									this.editFileCreatedDirs = []
+									this.editFileDocumentWasOpen = false
 									break
 								}
 
@@ -1615,14 +1712,28 @@ ${this.customInstructions.trim()}
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userDiff}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)`
 									)
-									break
 								} else {
 									pushToolResult(`The content was successfully saved to ${relPath.toPosix()}.`)
-									break
 								}
+
+								// edit is done
+								this.isEditingExistingFile = undefined
+								this.isEditingFile = false
+								this.editorOriginalContent = undefined
+								this.editFileCreatedDirs = []
+								this.editFileDocumentWasOpen = false
+
+								break
 							}
 						} catch (error) {
 							await handleError("writing file", error)
+
+							// edit is done
+							this.isEditingExistingFile = undefined
+							this.isEditingFile = false
+							this.editorOriginalContent = undefined
+							this.editFileCreatedDirs = []
+							this.editFileDocumentWasOpen = false
 							break
 						}
 					}
@@ -1987,7 +2098,7 @@ ${this.customInstructions.trim()}
 										await this.ask("command", command || "", block.partial).catch(() => {})
 									} else {
 										// last message is completion_result
-										// we have command string, but last message is attempt_completion, so finish it
+										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
 										await this.say("completion_result", result, undefined, false)
 										await this.ask("command", command || "", block.partial).catch(() => {})
 									}
@@ -2006,7 +2117,12 @@ ${this.customInstructions.trim()}
 								}
 								this.consecutiveMistakeCount = 0
 
-								if (lastMessage && lastMessage.ask === "command") {
+								if (command) {
+									if (lastMessage && lastMessage.ask !== "command") {
+										// havent sent a command message yet so first send completion_result then command
+										await this.say("completion_result", result, undefined, false)
+									}
+
 									// complete command message
 									const didApprove = await askApproval("command", command)
 									if (!didApprove) {
@@ -2021,7 +2137,6 @@ ${this.customInstructions.trim()}
 										break
 									}
 								} else {
-									// last message was not command, so it must be completion_result. complete it
 									await this.say("completion_result", result, undefined, false)
 								}
 
@@ -2063,6 +2178,7 @@ ${this.customInstructions.trim()}
 				this.currentStreamingContentIndex === this.assistantMessageContent.length - 1 &&
 				this.didCompleteReadingStream
 			) {
+				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
 				// last block is complete and it is finished executing
 				this.userMessageContentReady = true // will allow pwaitfor to continue
 			} else {
@@ -2093,7 +2209,7 @@ ${this.customInstructions.trim()}
 	private presentAssistantMessageHasPendingUpdates = false
 	private parseTextStreamAccumulator = ""
 	//edit
-	private fileExistsCache: Map<string, boolean> = new Map()
+	private isEditingExistingFile: boolean | undefined
 	private isEditingFile = false
 	private editorOriginalContent: string | undefined
 	private editFileCreatedDirs: string[] = []
@@ -2281,7 +2397,7 @@ ${this.customInstructions.trim()}
 			this.presentAssistantMessageHasPendingUpdates = false
 			this.parseTextStreamAccumulator = ""
 			// edit
-			this.fileExistsCache.clear()
+			this.isEditingExistingFile = undefined
 			this.isEditingFile = false
 			this.editorOriginalContent = undefined
 			this.editFileCreatedDirs = []
@@ -2332,12 +2448,16 @@ ${this.customInstructions.trim()}
 				}
 			}
 
+			this.didCompleteReadingStream = true
+
 			// in case no tool calls were made or tool call wasn't closed properly, set partial to false
-			if (this.assistantMessageContent.some((e) => e.partial)) {
-				this.assistantMessageContent.forEach((e) => (e.partial = false))
+			// should not do this if text block is not the last block, since presentAssistantMessage presents the last block
+			if (this.assistantMessageContent.length === 1 && this.assistantMessageContent[0].partial) {
+				// this.assistantMessageContent.forEach((e) => (e.partial = false)) // cant just do this bc a tool could be in the middle of executing
+				// this was originally intended just to update text content in case no tools were called
+				this.assistantMessageContent[0].partial = false
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request
 			}
-			this.didCompleteReadingStream = true
 
 			console.log("contentBlocks", apiContentBlocks)
 
