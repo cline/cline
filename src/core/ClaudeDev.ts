@@ -2179,7 +2179,7 @@ ${this.customInstructions.trim()}
 
 		*/
 
-		this.presentAssistantMessageLocked = false
+		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		if (!block.partial) {
 			// block is finished streaming and executing
 			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
