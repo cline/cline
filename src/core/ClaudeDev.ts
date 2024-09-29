@@ -9,6 +9,7 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
+import { ApiStream } from "../api/transform/stream"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../integrations/diagnostics"
 import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
@@ -18,7 +19,7 @@ import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
-import { findLast, findLastIndex } from "../shared/array"
+import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../shared/ExtensionMessage"
@@ -37,11 +38,10 @@ import {
 	toolParamNames,
 } from "./AssistantMessage"
 import { parseMentions } from "./mentions"
+import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
-import { TOOLS } from "./prompts/tools"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
-import { ApiStream } from "../api/transform/stream"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -359,7 +359,7 @@ export class ClaudeDev {
 
 		await this.say("text", task, images)
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
+		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 		await this.initiateTaskLoop([
 			{
 				type: "text",
@@ -547,7 +547,7 @@ export class ClaudeDev {
 		})
 
 		if (responseImages && responseImages.length > 0) {
-			newUserContent.push(...this.formatImagesIntoBlocks(responseImages))
+			newUserContent.push(...formatResponse.imageBlocks(responseImages))
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -577,7 +577,7 @@ export class ClaudeDev {
 				nextUserContent = [
 					{
 						type: "text",
-						text: this.formatNoToolsResponse(),
+						text: formatResponse.noToolsUsed(),
 					},
 				]
 				this.consecutiveMistakeCount++
@@ -628,7 +628,7 @@ export class ClaudeDev {
 			)
 			return [
 				false,
-				await this.formatToolError(
+				formatResponse.toolError(
 					`Missing value for required parameter 'content'. This may occur if the file is too large, exceeding output limits. Consider splitting into smaller files or reducing content size. Please retry with all required parameters.`
 				),
 			]
@@ -867,9 +867,9 @@ export class ClaudeDev {
 
 				if (response === "messageResponse") {
 					await this.say("user_feedback", text, images)
-					return [true, this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)]
+					return [true, formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images)]
 				}
-				return [true, await this.formatToolDenied()]
+				return [true, formatResponse.toolDenied()]
 			}
 
 			// Save the changes
@@ -988,7 +988,7 @@ export class ClaudeDev {
 				"error",
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
-			return [false, await this.formatToolError(errorString)]
+			return [false, formatResponse.toolError(errorString)]
 		}
 	}
 
@@ -1181,7 +1181,7 @@ export class ClaudeDev {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
 			return [
 				true,
-				this.formatToolResponseWithImages(
+				formatResponse.toolResult(
 					`Command is still running in the user's terminal.${
 						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
@@ -1345,7 +1345,7 @@ ${this.customInstructions.trim()}
 						if (response === "messageResponse") {
 							await this.say("user_feedback", text, images)
 							pushToolResult(
-								this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images)
+								formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images)
 							)
 							// this.userMessageContent.push({
 							// 	type: "text",
@@ -1362,7 +1362,7 @@ ${this.customInstructions.trim()}
 							this.didRejectTool = true
 							return false
 						}
-						pushToolResult(await this.formatToolDenied())
+						pushToolResult(formatResponse.toolDenied())
 						// this.toolResults.push({
 						// 	type: "tool_result",
 						// 	tool_use_id: toolUseId,
@@ -1385,7 +1385,7 @@ ${this.customInstructions.trim()}
 					// 	tool_use_id: toolUseId,
 					// 	content: await this.formatToolError(errorString),
 					// })
-					pushToolResult(await this.formatToolError(errorString))
+					pushToolResult(formatResponse.toolError(errorString))
 				}
 
 				switch (block.name) {
@@ -1981,7 +1981,7 @@ ${this.customInstructions.trim()}
 								await this.say("inspect_site_result", logs, [screenshot])
 
 								pushToolResult(
-									this.formatToolResponseWithImages(
+									formatResponse.toolResult(
 										`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
 											logs || "(No logs)"
 										}`,
@@ -2044,9 +2044,7 @@ ${this.customInstructions.trim()}
 								this.consecutiveMistakeCount = 0
 								const { text, images } = await this.ask("followup", question, false)
 								await this.say("user_feedback", text ?? "", images)
-								pushToolResult(
-									this.formatToolResponseWithImages(`<answer>\n${text}\n</answer>`, images)
-								)
+								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
 								break
 							}
 						} catch (error) {
@@ -2140,7 +2138,7 @@ ${this.customInstructions.trim()}
 								}
 								await this.say("user_feedback", text ?? "", images)
 								pushToolResult(
-									this.formatToolResponseWithImages(
+									formatResponse.toolResult(
 										`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
 										images
 									)
@@ -2325,9 +2323,9 @@ ${this.customInstructions.trim()}
 					...[
 						{
 							type: "text",
-							text: `You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${text}\n</feedback>`,
+							text: formatResponse.tooManyMistakes(text),
 						} as Anthropic.Messages.TextBlockParam,
-						...this.formatImagesIntoBlocks(images),
+						...formatResponse.imageBlocks(images),
 					]
 				)
 			}
@@ -2468,7 +2466,7 @@ ${this.customInstructions.trim()}
 				if (!didToolUse) {
 					this.userMessageContent.push({
 						type: "text",
-						text: this.formatNoToolsResponse(),
+						text: formatResponse.noToolsUsed(),
 					})
 				}
 
@@ -2537,33 +2535,6 @@ ${this.customInstructions.trim()}
 			),
 			this.getEnvironmentDetails(includeFileDetails),
 		])
-	}
-
-	// Formatting responses to Claude
-
-	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
-		return images
-			? images.map((dataUrl) => {
-					// data:image/png;base64,base64string
-					const [rest, base64] = dataUrl.split(",")
-					const mimeType = rest.split(":")[1].split(";")[0]
-					return {
-						type: "image",
-						source: { type: "base64", media_type: mimeType, data: base64 },
-					} as Anthropic.ImageBlockParam
-			  })
-			: []
-	}
-
-	private formatToolResponseWithImages(text: string, images?: string[]): ToolResponse {
-		if (images && images.length > 0) {
-			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
-			const imageBlocks: Anthropic.ImageBlockParam[] = this.formatImagesIntoBlocks(images)
-			// Placing images after text leads to better results
-			return [textBlock, ...imageBlocks]
-		} else {
-			return text
-		}
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
@@ -2696,22 +2667,6 @@ ${this.customInstructions.trim()}
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 
-	async formatToolDeniedFeedback(feedback?: string) {
-		return `The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`
-	}
-
-	async formatToolDenied() {
-		return `The user denied this operation.`
-	}
-
-	async formatToolError(error?: string) {
-		return `The tool execution failed with the following error:\n<error>\n${error}\n</error>`
-	}
-
-	formatNoToolsResponse() {
-		return "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)"
-	}
-
 	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
@@ -2719,8 +2674,6 @@ ${this.customInstructions.trim()}
 				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`
 		)
-		return await this.formatToolError(
-			`Missing value for required parameter '${paramName}'. Please retry with complete response.`
-		)
+		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 }
