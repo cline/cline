@@ -17,6 +17,7 @@ import { getTheme } from "../../integrations/theme/getTheme"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { openMention } from "../mentions"
+import { fileExistsAtPath } from "../../utils/fs"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -505,10 +506,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, "api_conversation_history.json")
 			const claudeMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			const fileExists = await fs
-				.access(apiConversationHistoryFilePath)
-				.then(() => true)
-				.catch(() => false)
+			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
 				return {
@@ -547,17 +545,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		const { taskDirPath, apiConversationHistoryFilePath, claudeMessagesFilePath } = await this.getTaskWithId(id)
 
 		// Delete the task files
-		const apiConversationHistoryFileExists = await fs
-			.access(apiConversationHistoryFilePath)
-			.then(() => true)
-			.catch(() => false)
+		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 		if (apiConversationHistoryFileExists) {
 			await fs.unlink(apiConversationHistoryFilePath)
 		}
-		const claudeMessagesFileExists = await fs
-			.access(claudeMessagesFilePath)
-			.then(() => true)
-			.catch(() => false)
+		const claudeMessagesFileExists = await fileExistsAtPath(claudeMessagesFilePath)
 		if (claudeMessagesFileExists) {
 			await fs.unlink(claudeMessagesFilePath)
 		}

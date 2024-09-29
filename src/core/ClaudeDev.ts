@@ -42,6 +42,8 @@ import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
+import { calculateApiCost } from "../utils/cost"
+import { createDirectoriesForFile, fileExistsAtPath } from "../utils/fs"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -128,10 +130,7 @@ export class ClaudeDev {
 
 	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), "api_conversation_history.json")
-		const fileExists = await fs
-			.access(filePath)
-			.then(() => true)
-			.catch(() => false)
+		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		}
@@ -160,10 +159,7 @@ export class ClaudeDev {
 
 	private async getSavedClaudeMessages(): Promise<ClaudeMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
-		const fileExists = await fs
-			.access(filePath)
-			.then(() => true)
-			.catch(() => false)
+		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		}
@@ -348,6 +344,16 @@ export class ClaudeDev {
 			await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text, images })
 			await this.providerRef.deref()?.postStateToWebview()
 		}
+	}
+
+	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
+		await this.say(
+			"error",
+			`Claude tried to use ${toolName}${
+				relPath ? ` for '${relPath.toPosix()}'` : ""
+			} without value for required parameter '${paramName}'. Retrying...`
+		)
+		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
@@ -591,28 +597,6 @@ export class ClaudeDev {
 		this.urlContentFetcher.closeBrowser()
 	}
 
-	calculateApiCost(
-		inputTokens: number,
-		outputTokens: number,
-		cacheCreationInputTokens?: number,
-		cacheReadInputTokens?: number
-	): number {
-		const modelCacheWritesPrice = this.api.getModel().info.cacheWritesPrice
-		let cacheWritesCost = 0
-		if (cacheCreationInputTokens && modelCacheWritesPrice) {
-			cacheWritesCost = (modelCacheWritesPrice / 1_000_000) * cacheCreationInputTokens
-		}
-		const modelCacheReadsPrice = this.api.getModel().info.cacheReadsPrice
-		let cacheReadsCost = 0
-		if (cacheReadInputTokens && modelCacheReadsPrice) {
-			cacheReadsCost = (modelCacheReadsPrice / 1_000_000) * cacheReadInputTokens
-		}
-		const baseInputCost = (this.api.getModel().info.inputPrice / 1_000_000) * inputTokens
-		const outputCost = (this.api.getModel().info.outputPrice / 1_000_000) * outputTokens
-		const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
-		return totalCost
-	}
-
 	// return is [didUserRejectTool, ToolResponse]
 	async writeToFile(relPath?: string, newContent?: string): Promise<[boolean, ToolResponse]> {
 		if (relPath === undefined) {
@@ -636,10 +620,7 @@ export class ClaudeDev {
 		this.consecutiveMistakeCount = 0
 		try {
 			const absolutePath = path.resolve(cwd, relPath)
-			const fileExists = await fs
-				.access(absolutePath)
-				.then(() => true)
-				.catch(() => false)
+			const fileExists = await fileExistsAtPath(absolutePath)
 
 			// if the file is already open, ensure it's not dirty before getting its contents
 			if (fileExists) {
@@ -671,7 +652,7 @@ export class ClaudeDev {
 			// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 
 			// Keep track of newly created directories
-			const createdDirs: string[] = await this.createDirectoriesForFile(absolutePath)
+			const createdDirs: string[] = await createDirectoriesForFile(absolutePath)
 			// console.log(`Created directories: ${createdDirs.join(", ")}`)
 			// make sure the file exists before we open it
 			if (!fileExists) {
@@ -989,51 +970,6 @@ export class ClaudeDev {
 				`Error writing file:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return [false, formatResponse.toolError(errorString)]
-		}
-	}
-
-	/**
-	 * Asynchronously creates all non-existing subdirectories for a given file path
-	 * and collects them in an array for later deletion.
-	 *
-	 * @param filePath - The full path to a file.
-	 * @returns A promise that resolves to an array of newly created directories.
-	 */
-	async createDirectoriesForFile(filePath: string): Promise<string[]> {
-		const newDirectories: string[] = []
-		const normalizedFilePath = path.normalize(filePath) // Normalize path for cross-platform compatibility
-		const directoryPath = path.dirname(normalizedFilePath)
-
-		let currentPath = directoryPath
-		const dirsToCreate: string[] = []
-
-		// Traverse up the directory tree and collect missing directories
-		while (!(await this.exists(currentPath))) {
-			dirsToCreate.push(currentPath)
-			currentPath = path.dirname(currentPath)
-		}
-
-		// Create directories from the topmost missing one down to the target directory
-		for (let i = dirsToCreate.length - 1; i >= 0; i--) {
-			await fs.mkdir(dirsToCreate[i])
-			newDirectories.push(dirsToCreate[i])
-		}
-
-		return newDirectories
-	}
-
-	/**
-	 * Helper function to check if a path exists.
-	 *
-	 * @param path - The path to check.
-	 * @returns A promise that resolves to true if the path exists, false otherwise.
-	 */
-	async exists(filePath: string): Promise<boolean> {
-		try {
-			await fs.access(filePath)
-			return true
-		} catch {
-			return false
 		}
 	}
 
@@ -1404,10 +1340,7 @@ ${this.customInstructions.trim()}
 							fileExists = this.isEditingExistingFile
 						} else {
 							const absolutePath = path.resolve(cwd, relPath)
-							fileExists = await fs
-								.access(absolutePath)
-								.then(() => true)
-								.catch(() => false)
+							fileExists = await fileExistsAtPath(absolutePath)
 
 							this.isEditingExistingFile = fileExists
 						}
@@ -1440,7 +1373,7 @@ ${this.customInstructions.trim()}
 									// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 
 									// Keep track of newly created directories
-									this.editFileCreatedDirs = await this.createDirectoriesForFile(absolutePath)
+									this.editFileCreatedDirs = await createDirectoriesForFile(absolutePath)
 									// console.log(`Created directories: ${createdDirs.join(", ")}`)
 									// make sure the file exists before we open it
 									if (!fileExists) {
@@ -1528,7 +1461,7 @@ ${this.customInstructions.trim()}
 									// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 
 									// Keep track of newly created directories
-									this.editFileCreatedDirs = await this.createDirectoriesForFile(absolutePath)
+									this.editFileCreatedDirs = await createDirectoriesForFile(absolutePath)
 									// console.log(`Created directories: ${createdDirs.join(", ")}`)
 									// make sure the file exists before we open it
 									if (!fileExists) {
@@ -2438,7 +2371,15 @@ ${this.customInstructions.trim()}
 				tokensOut: outputTokens,
 				cacheWrites: cacheWriteTokens,
 				cacheReads: cacheReadTokens,
-				cost: totalCost ?? this.calculateApiCost(inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens),
+				cost:
+					totalCost ??
+					calculateApiCost(
+						this.api.getModel().info,
+						inputTokens,
+						outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens
+					),
 			})
 			await this.saveClaudeMessages()
 			await this.providerRef.deref()?.postStateToWebview()
@@ -2665,15 +2606,5 @@ ${this.customInstructions.trim()}
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
-	}
-
-	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
-		await this.say(
-			"error",
-			`Claude tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
-			} without value for required parameter '${paramName}'. Retrying...`
-		)
-		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 }

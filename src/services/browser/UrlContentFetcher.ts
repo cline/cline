@@ -8,6 +8,7 @@ import TurndownService from "turndown"
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
+import { fileExistsAtPath } from "../../utils/fs"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -30,10 +31,7 @@ export class UrlContentFetcher {
 		}
 
 		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fs
-			.access(puppeteerDir)
-			.then(() => true)
-			.catch(() => false)
+		const dirExists = await fileExistsAtPath(puppeteerDir)
 		if (!dirExists) {
 			await fs.mkdir(puppeteerDir, { recursive: true })
 		}
