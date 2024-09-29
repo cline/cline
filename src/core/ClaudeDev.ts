@@ -31,11 +31,11 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import {
 	AssistantMessageContent,
 	TextContent,
-	ToolCall,
-	ToolCallName,
-	toolCallNames,
 	ToolParamName,
 	toolParamNames,
+	ToolUse,
+	ToolUseName,
+	toolUseNames,
 } from "./prompts/AssistantMessage"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
@@ -1140,7 +1140,7 @@ export class ClaudeDev {
 			case "text":
 				await this.say("text", block.content, undefined, block.partial)
 				break
-			case "tool_call":
+			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
 						case "execute_command":
@@ -2058,9 +2058,9 @@ export class ClaudeDev {
 			content: "",
 			partial: true,
 		}
-		let toolCalls: ToolCall[] = []
+		let toolUses: ToolUse[] = []
 
-		let currentToolCall: ToolCall | undefined = undefined
+		let currentToolUse: ToolUse | undefined = undefined
 		let currentParamName: ToolParamName | undefined = undefined
 		let currentParamValueLines: string[] = []
 		let textContentLines: string[] = []
@@ -2090,42 +2090,47 @@ export class ClaudeDev {
 		for (const line of rawLines) {
 			const trimmed = line.trim()
 			// if currenttoolcall or currentparamname look for closing tag, more efficient and safe
-			if (currentToolCall && currentParamName && trimmed === `</${currentParamName}>`) {
+			if (currentToolUse && currentParamName && trimmed === `</${currentParamName}>`) {
 				// End of a tool parameter
-				currentToolCall.params[currentParamName] = currentParamValueLines.join("\n")
+				currentToolUse.params[currentParamName] = currentParamValueLines.join("\n")
 				currentParamName = undefined
 				currentParamValueLines = []
 				// currentParamValue = undefined
 				continue
-			} else if (currentToolCall && !currentParamName && trimmed === `</${currentToolCall.name}>`) {
+			} else if (currentToolUse && !currentParamName && trimmed === `</${currentToolUse.name}>`) {
 				// End of a tool call
-				currentToolCall.partial = false
-				toolCalls.push(currentToolCall)
-				currentToolCall = undefined
+				currentToolUse.partial = false
+				toolUses.push(currentToolUse)
+				currentToolUse = undefined
 				continue
 			}
 			if (!currentParamName && trimmed.startsWith("<") && trimmed.endsWith(">")) {
 				const tag = trimmed.slice(1, -1)
-				if (toolCallNames.includes(tag as ToolCallName)) {
+				if (toolUseNames.includes(tag as ToolUseName)) {
 					// Start of a new tool call
-					currentToolCall = { type: "tool_call", name: tag as ToolCallName, params: {}, partial: true }
+					currentToolUse = {
+						type: "tool_use",
+						name: tag as ToolUseName,
+						params: {},
+						partial: true,
+					} satisfies ToolUse
 					// This also indicates the end of the text content
 					textContent.partial = false
 					continue
-				} else if (currentToolCall && toolParamNames.includes(tag as ToolParamName)) {
+				} else if (currentToolUse && toolParamNames.includes(tag as ToolParamName)) {
 					// Start of a parameter
 					currentParamName = tag as ToolParamName
-					// currentToolCall.params[currentParamName] = ""
+					// currentToolUse.params[currentParamName] = ""
 					continue
 				}
 			}
 
-			if (currentToolCall && !currentParamName) {
+			if (currentToolUse && !currentParamName) {
 				// current tool doesn't have a param match yet, it's likely partial so ignore
 				continue
 			}
 
-			if (currentToolCall && currentParamName) {
+			if (currentToolUse && currentParamName) {
 				// add line to current param value
 				currentParamValueLines.push(line)
 				continue
@@ -2137,18 +2142,18 @@ export class ClaudeDev {
 			}
 		}
 
-		if (currentToolCall) {
+		if (currentToolUse) {
 			// stream did not complete tool call, add it as partial
 			if (currentParamName) {
 				// tool call has a parameter that was not completed
-				currentToolCall.params[currentParamName] = currentParamValueLines.join("\n")
+				currentToolUse.params[currentParamName] = currentParamValueLines.join("\n")
 			}
-			toolCalls.push(currentToolCall)
+			toolUses.push(currentToolUse)
 		}
 
 		textContent.content = textContentLines.join("\n")
 		const prevLength = this.assistantMessageContent.length
-		this.assistantMessageContent = [textContent, ...toolCalls]
+		this.assistantMessageContent = [textContent, ...toolUses]
 		if (this.assistantMessageContent.length > prevLength) {
 			this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 		}
@@ -2321,7 +2326,7 @@ export class ClaudeDev {
 				await pWaitFor(() => this.userMessageContentReady)
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
-				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_call")
+				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_use")
 				if (!didToolUse) {
 					this.userMessageContent.push({
 						type: "text",

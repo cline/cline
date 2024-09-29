@@ -1,9 +1,4 @@
-// export interface AssistantMessage {
-// 	textContent: TextContent
-// 	toolCalls: ToolCall[]
-// }
-
-export type AssistantMessageContent = TextContent | ToolCall
+export type AssistantMessageContent = TextContent | ToolUse
 
 export interface TextContent {
 	type: "text"
@@ -11,7 +6,7 @@ export interface TextContent {
 	partial: boolean
 }
 
-export const toolCallNames = [
+export const toolUseNames = [
 	"execute_command",
 	"read_file",
 	"write_to_file",
@@ -24,7 +19,7 @@ export const toolCallNames = [
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
-export type ToolCallName = (typeof toolCallNames)[number]
+export type ToolUseName = (typeof toolUseNames)[number]
 
 export const toolParamNames = [
 	"command",
@@ -40,56 +35,56 @@ export const toolParamNames = [
 
 export type ToolParamName = (typeof toolParamNames)[number]
 
-export interface ToolCall {
-	type: "tool_call"
-	name: ToolCallName
+export interface ToolUse {
+	type: "tool_use"
+	name: ToolUseName
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
 	partial: boolean
 }
 
-interface ExecuteCommandToolCall extends ToolCall {
+export interface ExecuteCommandToolUse extends ToolUse {
 	name: "execute_command"
 	// Pick<Record<ToolParamName, string>, "command"> makes "command" required, but Partial<> makes it optional
 	params: Partial<Pick<Record<ToolParamName, string>, "command">>
 }
 
-interface ReadFileToolCall extends ToolCall {
+export interface ReadFileToolUse extends ToolUse {
 	name: "read_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
 
-interface WriteToFileToolCall extends ToolCall {
+export interface WriteToFileToolUse extends ToolUse {
 	name: "write_to_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
 }
 
-interface SearchFilesToolCall extends ToolCall {
+export interface SearchFilesToolUse extends ToolUse {
 	name: "search_files"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "regex" | "file_pattern">>
 }
 
-interface ListFilesToolCall extends ToolCall {
+export interface ListFilesToolUse extends ToolUse {
 	name: "list_files"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "recursive">>
 }
 
-interface ListCodeDefinitionNamesToolCall extends ToolCall {
+export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 	name: "list_code_definition_names"
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
 
-interface InspectSiteToolCall extends ToolCall {
+export interface InspectSiteToolUse extends ToolUse {
 	name: "inspect_site"
 	params: Partial<Pick<Record<ToolParamName, string>, "url">>
 }
 
-interface AskFollowupQuestionToolCall extends ToolCall {
+export interface AskFollowupQuestionToolUse extends ToolUse {
 	name: "ask_followup_question"
 	params: Partial<Pick<Record<ToolParamName, string>, "question">>
 }
 
-interface AttemptCompletionToolCall extends ToolCall {
+export interface AttemptCompletionToolUse extends ToolUse {
 	name: "attempt_completion"
 	params: Partial<Pick<Record<ToolParamName, string>, "result" | "command">>
 }
