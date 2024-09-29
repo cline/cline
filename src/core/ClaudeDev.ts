@@ -41,7 +41,7 @@ import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
-import { ClaudeDevProvider } from "./webview/ClaudeDevProvider"
+import { ClaudeDevProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
 import { calculateApiCost } from "../utils/cost"
 import { createDirectoriesForFile, fileExistsAtPath } from "../utils/fs"
 
@@ -129,7 +129,7 @@ export class ClaudeDev {
 	}
 
 	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
-		const filePath = path.join(await this.ensureTaskDirectoryExists(), "api_conversation_history.json")
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -149,7 +149,7 @@ export class ClaudeDev {
 
 	private async saveApiConversationHistory() {
 		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), "api_conversation_history.json")
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
 			// in the off chance this fails, we don't want to stop the task
@@ -158,7 +158,7 @@ export class ClaudeDev {
 	}
 
 	private async getSavedClaudeMessages(): Promise<ClaudeMessage[]> {
-		const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.claudeMessages)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -178,7 +178,7 @@ export class ClaudeDev {
 
 	private async saveClaudeMessages() {
 		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.claudeMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.claudeMessages))
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.claudeMessages.slice(1))))
@@ -1019,45 +1019,6 @@ export class ClaudeDev {
 		}
 	}
 
-	formatFilesList(absolutePath: string, files: string[], didHitLimit: boolean): string {
-		const sorted = files
-			.map((file) => {
-				// convert absolute path to relative path
-				const relativePath = path.relative(absolutePath, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			})
-			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that claude can then explore further.
-			.sort((a, b) => {
-				const aParts = a.split("/") // only works if we use toPosix first
-				const bParts = b.split("/")
-				for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
-					if (aParts[i] !== bParts[i]) {
-						// If one is a directory and the other isn't at this level, sort the directory first
-						if (i + 1 === aParts.length && i + 1 < bParts.length) {
-							return -1
-						}
-						if (i + 1 === bParts.length && i + 1 < aParts.length) {
-							return 1
-						}
-						// Otherwise, sort alphabetically
-						return aParts[i].localeCompare(bParts[i], undefined, { numeric: true, sensitivity: "base" })
-					}
-				}
-				// If all parts are the same up to the length of the shorter path,
-				// the shorter one comes first
-				return aParts.length - bParts.length
-			})
-		if (didHitLimit) {
-			return `${sorted.join(
-				"\n"
-			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
-			return "No files found."
-		} else {
-			return sorted.join("\n")
-		}
-	}
-
 	async executeCommandTool(
 		command: string,
 		returnEmptyStringOnSuccess: boolean = false
@@ -1739,7 +1700,7 @@ ${this.customInstructions.trim()}
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relDirPath)
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-								const result = this.formatFilesList(absolutePath, files, didHitLimit)
+								const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
@@ -2600,7 +2561,7 @@ ${this.customInstructions.trim()}
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = this.formatFilesList(cwd, files, didHitLimit)
+				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
 				details += result
 			}
 		}

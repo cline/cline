@@ -51,6 +51,11 @@ type GlobalStateKey =
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
 
+export const GlobalFileNames = {
+	apiConversationHistory: "api_conversation_history.json",
+	claudeMessages: "claude_messages.json",
+}
+
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -504,8 +509,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
-			const apiConversationHistoryFilePath = path.join(taskDirPath, "api_conversation_history.json")
-			const claudeMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
+			const claudeMessagesFilePath = path.join(taskDirPath, GlobalFileNames.claudeMessages)
 			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
