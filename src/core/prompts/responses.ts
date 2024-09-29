@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
+import * as diff from "diff"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -73,6 +74,14 @@ export const formatResponse = {
 		} else {
 			return sorted.join("\n")
 		}
+	},
+
+	createPrettyPatch: (filename = "file", oldStr: string, newStr: string) => {
+		// strings cannot be undefined or diff throws exception
+		const patch = diff.createPatch(filename.toPosix(), oldStr || "", newStr || "")
+		const lines = patch.split("\n")
+		const prettyPatchLines = lines.slice(4)
+		return prettyPatchLines.join("\n")
 	},
 }
 

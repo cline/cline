@@ -27,7 +27,7 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ToolName } from "../shared/Tool"
 import { ClaudeAskResponse } from "../shared/WebviewMessage"
-import { arePathsEqual } from "../utils/path"
+import { arePathsEqual, getReadablePath } from "../utils/path"
 import {
 	AssistantMessageContent,
 	TextContent,
@@ -39,7 +39,7 @@ import {
 } from "./AssistantMessage"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
-import { SYSTEM_PROMPT } from "./prompts/system"
+import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
 import { calculateApiCost } from "../utils/cost"
@@ -55,12 +55,12 @@ type UserContent = Array<
 
 export class ClaudeDev {
 	readonly taskId: string
-	private api: ApiHandler
+	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	private didEditFile: boolean = false
-	private customInstructions?: string
-	private alwaysAllowReadOnly: boolean
+	customInstructions?: string
+	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClaudeMessage[] = []
 	private askResponse?: ClaudeAskResponse
@@ -98,25 +98,7 @@ export class ClaudeDev {
 		}
 	}
 
-	updateApi(apiConfiguration: ApiConfiguration) {
-		this.api = buildApiHandler(apiConfiguration)
-	}
-
-	updateCustomInstructions(customInstructions: string | undefined) {
-		this.customInstructions = customInstructions
-	}
-
-	updateAlwaysAllowReadOnly(alwaysAllowReadOnly: boolean | undefined) {
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-	}
-
-	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
-		this.askResponse = askResponse
-		this.askResponseText = text
-		this.askResponseImages = images
-	}
-
-	// storing task to disk for history
+	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
@@ -205,6 +187,8 @@ export class ClaudeDev {
 		}
 	}
 
+	// Communicate with webview
+
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
 	async ask(
 		type: ClaudeAsk,
@@ -291,6 +275,12 @@ export class ClaudeDev {
 		return result
 	}
 
+	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
+		this.askResponse = askResponse
+		this.askResponseText = text
+		this.askResponseImages = images
+	}
+
 	async say(type: ClaudeSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("ClaudeDev instance aborted")
@@ -355,6 +345,8 @@ export class ClaudeDev {
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
+
+	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
@@ -597,6 +589,8 @@ export class ClaudeDev {
 		this.urlContentFetcher.closeBrowser()
 	}
 
+	// Tools
+
 	// return is [didUserRejectTool, ToolResponse]
 	async writeToFile(relPath?: string, newContent?: string): Promise<[boolean, ToolResponse]> {
 		if (relPath === undefined) {
@@ -772,8 +766,8 @@ export class ClaudeDev {
 					"tool",
 					JSON.stringify({
 						tool: "editedExistingFile",
-						path: this.getReadablePath(relPath),
-						diff: this.createPrettyPatch(relPath, originalContent, newContent),
+						path: getReadablePath(cwd, relPath),
+						diff: formatResponse.createPrettyPatch(relPath, originalContent, newContent),
 					} satisfies ClaudeSayTool)
 				)
 			} else {
@@ -781,7 +775,7 @@ export class ClaudeDev {
 					"tool",
 					JSON.stringify({
 						tool: "newFileCreated",
-						path: this.getReadablePath(relPath),
+						path: getReadablePath(cwd, relPath),
 						content: newContent,
 					} satisfies ClaudeSayTool)
 				)
@@ -952,8 +946,8 @@ export class ClaudeDev {
 					"user_feedback_diff",
 					JSON.stringify({
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
-						path: this.getReadablePath(relPath),
-						diff: this.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
+						path: getReadablePath(cwd, relPath),
+						diff: formatResponse.createPrettyPatch(relPath, normalizedNewContent, normalizedEditedContent),
 					} satisfies ClaudeSayTool)
 				)
 				return [
@@ -973,13 +967,6 @@ export class ClaudeDev {
 		}
 	}
 
-	createPrettyPatch(filename = "file", oldStr: string, newStr: string) {
-		const patch = diff.createPatch(filename.toPosix(), oldStr, newStr)
-		const lines = patch.split("\n")
-		const prettyPatchLines = lines.slice(4)
-		return prettyPatchLines.join("\n")
-	}
-
 	async closeDiffViews() {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
@@ -993,28 +980,6 @@ export class ClaudeDev {
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {
 				await vscode.window.tabGroups.close(tab)
-			}
-		}
-	}
-
-	getReadablePath(relPath?: string): string {
-		relPath = relPath || ""
-		// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
-		const absolutePath = path.resolve(cwd, relPath)
-		if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
-			// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
-			return absolutePath.toPosix()
-		}
-		if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
-			return path.basename(absolutePath).toPosix()
-		} else {
-			// show the relative path to the cwd
-			const normalizedRelPath = path.relative(cwd, absolutePath)
-			if (absolutePath.includes(cwd)) {
-				return normalizedRelPath.toPosix()
-			} else {
-				// we are outside the cwd, so show the absolute path (useful for when claude passes in '../../' for example)
-				return absolutePath.toPosix()
 			}
 		}
 	}
@@ -1108,15 +1073,7 @@ export class ClaudeDev {
 			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages)
 			if (this.customInstructions && this.customInstructions.trim()) {
 				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-				systemPrompt += `
-====
-
-USER'S CUSTOM INSTRUCTIONS
-
-The following additional instructions are provided by the user. They should be followed and given precedence in case of conflicts with previous instructions.
-
-${this.customInstructions.trim()}
-`
+				systemPrompt += addCustomInstructions(this.customInstructions)
 			}
 
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -1307,7 +1264,7 @@ ${this.customInstructions.trim()}
 						}
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
-							path: this.getReadablePath(relPath),
+							path: getReadablePath(cwd, relPath),
 						}
 						try {
 							const absolutePath = path.resolve(cwd, relPath)
@@ -1516,7 +1473,7 @@ ${this.customInstructions.trim()}
 									...sharedMessageProps,
 									content: fileExists ? undefined : newContent,
 									diff: fileExists
-										? this.createPrettyPatch(relPath, originalContent, newContent)
+										? formatResponse.createPrettyPatch(relPath, originalContent, newContent)
 										: undefined,
 								} satisfies ClaudeSayTool)
 								const didApprove = await askApproval("tool", completeMessage)
@@ -1587,8 +1544,8 @@ ${this.customInstructions.trim()}
 										"user_feedback_diff",
 										JSON.stringify({
 											tool: fileExists ? "editedExistingFile" : "newFileCreated",
-											path: this.getReadablePath(relPath),
-											diff: this.createPrettyPatch(
+											path: getReadablePath(cwd, relPath),
+											diff: formatResponse.createPrettyPatch(
 												relPath,
 												normalizedNewContent,
 												normalizedEditedContent
@@ -1627,7 +1584,7 @@ ${this.customInstructions.trim()}
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "readFile",
-							path: this.getReadablePath(relPath),
+							path: getReadablePath(cwd, relPath),
 						}
 						try {
 							if (block.partial) {
@@ -1677,7 +1634,7 @@ ${this.customInstructions.trim()}
 						const recursive = recursiveRaw?.toLowerCase() === "true"
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
-							path: this.getReadablePath(relDirPath),
+							path: getReadablePath(cwd, relDirPath),
 						}
 						try {
 							if (block.partial) {
@@ -1725,7 +1682,7 @@ ${this.customInstructions.trim()}
 						const relDirPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "listCodeDefinitionNames",
-							path: this.getReadablePath(relDirPath),
+							path: getReadablePath(cwd, relDirPath),
 						}
 						try {
 							if (block.partial) {
@@ -1776,7 +1733,7 @@ ${this.customInstructions.trim()}
 						const filePattern: string | undefined = block.params.file_pattern
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "searchFiles",
-							path: this.getReadablePath(relDirPath),
+							path: getReadablePath(cwd, relDirPath),
 							regex: regex || "",
 							filePattern: filePattern || "",
 						}

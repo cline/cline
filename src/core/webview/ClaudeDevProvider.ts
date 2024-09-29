@@ -18,6 +18,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { openMention } from "../mentions"
 import { fileExistsAtPath } from "../../utils/fs"
+import { buildApiHandler } from "../../api"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -378,7 +379,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							this.claudeDev?.updateApi(message.apiConfiguration)
+							if (this.claudeDev) {
+								this.claudeDev.api = buildApiHandler(message.apiConfiguration)
+							}
 						}
 						await this.postStateToWebview()
 						break
@@ -387,7 +390,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool ?? undefined)
+						if (this.claudeDev) {
+							this.claudeDev.alwaysAllowReadOnly = message.bool ?? false
+						}
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -449,7 +454,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
 		await this.updateGlobalState("customInstructions", instructions || undefined)
-		this.claudeDev?.updateCustomInstructions(instructions || undefined)
+		if (this.claudeDev) {
+			this.claudeDev.customInstructions = instructions || undefined
+		}
 		await this.postStateToWebview()
 	}
 
@@ -492,7 +499,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("apiProvider", openrouter)
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
-		this.claudeDev?.updateApi({ apiProvider: openrouter, openRouterApiKey: apiKey })
+		if (this.claudeDev) {
+			this.claudeDev.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
+		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
 	}
 

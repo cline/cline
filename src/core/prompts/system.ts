@@ -338,5 +338,15 @@ open http://localhost:3000
 </command>
 </attempt_completion>
 
-By following this approach, you are able to make informed decisions at each step, using tools one at a time and ensuring each action is based on the previous step's result and logical progression of the task.
-`
+By following this approach, you are able to make informed decisions at each step, using tools one at a time and ensuring each action is based on the previous step's result and logical progression of the task.`
+
+export function addCustomInstructions(customInstructions: string): string {
+	return `
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user. They should be followed and given precedence in case of conflicts with previous instructions.
+
+${customInstructions.trim()}`
+}
