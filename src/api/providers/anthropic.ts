@@ -117,8 +117,8 @@ export class AnthropicHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
 						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || 0,
-						cacheReadTokens: usage.cache_read_input_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_delta":
@@ -128,8 +128,6 @@ export class AnthropicHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: 0,
 						outputTokens: chunk.usage.output_tokens || 0,
-						cacheWriteTokens: 0,
-						cacheReadTokens: 0,
 					}
 					break
 				case "message_stop":

@@ -124,8 +124,8 @@ export class OpenRouterHandler implements ApiHandler {
 				type: "usage",
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
-				cacheWriteTokens: 0,
-				cacheReadTokens: 0,
+				// cacheWriteTokens: 0,
+				// cacheReadTokens: 0,
 				totalCost: generation?.total_cost || 0,
 			}
 		} catch (error) {

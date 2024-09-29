@@ -2397,8 +2397,8 @@ ${this.customInstructions.trim()}
 					case "usage":
 						inputTokens += chunk.inputTokens
 						outputTokens += chunk.outputTokens
-						cacheWriteTokens += chunk.cacheWriteTokens
-						cacheReadTokens += chunk.cacheReadTokens
+						cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+						cacheReadTokens += chunk.cacheReadTokens ?? 0
 						totalCost = chunk.totalCost
 						break
 					case "text":

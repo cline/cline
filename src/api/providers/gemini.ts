@@ -1,12 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { FunctionCallingMode, GoogleGenerativeAI } from "@google/generative-ai"
-import { ApiHandler, ApiHandlerMessageResponse } from "../"
+import { GoogleGenerativeAI } from "@google/generative-ai"
+import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
-import {
-	convertAnthropicMessageToGemini,
-	convertAnthropicToolToGemini,
-	convertGeminiResponseToAnthropic,
-} from "../transform/gemini-format"
+import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { ApiStream } from "../transform/stream"
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -20,31 +17,32 @@ export class GeminiHandler implements ApiHandler {
 		this.client = new GoogleGenerativeAI(options.geminiApiKey)
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.client.getGenerativeModel({
 			model: this.getModel().id,
 			systemInstruction: systemPrompt,
-			tools: [{ functionDeclarations: tools.map(convertAnthropicToolToGemini) }],
-			toolConfig: {
-				functionCallingConfig: {
-					mode: FunctionCallingMode.AUTO,
-				},
-			},
 		})
-		const result = await model.generateContent({
+		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
 				maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0.2,
+				temperature: 0,
 			},
 		})
-		const message = convertGeminiResponseToAnthropic(result.response)
 
-		return { message }
+		for await (const chunk of result.stream) {
+			yield {
+				type: "text",
+				text: chunk.text(),
+			}
+		}
+
+		const response = await result.response
+		yield {
+			type: "usage",
+			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+			outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+		}
 	}
 
 	getModel(): { id: GeminiModelId; info: ModelInfo } {
