@@ -36,7 +36,7 @@ import {
 	toolCallNames,
 	ToolParamName,
 	toolParamNames,
-} from "./AssistantMessage"
+} from "./prompts/AssistantMessage"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
