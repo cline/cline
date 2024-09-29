@@ -1,124 +1,122 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { createDirectoriesForFile, fileExistsAtPath } from "../../utils/fs"
+import { createDirectoriesForFile } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 import { formatResponse } from "../../core/prompts/responses"
-import * as diff from "diff"
 
 export class DiffViewProvider {
 	editType?: "create" | "modify"
 	isEditing = false
-	// private isEditingExistingFile: boolean | undefined
 	originalContent: string | undefined
 	private createdDirs: string[] = []
 	private documentWasOpen = false
-
 	private relPath?: string
 	private newContent?: string
 
 	constructor(private cwd: string) {}
 
-	async update(relPath: string, newContent: string): Promise<void> {
+	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
-		this.newContent = newContent
 		const fileExists = this.editType === "modify"
 		const absolutePath = path.resolve(this.cwd, relPath)
 
-		if (!this.isEditing) {
-			// starting edit
-			// open the editor and prepare to stream content in
+		this.isEditing = true
 
-			this.isEditing = true
-
-			// if the file is already open, ensure it's not dirty before getting its contents
-			if (fileExists) {
-				const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-					arePathsEqual(doc.uri.fsPath, absolutePath)
-				)
-				if (existingDocument && existingDocument.isDirty) {
-					await existingDocument.save()
-				}
-			}
-
-			// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if claude needs to fix anything
-			// const preDiagnostics = vscode.languages.getDiagnostics()
-
-			if (fileExists) {
-				this.originalContent = await fs.readFile(absolutePath, "utf-8")
-				// fix issue where claude always removes newline from the file
-				// const eol = this.originalContent.includes("\r\n") ? "\r\n" : "\n"
-				// if (this.originalContent.endsWith(eol) && !this.newContent.endsWith(eol)) {
-				// 	this.newContent += eol
-				// }
-			} else {
-				this.originalContent = ""
-			}
-
-			const fileName = path.basename(absolutePath)
-			// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
-
-			// Keep track of newly created directories
-			this.createdDirs = await createDirectoriesForFile(absolutePath)
-			// console.log(`Created directories: ${createdDirs.join(", ")}`)
-			// make sure the file exists before we open it
-			if (!fileExists) {
-				await fs.writeFile(absolutePath, "")
-			}
-
-			// Open the existing file with the new contents
-			const updatedDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
-
-			// await updatedDocument.save()
-			// const edit = new vscode.WorkspaceEdit()
-			// const fullRange = new vscode.Range(
-			// 	updatedDocument.positionAt(0),
-			// 	updatedDocument.positionAt(updatedDocument.getText().length)
-			// )
-			// edit.replace(updatedDocument.uri, fullRange, newContent)
-			// await vscode.workspace.applyEdit(edit)
-
-			// Windows file locking issues can prevent temporary files from being saved or closed properly.
-			// To avoid these problems, we use in-memory TextDocument objects with the `untitled` scheme.
-			// This method keeps the document entirely in memory, bypassing the filesystem and ensuring
-			// a consistent editing experience across all platforms. This also has the added benefit of not
-			// polluting the user's workspace with temporary files.
-
-			// Create an in-memory document for the new content
-			// const inMemoryDocumentUri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
-			// const inMemoryDocument = await vscode.workspace.openTextDocument(inMemoryDocumentUri)
-			// const edit = new vscode.WorkspaceEdit()
-			// edit.insert(inMemoryDocumentUri, new vscode.Position(0, 0), newContent)
-			// await vscode.workspace.applyEdit(edit)
-
-			// Show diff
-			await vscode.commands.executeCommand(
-				"vscode.diff",
-				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
-					query: Buffer.from(this.originalContent).toString("base64"),
-				}),
-				updatedDocument.uri,
-				`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
+		// if the file is already open, ensure it's not dirty before getting its contents
+		if (fileExists) {
+			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
+				arePathsEqual(doc.uri.fsPath, absolutePath)
 			)
-
-			// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
-			this.documentWasOpen = false
-
-			// close the tab if it's open
-			const tabs = vscode.window.tabGroups.all
-				.map((tg) => tg.tabs)
-				.flat()
-				.filter(
-					(tab) =>
-						tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
-				)
-			for (const tab of tabs) {
-				await vscode.window.tabGroups.close(tab)
-				this.documentWasOpen = true
+			if (existingDocument && existingDocument.isDirty) {
+				await existingDocument.save()
 			}
 		}
 
-		// editor is open, stream content in
+		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if claude needs to fix anything
+		// const preDiagnostics = vscode.languages.getDiagnostics()
+
+		if (fileExists) {
+			this.originalContent = await fs.readFile(absolutePath, "utf-8")
+			// fix issue where claude always removes newline from the file
+			// const eol = this.originalContent.includes("\r\n") ? "\r\n" : "\n"
+			// if (this.originalContent.endsWith(eol) && !this.newContent.endsWith(eol)) {
+			// 	this.newContent += eol
+			// }
+		} else {
+			this.originalContent = ""
+		}
+
+		const fileName = path.basename(absolutePath)
+		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+
+		// Keep track of newly created directories
+		this.createdDirs = await createDirectoriesForFile(absolutePath)
+		// console.log(`Created directories: ${createdDirs.join(", ")}`)
+		// make sure the file exists before we open it
+		if (!fileExists) {
+			await fs.writeFile(absolutePath, "")
+		}
+
+		// Open the existing file with the new contents
+		const updatedDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
+
+		// await updatedDocument.save()
+		// const edit = new vscode.WorkspaceEdit()
+		// const fullRange = new vscode.Range(
+		// 	updatedDocument.positionAt(0),
+		// 	updatedDocument.positionAt(updatedDocument.getText().length)
+		// )
+		// edit.replace(updatedDocument.uri, fullRange, newContent)
+		// await vscode.workspace.applyEdit(edit)
+
+		// Windows file locking issues can prevent temporary files from being saved or closed properly.
+		// To avoid these problems, we use in-memory TextDocument objects with the `untitled` scheme.
+		// This method keeps the document entirely in memory, bypassing the filesystem and ensuring
+		// a consistent editing experience across all platforms. This also has the added benefit of not
+		// polluting the user's workspace with temporary files.
+
+		// Create an in-memory document for the new content
+		// const inMemoryDocumentUri = vscode.Uri.parse(`untitled:${fileName}`) // untitled scheme is necessary to open a file without it being saved to disk
+		// const inMemoryDocument = await vscode.workspace.openTextDocument(inMemoryDocumentUri)
+		// const edit = new vscode.WorkspaceEdit()
+		// edit.insert(inMemoryDocumentUri, new vscode.Position(0, 0), newContent)
+		// await vscode.workspace.applyEdit(edit)
+
+		// Show diff
+		await vscode.commands.executeCommand(
+			"vscode.diff",
+			vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+				query: Buffer.from(this.originalContent).toString("base64"),
+			}),
+			updatedDocument.uri,
+			`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
+		)
+
+		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+		this.documentWasOpen = false
+
+		// close the tab if it's open
+		const tabs = vscode.window.tabGroups.all
+			.map((tg) => tg.tabs)
+			.flat()
+			.filter(
+				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
+			)
+		for (const tab of tabs) {
+			await vscode.window.tabGroups.close(tab)
+			this.documentWasOpen = true
+		}
+	}
+
+	async update(newContent: string): Promise<void> {
+		if (!this.relPath) {
+			return
+		}
+		this.newContent = newContent
+
+		const fileExists = this.editType === "modify"
+		const absolutePath = path.resolve(this.cwd, this.relPath)
 
 		const updatedDocument = vscode.workspace.textDocuments.find((doc) =>
 			arePathsEqual(doc.uri.fsPath, absolutePath)
@@ -132,13 +130,13 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(0),
 				updatedDocument.positionAt(updatedDocument.getText().length)
 			)
-			edit.replace(updatedDocument.uri, fullRange, newContent)
+			edit.replace(updatedDocument.uri, fullRange, this.newContent)
 		} else {
 			const fullRange = new vscode.Range(
 				updatedDocument.positionAt(0),
 				updatedDocument.positionAt(updatedDocument.getText().length)
 			)
-			edit.replace(updatedDocument.uri, fullRange, newContent)
+			edit.replace(updatedDocument.uri, fullRange, this.newContent)
 		}
 		// Apply the edit, but without saving so this doesnt trigger a local save in timeline history
 		await vscode.workspace.applyEdit(edit) // has the added benefit of maintaing the file's original EOLs
@@ -272,7 +270,7 @@ export class DiffViewProvider {
 
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 
-		await this.closeDiffViews()
+		await this.closeAllDiffViews()
 
 		/*
 			Getting diagnostics before and after the file edit is a better approach than
@@ -334,7 +332,7 @@ export class DiffViewProvider {
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
-			await this.closeDiffViews()
+			await this.closeAllDiffViews()
 			await fs.unlink(absolutePath)
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
@@ -359,14 +357,14 @@ export class DiffViewProvider {
 					preview: false,
 				})
 			}
-			await this.closeDiffViews()
+			await this.closeAllDiffViews()
 		}
 
 		// edit is done
-		this.reset()
+		await this.reset()
 	}
 
-	async closeDiffViews() {
+	private async closeAllDiffViews() {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()

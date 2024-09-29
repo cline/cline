@@ -888,13 +888,21 @@ export class ClaudeDev {
 								const partialMessage = JSON.stringify(sharedMessageProps)
 								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								// update editor
-								await this.diffViewProvider.update(relPath, newContent)
+								if (!this.diffViewProvider.isEditing) {
+									// open the editor and prepare to stream content in
+									await this.diffViewProvider.open(relPath)
+								}
+								// editor is open, stream content in
+								await this.diffViewProvider.update(newContent)
 								break
 							} else {
 								// if isEditingFile false, that means we have the full contents of the file already.
 								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
 								// in other words, you must always repeat the block.partial logic here
-								await this.diffViewProvider.update(relPath, newContent)
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+								await this.diffViewProvider.update(newContent)
 								if (!relPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
