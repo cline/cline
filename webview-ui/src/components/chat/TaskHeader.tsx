@@ -270,7 +270,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!isCostAvailable && <ExportButton />}
 							</div>
 
-							{(shouldShowPromptCacheInfo || cacheReads !== undefined || cacheWrites !== undefined) && (
+							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
 								<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 									<span style={{ fontWeight: "bold" }}>Cache:</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>

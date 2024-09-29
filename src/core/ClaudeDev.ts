@@ -577,7 +577,7 @@ export class ClaudeDev {
 				nextUserContent = [
 					{
 						type: "text",
-						text: "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
+						text: this.formatNoToolsResponse(),
 					},
 				]
 				this.consecutiveMistakeCount++
@@ -1242,11 +1242,7 @@ ${this.customInstructions.trim()}
 					}
 				}
 			}
-			const stream = this.api.createMessage(
-				systemPrompt,
-				this.apiConversationHistory,
-				TOOLS(cwd, this.api.getModel().info.supportsImages)
-			)
+			const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
 			return stream
 		} catch (error) {
 			const { response } = await this.ask(
@@ -2467,6 +2463,15 @@ ${this.customInstructions.trim()}
 
 				await pWaitFor(() => this.userMessageContentReady)
 
+				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
+				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_call")
+				if (!didToolUse) {
+					this.userMessageContent.push({
+						type: "text",
+						text: this.formatNoToolsResponse(),
+					})
+				}
+
 				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
 			} else {
@@ -2701,6 +2706,10 @@ ${this.customInstructions.trim()}
 
 	async formatToolError(error?: string) {
 		return `The tool execution failed with the following error:\n<error>\n${error}\n</error>`
+	}
+
+	formatNoToolsResponse() {
+		return "If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)"
 	}
 
 	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
