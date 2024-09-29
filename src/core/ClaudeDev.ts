@@ -180,7 +180,6 @@ export class ClaudeDev {
 	}
 
 	private async saveClaudeMessages() {
-		console.log("Saving claude messages...")
 		try {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
 			await fs.writeFile(filePath, JSON.stringify(this.claudeMessages))
@@ -1206,7 +1205,7 @@ export class ClaudeDev {
 		}
 	}
 
-	async attemptApiRequest(): Promise<AnthropicStream> {
+	async attemptApiRequest(previousApiReqIndex: number): Promise<AnthropicStream> {
 		try {
 			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages)
 			if (this.customInstructions && this.customInstructions.trim()) {
@@ -1222,29 +1221,24 @@ ${this.customInstructions.trim()}
 `
 			}
 
-			// If the last API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-			const lastApiReqStarted = findLast(this.claudeMessages, (m) => m.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text) {
-				const {
-					tokensIn,
-					tokensOut,
-					cacheWrites,
-					cacheReads,
-				}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } = JSON.parse(
-					lastApiReqStarted.text
-				)
-				console.log("lastApiReqStarted", lastApiReqStarted.text, {
-					tokensIn,
-					tokensOut,
-					cacheWrites,
-					cacheReads,
-				})
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
-				if (totalTokens >= maxAllowedSize) {
-					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-					await this.overwriteApiConversationHistory(truncatedMessages)
+			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+			if (previousApiReqIndex >= 0) {
+				const previousRequest = this.claudeMessages[previousApiReqIndex]
+				if (previousRequest && previousRequest.text) {
+					const {
+						tokensIn,
+						tokensOut,
+						cacheWrites,
+						cacheReads,
+					}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } =
+						JSON.parse(previousRequest.text)
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+					const contextWindow = this.api.getModel().info.contextWindow
+					const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+					if (totalTokens >= maxAllowedSize) {
+						const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+						await this.overwriteApiConversationHistory(truncatedMessages)
+					}
 				}
 			}
 			const stream = await this.api.createMessage(
@@ -1263,7 +1257,7 @@ ${this.customInstructions.trim()}
 				throw new Error("API request failed")
 			}
 			await this.say("api_req_retried")
-			return this.attemptApiRequest()
+			return this.attemptApiRequest(previousApiReqIndex)
 		}
 	}
 
@@ -1404,7 +1398,6 @@ ${this.customInstructions.trim()}
 						if (!relPath || !newContent) {
 							// checking for newContent ensure relPath is complete
 							// wait so we can determine if it's a new file or editing an existing file
-							console.log("no relpath or content")
 							break
 						}
 						// Check if file exists using cached map or fs.access
@@ -2085,7 +2078,6 @@ ${this.customInstructions.trim()}
 						await this.say("user_feedback", text ?? "", images)
 						return [
 						*/
-
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
 						try {
@@ -2163,23 +2155,14 @@ ${this.customInstructions.trim()}
 							break
 						}
 					}
-
-					// case "write_to_file":
-					// 	return this.writeToFile(toolInput.path, toolInput.content)
-
-					// default:
-					// 	return [false, `Unknown tool: ${toolName}`]
 				}
-
 				break
 		}
 
 		/*
 		seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
-
 		*/
-
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		if (!block.partial) {
 			// block is finished streaming and executing
@@ -2246,7 +2229,6 @@ ${this.customInstructions.trim()}
 			if (!firstLine.startsWith("<t") && firstLine.startsWith("<")) {
 				// (we ignore tags that start with <t since it's most like a <thinking> tag (and none of our tags start with t)
 				// content is just starting, if it starts with < we can assume it's a tool call, so we'll wait for the next line
-				console.log("skipping reason 1")
 				return
 			}
 		}
@@ -2258,7 +2240,6 @@ ${this.customInstructions.trim()}
 			// we're updating text content, so if we have a partial xml tag on the last line we can ignore it until we get the full line.
 			const lastLine = rawLines.at(-1)?.trim()
 			if (lastLine && !lastLine.startsWith("<t") && lastLine.startsWith("<") && !lastLine.endsWith(">")) {
-				console.log("skipping reason 2")
 				return
 			}
 		}
@@ -2323,11 +2304,8 @@ ${this.customInstructions.trim()}
 		}
 
 		textContent.content = textContentLines.join("\n")
-
 		const prevLength = this.assistantMessageContent.length
-
 		this.assistantMessageContent = [textContent, ...toolCalls]
-
 		if (this.assistantMessageContent.length > prevLength) {
 			this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 		}
@@ -2362,6 +2340,9 @@ ${this.customInstructions.trim()}
 			this.consecutiveMistakeCount = 0
 		}
 
+		// get previous api req's index to check token usage and determine if we need to truncate conversation history
+		const previousApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
+
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		await this.say(
@@ -2392,7 +2373,7 @@ ${this.customInstructions.trim()}
 		await this.providerRef.deref()?.postStateToWebview()
 
 		try {
-			const stream = await this.attemptApiRequest()
+			const stream = await this.attemptApiRequest(previousApiReqIndex)
 			let cacheCreationInputTokens = 0
 			let cacheReadInputTokens = 0
 			let inputTokens = 0
@@ -2473,8 +2454,6 @@ ${this.customInstructions.trim()}
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request
 			}
 
-			console.log("contentBlocks", apiContentBlocks)
-
 			let totalCost: string | undefined
 			// let inputTokens = response.usage.input_tokens
 			// let outputTokens = response.usage.output_tokens
@@ -2522,16 +2501,7 @@ ${this.customInstructions.trim()}
 
 				const completeBlocks = this.assistantMessageContent.filter((block) => !block.partial) // if there are any partial blocks after the stream ended we can consider them invalid
 
-				// console.log(
-				// 	"checking userMessageContentReady",
-				// 	this.userMessageContentReady,
-				// 	this.currentStreamingContentIndex,
-				// 	this.assistantMessageContent.length,
-				// 	completeBlocks.length
-				// )
-
 				if (this.currentStreamingContentIndex >= completeBlocks.length) {
-					console.log("setting userMessageContentReady to true")
 					this.userMessageContentReady = true
 					//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
 				}

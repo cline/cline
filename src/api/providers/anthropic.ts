@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { AnthropicStream, ApiHandler, ApiHandlerMessageResponse } from "../index"
+import { AnthropicStream, ApiHandler } from "../index"
 import {
 	anthropicDefaultModelId,
 	AnthropicModelId,

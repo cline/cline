@@ -10,11 +10,6 @@ import { OllamaHandler } from "./providers/ollama"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 
-export interface ApiHandlerMessageResponse {
-	message: Anthropic.Messages.Message
-	userCredits?: number
-}
-
 export type AnthropicStream = Stream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 
 export interface ApiHandler {
