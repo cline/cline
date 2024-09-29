@@ -1341,7 +1341,7 @@ ${this.customInstructions.trim()}
 					if (typeof content === "string") {
 						this.userMessageContent.push({
 							type: "text",
-							text: content,
+							text: content || "(tool did not return anything)",
 						})
 					} else {
 						this.userMessageContent.push(...content)
@@ -1975,6 +1975,7 @@ ${this.customInstructions.trim()}
 								}
 
 								// execute tool
+								// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
 								await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
 								await this.urlContentFetcher.launchBrowser()
 								let result: {
