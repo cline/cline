@@ -76,7 +76,7 @@ export const formatResponse = {
 		}
 	},
 
-	createPrettyPatch: (filename = "file", oldStr: string, newStr: string) => {
+	createPrettyPatch: (filename = "file", oldStr?: string, newStr?: string) => {
 		// strings cannot be undefined or diff throws exception
 		const patch = diff.createPatch(filename.toPosix(), oldStr || "", newStr || "")
 		const lines = patch.split("\n")
