@@ -83,9 +83,7 @@ export class OpenRouterHandler implements ApiHandler {
 
 		let genId: string | undefined
 
-		console.log("Starting stream processing for OpenRouter")
 		for await (const chunk of stream) {
-			console.log("Received chunk:", chunk)
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			if ("error" in chunk) {
 				const error = chunk.error as { message?: string; code?: number }
@@ -95,31 +93,27 @@ export class OpenRouterHandler implements ApiHandler {
 
 			if (!genId && chunk.id) {
 				genId = chunk.id
-				console.log("Generation ID set:", genId)
 			}
 
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
-				console.log("Yielding content:", delta.content)
 				yield {
 					type: "text",
 					text: delta.content,
 				}
 			}
 		}
-		console.log("Stream processing completed")
 
 		try {
-			console.log("Fetching generation details for ID:", genId)
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
+				timeout: 5_000, // this request hangs sometimes
 			})
 
 			const generation = response.data?.data
 			console.log("OpenRouter generation details:", response.data)
-			console.log("Yielding usage information")
 			yield {
 				type: "usage",
 				inputTokens: generation?.native_tokens_prompt || 0,
