@@ -21,7 +21,7 @@ import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
-import { ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../shared/ExtensionMessage"
+import { ClaudeApiReqInfo, ClaudeAsk, ClaudeMessage, ClaudeSay, ClaudeSayTool } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ToolName } from "../shared/Tool"
@@ -69,6 +69,7 @@ export class ClaudeDev {
 	private consecutiveMistakeCount: number = 0
 	private providerRef: WeakRef<ClaudeDevProvider>
 	private abort: boolean = false
+	didFinishAborting = false
 	private diffViewProvider: DiffViewProvider
 
 	// streaming
@@ -381,19 +382,6 @@ export class ClaudeDev {
 	private async resumeTaskFromHistory() {
 		const modifiedClaudeMessages = await this.getSavedClaudeMessages()
 
-		// Need to modify claude messages for good ux, i.e. if the last message is an api_request_started, then remove it otherwise the user will think the request is still loading
-		const lastApiReqStartedIndex = modifiedClaudeMessages.reduce(
-			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_started" ? index : lastIndex),
-			-1
-		)
-		const lastApiReqFinishedIndex = modifiedClaudeMessages.reduce(
-			(lastIndex, m, index) => (m.type === "say" && m.say === "api_req_finished" ? index : lastIndex),
-			-1
-		)
-		if (lastApiReqStartedIndex > lastApiReqFinishedIndex && lastApiReqStartedIndex !== -1) {
-			modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
-		}
-
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
 			modifiedClaudeMessages,
@@ -402,6 +390,23 @@ export class ClaudeDev {
 		if (lastRelevantMessageIndex !== -1) {
 			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
 		}
+
+		// if the last message is an api_req_started it means there was no partial content streamed, so we remove it
+		if (modifiedClaudeMessages.at(-1)?.say === "api_req_started") {
+			modifiedClaudeMessages.pop()
+		}
+		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and it's not cancelled, then we remove it since it indicates an api request without any partial content streamed
+		// const lastApiReqStartedIndex = findLastIndex(
+		// 	modifiedClaudeMessages,
+		// 	(m) => m.type === "say" && m.say === "api_req_started"
+		// )
+		// if (lastApiReqStartedIndex !== -1) {
+		// 	const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
+		// 	const { cost, cancelled }: ClaudeApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+		// 	if (cost === undefined || cancelled) {
+		// 		modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
+		// 	}
+		// }
 
 		await this.overwriteClaudeMessages(modifiedClaudeMessages)
 		this.claudeMessages = await this.getSavedClaudeMessages()
@@ -698,13 +703,9 @@ export class ClaudeDev {
 			if (previousApiReqIndex >= 0) {
 				const previousRequest = this.claudeMessages[previousApiReqIndex]
 				if (previousRequest && previousRequest.text) {
-					const {
-						tokensIn,
-						tokensOut,
-						cacheWrites,
-						cacheReads,
-					}: { tokensIn?: number; tokensOut?: number; cacheWrites?: number; cacheReads?: number } =
-						JSON.parse(previousRequest.text)
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClaudeApiReqInfo = JSON.parse(
+						previousRequest.text
+					)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 					const contextWindow = this.api.getModel().info.contextWindow
 					const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
@@ -1584,7 +1585,7 @@ export class ClaudeDev {
 			request: userContent
 				.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
 				.join("\n\n"),
-		})
+		} satisfies ClaudeApiReqInfo)
 		await this.saveClaudeMessages()
 		await this.providerRef.deref()?.postStateToWebview()
 
@@ -1595,6 +1596,29 @@ export class ClaudeDev {
 			let inputTokens = 0
 			let outputTokens = 0
 			let totalCost: number | undefined
+
+			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
+			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
+			// (it's worth removing a few months from now)
+			const updateApiReqMsg = (cancelled?: boolean) => {
+				this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
+					...JSON.parse(this.claudeMessages[lastApiReqIndex].text || "{}"),
+					tokensIn: inputTokens,
+					tokensOut: outputTokens,
+					cacheWrites: cacheWriteTokens,
+					cacheReads: cacheReadTokens,
+					cost:
+						totalCost ??
+						calculateApiCost(
+							this.api.getModel().info,
+							inputTokens,
+							outputTokens,
+							cacheWriteTokens,
+							cacheReadTokens
+						),
+					cancelled,
+				} satisfies ClaudeApiReqInfo)
+			}
 
 			// reset streaming state
 			this.currentStreamingContentIndex = 0
@@ -1624,6 +1648,42 @@ export class ClaudeDev {
 						this.presentAssistantMessage()
 						break
 				}
+
+				if (this.abort) {
+					console.log("aborting stream...")
+					if (this.diffViewProvider.isEditing) {
+						await this.diffViewProvider.revertChanges() // closes diff view
+					}
+
+					// if last message is a partial we need to save it
+					const lastMessage = this.claudeMessages.at(-1)
+					if (lastMessage && lastMessage.partial) {
+						lastMessage.ts = Date.now()
+						lastMessage.partial = false
+						// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
+						console.log("saving messages...", lastMessage)
+						// await this.saveClaudeMessages()
+					}
+
+					//
+					await this.addToApiConversationHistory({
+						role: "assistant",
+						content: [{ type: "text", text: assistantMessage + "\n\n[Response interrupted by user]" }],
+					})
+
+					// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
+					updateApiReqMsg(true)
+					await this.saveClaudeMessages()
+
+					// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
+					this.didFinishAborting = true
+					break // aborts the stream
+				}
+			}
+
+			// need to call here in case the stream was aborted
+			if (this.abort) {
+				throw new Error("ClaudeDev instance aborted")
 			}
 
 			this.didCompleteReadingStream = true
@@ -1637,36 +1697,7 @@ export class ClaudeDev {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request
 			}
 
-			// let inputTokens = response.usage.input_tokens
-			// let outputTokens = response.usage.output_tokens
-			// let cacheCreationInputTokens =
-			// 	(response as Anthropic.Beta.PromptCaching.Messages.PromptCachingBetaMessage).usage
-			// 		.cache_creation_input_tokens || undefined
-			// let cacheReadInputTokens =
-			// 	(response as Anthropic.Beta.PromptCaching.Messages.PromptCachingBetaMessage).usage
-			// 		.cache_read_input_tokens || undefined
-			// @ts-ignore-next-line
-			// let totalCost = response.usage.total_cost
-
-			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
-			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
-			// (it's worth removing a few months from now)
-			this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
-				...JSON.parse(this.claudeMessages[lastApiReqIndex].text),
-				tokensIn: inputTokens,
-				tokensOut: outputTokens,
-				cacheWrites: cacheWriteTokens,
-				cacheReads: cacheReadTokens,
-				cost:
-					totalCost ??
-					calculateApiCost(
-						this.api.getModel().info,
-						inputTokens,
-						outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens
-					),
-			})
+			updateApiReqMsg()
 			await this.saveClaudeMessages()
 			await this.providerRef.deref()?.postStateToWebview()
 

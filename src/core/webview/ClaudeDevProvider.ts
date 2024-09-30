@@ -19,6 +19,7 @@ import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { openMention } from "../mentions"
 import { fileExistsAtPath } from "../../utils/fs"
 import { buildApiHandler } from "../../api"
+import pWaitFor from "p-wait-for"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -441,6 +442,18 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "openMention":
 						openMention(message.text)
+						break
+					case "cancelTask":
+						if (this.claudeDev) {
+							const { historyItem } = await this.getTaskWithId(this.claudeDev.taskId)
+							this.claudeDev.abortTask()
+							await pWaitFor(() => this.claudeDev === undefined || this.claudeDev.didFinishAborting, {
+								timeout: 3_000,
+							})
+							await this.initClaudeDevWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
+							await this.postStateToWebview()
+						}
+
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)

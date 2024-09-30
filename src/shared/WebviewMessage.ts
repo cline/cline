@@ -20,6 +20,7 @@ export interface WebviewMessage {
 		| "openImage"
 		| "openFile"
 		| "openMention"
+		| "cancelTask"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

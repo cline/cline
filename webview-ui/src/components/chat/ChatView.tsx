@@ -14,6 +14,7 @@ import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import HistoryPreview from "../history/HistoryPreview"
 import TaskHeader from "./TaskHeader"
+import { findLast } from "../../../../src/shared/array"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -182,6 +183,24 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [messages.length])
 
+	const isStreaming = useMemo(() => {
+		const isLastMessagePartial = modifiedMessages.at(-1)?.partial === true
+		if (isLastMessagePartial) {
+			return true
+		} else {
+			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
+			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
+				const cost = JSON.parse(lastApiReqStarted.text).cost
+				if (cost === undefined) {
+					// api request has not finished yet
+					return true
+				}
+			}
+		}
+
+		return false
+	}, [modifiedMessages])
+
 	const handleSendMessage = useCallback(
 		(text: string, images: string[]) => {
 			text = text.trim()
@@ -251,6 +270,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [claudeAsk, startNewTask])
 
 	const handleSecondaryButtonClick = useCallback(() => {
+		if (isStreaming) {
+			vscode.postMessage({ type: "cancelTask" })
+			return
+		}
+
 		switch (claudeAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
@@ -267,7 +291,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setEnableButtons(false)
 		// setPrimaryButtonText(undefined)
 		// setSecondaryButtonText(undefined)
-	}, [claudeAsk, startNewTask])
+	}, [claudeAsk, startNewTask, isStreaming])
 
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -544,11 +568,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 					<div
 						style={{
-							opacity: primaryButtonText || secondaryButtonText ? (enableButtons ? 1 : 0.5) : 0,
+							opacity:
+								primaryButtonText || secondaryButtonText || isStreaming
+									? enableButtons || isStreaming
+										? 1
+										: 0.5
+									: 0,
 							display: "flex",
 							padding: "10px 15px 0px 15px",
 						}}>
-						{primaryButtonText && (
+						{primaryButtonText && !isStreaming && (
 							<VSCodeButton
 								appearance="primary"
 								disabled={!enableButtons}
@@ -560,13 +589,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								{primaryButtonText}
 							</VSCodeButton>
 						)}
-						{secondaryButtonText && (
+						{(secondaryButtonText || isStreaming) && (
 							<VSCodeButton
 								appearance="secondary"
-								disabled={!enableButtons}
-								style={{ flex: 1, marginLeft: "6px" }}
+								disabled={!enableButtons && !isStreaming}
+								style={{
+									flex: isStreaming ? 2 : 1,
+									marginLeft: isStreaming ? 0 : "6px",
+								}}
 								onClick={handleSecondaryButtonClick}>
-								{secondaryButtonText}
+								{isStreaming ? "Cancel" : secondaryButtonText}
 							</VSCodeButton>
 						)}
 					</div>

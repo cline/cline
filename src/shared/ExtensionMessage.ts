@@ -87,3 +87,13 @@ export interface ClaudeSayTool {
 	regex?: string
 	filePattern?: string
 }
+
+export interface ClaudeApiReqInfo {
+	request?: string
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+	cost?: number
+	cancelled?: boolean
+}

@@ -2,7 +2,7 @@ import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/reac
 import deepEqual from "fast-deep-equal"
 import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
-import { ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
+import { ClaudeApiReqInfo, ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
@@ -37,11 +37,12 @@ const ChatRow = memo(
 export default ChatRow
 
 const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowProps) => {
-	const cost = useMemo(() => {
+	const [cost, apiReqCancelled] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
-			return JSON.parse(message.text).cost
+			const info: ClaudeApiReqInfo = JSON.parse(message.text)
+			return [info.cost, info.cancelled]
 		}
-		return undefined
+		return [undefined, undefined]
 	}, [message.text, message.say])
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
@@ -54,6 +55,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 	const normalColor = "var(--vscode-foreground)"
 	const errorColor = "var(--vscode-errorForeground)"
 	const successColor = "var(--vscode-charts-green)"
+	const cancelledColor = "var(--vscode-descriptionForeground)"
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -94,9 +96,15 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			case "api_req_started":
 				return [
 					cost != null ? (
-						<span
-							className="codicon codicon-check"
-							style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+						apiReqCancelled ? (
+							<span
+								className="codicon codicon-error"
+								style={{ color: cancelledColor, marginBottom: "-1.5px" }}></span>
+						) : (
+							<span
+								className="codicon codicon-check"
+								style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+						)
 					) : apiRequestFailedMessage ? (
 						<span
 							className="codicon codicon-error"
@@ -105,7 +113,11 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						<ProgressIndicator />
 					),
 					cost != null ? (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+						apiReqCancelled ? (
+							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+						) : (
+							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+						)
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 					) : (
@@ -122,7 +134,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelled])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
