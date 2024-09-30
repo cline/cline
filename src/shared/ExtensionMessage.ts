@@ -95,5 +95,8 @@ export interface ClaudeApiReqInfo {
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
-	cancelled?: boolean
+	cancelReason?: ClaudeApiReqCancelReason
+	streamingFailedMessage?: string
 }
+
+export type ClaudeApiReqCancelReason = "streaming_failed" | "user_cancelled"

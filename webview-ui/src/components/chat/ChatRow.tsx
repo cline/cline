@@ -37,12 +37,12 @@ const ChatRow = memo(
 export default ChatRow
 
 const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowProps) => {
-	const [cost, apiReqCancelled] = useMemo(() => {
+	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClaudeApiReqInfo = JSON.parse(message.text)
-			return [info.cost, info.cancelled]
+			return [info.cost, info.cancelReason, info.streamingFailedMessage]
 		}
-		return [undefined, undefined]
+		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
@@ -96,10 +96,16 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			case "api_req_started":
 				return [
 					cost != null ? (
-						apiReqCancelled ? (
-							<span
-								className="codicon codicon-error"
-								style={{ color: cancelledColor, marginBottom: "-1.5px" }}></span>
+						apiReqCancelReason != null ? (
+							apiReqCancelReason === "user_cancelled" ? (
+								<span
+									className="codicon codicon-error"
+									style={{ color: cancelledColor, marginBottom: "-1.5px" }}></span>
+							) : (
+								<span
+									className="codicon codicon-error"
+									style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
+							)
 						) : (
 							<span
 								className="codicon codicon-check"
@@ -113,8 +119,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						<ProgressIndicator />
 					),
 					cost != null ? (
-						apiReqCancelled ? (
-							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+						apiReqCancelReason != null ? (
+							apiReqCancelReason === "user_cancelled" ? (
+								<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+							) : (
+								<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+							)
 						) : (
 							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 						)
@@ -134,7 +144,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelled])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -376,7 +386,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<div
 								style={{
 									...headerStyle,
-									marginBottom: cost == null && apiRequestFailedMessage ? 10 : 0,
+									marginBottom:
+										(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
+											? 10
+											: 0,
 									justifyContent: "space-between",
 									cursor: "pointer",
 									userSelect: "none",
@@ -392,10 +405,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								</div>
 								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
-							{cost == null && apiRequestFailedMessage && (
+							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
 									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
-										{apiRequestFailedMessage}
+										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
 										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
