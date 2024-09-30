@@ -89,13 +89,13 @@ Remember:
 - Formulate your tool use using the XML format specified for each tool.
 - After using a tool, you will receive the tool use result in the user's next message. This result will provide you with the necessary information to continue your task or make further decisions.
 
-CRITICAL RULE: You must use only one tool at a time. Multiple tool uses in a single message are strictly prohibited.
+CRITICAL RULE: You are only allowed to use one tool per message. Multiple tool uses in a single message is STRICTLY FORBIDDEN. Even if it may seem efficient to use multiple tools at once, the system will crash and burn if you do so.
 
 To ensure compliance:
 
 1. After each tool use, wait for the result before proceeding.
 2. Analyze the result of each tool use before deciding on the next step.
-3. If multiple actions are needed, break them into separate, sequential steps, each using a single tool.
+3. If multiple actions are needed, break them into separate, sequential messages, each using a single tool.
 
 Remember: *One tool use per message. No exceptions.*
 

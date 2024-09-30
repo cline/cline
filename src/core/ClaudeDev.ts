@@ -893,16 +893,9 @@ export class ClaudeDev {
 									await this.diffViewProvider.open(relPath)
 								}
 								// editor is open, stream content in
-								await this.diffViewProvider.update(newContent)
+								await this.diffViewProvider.update(newContent, false)
 								break
 							} else {
-								// if isEditingFile false, that means we have the full contents of the file already.
-								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
-								// in other words, you must always repeat the block.partial logic here
-								if (!this.diffViewProvider.isEditing) {
-									await this.diffViewProvider.open(relPath)
-								}
-								await this.diffViewProvider.update(newContent)
 								if (!relPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
@@ -916,6 +909,16 @@ export class ClaudeDev {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
+								// if isEditingFile false, that means we have the full contents of the file already.
+								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
+								// in other words, you must always repeat the block.partial logic here
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+								await this.diffViewProvider.update(newContent, true)
+								await delay(300) // wait for diff view to update
+								this.diffViewProvider.scrollToFirstDiff()
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -933,7 +936,7 @@ export class ClaudeDev {
 									await this.diffViewProvider.revertChanges()
 									break
 								}
-								const userEdits = await this.diffViewProvider.saveChanges()
+								const { newProblemsMessage, userEdits } = await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 								if (userEdits) {
 									await this.say(
@@ -945,10 +948,12 @@ export class ClaudeDev {
 										} satisfies ClaudeSayTool)
 									)
 									pushToolResult(
-										`The user made the following updates to your content:\n\n${userEdits}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)`
+										`The user made the following updates to your content:\n\n${userEdits}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)${newProblemsMessage}`
 									)
 								} else {
-									pushToolResult(`The content was successfully saved to ${relPath.toPosix()}.`)
+									pushToolResult(
+										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`
+									)
 								}
 								await this.diffViewProvider.reset()
 								break
