@@ -17,7 +17,7 @@ const StyledMarkdown = styled.div`
 		margin: 13x 0;
 		padding: 10px 10px;
 		max-width: calc(100vw - 20px);
-		overflow-x: scroll;
+		overflow-x: auto;
 		overflow-y: hidden;
 	}
 

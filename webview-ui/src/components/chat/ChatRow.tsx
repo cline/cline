@@ -764,6 +764,7 @@ const ProgressIndicator = () => (
 )
 
 const Markdown = memo(({ markdown }: { markdown?: string }) => {
+	// worth noting that remark parses out <thinking> tags
 	return (
 		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
 			<MarkdownBlock markdown={markdown} />
