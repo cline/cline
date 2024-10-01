@@ -49,9 +49,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		const modelId = this.getModelId()
 		const { info } = this.getModel()
 
-		// Add this console.log statement to see the current model ID being used
-		console.log(`[AWS Bedrock] Using model ID: ${modelId}`)
-
 		const message = await this.client.messages.create({
 			model: modelId,
 			max_tokens: info.maxTokens,
