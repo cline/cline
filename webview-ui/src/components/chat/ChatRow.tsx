@@ -1,14 +1,14 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useMemo } from "react"
-import ReactMarkdown from "react-markdown"
 import { ClaudeApiReqInfo, ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { highlightMentions } from "./TaskHeader"
+import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
+import { highlightMentions } from "./TaskHeader"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -764,116 +764,9 @@ const ProgressIndicator = () => (
 )
 
 const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
-	// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
-	// const parsed = markdown?.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
-	// 	return content
-	// 	// return `_<thinking>_\n\n${content}\n\n_</thinking>_`
-	// })
-	const parsed = markdown
 	return (
-		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -10, marginTop: -10 }}>
-			<ReactMarkdown
-				children={parsed}
-				components={{
-					p(props) {
-						const { style, ...rest } = props
-						return (
-							<p
-								style={{
-									...style,
-									margin: 0,
-									marginTop: 10,
-									marginBottom: 10,
-									whiteSpace: "pre-wrap",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					ol(props) {
-						const { style, ...rest } = props
-						return (
-							<ol
-								style={{
-									...style,
-									padding: "0 0 0 20px",
-									margin: "10px 0",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					ul(props) {
-						const { style, ...rest } = props
-						return (
-							<ul
-								style={{
-									...style,
-									padding: "0 0 0 20px",
-									margin: "10px 0",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					// pre always surrounds a code, and we custom handle code blocks below. Pre has some non-10 margin, while all other elements in markdown have a 10 top/bottom margin and the outer div has a -10 top/bottom margin to counteract this between chat rows. However we render markdown in a completion_result row so make sure to add padding as necessary when used within other rows.
-					pre(props) {
-						const { style, ...rest } = props
-						return (
-							<pre
-								style={{
-									...style,
-									marginTop: 10,
-									marginBlock: 10,
-								}}
-								{...rest}
-							/>
-						)
-					},
-					// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
-					code(props) {
-						const { children, className, node, ...rest } = props
-						const match = /language-(\w+)/.exec(className || "")
-						return match ? (
-							<div
-								style={{
-									borderRadius: 3,
-									border: "1px solid var(--vscode-editorGroup-border)",
-									overflow: "hidden",
-								}}>
-								<CodeBlock
-									source={`${"```"}${match[1]}\n${String(children).replace(/\n$/, "")}\n${"```"}`}
-								/>
-							</div>
-						) : (
-							<code
-								{...rest}
-								className={className}
-								style={{
-									whiteSpace: "pre-line",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-									backgroundColor: "var(--vscode-textCodeBlock-background)",
-									color: "var(--vscode-textPreformat-foreground)",
-									fontFamily: "var(--vscode-editor-font-family)",
-									fontSize: "var(--vscode-editor-font-size)",
-									borderRadius: "3px",
-									border: "1px solid var(--vscode-textSeparator-foreground)",
-									padding: "0px 2px",
-								}}>
-								{children}
-							</code>
-						)
-					},
-				}}
-			/>
+		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
+			<MarkdownBlock markdown={markdown} />
 		</div>
 	)
 })
