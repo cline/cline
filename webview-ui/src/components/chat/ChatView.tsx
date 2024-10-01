@@ -2,19 +2,20 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
+import styled from "styled-components"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import Announcement from "./Announcement"
+import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import Announcement from "./Announcement"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
-import HistoryPreview from "../history/HistoryPreview"
 import TaskHeader from "./TaskHeader"
-import { findLast } from "../../../../src/shared/array"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -41,7 +42,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
-
+	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
@@ -494,6 +495,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion]
 	)
 
+	const handleScroll = useCallback<React.UIEventHandler<HTMLDivElement>>((event) => {
+		const scroller = event.currentTarget
+		const scrollTop = scroller.scrollTop
+		const scrollHeight = scroller.scrollHeight
+		const clientHeight = scroller.clientHeight
+		const scrollToBottomThreshold = 600
+		setShowScrollToBottom(scrollHeight - scrollTop - clientHeight > scrollToBottomThreshold)
+	}, [])
+
 	return (
 		<div
 			style={{
@@ -565,43 +575,59 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						itemContent={itemContent}
 						atBottomStateChange={setIsAtBottom}
 						atBottomThreshold={100}
+						onScroll={handleScroll}
 					/>
-					<div
-						style={{
-							opacity:
-								primaryButtonText || secondaryButtonText || isStreaming
-									? enableButtons || isStreaming
-										? 1
-										: 0.5
-									: 0,
-							display: "flex",
-							padding: "10px 15px 0px 15px",
-						}}>
-						{primaryButtonText && !isStreaming && (
-							<VSCodeButton
-								appearance="primary"
-								disabled={!enableButtons}
-								style={{
-									flex: secondaryButtonText ? 1 : 2,
-									marginRight: secondaryButtonText ? "6px" : "0",
-								}}
-								onClick={handlePrimaryButtonClick}>
-								{primaryButtonText}
-							</VSCodeButton>
-						)}
-						{(secondaryButtonText || isStreaming) && (
-							<VSCodeButton
-								appearance="secondary"
-								disabled={!enableButtons && !isStreaming}
-								style={{
-									flex: isStreaming ? 2 : 1,
-									marginLeft: isStreaming ? 0 : "6px",
-								}}
-								onClick={handleSecondaryButtonClick}>
-								{isStreaming ? "Cancel" : secondaryButtonText}
-							</VSCodeButton>
-						)}
-					</div>
+					{showScrollToBottom ? (
+						<div
+							style={{
+								display: "flex",
+								padding: "10px 15px 0px 15px",
+							}}>
+							<ScrollToBottomButton
+								onClick={() =>
+									virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
+								}>
+								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
+							</ScrollToBottomButton>
+						</div>
+					) : (
+						<div
+							style={{
+								opacity:
+									primaryButtonText || secondaryButtonText || isStreaming
+										? enableButtons || isStreaming
+											? 1
+											: 0.5
+										: 0,
+								display: "flex",
+								padding: "10px 15px 0px 15px",
+							}}>
+							{primaryButtonText && !isStreaming && (
+								<VSCodeButton
+									appearance="primary"
+									disabled={!enableButtons}
+									style={{
+										flex: secondaryButtonText ? 1 : 2,
+										marginRight: secondaryButtonText ? "6px" : "0",
+									}}
+									onClick={handlePrimaryButtonClick}>
+									{primaryButtonText}
+								</VSCodeButton>
+							)}
+							{(secondaryButtonText || isStreaming) && (
+								<VSCodeButton
+									appearance="secondary"
+									disabled={!enableButtons && !isStreaming}
+									style={{
+										flex: isStreaming ? 2 : 1,
+										marginLeft: isStreaming ? 0 : "6px",
+									}}
+									onClick={handleSecondaryButtonClick}>
+									{isStreaming ? "Cancel" : secondaryButtonText}
+								</VSCodeButton>
+							)}
+						</div>
+					)}
 				</>
 			)}
 			<ChatTextArea
@@ -625,5 +651,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		</div>
 	)
 }
+
+const ScrollToBottomButton = styled.div`
+	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);
+	border-radius: 3px;
+	overflow: hidden;
+	cursor: pointer;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	flex: 1;
+	height: 25px;
+
+	&:hover {
+		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);
+	}
+
+	&:active {
+		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 70%, transparent);
+	}
+`
 
 export default ChatView
