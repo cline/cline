@@ -184,6 +184,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [messages.length])
 
 	const isStreaming = useMemo(() => {
+		const isToolCurrentlyAsking = claudeAsk !== undefined && enableButtons && primaryButtonText !== undefined
+		if (isToolCurrentlyAsking) {
+			return false
+		}
+
 		const isLastMessagePartial = modifiedMessages.at(-1)?.partial === true
 		if (isLastMessagePartial) {
 			return true
@@ -199,7 +204,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 
 		return false
-	}, [modifiedMessages])
+	}, [modifiedMessages, claudeAsk, enableButtons, primaryButtonText])
 
 	const handleSendMessage = useCallback(
 		(text: string, images: string[]) => {
