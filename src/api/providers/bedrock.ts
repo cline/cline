@@ -3,7 +3,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiHandlerMessageResponse } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 
-// https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
+// Hardcoded flag to enable cross-region inference
+const USE_CROSS_REGION_INFERENCE = true
+
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
@@ -23,14 +25,36 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 	}
 
+	private getCrossRegionPrefix(): string {
+		const region = this.options.awsRegion || "us-east-1"
+		return region.startsWith("eu") ? "eu." : "us."
+	}
+
+	private getModelId(): BedrockModelId {
+		let modelId = (this.options.apiModelId as BedrockModelId) || bedrockDefaultModelId
+
+		if (this.options.awsUseCrossRegionInference) {
+			const prefix = this.getCrossRegionPrefix()
+			modelId = `${prefix}${modelId}` as BedrockModelId
+		}
+
+		return modelId
+	}
+
 	async createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		tools: Anthropic.Messages.Tool[]
 	): Promise<ApiHandlerMessageResponse> {
+		const modelId = this.getModelId()
+		const { info } = this.getModel()
+
+		// Add this console.log statement to see the current model ID being used
+		console.log(`[AWS Bedrock] Using model ID: ${modelId}`)
+
 		const message = await this.client.messages.create({
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
+			model: modelId,
+			max_tokens: info.maxTokens,
 			temperature: 0.2,
 			system: systemPrompt,
 			messages,
@@ -41,10 +65,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in bedrockModels) {
-			const id = modelId as BedrockModelId
-			return { id, info: bedrockModels[id] }
+		const modelId = this.getModelId()
+		if (modelId in bedrockModels) {
+			return { id: modelId, info: bedrockModels[modelId] }
 		}
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
