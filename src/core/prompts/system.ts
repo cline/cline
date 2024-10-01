@@ -278,6 +278,7 @@ npm test
 When using tools to accomplish tasks, follow these guidelines for effective and informed decision-making:
 
 - Treat each task as a multi-step process. Begin by planning the necessary steps within <thinking></thinking> tags.
+- At each step of the task, assess if you have the necessary information to proceed; if not, use the appropriate tool to gather it.
 - You must only make one tool use at a time, ensuring each tool's output is considered before proceeding to the next.
 - Do not assume the outcome of any tool use. Each step must be informed by the previous step's result.
 - After receiving the result of a tool use, analyze the result and decide the next step based on this information.

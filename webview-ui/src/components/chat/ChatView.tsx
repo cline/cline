@@ -49,7 +49,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 	const [isAtBottom, setIsAtBottom] = useState(false)
-	const [didScrollFromApiReqTs, setDidScrollFromApiReqTs] = useState<number | undefined>(undefined)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -405,6 +404,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
+	// scrolling
+
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
@@ -452,8 +453,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const [lastScrollMessageCount, setLastScrollMessageCount] = useState<number>(0)
+	const [didScrollFromApiReqTs, setDidScrollFromApiReqTs] = useState<number | undefined>(undefined)
 
 	useEffect(() => {
+		/*
+		chatgpt scroll animation
+		- theres 1 lines worth padding below the text, so when it starts adding text to that next line, it smoothly animates down. theres some debounce, its not exactly when the new line is added.
+
+
+		// since we have scroll to bottom button we should respect if they scroll up, 
+		so our scrolling logic will be:
+		- if at bottom, and last chatrow is partial (streaming), then listen to last chatrow height. if it increases, then animate scroll to bottom
+		    - if at bottom, then new complete chatrow will cause normal scroll animation (i.e. inspect site screenshot)
+		- so we have to track this height and reset for new chat row
+		- also need to add a bit more padding at the bottom to let the new text have some extra space before we animate to it
+
+		Notes:
+		- show scroll to bottom button even if a little bit scrolled up so user knows that they wont see stream animation if the button shows. the button could act as a lock in to streamed content
+		- dont show scroll to bottom if no overflow
+		*/
+
 		const lastMessage = visibleMessages.at(-1)
 		if (lastMessage?.partial && isAtBottom) {
 			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
@@ -475,6 +494,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return () => clearTimeout(timer)
 		}
 	}, [visibleMessages, didScrollFromApiReqTs])
+
+	const scrollToBottom = useCallback((smooth: boolean) => {
+		virtuosoRef.current?.scrollTo({
+			top: Number.MAX_SAFE_INTEGER,
+			behavior: smooth ? "smooth" : "auto", // instant causes crash
+		})
+	}, [])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -501,7 +527,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const scrollHeight = scroller.scrollHeight
 		const clientHeight = scroller.clientHeight
 		const scrollToBottomThreshold = 600
-		setShowScrollToBottom(scrollHeight - scrollTop - clientHeight > scrollToBottomThreshold)
+		// setShowScrollToBottom(scrollHeight - scrollTop - clientHeight > scrollToBottomThreshold)
 	}, [])
 
 	return (

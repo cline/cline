@@ -67,6 +67,12 @@ const StyledMarkdown = styled.div`
 	ul {
 		line-height: 1.25;
 	}
+
+	ol,
+	ul {
+		padding-left: 2.5em;
+		margin-left: 0;
+	}
 `
 
 const StyledPre = styled.pre<{ theme: any }>`

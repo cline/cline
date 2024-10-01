@@ -764,10 +764,25 @@ const ProgressIndicator = () => (
 )
 
 const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	// worth noting that remark parses out <thinking> tags
+	const withoutThinkingTags = useMemo(() => {
+		if (!markdown) return ""
+
+		let processed = markdown
+
+		// Remove end substrings of <thinking or </thinking
+		processed = processed.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
+
+		// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
+		// Needs to be separate since we dont want to remove the line break before the first tag
+		processed = processed.replace(/<thinking>\s?/g, "")
+		processed = processed.replace(/\s?<\/thinking>/g, "")
+
+		return processed
+	}, [markdown])
+
 	return (
 		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
-			<MarkdownBlock markdown={markdown} />
+			<MarkdownBlock markdown={withoutThinkingTags} />
 		</div>
 	)
 })
