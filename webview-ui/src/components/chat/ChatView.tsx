@@ -593,14 +593,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}}
 						// followOutput works much more reliably than manually tracking visible messages count. This will scroll when the count changes, so for cases where the row height changes, we use onHeightChange to scroll.
 						followOutput={(isAtBottom: boolean) => {
-							if (didScrollUp) {
-								return false
-							}
 							if (isAtBottom) {
-								return "smooth" // can be 'auto' or false to avoid scrolling
-							} else {
-								return false
+								return "smooth"
 							}
+							if (didScrollUp) {
+								// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
+								return false
+							} else {
+								return "smooth"
+							}
+							// if (isAtBottom) {
+							// 	return "smooth" // can be 'auto' or false to avoid scrolling
+							// } else {
+							// 	return false
+							// }
 						}}
 						components={{
 							Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
