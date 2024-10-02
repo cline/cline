@@ -240,9 +240,9 @@ export class ClaudeDev {
 					// this.askResponse = undefined
 					// this.askResponseText = undefined
 					// this.askResponseImages = undefined
-					// askTs = Date.now()
-					// this.lastMessageTs = askTs
-					await this.addToClaudeMessages({ ts: Date.now(), type: "ask", ask: type, text, partial })
+					askTs = Date.now()
+					this.lastMessageTs = askTs
+					await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text, partial })
 					await this.providerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
@@ -253,9 +253,16 @@ export class ClaudeDev {
 					this.askResponse = undefined
 					this.askResponseText = undefined
 					this.askResponseImages = undefined
-					askTs = Date.now()
+
+					/*
+					Bug for the history books:
+					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
+					The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
+					So in this case we must make sure that the message ts is never altered after first setting it.
+					*/
+					askTs = lastMessage.ts
 					this.lastMessageTs = askTs
-					lastMessage.ts = askTs
+					// lastMessage.ts = askTs
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClaudeMessages()
@@ -323,17 +330,17 @@ export class ClaudeDev {
 						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
 				} else {
 					// this is a new partial message, so add it with partial state
-
-					await this.addToClaudeMessages({ ts: Date.now(), type: "say", say: type, text, images, partial })
+					const sayTs = Date.now()
+					this.lastMessageTs = sayTs
+					await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text, images, partial })
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
 				if (isUpdatingPreviousPartial) {
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					const sayTs = Date.now()
-					this.lastMessageTs = sayTs
-					lastMessage.ts = sayTs
+					this.lastMessageTs = lastMessage.ts
+					// lastMessage.ts = sayTs
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = false
@@ -1642,7 +1649,7 @@ export class ClaudeDev {
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.claudeMessages.at(-1)
 				if (lastMessage && lastMessage.partial) {
-					lastMessage.ts = Date.now()
+					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					console.log("updating partial message", lastMessage)
