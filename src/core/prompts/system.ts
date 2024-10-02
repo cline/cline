@@ -214,10 +214,10 @@ Your question here
 </ask_followup_question>
 
 ## attempt_completion
-Description: Once you've completed the task, use this tool to present the result to the user. Optionally you may provide a CLI command to showcase the result of your work, but you are FORBIDDEN from using commands like 'echo' or 'cat' that merely print text. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
+Description: Once you've completed the task, use this tool to present the result to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
 Parameters:
 - result: (required) The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.
-- command: (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
+- command: (optional) A CLI command to execute to show a live demo of the result to the user. For example, use 'open index.html' to display a created website. But do not use commands like echo or cat that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
 <attempt_completion>
 <result>
