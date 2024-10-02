@@ -881,6 +881,27 @@ export class ClaudeDev {
 					pushToolResult(formatResponse.toolError(errorString))
 				}
 
+				// If block is partial, remove partial closing tag so its not presented to user
+				const removeClosingTag = (tag: ToolParamName, text?: string) => {
+					if (!block.partial) {
+						return text || ""
+					}
+					if (!text) {
+						return ""
+					}
+					// This regex dynamically constructs a pattern to match the closing tag:
+					// - Optionally matches whitespace before the tag
+					// - Matches '<' or '</' optionally followed by any subset of characters from the tag name
+					const tagRegex = new RegExp(
+						`\\s?<\/?${tag
+							.split("")
+							.map((char) => `(?:${char})?`)
+							.join("")}$`,
+						"g"
+					)
+					return text.replace(tagRegex, "")
+				}
+
 				switch (block.name) {
 					case "write_to_file": {
 						const relPath: string | undefined = block.params.path
@@ -901,7 +922,7 @@ export class ClaudeDev {
 						}
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
-							path: getReadablePath(cwd, relPath),
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
 						try {
 							if (block.partial) {
@@ -989,7 +1010,7 @@ export class ClaudeDev {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "readFile",
-							path: getReadablePath(cwd, relPath),
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
 						try {
 							if (block.partial) {
@@ -1039,7 +1060,7 @@ export class ClaudeDev {
 						const recursive = recursiveRaw?.toLowerCase() === "true"
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
-							path: getReadablePath(cwd, relDirPath),
+							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
 						try {
 							if (block.partial) {
@@ -1087,7 +1108,7 @@ export class ClaudeDev {
 						const relDirPath: string | undefined = block.params.path
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "listCodeDefinitionNames",
-							path: getReadablePath(cwd, relDirPath),
+							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
 						try {
 							if (block.partial) {
@@ -1138,9 +1159,9 @@ export class ClaudeDev {
 						const filePattern: string | undefined = block.params.file_pattern
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "searchFiles",
-							path: getReadablePath(cwd, relDirPath),
-							regex: regex || "",
-							filePattern: filePattern || "",
+							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
+							regex: removeClosingTag("regex", regex),
+							filePattern: removeClosingTag("file_pattern", filePattern),
 						}
 						try {
 							if (block.partial) {
@@ -1192,7 +1213,7 @@ export class ClaudeDev {
 						const url: string | undefined = block.params.url
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: "inspectSite",
-							path: url || "",
+							path: removeClosingTag("url", url),
 						}
 						try {
 							if (block.partial) {
@@ -1255,7 +1276,9 @@ export class ClaudeDev {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								await this.ask("command", command || "", block.partial).catch(() => {})
+								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
+									() => {}
+								)
 								break
 							} else {
 								if (!command) {
@@ -1287,7 +1310,9 @@ export class ClaudeDev {
 						const question: string | undefined = block.params.question
 						try {
 							if (block.partial) {
-								await this.ask("followup", question || "", block.partial).catch(() => {})
+								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(
+									() => {}
+								)
 								break
 							} else {
 								if (!question) {
@@ -1341,16 +1366,34 @@ export class ClaudeDev {
 									// const secondLastMessage = this.claudeMessages.at(-2)
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
-										await this.ask("command", command || "", block.partial).catch(() => {})
+										await this.ask(
+											"command",
+											removeClosingTag("command", command),
+											block.partial
+										).catch(() => {})
 									} else {
 										// last message is completion_result
 										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
-										await this.say("completion_result", result, undefined, false)
-										await this.ask("command", command || "", block.partial).catch(() => {})
+										await this.say(
+											"completion_result",
+											removeClosingTag("result", result),
+											undefined,
+											false
+										)
+										await this.ask(
+											"command",
+											removeClosingTag("command", command),
+											block.partial
+										).catch(() => {})
 									}
 								} else {
 									// no command, still outputting partial result
-									await this.say("completion_result", result || "", undefined, block.partial)
+									await this.say(
+										"completion_result",
+										removeClosingTag("result", result),
+										undefined,
+										block.partial
+									)
 								}
 								break
 							} else {
