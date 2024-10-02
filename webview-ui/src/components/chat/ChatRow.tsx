@@ -1,6 +1,6 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useMemo } from "react"
+import React, { memo, useEffect, useMemo, useRef } from "react"
 import { ClaudeApiReqInfo, ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
@@ -9,6 +9,7 @@ import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
 import { highlightMentions } from "./TaskHeader"
+import { useSize } from "react-use"
 
 interface ChatRowProps {
 	message: ClaudeMessage
@@ -16,12 +17,19 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
+	onHeightChange: (height: number) => void
 }
+
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
-		return (
+		const { isLast, onHeightChange, message } = props
+		// Store the previous height to compare with the current height
+		// This allows us to detect changes without causing re-renders
+		const prevHeightRef = useRef(0)
+
+		const [chatrow, { height }] = useSize(
 			<div
 				style={{
 					padding: "10px 6px 10px 15px",
@@ -29,6 +37,21 @@ const ChatRow = memo(
 				<ChatRowContent {...props} />
 			</div>
 		)
+
+		useEffect(() => {
+			// used for partials, command output, etc.
+			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
+			// height starts off at Infinity
+			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+				prevHeightRef.current = height
+				if (!isInitialRender) {
+					onHeightChange(height)
+				}
+			}
+		}, [height, isLast, onHeightChange, message])
+
+		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
+		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
 	deepEqual
@@ -36,7 +59,7 @@ const ChatRow = memo(
 
 export default ChatRow
 
-const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowProps) => {
+const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClaudeApiReqInfo = JSON.parse(message.text)
@@ -94,27 +117,37 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
 			case "api_req_started":
+				const getIconSpan = (iconName: string, color: string) => (
+					<div
+						style={{
+							width: 16,
+							height: 16,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+						}}>
+						<span
+							className={`codicon codicon-${iconName}`}
+							style={{
+								color,
+								fontSize: 16,
+								marginBottom: "-1.5px",
+							}}></span>
+					</div>
+				)
 				return [
 					cost != null ? (
 						apiReqCancelReason != null ? (
 							apiReqCancelReason === "user_cancelled" ? (
-								<span
-									className="codicon codicon-error"
-									style={{ color: cancelledColor, marginBottom: "-1.5px" }}></span>
+								getIconSpan("error", cancelledColor)
 							) : (
-								<span
-									className="codicon codicon-error"
-									style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
+								getIconSpan("error", errorColor)
 							)
 						) : (
-							<span
-								className="codicon codicon-check"
-								style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+							getIconSpan("check", successColor)
 						)
 					) : apiRequestFailedMessage ? (
-						<span
-							className="codicon codicon-error"
-							style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
+						getIconSpan("error", errorColor)
 					) : (
 						<ProgressIndicator />
 					),
@@ -401,7 +434,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
-									{cost != null && cost > 0 && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
+									{/* Need to render this everytime since it affects height of row by 2px */}
+									<VSCodeBadge style={{ opacity: cost != null && cost > 0 ? 1 : 0 }}>
+										${Number(cost || 0)?.toFixed(4)}
+									</VSCodeBadge>
 								</div>
 								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>

@@ -1,4 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
@@ -30,7 +31,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const { version, claudeMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = messages.length > 0 ? messages[0] : undefined // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
+	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see ClaudeDev.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
@@ -42,13 +43,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [claudeAsk, setClaudeAsk] = useState<ClaudeAsk | undefined>(undefined)
-	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
-	const [isAtBottom, setIsAtBottom] = useState(false)
+
+	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+	const isAtBottomRef = useRef(false)
+	const lastMsgIndexScrolledOn = useRef<number | undefined>(undefined)
+	const taskMsgTsRef = useRef<number | undefined>(undefined)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -411,6 +415,29 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// scrolling
 
+	const scrollToBottomSmooth = useMemo(
+		() =>
+			debounce(
+				() => {
+					virtuosoRef.current?.scrollTo({
+						top: Number.MAX_SAFE_INTEGER,
+						behavior: "smooth",
+					})
+				},
+				10,
+				{ immediate: true }
+			),
+		[]
+	)
+
+	const scrollToBottomAuto = useCallback(() => {
+		virtuosoRef.current?.scrollTo({
+			top: Number.MAX_SAFE_INTEGER,
+			behavior: "auto", // instant causes crash
+		})
+	}, [])
+
+	// scroll when user toggles certain rows
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
@@ -423,12 +450,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				[ts]: !prev[ts],
 			}))
 
-			if (isCollapsing && isAtBottom) {
+			if (isCollapsing && isAtBottomRef.current) {
 				const timer = setTimeout(() => {
-					virtuosoRef.current?.scrollToIndex({
-						index: visibleMessages.length - 1,
-						align: "end",
-					})
+					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
 			} else if (isLast || isSecondToLast) {
@@ -437,10 +461,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return
 					}
 					const timer = setTimeout(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: visibleMessages.length - 1,
-							align: "end",
-						})
+						scrollToBottomAuto()
 					}, 0)
 					return () => clearTimeout(timer)
 				} else {
@@ -454,58 +475,49 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[isAtBottom, visibleMessages, expandedRows]
+		[visibleMessages, expandedRows, scrollToBottomAuto]
 	)
 
-	const [lastScrollMessageCount, setLastScrollMessageCount] = useState<number>(0)
-	const [didScrollFromApiReqTs, setDidScrollFromApiReqTs] = useState<number | undefined>(undefined)
-
+	// only scroll to bottom smooth if not partial
 	useEffect(() => {
-		/*
-		chatgpt scroll animation
-		- theres 1 lines worth padding below the text, so when it starts adding text to that next line, it smoothly animates down. theres some debounce, its not exactly when the new line is added.
+		const lastMsgIndex = visibleMessages.length - 1
 
-
-		// since we have scroll to bottom button we should respect if they scroll up, 
-		so our scrolling logic will be:
-		- if at bottom, and last chatrow is partial (streaming), then listen to last chatrow height. if it increases, then animate scroll to bottom
-		    - if at bottom, then new complete chatrow will cause normal scroll animation (i.e. inspect site screenshot)
-		- so we have to track this height and reset for new chat row
-		- also need to add a bit more padding at the bottom to let the new text have some extra space before we animate to it
-
-		Notes:
-		- show scroll to bottom button even if a little bit scrolled up so user knows that they wont see stream animation if the button shows. the button could act as a lock in to streamed content
-		- dont show scroll to bottom if no overflow
-		*/
-
-		const lastMessage = visibleMessages.at(-1)
-		if (lastMessage?.partial && isAtBottom) {
-			virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
-		} else {
-			// dont scroll if we're just updating the api req started informational body
-
-			const isLastApiReqStarted = lastMessage?.say === "api_req_started"
-			if (didScrollFromApiReqTs && isLastApiReqStarted && lastMessage?.ts === didScrollFromApiReqTs) {
-				return
+		const isNewMessagePartial = visibleMessages.at(lastMsgIndex)?.partial === true
+		if (isAtBottomRef.current && lastMsgIndexScrolledOn.current !== lastMsgIndex) {
+			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
+			// scrollToBottomSmooth()
+			if (isNewMessagePartial) {
+				// needs to be instant so the smooth animation doesnt coincide with the rest of the partial streaming scrolls
+				scrollToBottomAuto()
+			} else {
+				// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
+				setTimeout(() => {
+					scrollToBottomSmooth()
+				}, 100)
 			}
-			// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
-			const timer = setTimeout(() => {
-				// TODO: we can use virtuoso's isAtBottom to prevent scrolling if user is scrolled up, and show a 'scroll to bottom' button for better UX
-				// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-				virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
-				setDidScrollFromApiReqTs(isLastApiReqStarted ? lastMessage?.ts : undefined) // need to do this in timer since this effect can get called a few times simultaneously
-			}, 50)
+			// interesting bug worth remembering: i would make a timeout here and return cleartimeout, but it kept getting cleared bc visiblemessages kept changing. even though the cleanup was in the conditional, it still gets called wheneve this effect is used
+			// return () => clearTimeout(timer) // don't NEED to clear this and in fact shouldnt in this case
+			lastMsgIndexScrolledOn.current = lastMsgIndex
+		}
+	}, [visibleMessages, scrollToBottomSmooth, scrollToBottomAuto])
 
+	// scroll to bottom if task changes
+	// (this gets called when messages changes, so we use ref to ts to detect new task)
+	useEffect(() => {
+		if (task && task.ts !== taskMsgTsRef.current) {
+			taskMsgTsRef.current = task.ts
+			const timer = setTimeout(() => {
+				scrollToBottomSmooth()
+			}, 50)
 			return () => clearTimeout(timer)
 		}
-	}, [visibleMessages, didScrollFromApiReqTs])
+	}, [task, scrollToBottomSmooth])
 
-	const scrollToBottom = useCallback((smooth: boolean) => {
-		virtuosoRef.current?.scrollTo({
-			top: Number.MAX_SAFE_INTEGER,
-			behavior: smooth ? "smooth" : "auto", // instant causes crash
-		})
-	}, [])
+	const handleRowHeightChange = useCallback(() => {
+		if (isAtBottomRef.current) {
+			scrollToBottomSmooth()
+		}
+	}, [scrollToBottomSmooth])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -521,19 +533,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onToggleExpand={() => toggleRowExpansion(message.ts)}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				isLast={index === visibleMessages.length - 1}
+				onHeightChange={handleRowHeightChange}
 			/>
 		),
-		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion]
+		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]
 	)
-
-	const handleScroll = useCallback<React.UIEventHandler<HTMLDivElement>>((event) => {
-		const scroller = event.currentTarget
-		const scrollTop = scroller.scrollTop
-		const scrollHeight = scroller.scrollHeight
-		const clientHeight = scroller.clientHeight
-		const scrollToBottomThreshold = 600
-		// setShowScrollToBottom(scrollHeight - scrollTop - clientHeight > scrollToBottomThreshold)
-	}, [])
 
 	return (
 		<div
@@ -593,6 +597,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							flexGrow: 1,
 							overflowY: "scroll", // always show scrollbar
 						}}
+						followOutput={() => {
+							return false
+						}}
+						components={{
+							Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
+						}}
 						// followOutput={(isAtBottom) => {
 						// 	const lastMessage = modifiedMessages.at(-1)
 						// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
@@ -604,9 +614,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 						itemContent={itemContent}
-						atBottomStateChange={setIsAtBottom}
+						atBottomStateChange={(value) => {
+							isAtBottomRef.current = value
+							setShowScrollToBottom(!value)
+						}}
 						atBottomThreshold={100}
-						onScroll={handleScroll}
+						// onScroll={handleScroll}
 					/>
 					{showScrollToBottom ? (
 						<div
@@ -614,10 +627,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: "10px 15px 0px 15px",
 							}}>
-							<ScrollToBottomButton
-								onClick={() =>
-									virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "smooth" })
-								}>
+							<ScrollToBottomButton onClick={() => scrollToBottomSmooth()}>
 								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
 							</ScrollToBottomButton>
 						</div>
@@ -673,9 +683,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onSelectImages={selectImages}
 				shouldDisableImages={shouldDisableImages}
 				onHeightChange={() => {
-					if (isAtBottom) {
-						//virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" })
-						virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior: "auto" })
+					if (isAtBottomRef.current) {
+						scrollToBottomAuto()
 					}
 				}}
 			/>
