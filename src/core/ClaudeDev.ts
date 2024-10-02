@@ -1586,9 +1586,7 @@ export class ClaudeDev {
 			"api_req_started",
 			JSON.stringify({
 				request:
-					userContent
-						.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
-						.join("\n\n") + "\n\nLoading...",
+					userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 			})
 		)
 
@@ -1602,9 +1600,7 @@ export class ClaudeDev {
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
 		this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
-			request: userContent
-				.map((block) => formatContentBlockToMarkdown(block, this.apiConversationHistory))
-				.join("\n\n"),
+			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClaudeApiReqInfo)
 		await this.saveClaudeMessages()
 		await this.providerRef.deref()?.postStateToWebview()

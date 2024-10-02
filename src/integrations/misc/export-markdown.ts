@@ -22,7 +22,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 		.map((message) => {
 			const role = message.role === "user" ? "**User:**" : "**Assistant:**"
 			const content = Array.isArray(message.content)
-				? message.content.map((block) => formatContentBlockToMarkdown(block, conversationHistory)).join("\n")
+				? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
 				: message.content
 			return `${role}\n\n${content}\n\n`
 		})
@@ -46,8 +46,8 @@ export function formatContentBlockToMarkdown(
 		| Anthropic.TextBlockParam
 		| Anthropic.ImageBlockParam
 		| Anthropic.ToolUseBlockParam
-		| Anthropic.ToolResultBlockParam,
-	messages: Anthropic.MessageParam[]
+		| Anthropic.ToolResultBlockParam
+	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {
 		case "text":
@@ -65,12 +65,14 @@ export function formatContentBlockToMarkdown(
 			}
 			return `[Tool Use: ${block.name}]\n${input}`
 		case "tool_result":
-			const toolName = findToolName(block.tool_use_id, messages)
+			// For now we're not doing tool name lookup since we don't use tools anymore
+			// const toolName = findToolName(block.tool_use_id, messages)
+			const toolName = "Tool"
 			if (typeof block.content === "string") {
 				return `[${toolName}${block.is_error ? " (Error)" : ""}]\n${block.content}`
 			} else if (Array.isArray(block.content)) {
 				return `[${toolName}${block.is_error ? " (Error)" : ""}]\n${block.content
-					.map((contentBlock) => formatContentBlockToMarkdown(contentBlock, messages))
+					.map((contentBlock) => formatContentBlockToMarkdown(contentBlock))
 					.join("\n")}`
 			} else {
 				return `[${toolName}${block.is_error ? " (Error)" : ""}]`
