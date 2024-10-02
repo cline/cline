@@ -51,7 +51,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const isAtBottomRef = useRef(false)
-	const lastMsgIndexScrolledOn = useRef<number | undefined>(undefined)
 	const taskMsgTsRef = useRef<number | undefined>(undefined)
 
 	useEffect(() => {
@@ -478,22 +477,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[visibleMessages, expandedRows, scrollToBottomAuto]
 	)
 
-	// only scroll to bottom smooth if not partial
-	useEffect(() => {
-		// We use a setTimeout to ensure new content is rendered before checking isbottom, virtuoso does not update it immediately after visiblemessages changes
-		const timer = setTimeout(() => {
-			const lastMsgIndex = visibleMessages.length - 1
-
-			if (isAtBottomRef.current && lastMsgIndexScrolledOn.current !== lastMsgIndex) {
-				scrollToBottomSmooth()
-				// interesting bug worth remembering: i would make a timeout here and return cleartimeout, but it kept getting cleared bc visiblemessages kept changing. even though the cleanup was in the conditional, it still gets called wheneve this effect is used
-				// return () => clearTimeout(timer) // don't NEED to clear this and in fact shouldnt in this case
-				lastMsgIndexScrolledOn.current = lastMsgIndex
-			}
-		}, 50)
-		return () => clearTimeout(timer)
-	}, [visibleMessages.length, scrollToBottomSmooth, scrollToBottomAuto])
-
 	// scroll to bottom if task changes
 	// (this gets called when messages changes, so we use ref to ts to detect new task)
 	useEffect(() => {
@@ -501,21 +484,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			taskMsgTsRef.current = task.ts
 			const timer = setTimeout(() => {
 				scrollToBottomSmooth()
-				lastMsgIndexScrolledOn.current = visibleMessages.length - 1
 			}, 50)
 			return () => clearTimeout(timer)
 		}
 	}, [task, scrollToBottomSmooth, visibleMessages.length])
 
-	const handleRowHeightChange = useCallback(
-		(index: number) => {
-			if (isAtBottomRef.current) {
-				scrollToBottomSmooth()
-				lastMsgIndexScrolledOn.current = index
-			}
-		},
-		[scrollToBottomSmooth]
-	)
+	const handleRowHeightChange = useCallback(() => {
+		if (isAtBottomRef.current) {
+			scrollToBottomSmooth()
+		}
+	}, [scrollToBottomSmooth])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -531,7 +509,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onToggleExpand={() => toggleRowExpansion(message.ts)}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				isLast={index === visibleMessages.length - 1}
-				onHeightChange={() => handleRowHeightChange(index)}
+				onHeightChange={handleRowHeightChange}
 			/>
 		),
 		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]
@@ -595,8 +573,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							flexGrow: 1,
 							overflowY: "scroll", // always show scrollbar
 						}}
-						followOutput={() => {
-							return false
+						// followOutput works much more reliably than manually tracking visible messages count. This will scroll when the count changes, so for cases where the row height changes, we use onHeightChange to scroll.
+						followOutput={(isAtBottom: boolean) => {
+							if (isAtBottom) {
+								return "smooth" // can be 'auto' or false to avoid scrolling
+							} else {
+								return false
+							}
 						}}
 						components={{
 							Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
