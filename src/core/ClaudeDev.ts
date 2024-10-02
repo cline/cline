@@ -1754,6 +1754,13 @@ export class ClaudeDev {
 						await abortStream("user_cancelled")
 						break // aborts the stream
 					}
+
+					if (this.didRejectTool) {
+						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
+						assistantMessage += "\n\n[Response interrupted by user feedback]"
+						this.userMessageContentReady = true
+						break
+					}
 				}
 			} catch (error) {
 				this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
