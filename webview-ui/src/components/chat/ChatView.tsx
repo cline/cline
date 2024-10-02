@@ -52,6 +52,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const isAtBottomRef = useRef(false)
 	const taskMsgTsRef = useRef<number | undefined>(undefined)
+	const [didScrollUp, setDidScrollUp] = useState(false)
+	const lastScrollTopRef = useRef(0)
+	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -490,10 +493,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [task, scrollToBottomSmooth, visibleMessages.length])
 
 	const handleRowHeightChange = useCallback(() => {
-		if (isAtBottomRef.current) {
+		if (isAtBottomRef.current || didClickScrollToBottom || !didScrollUp) {
 			scrollToBottomSmooth()
 		}
-	}, [scrollToBottomSmooth])
+	}, [scrollToBottomSmooth, didClickScrollToBottom, didScrollUp])
+
+	/*
+	- didScrollUp lets us know if the user scrolled up, so we don't auto scroll down anymore during stream
+	    - this variable is important to make sure we don't show the scroll to bottom button during streaming since isAtBottom gets set to false if the streamed in content is taller than the bottom threshold.
+	- didClickScrollToBottom is used to keep scrolling down when last row height changes, as isAtBottom may not update fast enough during stream
+	- we use the following scroll listener to detect that the current scroll point is less than the last scroll point, and in atBottomStateChange we set this back to false if isAtBottom. This way we can know when to show the scroll to bottom button.
+	- interestingly followoutput would scroll even if the isAtBottom param was false or wrong, so if didScrollUp we don't followoutput to mitigate that issue
+	*/
+	const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
+		const currentScrollTop = e.currentTarget.scrollTop
+		if (currentScrollTop < lastScrollTopRef.current) {
+			setDidScrollUp(true)
+		}
+		lastScrollTopRef.current = currentScrollTop
+	}, [])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -575,6 +593,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}}
 						// followOutput works much more reliably than manually tracking visible messages count. This will scroll when the count changes, so for cases where the row height changes, we use onHeightChange to scroll.
 						followOutput={(isAtBottom: boolean) => {
+							if (didScrollUp) {
+								return false
+							}
 							if (isAtBottom) {
 								return "smooth" // can be 'auto' or false to avoid scrolling
 							} else {
@@ -595,12 +616,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 						itemContent={itemContent}
-						atBottomStateChange={(value) => {
-							isAtBottomRef.current = value
-							setShowScrollToBottom(!value)
+						atBottomStateChange={(isAtBottom) => {
+							isAtBottomRef.current = isAtBottom
+							// setShowScrollToBottom(!value)
+							if (isAtBottom) {
+								setDidScrollUp(false)
+								setDidClickScrollToBottom(false) // reset for next time user clicks button
+							}
+							setShowScrollToBottom(didScrollUp && !isAtBottom)
 						}}
-						atBottomThreshold={100}
-						// onScroll={handleScroll}
+						atBottomThreshold={10} // anything lower causes issues with followOutput
+						onScroll={handleScroll}
 					/>
 					{showScrollToBottom ? (
 						<div
@@ -608,7 +634,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: "10px 15px 0px 15px",
 							}}>
-							<ScrollToBottomButton onClick={() => scrollToBottomSmooth()}>
+							<ScrollToBottomButton
+								onClick={() => {
+									scrollToBottomSmooth()
+									setDidClickScrollToBottom(true)
+								}}>
 								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
 							</ScrollToBottomButton>
 						</div>
