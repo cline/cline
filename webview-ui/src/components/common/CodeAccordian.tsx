@@ -11,6 +11,7 @@ interface CodeAccordianProps {
 	isConsoleLogs?: boolean
 	isExpanded: boolean
 	onToggleExpand: () => void
+	isLoading?: boolean
 }
 
 /*
@@ -30,6 +31,7 @@ const CodeAccordian = ({
 	isConsoleLogs,
 	isExpanded,
 	onToggleExpand,
+	isLoading,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -51,13 +53,15 @@ const CodeAccordian = ({
 						display: "flex",
 						alignItems: "center",
 						padding: "9px 10px",
-						cursor: "pointer",
+						cursor: isLoading ? "wait" : "pointer",
+						opacity: isLoading ? 0.7 : 1,
+						// pointerEvents: isLoading ? "none" : "auto",
 						userSelect: "none",
 						WebkitUserSelect: "none",
 						MozUserSelect: "none",
 						msUserSelect: "none",
 					}}
-					onClick={onToggleExpand}>
+					onClick={isLoading ? undefined : onToggleExpand}>
 					{isFeedback || isConsoleLogs ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<span

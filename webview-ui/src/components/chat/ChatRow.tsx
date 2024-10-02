@@ -217,6 +217,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
 						</div>
 						<CodeAccordian
+							isLoading={message.partial}
 							diff={tool.diff!}
 							path={tool.path!}
 							isExpanded={isExpanded}
@@ -232,6 +233,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
 						</div>
 						<CodeAccordian
+							isLoading={message.partial}
 							code={tool.content!}
 							path={tool.path!}
 							isExpanded={isExpanded}

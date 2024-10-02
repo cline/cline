@@ -480,26 +480,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// only scroll to bottom smooth if not partial
 	useEffect(() => {
-		const lastMsgIndex = visibleMessages.length - 1
+		// We use a setTimeout to ensure new content is rendered before checking isbottom, virtuoso does not update it immediately after visiblemessages changes
+		const timer = setTimeout(() => {
+			const lastMsgIndex = visibleMessages.length - 1
 
-		const isNewMessagePartial = visibleMessages.at(lastMsgIndex)?.partial === true
-		if (isAtBottomRef.current && lastMsgIndexScrolledOn.current !== lastMsgIndex) {
-			// NOTE: scroll to bottom may not work if you use margin, see virtuoso's troubleshooting
-			// scrollToBottomSmooth()
-			if (isNewMessagePartial) {
-				// needs to be instant so the smooth animation doesnt coincide with the rest of the partial streaming scrolls
-				scrollToBottomAuto()
-			} else {
-				// We use a setTimeout to ensure new content is rendered before scrolling to the bottom. virtuoso's followOutput would scroll to the bottom before the new content could render.
-				setTimeout(() => {
-					scrollToBottomSmooth()
-				}, 100)
+			if (isAtBottomRef.current && lastMsgIndexScrolledOn.current !== lastMsgIndex) {
+				scrollToBottomSmooth()
+				// interesting bug worth remembering: i would make a timeout here and return cleartimeout, but it kept getting cleared bc visiblemessages kept changing. even though the cleanup was in the conditional, it still gets called wheneve this effect is used
+				// return () => clearTimeout(timer) // don't NEED to clear this and in fact shouldnt in this case
+				lastMsgIndexScrolledOn.current = lastMsgIndex
 			}
-			// interesting bug worth remembering: i would make a timeout here and return cleartimeout, but it kept getting cleared bc visiblemessages kept changing. even though the cleanup was in the conditional, it still gets called wheneve this effect is used
-			// return () => clearTimeout(timer) // don't NEED to clear this and in fact shouldnt in this case
-			lastMsgIndexScrolledOn.current = lastMsgIndex
-		}
-	}, [visibleMessages, scrollToBottomSmooth, scrollToBottomAuto])
+		}, 50)
+		return () => clearTimeout(timer)
+	}, [visibleMessages.length, scrollToBottomSmooth, scrollToBottomAuto])
 
 	// scroll to bottom if task changes
 	// (this gets called when messages changes, so we use ref to ts to detect new task)
