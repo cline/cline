@@ -508,16 +508,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			taskMsgTsRef.current = task.ts
 			const timer = setTimeout(() => {
 				scrollToBottomSmooth()
+				lastMsgIndexScrolledOn.current = visibleMessages.length - 1
 			}, 50)
 			return () => clearTimeout(timer)
 		}
-	}, [task, scrollToBottomSmooth])
+	}, [task, scrollToBottomSmooth, visibleMessages.length])
 
-	const handleRowHeightChange = useCallback(() => {
-		if (isAtBottomRef.current) {
-			scrollToBottomSmooth()
-		}
-	}, [scrollToBottomSmooth])
+	const handleRowHeightChange = useCallback(
+		(index: number) => {
+			if (isAtBottomRef.current) {
+				scrollToBottomSmooth()
+				lastMsgIndexScrolledOn.current = index
+			}
+		},
+		[scrollToBottomSmooth]
+	)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -533,7 +538,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onToggleExpand={() => toggleRowExpansion(message.ts)}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				isLast={index === visibleMessages.length - 1}
-				onHeightChange={handleRowHeightChange}
+				onHeightChange={() => handleRowHeightChange(index)}
 			/>
 		),
 		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]

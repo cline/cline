@@ -259,7 +259,10 @@ export class ClaudeDev {
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClaudeMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					// await this.providerRef.deref()?.postStateToWebview()
+					await this.providerRef
+						.deref()
+						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
 				} else {
 					// this is a new partial=false message, so add it like normal
 					this.askResponse = undefined
@@ -337,7 +340,10 @@ export class ClaudeDev {
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClaudeMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					// await this.providerRef.deref()?.postStateToWebview()
+					await this.providerRef
+						.deref()
+						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage }) // more performant than an entire postStateToWebview
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
