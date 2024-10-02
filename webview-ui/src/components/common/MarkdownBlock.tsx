@@ -73,6 +73,10 @@ const StyledMarkdown = styled.div`
 		padding-left: 2.5em;
 		margin-left: 0;
 	}
+
+	p {
+		white-space: pre-wrap;
+	}
 `
 
 const StyledPre = styled.pre<{ theme: any }>`
