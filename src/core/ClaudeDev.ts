@@ -1771,6 +1771,7 @@ export class ClaudeDev {
 						type: "text",
 						text: formatResponse.noToolsUsed(),
 					})
+					this.consecutiveMistakeCount++
 				}
 
 				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)

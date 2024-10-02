@@ -11,7 +11,27 @@ export const formatResponse = {
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
 	noToolsUsed: () =>
-		"If you have completed the user's task, use the attempt_completion tool. If you require additional information from the user, use the ask_followup_question tool. Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. (This is an automated message, so do not respond to it conversationally.)",
+		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
+
+# Instructions for Tool Use
+Tool uses are formatted with the name of the tool enclosed in XML tags on their own line.
+Each parameter is defined within its own set of XML tags, also each on their own line.
+Example:
+<tool_name>
+<parameter1_name>
+value1
+</parameter1_name>
+<parameter2_name>
+value2
+</parameter2_name>
+</tool_name>
+Ensure that each tool use follows this structure for consistent parsing and execution.
+
+# Next Steps
+If you have completed the user's task, use the attempt_completion tool. 
+If you require additional information from the user, use the ask_followup_question tool. 
+Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. 
+(This is an automated message, so do not respond to it conversationally.)`,
 
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
