@@ -451,7 +451,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								timeout: 3_000,
 							})
 							await this.initClaudeDevWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
-							await this.postStateToWebview()
+							// await this.postStateToWebview() // new claude dev instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 						}
 
 						break

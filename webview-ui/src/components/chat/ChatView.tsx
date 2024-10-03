@@ -55,6 +55,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [didScrollUp, setDidScrollUp] = useState(false)
 	const lastScrollTopRef = useRef(0)
 	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
+	const [didClickCancel, setDidClickCancel] = useState(false)
 
 	useEffect(() => {
 		// if last message is an ask, show user ask UI
@@ -134,6 +135,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
 							setSecondaryButtonText(undefined)
+							setDidClickCancel(false) // special case where we reset the cancel button state
 							break
 						case "resume_completed_task":
 							setTextAreaDisabled(false)
@@ -141,6 +143,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setEnableButtons(true)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
+							setDidClickCancel(false)
 							break
 					}
 					break
@@ -283,6 +286,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const handleSecondaryButtonClick = useCallback(() => {
 		if (isStreaming) {
 			vscode.postMessage({ type: "cancelTask" })
+			setDidClickCancel(true)
 			return
 		}
 
@@ -653,7 +657,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							style={{
 								opacity:
 									primaryButtonText || secondaryButtonText || isStreaming
-										? enableButtons || isStreaming
+										? enableButtons || (isStreaming && !didClickCancel)
 											? 1
 											: 0.5
 										: 0,
@@ -675,7 +679,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							{(secondaryButtonText || isStreaming) && (
 								<VSCodeButton
 									appearance="secondary"
-									disabled={!enableButtons && !isStreaming}
+									disabled={!enableButtons && !(isStreaming && !didClickCancel)}
 									style={{
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
