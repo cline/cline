@@ -14,6 +14,7 @@ type SettingsViewProps = {
 const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const {
 		apiConfiguration,
+		setApiConfiguration,
 		version,
 		customInstructions,
 		setCustomInstructions,
@@ -82,7 +83,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
-					<ApiOptions showModelOptions={true} apiErrorMessage={apiErrorMessage} />
+					<ApiOptions
+						showModelOptions={true}
+						apiErrorMessage={apiErrorMessage}
+						apiConfiguration={apiConfiguration}
+						setApiConfiguration={setApiConfiguration}
+					/>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>

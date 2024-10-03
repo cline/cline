@@ -3,9 +3,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiHandlerMessageResponse } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 
-// Hardcoded flag to enable cross-region inference
-const USE_CROSS_REGION_INFERENCE = true
-
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
@@ -63,6 +60,8 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
 		const modelId = this.getModelId()
+		console.log(modelId)
+
 		if (modelId in bedrockModels) {
 			return { id: modelId, info: bedrockModels[modelId] }
 		}

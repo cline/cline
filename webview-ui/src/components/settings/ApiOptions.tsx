@@ -36,6 +36,8 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
+	apiConfiguration: ApiConfiguration | undefined
+	setApiConfiguration: (config: ApiConfiguration) => void
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
@@ -320,7 +322,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						}}>
 						Authenticate by either providing the keys above or use the default AWS credential providers,
 						i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to
-						make API requests from this extension.
+						make API requests from this extension. When Cross Region inference is enabled, the API will be
+						made to cross-region endpoints.
 					</p>
 				</div>
 			)}

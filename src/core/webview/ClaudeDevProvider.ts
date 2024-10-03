@@ -37,6 +37,7 @@ type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "awsUseCrossRegionInference" // Add this line
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
@@ -341,6 +342,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								awsSecretKey,
 								awsSessionToken,
 								awsRegion,
+								awsUseCrossRegionInference, // Add this line
 								vertexProjectId,
 								vertexRegion,
 								openAiBaseUrl,
@@ -361,6 +363,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
+							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference) // Add this line
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
@@ -692,6 +695,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			awsSecretKey,
 			awsSessionToken,
 			awsRegion,
+			awsUseCrossRegionInference, // Add this line
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -716,6 +720,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
+			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>, // Add this line
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
@@ -757,6 +762,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				awsSecretKey,
 				awsSessionToken,
 				awsRegion,
+				awsUseCrossRegionInference, // Add this line
 				vertexProjectId,
 				vertexRegion,
 				openAiBaseUrl,
