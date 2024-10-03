@@ -506,14 +506,27 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	useEffect(() => {
 		const lastMessage = messages.at(-1)
-		if (lastMessage && lastMessage.say === "api_req_retried") {
-			// unique case where the api_req_started row will shrink in size when scrollview at bottom, causing didScrollUp to get set to true and followoutput to break. To mitigate this when an api request is retried, it's safe to assume they're already scrolled to the bottom
-			const timer = setTimeout(() => {
-				scrollToBottomAuto()
-			}, 0)
-			return () => clearTimeout(timer)
+		if (lastMessage) {
+			switch (lastMessage.say) {
+				case "user_feedback": {
+					// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
+					const timer = setTimeout(() => {
+						scrollToBottomSmooth()
+					}, 0)
+					return () => clearTimeout(timer)
+				}
+				case "api_req_retried": {
+					// unique case where the api_req_started row will shrink in size when scrollview at bottom, causing didScrollUp to get set to true and followoutput to break. To mitigate this when an api request is retried, it's safe to assume they're already scrolled to the bottom
+					const timer = setTimeout(() => {
+						scrollToBottomAuto()
+					}, 50)
+					return () => clearTimeout(timer)
+				}
+				default:
+					break
+			}
 		}
-	}, [messages, scrollToBottomAuto])
+	}, [messages, scrollToBottomAuto, scrollToBottomSmooth])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
