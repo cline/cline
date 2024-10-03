@@ -2,6 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { memo } from "react"
+import { formatLargeNumber } from "../../utils/format"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -107,14 +108,15 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								</div>
 								<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
 									<span>
-										Tokens: ↑{item.tokensIn?.toLocaleString()} ↓{item.tokensOut?.toLocaleString()}
+										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
+										{formatLargeNumber(item.tokensOut || 0)}
 									</span>
 									{!!item.cacheWrites && (
 										<>
 											{" • "}
 											<span>
-												Cache: +{item.cacheWrites?.toLocaleString()} →{" "}
-												{(item.cacheReads || 0).toLocaleString()}
+												Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+												{formatLargeNumber(item.cacheReads || 0)}
 											</span>
 										</>
 									)}

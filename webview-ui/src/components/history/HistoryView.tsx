@@ -4,6 +4,7 @@ import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
+import { formatLargeNumber } from "../../utils/format"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -305,7 +306,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-2px",
 														}}
 													/>
-													{item.tokensIn?.toLocaleString()}
+													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
 												<span
 													style={{
@@ -322,7 +323,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-2px",
 														}}
 													/>
-													{item.tokensOut?.toLocaleString()}
+													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 											</div>
 											{!item.totalCost && <ExportButton itemId={item.id} />}
@@ -358,7 +359,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-1px",
 														}}
 													/>
-													+{item.cacheWrites?.toLocaleString()}
+													+{formatLargeNumber(item.cacheWrites || 0)}
 												</span>
 												<span
 													style={{
@@ -375,7 +376,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: 0,
 														}}
 													/>
-													{(item.cacheReads || 0).toLocaleString()}
+													{formatLargeNumber(item.cacheReads || 0)}
 												</span>
 											</div>
 										)}

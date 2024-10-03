@@ -6,6 +6,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import Thumbnails from "../common/Thumbnails"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
+import { formatLargeNumber } from "../../utils/format"
 
 interface TaskHeaderProps {
 	task: ClaudeMessage
@@ -257,14 +258,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											className="codicon codicon-arrow-up"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 										/>
-										{tokensIn?.toLocaleString()}
+										{formatLargeNumber(tokensIn || 0)}
 									</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 										<i
 											className="codicon codicon-arrow-down"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 										/>
-										{tokensOut?.toLocaleString()}
+										{formatLargeNumber(tokensOut || 0)}
 									</span>
 								</div>
 								{!isCostAvailable && <ExportButton />}
@@ -278,14 +279,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											className="codicon codicon-database"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
 										/>
-										+{(cacheWrites || 0)?.toLocaleString()}
+										+{formatLargeNumber(cacheWrites || 0)}
 									</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 										<i
 											className="codicon codicon-arrow-right"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
 										/>
-										{(cacheReads || 0)?.toLocaleString()}
+										{formatLargeNumber(cacheReads || 0)}
 									</span>
 								</div>
 							)}
