@@ -751,7 +751,8 @@ export class ClaudeDev {
 				throw new Error("API request failed")
 			}
 			await this.say("api_req_retried")
-			return this.attemptApiRequest(previousApiReqIndex)
+			// delegate generator output from the recursive call
+			yield* this.attemptApiRequest(previousApiReqIndex)
 		}
 	}
 
