@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, KnownDevices, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
 // @ts-ignore
@@ -130,7 +130,6 @@ export class UrlContentFetcher {
 			// await this.page.goto(url, { timeout: 10_000, waitUntil: "load" })
 			await this.waitTillHTMLStable(this.page) // in case the page is loading more resources
 		} catch (err) {
-			console.log("Navigation error: ", err)
 			if (!(err instanceof TimeoutError)) {
 				logs.push(`[Navigation Error] ${err.toString()}`)
 			}
