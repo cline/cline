@@ -411,10 +411,15 @@ export class ClaudeDev {
 			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
-		// if the last message is an api_req_started it means there was no partial content streamed, so we remove it
-		if (modifiedClaudeMessages.at(-1)?.say === "api_req_started") {
-			modifiedClaudeMessages.pop()
+		// remove the last api_req_started message if it has no cancelReason
+		const lastMessage = modifiedClaudeMessages.at(-1)
+		if (lastMessage?.say === "api_req_started" && lastMessage.text) {
+			const apiReqInfo: ClaudeApiReqInfo = JSON.parse(lastMessage.text)
+			if (apiReqInfo.cancelReason === undefined) {
+				modifiedClaudeMessages.pop()
+			}
 		}
+
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and it's not cancelled, then we remove it since it indicates an api request without any partial content streamed
 		// const lastApiReqStartedIndex = findLastIndex(
 		// 	modifiedClaudeMessages,
@@ -1768,7 +1773,7 @@ export class ClaudeDev {
 				const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
 				if (history) {
 					await this.providerRef.deref()?.initClaudeDevWithHistoryItem(history.historyItem)
-					await this.providerRef.deref()?.postStateToWebview()
+					// await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
 
