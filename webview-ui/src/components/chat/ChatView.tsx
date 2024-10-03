@@ -51,7 +51,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const isAtBottomRef = useRef(false)
-	const taskMsgTsRef = useRef<number | undefined>(undefined)
 	const [didScrollUp, setDidScrollUp] = useState(false)
 	const lastScrollTopRef = useRef(0)
 	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
@@ -484,18 +483,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[visibleMessages, expandedRows, scrollToBottomAuto]
 	)
 
-	// scroll to bottom if task changes
-	// (this gets called when messages changes, so we use ref to ts to detect new task)
-	useEffect(() => {
-		if (task && task.ts !== taskMsgTsRef.current) {
-			taskMsgTsRef.current = task.ts
-			const timer = setTimeout(() => {
-				scrollToBottomSmooth()
-			}, 50)
-			return () => clearTimeout(timer)
-		}
-	}, [task, scrollToBottomSmooth, visibleMessages.length])
-
 	const handleRowHeightChange = useCallback(() => {
 		if (isAtBottomRef.current || didClickScrollToBottom || !didScrollUp) {
 			scrollToBottomSmooth()
@@ -590,6 +577,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				<>
 					<Virtuoso
 						ref={virtuosoRef}
+						key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 						className="scrollable"
 						style={{
 							flexGrow: 1,
@@ -637,6 +625,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}}
 						atBottomThreshold={10} // anything lower causes issues with followOutput
 						onScroll={handleScroll}
+						initialTopMostItemIndex={visibleMessages.length - 1}
 					/>
 					{showScrollToBottom ? (
 						<div
