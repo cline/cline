@@ -68,6 +68,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 		}
 		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
+	// when resuming task, last wont be api_req_failed but a resume_task message, so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
 			? lastModifiedMessage?.text
@@ -137,31 +138,27 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					</div>
 				)
 				return [
-					cost != null ? (
-						apiReqCancelReason != null ? (
-							apiReqCancelReason === "user_cancelled" ? (
-								getIconSpan("error", cancelledColor)
-							) : (
-								getIconSpan("error", errorColor)
-							)
+					apiReqCancelReason != null ? (
+						apiReqCancelReason === "user_cancelled" ? (
+							getIconSpan("error", cancelledColor)
 						) : (
-							getIconSpan("check", successColor)
+							getIconSpan("error", errorColor)
 						)
+					) : cost != null ? (
+						getIconSpan("check", successColor)
 					) : apiRequestFailedMessage ? (
 						getIconSpan("error", errorColor)
 					) : (
 						<ProgressIndicator />
 					),
-					cost != null ? (
-						apiReqCancelReason != null ? (
-							apiReqCancelReason === "user_cancelled" ? (
-								<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
-							) : (
-								<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
-							)
+					apiReqCancelReason != null ? (
+						apiReqCancelReason === "user_cancelled" ? (
+							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
 						) : (
-							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+							<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
 						)
+					) : cost != null ? (
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 					) : (

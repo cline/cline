@@ -411,27 +411,18 @@ export class ClaudeDev {
 			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
-		// remove the last api_req_started message if it has no cancelReason
-		const lastMessage = modifiedClaudeMessages.at(-1)
-		if (lastMessage?.say === "api_req_started" && lastMessage.text) {
-			const apiReqInfo: ClaudeApiReqInfo = JSON.parse(lastMessage.text)
-			if (apiReqInfo.cancelReason === undefined) {
-				modifiedClaudeMessages.pop()
+		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
+		const lastApiReqStartedIndex = findLastIndex(
+			modifiedClaudeMessages,
+			(m) => m.type === "say" && m.say === "api_req_started"
+		)
+		if (lastApiReqStartedIndex !== -1) {
+			const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
+			const { cost, cancelReason }: ClaudeApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+			if (cost === undefined || cancelReason === undefined) {
+				modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
 			}
 		}
-
-		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and it's not cancelled, then we remove it since it indicates an api request without any partial content streamed
-		// const lastApiReqStartedIndex = findLastIndex(
-		// 	modifiedClaudeMessages,
-		// 	(m) => m.type === "say" && m.say === "api_req_started"
-		// )
-		// if (lastApiReqStartedIndex !== -1) {
-		// 	const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
-		// 	const { cost, cancelled }: ClaudeApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
-		// 	if (cost === undefined || cancelled) {
-		// 		modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
-		// 	}
-		// }
 
 		await this.overwriteClaudeMessages(modifiedClaudeMessages)
 		this.claudeMessages = await this.getSavedClaudeMessages()
