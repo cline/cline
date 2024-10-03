@@ -2,6 +2,8 @@ import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { useMount } from "react-use"
+import { vscode } from "../../utils/vscode"
 
 interface OpenRouterModelPickerProps {}
 
@@ -10,13 +12,20 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = () => {
 
 	const handleModelChange = (event: any) => {
 		const newModelId = event.target.value
-		// get info
-		setApiConfiguration({ ...apiConfiguration, openRouterModelId: newModelId })
+		setApiConfiguration({
+			...apiConfiguration,
+			openRouterModelId: newModelId,
+			openRouterModelInfo: openRouterModels[newModelId],
+		})
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
+
+	useMount(() => {
+		vscode.postMessage({ type: "refreshOpenRouterModels" })
+	})
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>

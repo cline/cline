@@ -31,6 +31,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import OpenRouterModelPicker from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -528,6 +529,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					{apiErrorMessage}
 				</p>
 			)}
+
+			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
 
 			{selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
