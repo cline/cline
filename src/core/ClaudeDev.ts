@@ -179,10 +179,10 @@ export class ClaudeDev {
 			const taskMessage = this.claudeMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.claudeMessages[
-					findLastIndex(
-						this.claudeMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-					)
+				findLastIndex(
+					this.claudeMessages,
+					(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+				)
 				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
@@ -490,7 +490,7 @@ export class ClaudeDev {
 			case "execute_command":
 				return this.executeCommand(toolInput.command)
 			case "inspect_site":
-				return this.inspectSite(toolInput.url)
+				return this.inspectSite(toolInput.url, toolInput.resolution)
 			case "ask_followup_question":
 				return this.askFollowupQuestion(toolInput.question)
 			case "attempt_completion":
@@ -1057,8 +1057,7 @@ export class ClaudeDev {
 			const errorString = `Error listing files and directories: ${JSON.stringify(serializeError(error))}`
 			await this.say(
 				"error",
-				`Error listing files and directories:\n${
-					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				`Error listing files and directories:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
 			return [false, await this.formatToolError(errorString)]
@@ -1161,8 +1160,7 @@ export class ClaudeDev {
 			const errorString = `Error parsing source code definitions: ${JSON.stringify(serializeError(error))}`
 			await this.say(
 				"error",
-				`Error parsing source code definitions:\n${
-					error.message ?? JSON.stringify(serializeError(error), null, 2)
+				`Error parsing source code definitions:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)
 				}`
 			)
 			return [false, await this.formatToolError(errorString)]
@@ -1218,7 +1216,7 @@ export class ClaudeDev {
 		}
 	}
 
-	async inspectSite(url?: string): Promise<[boolean, ToolResponse]> {
+	async inspectSite(url?: string, resolution?: string): Promise<[boolean, ToolResponse]> {
 		if (url === undefined) {
 			this.consecutiveMistakeCount++
 			return [false, await this.sayAndCreateMissingParamError("inspect_site", "url")]
@@ -1228,6 +1226,7 @@ export class ClaudeDev {
 			const message = JSON.stringify({
 				tool: "inspectSite",
 				path: url,
+				resolution: resolution,
 			} satisfies ClaudeSayTool)
 
 			if (this.alwaysAllowReadOnly) {
@@ -1253,7 +1252,7 @@ export class ClaudeDev {
 				logs: string
 			}
 			try {
-				result = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
+				result = await this.urlContentFetcher.urlToScreenshotAndLogs(url, resolution)
 			} finally {
 				await this.urlContentFetcher.closeBrowser()
 			}
@@ -1263,9 +1262,7 @@ export class ClaudeDev {
 			return [
 				false,
 				this.formatToolResponseWithImages(
-					`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
-						logs || "(No logs)"
-					}`,
+					`The site has been visited, with console logs captured and a screenshot taken for your analysis.${resolution ? ` The screenshot was taken with a resolution of ${resolution}.` : ''}\n\nConsole logs:\n${logs || "(No logs)"}`,
 					[screenshot]
 				),
 			]
@@ -1354,8 +1351,7 @@ export class ClaudeDev {
 				return [
 					true,
 					this.formatToolResponseWithImages(
-						`Command is still running in the user's terminal.${
-							result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+						`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 						}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 						userFeedback.images
 					),
@@ -1375,8 +1371,7 @@ export class ClaudeDev {
 				return [
 					false,
 					await this.formatToolResult(
-						`Command is still running in the user's terminal.${
-							result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+						`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 						}\n\nYou will be updated on the terminal status and new output in the future.`
 					),
 				]
@@ -1746,14 +1741,14 @@ ${this.customInstructions.trim()}
 	private formatImagesIntoBlocks(images?: string[]): Anthropic.ImageBlockParam[] {
 		return images
 			? images.map((dataUrl) => {
-					// data:image/png;base64,base64string
-					const [rest, base64] = dataUrl.split(",")
-					const mimeType = rest.split(":")[1].split(";")[0]
-					return {
-						type: "image",
-						source: { type: "base64", media_type: mimeType, data: base64 },
-					} as Anthropic.ImageBlockParam
-			  })
+				// data:image/png;base64,base64string
+				const [rest, base64] = dataUrl.split(",")
+				const mimeType = rest.split(":")[1].split(";")[0]
+				return {
+					type: "image",
+					source: { type: "base64", media_type: mimeType, data: base64 },
+				} as Anthropic.ImageBlockParam
+			})
 			: []
 	}
 
@@ -1813,7 +1808,7 @@ ${this.customInstructions.trim()}
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch(() => { })
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
@@ -1917,8 +1912,7 @@ ${this.customInstructions.trim()}
 	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Claude tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Claude tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`
 		)
 		return await this.formatToolError(

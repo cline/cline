@@ -112,23 +112,27 @@ export const TOOLS = (cwd: string, supportsImages: boolean): Tool[] => [
 	},
 	...(supportsImages
 		? [
-				{
-					name: "inspect_site",
-					description:
-						"Captures a screenshot and console logs of the initial state of a website. This tool navigates to the specified URL, takes a screenshot of the entire page as it appears immediately after loading, and collects any console logs or errors that occur during page load. It does not interact with the page or capture any state changes after the initial load.",
-					input_schema: {
-						type: "object",
-						properties: {
-							url: {
-								type: "string",
-								description:
-									"The URL of the site to inspect. This should be a valid URL including the protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.)",
-							},
+			{
+				name: "inspect_site",
+				description:
+					"Captures a screenshot and console logs of the initial state of a website. This tool navigates to the specified URL, takes a screenshot of the entire page as it appears immediately after loading, and collects any console logs or errors that occur during page load. It does not interact with the page or capture any state changes after the initial load. An optional resolution parameter can be provided to specify the desired screenshot dimensions.",
+				input_schema: {
+					type: "object",
+					properties: {
+						url: {
+							type: "string",
+							description:
+								"The URL of the site to inspect. This should be a valid URL including the protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.)",
 						},
-						required: ["url"],
+						resolution: {
+							type: "string",
+							description: "Optional. The desired resolution for the screenshot, in the format 'widthxheight' (e.g., '1080x720'). If not provided, the default resolution will be used.",
+						},
 					},
-				} satisfies Tool,
-		  ]
+					required: ["url"],
+				},
+			} satisfies Tool,
+		]
 		: []),
 	{
 		name: "ask_followup_question",

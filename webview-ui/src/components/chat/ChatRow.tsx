@@ -346,7 +346,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								overflow: "hidden",
 								backgroundColor: CODE_BLOCK_BG_COLOR,
 							}}>
-							<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
+							<CodeBlock
+								source={`${"```"}shell\n${tool.path}${tool.resolution ? ` (${tool.resolution})` : ''}\n${"```"}`}
+								forceWrap={true}
+							/>
 						</div>
 					</>
 				)
@@ -676,9 +679,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 												padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
 											}}>
 											<span
-												className={`codicon codicon-chevron-${
-													isExpanded ? "down" : "right"
-												}`}></span>
+												className={`codicon codicon-chevron-${isExpanded ? "down" : "right"
+													}`}></span>
 											<span style={{ fontSize: "0.8em" }}>Command Output</span>
 										</div>
 										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}

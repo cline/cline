@@ -63,14 +63,15 @@ export type ClaudeSay =
 
 export interface ClaudeSayTool {
 	tool:
-		| "editedExistingFile"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
-		| "inspectSite"
+	| "editedExistingFile"
+	| "newFileCreated"
+	| "readFile"
+	| "listFilesTopLevel"
+	| "listFilesRecursive"
+	| "listCodeDefinitionNames"
+	| "searchFiles"
+	| "inspectSite"
+	resolution?: string
 	path?: string
 	diff?: string
 	content?: string

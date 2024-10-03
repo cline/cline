@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, KnownDevices, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
 // @ts-ignore
@@ -92,7 +92,7 @@ export class UrlContentFetcher {
 		return markdown
 	}
 
-	async urlToScreenshotAndLogs(url: string): Promise<{ screenshot: string; logs: string }> {
+	async urlToScreenshotAndLogs(url: string, resolution?: string): Promise<{ screenshot: string; logs: string }> {
 		if (!this.browser || !this.page) {
 			throw new Error("Browser not initialized")
 		}
@@ -114,11 +114,23 @@ export class UrlContentFetcher {
 		})
 
 		try {
+			// Set viewport if resolution is provided
+			if (resolution) {
+				const [width, height] = resolution.split('x').map(Number);
+				if (!isNaN(width) && !isNaN(height)) {
+					await this.page.setViewport({ width, height });
+					console.log(`Viewport set to ${width}x${height}`);
+				} else {
+					throw new Error(`Invalid resolution format: ${resolution}. Expected format 'WIDTHxHEIGHT', e.g., '800x600'.`);
+				}
+			}
+
 			// networkidle2 isn't good enough since page may take some time to load. we can assume locally running dev sites will reach networkidle0 in a reasonable amount of time
 			await this.page.goto(url, { timeout: 7_000, waitUntil: ["domcontentloaded", "networkidle2"] })
 			// await this.page.goto(url, { timeout: 10_000, waitUntil: "load" })
 			await this.waitTillHTMLStable(this.page) // in case the page is loading more resources
 		} catch (err) {
+			console.log("Navigation error: ", err)
 			if (!(err instanceof TimeoutError)) {
 				logs.push(`[Navigation Error] ${err.toString()}`)
 			}
@@ -128,7 +140,7 @@ export class UrlContentFetcher {
 		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
 			timeout: 3_000,
 			interval: 100,
-		}).catch(() => {})
+		}).catch(() => { })
 
 		// image cannot exceed 8_000 pixels
 		const { pageHeight, pageWidth } = await this.page.evaluate(() => {
