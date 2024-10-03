@@ -14,6 +14,7 @@ import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdo
 import { extractTextFromFile } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
+import { EmulatorFinder } from "../services/emulator/EmulatorFinder"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
@@ -46,6 +47,7 @@ export class ClaudeDev {
 	private api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
+	private emulatorFinder: EmulatorFinder
 	private didEditFile: boolean = false
 	private customInstructions?: string
 	private alwaysAllowReadOnly: boolean
@@ -72,6 +74,7 @@ export class ClaudeDev {
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
+		this.emulatorFinder = new EmulatorFinder(provider.context)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
@@ -491,6 +494,8 @@ export class ClaudeDev {
 				return this.executeCommand(toolInput.command)
 			case "inspect_site":
 				return this.inspectSite(toolInput.url, toolInput.resolution)
+			case "inspect_emulator":
+				return this.inspectEmulator()
 			case "ask_followup_question":
 				return this.askFollowupQuestion(toolInput.question)
 			case "attempt_completion":
@@ -1271,6 +1276,52 @@ export class ClaudeDev {
 			await this.say(
 				"error",
 				`Error inspecting site:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+			)
+			return [false, await this.formatToolError(errorString)]
+		}
+	}
+
+	async inspectEmulator(): Promise<[boolean, ToolResponse]> {
+		this.consecutiveMistakeCount = 0
+		try {
+			const message = JSON.stringify({
+				tool: "inspectEmulator",
+			} satisfies ClaudeSayTool)
+
+			if (this.alwaysAllowReadOnly) {
+				await this.say("tool", message)
+			} else {
+				const { response, text, images } = await this.ask("tool", message)
+				if (response !== "yesButtonTapped") {
+					if (response === "messageResponse") {
+						await this.say("user_feedback", text, images)
+						return [
+							true,
+							this.formatToolResponseWithImages(await this.formatToolDeniedFeedback(text), images),
+						]
+					}
+					return [true, await this.formatToolDenied()]
+				}
+			}
+
+			await this.say("inspect_emulator_result", "") // no result, starts the loading spinner waiting for result
+
+			const { screenshot } = await this.emulatorFinder.findAndCaptureEmulator()
+
+			await this.say("inspect_emulator_result", "", [screenshot])
+
+			return [
+				false,
+				this.formatToolResponseWithImages(
+					`An emulator has been located, and a screenshot has been taken for your analysis.`,
+					[screenshot]
+				),
+			]
+		} catch (error) {
+			const errorString = `Error inspecting emulator: ${JSON.stringify(serializeError(error))}`
+			await this.say(
+				"error",
+				`Error inspecting emulator:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
 			)
 			return [false, await this.formatToolError(errorString)]
 		}

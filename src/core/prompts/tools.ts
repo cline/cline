@@ -131,8 +131,18 @@ export const TOOLS = (cwd: string, supportsImages: boolean): Tool[] => [
 					},
 					required: ["url"],
 				},
-			} satisfies Tool,
-		]
+			},
+			{
+				name: "inspect_emulator",
+				description:
+					"Searches for an available emulator or simulator and captures a screenshot of its current state. This tool locates the first running emulator or simulator, takes a screenshot of its entire window, and returns the image. It works for both Android emulators (on Windows and macOS) and iOS simulators (on macOS). It does not interact with the emulator or capture any state changes after the initial screenshot.",
+				input_schema: {
+					type: "object",
+					properties: {},
+					required: [],
+				},
+			},
+		] satisfies Tool[]
 		: []),
 	{
 		name: "ask_followup_question",

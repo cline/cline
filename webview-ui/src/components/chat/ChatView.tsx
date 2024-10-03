@@ -154,6 +154,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "api_req_finished":
 						case "text":
 						case "inspect_site_result":
+						case "inspect_emulator_result":
 						case "command_output":
 						case "completion_result":
 						case "tool":
@@ -372,7 +373,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					break
 				case "inspect_site_result":
-					// don't show row for inspect site result until a screenshot is captured
+				case "inspect_emulator_result":
+					// don't show row for inspect site or emulator result until a screenshot is captured
 					return !!message.images
 			}
 			return true

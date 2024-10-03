@@ -8,6 +8,7 @@ export type ToolName =
 	| "search_files"
 	| "execute_command"
 	| "inspect_site"
+	| "inspect_emulator"
 	| "ask_followup_question"
 	| "attempt_completion"
 

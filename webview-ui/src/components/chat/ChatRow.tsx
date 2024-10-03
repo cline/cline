@@ -353,6 +353,34 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						</div>
 					</>
 				)
+			case "inspectEmulator":
+				const isInspectingEmulator = lastModifiedMessage?.say === "inspect_emulator_result" && !lastModifiedMessage?.images
+				return (
+					<>
+						<div style={headerStyle}>
+							{isInspectingEmulator ? <ProgressIndicator /> : toolIcon("device-mobile")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>Claude wants to inspect an emulator:</>
+								) : (
+									<>Claude is inspecting an emulator:</>
+								)}
+							</span>
+						</div>
+						<div
+							style={{
+								borderRadius: 3,
+								border: "1px solid var(--vscode-editorGroup-border)",
+								overflow: "hidden",
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+							}}>
+							<CodeBlock
+								source={`${"```"}shell\nInspecting emulator\n${"```"}`}
+								forceWrap={true}
+							/>
+						</div>
+					</>
+				)
 			default:
 				return null
 		}
@@ -491,6 +519,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						</div>
 					)
 				case "inspect_site_result":
+				case "inspect_emulator_result":
 					const logs = message.text || ""
 					const screenshot = message.images?.[0]
 					return (
@@ -502,7 +531,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{screenshot && (
 								<img
 									src={screenshot}
-									alt="Inspect screenshot"
+									alt={message.say === "inspect_site_result" ? "Inspect site screenshot" : "Inspect emulator screenshot"}
 									style={{
 										width: "calc(100% - 2px)",
 										height: "auto",

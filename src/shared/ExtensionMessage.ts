@@ -60,6 +60,7 @@ export type ClaudeSay =
 	| "tool"
 	| "shell_integration_warning"
 	| "inspect_site_result"
+	| "inspect_emulator_result"
 
 export interface ClaudeSayTool {
 	tool:
@@ -71,10 +72,12 @@ export interface ClaudeSayTool {
 	| "listCodeDefinitionNames"
 	| "searchFiles"
 	| "inspectSite"
+	| "inspectEmulator"
 	resolution?: string
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+	emulatorName?: string
 }
