@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useEvent, useMount } from "react-use"
+import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
 import { ClaudeAsk, ClaudeSayTool, ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
@@ -56,13 +56,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
 	const [didClickCancel, setDidClickCancel] = useState(false)
 
-	useEffect(() => {
+	// UI layout depends on the last 2 messages
+	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
+	const lastMessage = useMemo(() => messages.at(-1), [messages])
+	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+	useDeepCompareEffect(() => {
 		// if last message is an ask, show user ask UI
-
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
 		// basically as long as a task is active, the conversation history will be persisted
-
-		const lastMessage = messages.at(-1)
 		if (lastMessage) {
 			switch (lastMessage.type) {
 				case "ask":
@@ -150,7 +151,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
 						case "api_req_started":
-							if (messages.at(-2)?.ask === "command_output") {
+							if (secondLastMessage?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
 								setInputValue("")
 								setTextAreaDisabled(true)
@@ -179,7 +180,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
 		}
-	}, [messages])
+	}, [lastMessage, secondLastMessage])
 
 	useEffect(() => {
 		if (messages.length === 0) {
