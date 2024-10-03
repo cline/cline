@@ -716,7 +716,7 @@ export class ClaudeDev {
 		}
 	}
 
-	async attemptApiRequest(previousApiReqIndex: number): Promise<ApiStream> {
+	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		try {
 			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages)
 			if (this.customInstructions && this.customInstructions.trim()) {
@@ -740,9 +740,17 @@ export class ClaudeDev {
 					}
 				}
 			}
+
 			const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
-			return stream
+			const iterator = stream[Symbol.asyncIterator]()
+			// awaiting first chunk to see if it will throw an error
+			const firstChunk = await iterator.next()
+			yield firstChunk.value
+			// no error, so we can continue to yield all remaining chunks
+			// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
+			yield* iterator
 		} catch (error) {
+			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			const { response } = await this.ask(
 				"api_req_failed",
 				error.message ?? JSON.stringify(serializeError(error), null, 2)
@@ -1654,7 +1662,6 @@ export class ClaudeDev {
 		await this.providerRef.deref()?.postStateToWebview()
 
 		try {
-			const stream = await this.attemptApiRequest(previousApiReqIndex)
 			let cacheWriteTokens = 0
 			let cacheReadTokens = 0
 			let inputTokens = 0
@@ -1736,6 +1743,7 @@ export class ClaudeDev {
 			this.presentAssistantMessageHasPendingUpdates = false
 			await this.diffViewProvider.reset()
 
+			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
 			try {
 				for await (const chunk of stream) {
