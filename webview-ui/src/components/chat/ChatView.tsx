@@ -192,7 +192,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [messages.length])
 
 	const isStreaming = useMemo(() => {
-		const isToolCurrentlyAsking = claudeAsk !== undefined && enableButtons && primaryButtonText !== undefined
+		const isLastAsk = !!modifiedMessages.at(-1)?.ask // checking claudeAsk isn't enough since messages effect may be called again for a tool for example, set claudeAsk to its value, and if the next message is not an ask then it doesn't reset. This is likely due to how much more often we're updating messages as compared to before, and should be resolved with optimizations as it's likely a rendering bug. but as a final guard for now, the cancel button will show if the last message is not an ask
+		const isToolCurrentlyAsking =
+			isLastAsk && claudeAsk !== undefined && enableButtons && primaryButtonText !== undefined
 		if (isToolCurrentlyAsking) {
 			return false
 		}
