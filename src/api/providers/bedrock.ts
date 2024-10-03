@@ -60,7 +60,6 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
 		const modelId = this.getModelId()
-		console.log(modelId)
 
 		if (modelId in bedrockModels) {
 			return { id: modelId, info: bedrockModels[modelId] }
