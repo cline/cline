@@ -504,6 +504,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		lastScrollTopRef.current = currentScrollTop
 	}, [])
 
+	useEffect(() => {
+		const lastMessage = messages.at(-1)
+		if (lastMessage && lastMessage.say === "api_req_retried") {
+			// unique case where the api_req_started row will shrink in size when scrollview at bottom, causing didScrollUp to get set to true and followoutput to break. To mitigate this when an api request is retried, it's safe to assume they're already scrolled to the bottom
+			scrollToBottomAuto()
+		}
+	}, [messages, scrollToBottomAuto])
+
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
 		return text
