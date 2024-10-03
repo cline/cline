@@ -21,6 +21,7 @@ export interface WebviewMessage {
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
+		| "refreshOpenRouterModels"
 	text?: string
 	askResponse?: ClaudeAskResponse
 	apiConfiguration?: ApiConfiguration

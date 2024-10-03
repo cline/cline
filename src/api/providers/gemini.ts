@@ -25,7 +25,7 @@ export class GeminiHandler implements ApiHandler {
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
-				maxOutputTokens: this.getModel().info.maxTokens,
+				// maxOutputTokens: this.getModel().info.maxTokens,
 				temperature: 0,
 			},
 		})

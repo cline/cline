@@ -14,8 +14,8 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "openrouter":
-				if (!apiConfiguration.openRouterApiKey) {
-					return "You must provide a valid API key or choose a different provider."
+				if (!apiConfiguration.openRouterApiKey || !apiConfiguration.openRouterModelId) {
+					return "You must provide a valid API key and model ID or choose a different provider."
 				}
 				break
 			case "vertex":

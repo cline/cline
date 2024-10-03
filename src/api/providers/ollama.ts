@@ -24,7 +24,7 @@ export class OllamaHandler implements ApiHandler {
 		]
 
 		const stream = await this.client.chat.completions.create({
-			model: this.options.ollamaModelId ?? "",
+			model: this.getModel().id,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,

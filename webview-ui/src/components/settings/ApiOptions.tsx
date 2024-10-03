@@ -23,7 +23,7 @@ import {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
-	openRouterModels,
+	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 } from "../../../../src/shared/api"
@@ -66,8 +66,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.models) {
-			setOllamaModels(message.models)
+		if (message.type === "ollamaModels" && message.ollamaModels) {
+			setOllamaModels(message.ollamaModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -529,23 +529,25 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 				</p>
 			)}
 
-			{selectedProvider !== "openai" && selectedProvider !== "ollama" && showModelOptions && (
-				<>
-					<div className="dropdown-container">
-						<label htmlFor="model-id">
-							<span style={{ fontWeight: 500 }}>Model</span>
-						</label>
-						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
-						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
-						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
-						{selectedProvider === "vertex" && createDropdown(vertexModels)}
-						{selectedProvider === "gemini" && createDropdown(geminiModels)}
-						{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
-					</div>
+			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "openai" &&
+				selectedProvider !== "ollama" &&
+				showModelOptions && (
+					<>
+						<div className="dropdown-container">
+							<label htmlFor="model-id">
+								<span style={{ fontWeight: 500 }}>Model</span>
+							</label>
+							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
+							{selectedProvider === "vertex" && createDropdown(vertexModels)}
+							{selectedProvider === "gemini" && createDropdown(geminiModels)}
+							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+						</div>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
-				</>
-			)}
+						<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
+					</>
+				)}
 		</div>
 	)
 }
@@ -563,7 +565,7 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
-const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
+export const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const isO1 = selectedModelId && selectedModelId.includes("o1")
 	return (
@@ -690,8 +692,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
-		case "openrouter":
-			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
@@ -700,6 +700,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "openrouter":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openRouterModelId ?? openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo ?? openRouterDefaultModelInfo,
+			}
 		case "openai":
 			return {
 				selectedProvider: provider,

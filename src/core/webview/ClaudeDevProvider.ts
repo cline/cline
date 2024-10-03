@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { ClaudeDev } from "../ClaudeDev"
-import { ApiProvider } from "../../shared/api"
+import { ApiProvider, ModelInfo } from "../../shared/api"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { findLast } from "../../shared/array"
@@ -52,10 +52,13 @@ type GlobalStateKey =
 	| "ollamaBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
+	| "openRouterModelId"
+	| "openRouterModelInfo"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	claudeMessages: "claude_messages.json",
+	openRouterModels: "openrouter_models.json",
 }
 
 export class ClaudeDevProvider implements vscode.WebviewViewProvider {
@@ -322,10 +325,19 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
-						await this.postStateToWebview()
-						const theme = await getTheme()
-						await this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
-						this.workspaceTracker?.initializeFilePaths()
+						this.postStateToWebview()
+						this.workspaceTracker?.initializeFilePaths() // don't await
+						getTheme().then((theme) =>
+							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
+						)
+						this.readOpenRouterModels().then((openRouterModels) => {
+							if (openRouterModels) {
+								this.postMessageToWebview({ type: "openRouterModels", openRouterModels })
+							} else {
+								// nothing cached, fetch first time
+								this.refreshOpenRouterModels()
+							}
+						})
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -360,6 +372,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								azureApiVersion,
+								openRouterModelId,
+								openRouterModelInfo,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -380,6 +394,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
+							await this.updateGlobalState("openRouterModelId", openRouterModelId)
+							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							if (this.claudeDev) {
 								this.claudeDev.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -431,8 +447,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.resetState()
 						break
 					case "requestOllamaModels":
-						const models = await this.getOllamaModels(message.text)
-						this.postMessageToWebview({ type: "ollamaModels", models })
+						const ollamaModels = await this.getOllamaModels(message.text)
+						this.postMessageToWebview({ type: "ollamaModels", ollamaModels })
+						break
+					case "refreshOpenRouterModels":
+						await this.refreshOpenRouterModels()
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -516,6 +535,97 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.claudeDev.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
+	}
+
+	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		const openRouterModelsFilePath = path.join(cacheDir, GlobalFileNames.openRouterModels)
+		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	async refreshOpenRouterModels() {
+		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		const openRouterModelsFilePath = path.join(cacheDir, GlobalFileNames.openRouterModels)
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			/*
+			{
+				"id": "anthropic/claude-3.5-sonnet",
+				"name": "Anthropic: Claude 3.5 Sonnet",
+				"created": 1718841600,
+				"description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
+				"context_length": 200000,
+				"architecture": {
+					"modality": "text+image-\u003Etext",
+					"tokenizer": "Claude",
+					"instruct_type": null
+				},
+				"pricing": {
+					"prompt": "0.000003",
+					"completion": "0.000015",
+					"image": "0.0048",
+					"request": "0"
+				},
+				"top_provider": {
+					"context_length": 200000,
+					"max_completion_tokens": 8192,
+					"is_moderated": true
+				},
+				"per_request_limits": null
+			},
+			*/
+			if (response.data) {
+				const rawModels = response.data
+				for (const rawModel of rawModels) {
+					const modelInfo: ModelInfo = {
+						maxTokens: rawModel.top_provider?.max_completion_tokens || 2048,
+						contextWindow: rawModel.context_length || 128_000,
+						supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,
+						supportsPromptCache: false,
+						inputPrice: parseFloat(rawModel.pricing?.prompt || 0) * 1_000_000,
+						outputPrice: parseFloat(rawModel.pricing?.completion || 0) * 1_000_000,
+						description: rawModel.description,
+					}
+
+					switch (rawModel.id) {
+						case "anthropic/claude-3.5-sonnet":
+						case "anthropic/claude-3.5-sonnet:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 3.75
+							modelInfo.cacheReadsPrice = 0.3
+							break
+						case "anthropic/claude-3-opus":
+						case "anthropic/claude-3-opus:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 18.75
+							modelInfo.cacheReadsPrice = 1.5
+							break
+						case "anthropic/claude-3-haiku":
+						case "anthropic/claude-3-haiku:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 0.3
+							modelInfo.cacheReadsPrice = 0.03
+							break
+					}
+
+					models[rawModel.id] = modelInfo
+				}
+			} else {
+				console.error("Invalid response from OpenRouter API")
+			}
+			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+		} catch (error) {
+			console.error("Error fetching OpenRouter models:", error)
+		}
+
+		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
 	}
 
 	// Task history
@@ -722,6 +832,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			geminiApiKey,
 			openAiNativeApiKey,
 			azureApiVersion,
+			openRouterModelId,
+			openRouterModelInfo,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -746,6 +858,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -787,6 +901,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				geminiApiKey,
 				openAiNativeApiKey,
 				azureApiVersion,
+				openRouterModelId,
+				openRouterModelInfo,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

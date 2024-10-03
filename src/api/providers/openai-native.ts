@@ -30,7 +30,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
-			max_completion_tokens: this.getModel().info.maxTokens,
+			// max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,

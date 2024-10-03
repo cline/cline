@@ -1,6 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonTapped' or 'settingsButtonTapped' or 'hello'
 
-import { ApiConfiguration } from "./api"
+import { ApiConfiguration, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
@@ -14,14 +14,16 @@ export interface ExtensionMessage {
 		| "workspaceUpdated"
 		| "invoke"
 		| "partialMessage"
+		| "openRouterModels"
 	text?: string
 	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
-	models?: string[]
+	ollamaModels?: string[]
 	filePaths?: string[]
 	partialMessage?: ClaudeMessage
+	openRouterModels?: Record<string, ModelInfo>
 }
 
 export interface ExtensionState {

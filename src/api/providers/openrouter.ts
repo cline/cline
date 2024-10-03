@@ -2,13 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	openRouterDefaultModelId,
-	OpenRouterModelId,
-	openRouterModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -74,9 +68,18 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 
+		// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
+		// (models usually default to max tokens allowed)
+		let maxTokens: number | undefined
+		switch (this.getModel().id) {
+			case "anthropic/claude-3.5-sonnet":
+			case "anthropic/claude-3.5-sonnet:beta":
+				maxTokens = 8_192
+				break
+		}
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
+			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
@@ -129,12 +132,12 @@ export class OpenRouterHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: OpenRouterModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in openRouterModels) {
-			const id = modelId as OpenRouterModelId
-			return { id, info: openRouterModels[id] }
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.openRouterModelId
+		const modelInfo = this.options.openRouterModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
 		}
-		return { id: openRouterDefaultModelId, info: openRouterModels[openRouterDefaultModelId] }
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

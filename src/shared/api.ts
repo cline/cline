@@ -13,6 +13,8 @@ export interface ApiHandlerOptions {
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -44,6 +46,7 @@ export interface ModelInfo {
 	outputPrice: number
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
+	description?: string
 }
 
 // Anthropic
@@ -116,9 +119,19 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export type OpenRouterModelId = keyof typeof openRouterModels
-export const openRouterDefaultModelId: OpenRouterModelId = "anthropic/claude-3.5-sonnet:beta"
-export const openRouterModels = {
+type OpenRouterModelId = keyof typeof openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet:beta" // will always exist in openRouterModels
+export const openRouterDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+}
+const openRouterModels = {
 	"anthropic/claude-3.5-sonnet:beta": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
