@@ -60,13 +60,27 @@ const OpenRouterModelPicker: React.FC = () => {
 					id="model-search"
 					placeholder="Search and select a model..."
 					value={searchTerm}
-					onChange={(e) => {
+					onInput={(e) => {
 						setSearchTerm((e.target as HTMLInputElement).value)
 						setIsDropdownVisible(true)
 					}}
 					onFocus={() => setIsDropdownVisible(true)}
-					style={{ width: "100%", zIndex: 1001 }}
-				/>
+					style={{ width: "100%", zIndex: 1001 }}>
+					{searchTerm && (
+						<div
+							className="input-icon-button codicon codicon-close"
+							aria-label="Clear search"
+							onClick={() => setSearchTerm("")}
+							slot="end"
+							style={{
+								display: "flex",
+								justifyContent: "center",
+								alignItems: "center",
+								height: "100%",
+							}}
+						/>
+					)}
+				</VSCodeTextField>
 				{isDropdownVisible && (
 					<DropdownList>
 						{filteredModelIds.map((modelId) => (
