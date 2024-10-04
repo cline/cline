@@ -1,11 +1,13 @@
-import React, { useMemo, useState, useRef, useEffect, memo } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import Fuse from "fuse.js"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import { useRemark } from "react-remark"
+import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { useMount } from "react-use"
 import { vscode } from "../../utils/vscode"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { useRemark } from "react-remark"
+import { highlight } from "../history/HistoryView"
 
 const OpenRouterModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
@@ -31,12 +33,6 @@ const OpenRouterModelPicker: React.FC = () => {
 		vscode.postMessage({ type: "refreshOpenRouterModels" })
 	})
 
-	const filteredModelIds = useMemo(() => {
-		return Object.keys(openRouterModels)
-			.filter((modelId) => modelId.toLowerCase().includes(searchTerm.toLowerCase()))
-			.sort((a, b) => a.localeCompare(b))
-	}, [openRouterModels, searchTerm])
-
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -50,8 +46,45 @@ const OpenRouterModelPicker: React.FC = () => {
 		}
 	}, [])
 
+	const searchableItems = useMemo(() => {
+		return Object.keys(openRouterModels)
+			.sort((a, b) => a.localeCompare(b))
+			.map((id) => ({
+				id,
+				html: id,
+			}))
+	}, [openRouterModels])
+
+	const fuse = useMemo(() => {
+		return new Fuse(searchableItems, {
+			keys: ["html"], // highlight function will update this
+			threshold: 0.6,
+			shouldSort: true,
+			isCaseSensitive: false,
+			ignoreLocation: false,
+			includeMatches: true,
+			minMatchCharLength: 1,
+		})
+	}, [searchableItems])
+
+	const modelSearchResults = useMemo(() => {
+		let results: { id: string; html: string }[] = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight")
+			: searchableItems
+		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
+		return results
+	}, [searchableItems, searchTerm, fuse])
+
 	return (
 		<>
+			<style>
+				{`
+				.model-item-highlight {
+					background-color: var(--vscode-editor-findMatchHighlightBackground);
+					color: inherit;
+				}
+				`}
+			</style>
 			<DropdownWrapper ref={dropdownRef}>
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
@@ -65,7 +98,7 @@ const OpenRouterModelPicker: React.FC = () => {
 						setIsDropdownVisible(true)
 					}}
 					onFocus={() => setIsDropdownVisible(true)}
-					style={{ width: "100%", zIndex: 1001 }}>
+					style={{ width: "100%" }}>
 					{searchTerm && (
 						<div
 							className="input-icon-button codicon codicon-close"
@@ -83,10 +116,14 @@ const OpenRouterModelPicker: React.FC = () => {
 				</VSCodeTextField>
 				{isDropdownVisible && (
 					<DropdownList>
-						{filteredModelIds.map((modelId) => (
-							<DropdownItem key={modelId} onClick={() => handleModelChange(modelId)}>
-								{modelId}
-							</DropdownItem>
+						{modelSearchResults.map((item) => (
+							<DropdownItem
+								key={item.id}
+								onClick={() => handleModelChange(item.id)}
+								dangerouslySetInnerHTML={{
+									__html: item.html,
+								}}
+							/>
 						))}
 					</DropdownList>
 				)}
