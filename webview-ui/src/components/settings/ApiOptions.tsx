@@ -36,9 +36,10 @@ import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterMod
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
+	modelIdErrorMessage?: string
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
+const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
@@ -544,6 +545,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 						<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
 					</>
 				)}
+
+			{modelIdErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{modelIdErrorMessage}
+				</p>
+			)}
 		</div>
 	)
 }

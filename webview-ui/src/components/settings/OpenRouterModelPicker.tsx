@@ -1,6 +1,6 @@
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { memo, useEffect, useMemo, useRef, useState, KeyboardEvent } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
@@ -8,12 +8,15 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { highlight } from "../history/HistoryView"
+import { openRouterDefaultModelId } from "../../../../src/shared/api"
 
 const OpenRouterModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState("")
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
+	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
 	const handleModelChange = (newModelId: string) => {
 		setApiConfiguration({
@@ -22,7 +25,6 @@ const OpenRouterModelPicker: React.FC = () => {
 			openRouterModelInfo: openRouterModels[newModelId],
 		})
 		setSearchTerm(newModelId)
-		setIsDropdownVisible(false)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -46,14 +48,16 @@ const OpenRouterModelPicker: React.FC = () => {
 		}
 	}, [])
 
-	const searchableItems = useMemo(() => {
-		return Object.keys(openRouterModels)
-			.sort((a, b) => a.localeCompare(b))
-			.map((id) => ({
-				id,
-				html: id,
-			}))
+	const modelIds = useMemo(() => {
+		return Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
 	}, [openRouterModels])
+
+	const searchableItems = useMemo(() => {
+		return modelIds.map((id) => ({
+			id,
+			html: id,
+		}))
+	}, [modelIds])
 
 	const fuse = useMemo(() => {
 		return new Fuse(searchableItems, {
@@ -75,6 +79,49 @@ const OpenRouterModelPicker: React.FC = () => {
 		return results
 	}, [searchableItems, searchTerm, fuse])
 
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (!isDropdownVisible) return
+
+		switch (event.key) {
+			case "ArrowDown":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev < modelSearchResults.length - 1 ? prev + 1 : prev))
+				break
+			case "ArrowUp":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+				break
+			case "Enter":
+				event.preventDefault()
+				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
+					handleModelChange(modelSearchResults[selectedIndex].id)
+					setIsDropdownVisible(false)
+				}
+				break
+			case "Escape":
+				setIsDropdownVisible(false)
+				setSelectedIndex(-1)
+				break
+		}
+	}
+
+	const hasInfo = useMemo(() => {
+		return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+	}, [modelIds, searchTerm])
+
+	useEffect(() => {
+		setSelectedIndex(-1)
+	}, [searchTerm])
+
+	useEffect(() => {
+		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
+			itemRefs.current[selectedIndex]?.scrollIntoView({
+				block: "nearest",
+				behavior: "smooth",
+			})
+		}
+	}, [selectedIndex])
+
 	return (
 		<>
 			<style>
@@ -94,16 +141,20 @@ const OpenRouterModelPicker: React.FC = () => {
 					placeholder="Search and select a model..."
 					value={searchTerm}
 					onInput={(e) => {
-						setSearchTerm((e.target as HTMLInputElement).value)
+						handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
 						setIsDropdownVisible(true)
 					}}
 					onFocus={() => setIsDropdownVisible(true)}
+					onKeyDown={handleKeyDown}
 					style={{ width: "100%" }}>
 					{searchTerm && (
 						<div
 							className="input-icon-button codicon codicon-close"
 							aria-label="Clear search"
-							onClick={() => setSearchTerm("")}
+							onClick={() => {
+								handleModelChange("")
+								setIsDropdownVisible(true)
+							}}
 							slot="end"
 							style={{
 								display: "flex",
@@ -116,10 +167,16 @@ const OpenRouterModelPicker: React.FC = () => {
 				</VSCodeTextField>
 				{isDropdownVisible && (
 					<DropdownList>
-						{modelSearchResults.map((item) => (
+						{modelSearchResults.map((item, index) => (
 							<DropdownItem
 								key={item.id}
-								onClick={() => handleModelChange(item.id)}
+								ref={(el) => (itemRefs.current[index] = el)}
+								isSelected={index === selectedIndex}
+								onMouseEnter={() => setSelectedIndex(index)}
+								onClick={() => {
+									handleModelChange(item.id)
+									setIsDropdownVisible(false)
+								}}
 								dangerouslySetInnerHTML={{
 									__html: item.html,
 								}}
@@ -129,7 +186,22 @@ const OpenRouterModelPicker: React.FC = () => {
 				)}
 			</DropdownWrapper>
 
-			<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
+			{hasInfo ? (
+				<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
+			) : (
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 0,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					You can use{" "}
+					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
+						any model on OpenRouter
+					</VSCodeLink>{" "}
+					with Cline. (Try searching for "free" to see if there are free models currently available.)
+				</p>
+			)}
 		</>
 	)
 }
@@ -157,9 +229,14 @@ const DropdownList = styled.div`
 	border-bottom-right-radius: 3px;
 `
 
-const DropdownItem = styled.div`
+const DropdownItem = styled.div<{ isSelected: boolean }>`
 	padding: 5px 10px;
 	cursor: pointer;
+	word-break: break-all;
+	white-space: normal;
+
+	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
 	}

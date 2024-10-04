@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../../utils/validate"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
@@ -19,15 +19,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-
+	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
-
-		if (!apiValidationResult) {
+		setModelIdErrorMessage(modelIdValidationResult)
+		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
@@ -37,6 +39,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	useEffect(() => {
 		setApiErrorMessage(undefined)
+		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
 	// validate as soon as the component is mounted
@@ -82,7 +85,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
-					<ApiOptions showModelOptions={true} apiErrorMessage={apiErrorMessage} />
+					<ApiOptions
+						showModelOptions={true}
+						apiErrorMessage={apiErrorMessage}
+						modelIdErrorMessage={modelIdErrorMessage}
+					/>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>

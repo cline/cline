@@ -1,5 +1,5 @@
 import { ApiConfiguration } from "../../../src/shared/api"
-
+import { ModelInfo } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
@@ -14,8 +14,8 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "openrouter":
-				if (!apiConfiguration.openRouterApiKey || !apiConfiguration.openRouterModelId) {
-					return "You must provide a valid API key and model ID or choose a different provider."
+				if (!apiConfiguration.openRouterApiKey) {
+					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "vertex":
@@ -45,6 +45,26 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 			case "ollama":
 				if (!apiConfiguration.ollamaModelId) {
 					return "You must provide a valid model ID."
+				}
+				break
+		}
+	}
+	return undefined
+}
+
+export function validateModelId(
+	apiConfiguration?: ApiConfiguration,
+	openRouterModels?: Record<string, ModelInfo>
+): string | undefined {
+	if (apiConfiguration) {
+		switch (apiConfiguration.apiProvider) {
+			case "openrouter":
+				const modelId = apiConfiguration.openRouterModelId
+				if (!modelId) {
+					return "You must provide a model ID. If you're not sure which model to choose, Cline works best with Claude 3.5 Sonnet (anthropic/claude-3.5-sonnet)."
+				}
+				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
+					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
 		}
