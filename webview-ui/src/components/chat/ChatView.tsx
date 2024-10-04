@@ -54,6 +54,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [didScrollUp, setDidScrollUp] = useState(false)
 	const lastScrollTopRef = useRef(0)
 	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
+	const [didJustSendMessage, setDidJustSendMessage] = useState(false)
 	const [didClickCancel, setDidClickCancel] = useState(false)
 
 	// UI layout depends on the last 2 messages
@@ -250,6 +251,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setEnableButtons(false)
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
+
+				// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
+				setDidJustSendMessage(true)
+				setTimeout(() => {
+					setDidJustSendMessage(false)
+				}, 1_000)
 			}
 		},
 		[messages.length, claudeAsk]
@@ -511,13 +518,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const lastMessage = messages.at(-1)
 		if (lastMessage) {
 			switch (lastMessage.say) {
-				case "user_feedback": {
-					// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
-					const timer = setTimeout(() => {
-						scrollToBottomSmooth()
-					}, 50)
-					return () => clearTimeout(timer)
-				}
 				case "api_req_retried": {
 					// unique case where the api_req_started row will shrink in size when scrollview at bottom, causing didScrollUp to get set to true and followoutput to break. To mitigate this when an api request is retried, it's safe to assume they're already scrolled to the bottom
 					const timer = setTimeout(() => {
@@ -612,6 +612,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}}
 						// followOutput works much more reliably than manually tracking visible messages count. This will scroll when the count changes, so for cases where the row height changes, we use onHeightChange to scroll.
 						followOutput={(isAtBottom: boolean) => {
+							if (didJustSendMessage) {
+								return "smooth"
+							}
 							if (isAtBottom) {
 								return "smooth"
 							}
