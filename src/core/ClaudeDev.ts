@@ -925,6 +925,16 @@ export class ClaudeDev {
 							fileExists = await fileExistsAtPath(absolutePath)
 							this.diffViewProvider.editType = fileExists ? "modify" : "create"
 						}
+
+						// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
+						if (newContent.startsWith("```")) {
+							// this handles cases where it includes language specifiers like ```python ```js
+							newContent = newContent.split("\n").slice(1).join("\n").trim()
+						}
+						if (newContent.endsWith("```")) {
+							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+						}
+
 						const sharedMessageProps: ClaudeSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
@@ -1596,7 +1606,7 @@ export class ClaudeDev {
 			// stream did not complete tool call, add it as partial
 			if (currentParamName) {
 				// tool call has a parameter that was not completed
-				currentToolUse.params[currentParamName] = accumulator.slice(currentParamValueStartIndex)
+				currentToolUse.params[currentParamName] = accumulator.slice(currentParamValueStartIndex).trim()
 			}
 			toolUses.push(currentToolUse)
 		}
