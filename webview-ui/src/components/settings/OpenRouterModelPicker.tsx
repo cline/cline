@@ -133,59 +133,61 @@ const OpenRouterModelPicker: React.FC = () => {
 				}
 				`}
 			</style>
-			<DropdownWrapper ref={dropdownRef}>
+			<div>
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
-				<VSCodeTextField
-					id="model-search"
-					placeholder="Search and select a model..."
-					value={searchTerm}
-					onInput={(e) => {
-						handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
-						setIsDropdownVisible(true)
-					}}
-					onFocus={() => setIsDropdownVisible(true)}
-					onKeyDown={handleKeyDown}
-					style={{ width: "100%" }}>
-					{searchTerm && (
-						<div
-							className="input-icon-button codicon codicon-close"
-							aria-label="Clear search"
-							onClick={() => {
-								handleModelChange("")
-								setIsDropdownVisible(true)
-							}}
-							slot="end"
-							style={{
-								display: "flex",
-								justifyContent: "center",
-								alignItems: "center",
-								height: "100%",
-							}}
-						/>
-					)}
-				</VSCodeTextField>
-				{isDropdownVisible && (
-					<DropdownList>
-						{modelSearchResults.map((item, index) => (
-							<DropdownItem
-								key={item.id}
-								ref={(el) => (itemRefs.current[index] = el)}
-								isSelected={index === selectedIndex}
-								onMouseEnter={() => setSelectedIndex(index)}
+				<DropdownWrapper ref={dropdownRef}>
+					<VSCodeTextField
+						id="model-search"
+						placeholder="Search and select a model..."
+						value={searchTerm}
+						onInput={(e) => {
+							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
+							setIsDropdownVisible(true)
+						}}
+						onFocus={() => setIsDropdownVisible(true)}
+						onKeyDown={handleKeyDown}
+						style={{ width: "100%" }}>
+						{searchTerm && (
+							<div
+								className="input-icon-button codicon codicon-close"
+								aria-label="Clear search"
 								onClick={() => {
-									handleModelChange(item.id)
-									setIsDropdownVisible(false)
+									handleModelChange("")
+									setIsDropdownVisible(true)
 								}}
-								dangerouslySetInnerHTML={{
-									__html: item.html,
+								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
 								}}
 							/>
-						))}
-					</DropdownList>
-				)}
-			</DropdownWrapper>
+						)}
+					</VSCodeTextField>
+					{isDropdownVisible && (
+						<DropdownList>
+							{modelSearchResults.map((item, index) => (
+								<DropdownItem
+									key={item.id}
+									ref={(el) => (itemRefs.current[index] = el)}
+									isSelected={index === selectedIndex}
+									onMouseEnter={() => setSelectedIndex(index)}
+									onClick={() => {
+										handleModelChange(item.id)
+										setIsDropdownVisible(false)
+									}}
+									dangerouslySetInnerHTML={{
+										__html: item.html,
+									}}
+								/>
+							))}
+						</DropdownList>
+					)}
+				</DropdownWrapper>
+			</div>
 
 			{hasInfo ? (
 				<ModelInfoView
@@ -310,7 +312,7 @@ export const ModelDescriptionMarkdown = memo(
 		}, [reactContent, setIsExpanded])
 
 		return (
-			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 5 }}>
+			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
 				<div
 					ref={textContainerRef}
 					style={{
