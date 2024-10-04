@@ -21,7 +21,7 @@ export class VertexHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const stream = await this.client.messages.create({
 			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens,
+			max_tokens: this.getModel().info.maxTokens || 8192,
 			temperature: 0,
 			system: systemPrompt,
 			messages,

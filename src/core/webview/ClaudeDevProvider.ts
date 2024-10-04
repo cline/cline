@@ -537,9 +537,17 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
 	}
 
-	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+	private async ensureCacheDirectoryExists(): Promise<string> {
 		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
-		const openRouterModelsFilePath = path.join(cacheDir, GlobalFileNames.openRouterModels)
+		await fs.mkdir(cacheDir, { recursive: true })
+		return cacheDir
+	}
+
+	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const openRouterModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.openRouterModels
+		)
 		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
@@ -549,8 +557,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async refreshOpenRouterModels() {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
-		const openRouterModelsFilePath = path.join(cacheDir, GlobalFileNames.openRouterModels)
+		const openRouterModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.openRouterModels
+		)
 
 		let models: Record<string, ModelInfo> = {}
 		try {
@@ -581,16 +591,22 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				"per_request_limits": null
 			},
 			*/
-			if (response.data) {
-				const rawModels = response.data
+			if (response.data?.data) {
+				const rawModels = response.data.data
+				const parsePrice = (price: any) => {
+					if (price) {
+						return parseFloat(price) * 1_000_000
+					}
+					return undefined
+				}
 				for (const rawModel of rawModels) {
 					const modelInfo: ModelInfo = {
-						maxTokens: rawModel.top_provider?.max_completion_tokens || 2048,
-						contextWindow: rawModel.context_length || 128_000,
-						supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,
+						maxTokens: rawModel.top_provider?.max_completion_tokens,
+						contextWindow: rawModel.context_length,
+						supportsImages: rawModel.architecture?.modality?.includes("image"),
 						supportsPromptCache: false,
-						inputPrice: parseFloat(rawModel.pricing?.prompt || 0) * 1_000_000,
-						outputPrice: parseFloat(rawModel.pricing?.completion || 0) * 1_000_000,
+						inputPrice: parsePrice(rawModel.pricing?.prompt),
+						outputPrice: parsePrice(rawModel.pricing?.completion),
 						description: rawModel.description,
 					}
 
@@ -621,6 +637,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				console.error("Invalid response from OpenRouter API")
 			}
 			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+			console.log("OpenRouter models fetched and saved", models)
 		} catch (error) {
 			console.error("Error fetching OpenRouter models:", error)
 		}

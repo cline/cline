@@ -38,12 +38,12 @@ export type ApiConfiguration = ApiHandlerOptions & {
 // Models
 
 export interface ModelInfo {
-	maxTokens: number
-	contextWindow: number
-	supportsImages: boolean
-	supportsPromptCache: boolean
-	inputPrice: number
-	outputPrice: number
+	maxTokens?: number
+	contextWindow?: number
+	supportsImages?: boolean
+	supportsPromptCache: boolean // this value is hardcoded for now
+	inputPrice?: number
+	outputPrice?: number
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -130,6 +130,8 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
+	description:
+		"Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/models/anthropic/claude-3.5-sonnet) variant._",
 }
 const openRouterModels = {
 	"anthropic/claude-3.5-sonnet:beta": {

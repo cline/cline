@@ -709,7 +709,7 @@ export class ClaudeDev {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		try {
-			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages)
+			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages ?? false)
 			if (this.customInstructions && this.customInstructions.trim()) {
 				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 				systemPrompt += addCustomInstructions(this.customInstructions)
@@ -723,7 +723,7 @@ export class ClaudeDev {
 						previousRequest.text
 					)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-					const contextWindow = this.api.getModel().info.contextWindow
+					const contextWindow = this.api.getModel().info.contextWindow || 128_000
 					const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
 					if (totalTokens >= maxAllowedSize) {
 						const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)

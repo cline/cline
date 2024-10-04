@@ -7,7 +7,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
@@ -31,7 +31,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -440,7 +440,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						You can use any OpenAI compatible API with models that support tool use.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
 							best with Claude models. Less capable models may not work as expected.)
@@ -504,12 +503,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
-						</VSCodeLink>{" "}
-						You can use any model that supports{" "}
-						<VSCodeLink
-							href="https://ollama.com/search?c=tools"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							tool use.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
@@ -570,80 +563,70 @@ export const formatPrice = (price: number) => {
 
 export const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const isO1 = selectedModelId && selectedModelId.includes("o1")
+
+	const infoItems = [
+		modelInfo.description && <ModelDescriptionMarkdown key="description" markdown={modelInfo.description} />,
+		<ModelInfoSupportsItem
+			key="supportsImages"
+			isSupported={modelInfo.supportsImages ?? false}
+			supportsLabel="Supports images"
+			doesNotSupportLabel="Does not support images"
+		/>,
+		!isGemini && (
+			<ModelInfoSupportsItem
+				key="supportsPromptCache"
+				isSupported={modelInfo.supportsPromptCache}
+				supportsLabel="Supports prompt caching"
+				doesNotSupportLabel="Does not support prompt caching"
+			/>
+		),
+		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
+			<span key="maxTokens">
+				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
+			</span>
+		),
+		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
+			<span key="inputPrice">
+				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
+			<span key="cacheWritesPrice">
+				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
+				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
+			<span key="cacheReadsPrice">
+				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
+				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
+			<span key="outputPrice">
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
+				tokens
+			</span>
+		),
+		isGemini && (
+			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
+				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
+				After that, billing depends on prompt size.{" "}
+				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
+					For more info, see pricing details.
+				</VSCodeLink>
+			</span>
+		),
+	].filter(Boolean)
+
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			<ModelInfoSupportsItem
-				isSupported={modelInfo.supportsImages}
-				supportsLabel="Supports images"
-				doesNotSupportLabel="Does not support images"
-			/>
-			<br />
-			{!isGemini && (
-				<>
-					<ModelInfoSupportsItem
-						isSupported={modelInfo.supportsPromptCache}
-						supportsLabel="Supports prompt caching"
-						doesNotSupportLabel="Does not support prompt caching"
-					/>
-					<br />
-				</>
-			)}
-			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo?.maxTokens?.toLocaleString()} tokens
-			{modelInfo.inputPrice > 0 && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million
-					tokens
-				</>
-			)}
-			{modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
-					{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
-					<br />
-					<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
-					{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
-				</>
-			)}
-			{modelInfo.outputPrice > 0 && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
-					tokens
-				</>
-			)}
-			{isGemini && (
-				<>
-					<br />
-					<span
-						style={{
-							fontStyle: "italic",
-						}}>
-						* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per
-						minute. After that, billing depends on prompt size.{" "}
-						<VSCodeLink
-							href="https://ai.google.dev/pricing"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							For more info, see pricing details.
-						</VSCodeLink>
-					</span>
-				</>
-			)}
-			{isO1 && (
-				<>
-					<br />
-					<span
-						style={{
-							fontStyle: "italic",
-							color: "var(--vscode-errorForeground)",
-						}}>
-						* This model does not support tool use or system prompts, so Claude Dev uses structured output
-						prompting to achieve similar results. Your mileage may vary.
-					</span>
-				</>
-			)}
+			{infoItems.map((item, index) => (
+				<Fragment key={index}>
+					{item}
+					{index < infoItems.length - 1 && <br />}
+				</Fragment>
+			))}
 		</p>
 	)
 }

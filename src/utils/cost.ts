@@ -17,8 +17,8 @@ export function calculateApiCost(
 	if (cacheReadInputTokens && modelCacheReadsPrice) {
 		cacheReadsCost = (modelCacheReadsPrice / 1_000_000) * cacheReadInputTokens
 	}
-	const baseInputCost = (modelInfo.inputPrice / 1_000_000) * inputTokens
-	const outputCost = (modelInfo.outputPrice / 1_000_000) * outputTokens
+	const baseInputCost = ((modelInfo.inputPrice || 0) / 1_000_000) * inputTokens
+	const outputCost = ((modelInfo.outputPrice || 0) / 1_000_000) * outputTokens
 	const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
 	return totalCost
 }
