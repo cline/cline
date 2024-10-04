@@ -1611,7 +1611,6 @@ export class ClaudeDev {
 					// this also indicates the end of the text content
 					textContent.partial = false
 					// remove the partially accumulated tool use tag from the end of text (<tool)
-					console.log("removing from text", toolUseOpeningTag.slice(0, -1))
 					textContent.content = textContent.content.slice(0, -toolUseOpeningTag.slice(0, -1).length).trim()
 					break
 				}
@@ -1631,8 +1630,6 @@ export class ClaudeDev {
 			}
 			toolUses.push(currentToolUse)
 		}
-
-		console.log(assistantMessage, textContent, toolUses)
 
 		const prevLength = this.assistantMessageContent.length
 		this.assistantMessageContent = [textContent, ...toolUses]

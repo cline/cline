@@ -80,7 +80,9 @@ You must respond to the user's message with a SINGLE tool use. When formulating 
 \`\`\`
 ...Your thoughts...
 
-[Tool Use]
+<tool_name>
+<parameter_name>value</parameter_name>
+</tool_name>
 \`\`\`
 
 CRITICAL RULE: You are only allowed to use one tool per message. Multiple tool uses in a single message is STRICTLY FORBIDDEN. Even if it may seem efficient to use multiple tools at once, the system will crash and burn if you do so.
