@@ -443,17 +443,50 @@ export const highlight = (
 		obj[pathValue[i]] = value
 	}
 
+	// Function to merge overlapping regions
+	const mergeRegions = (regions: [number, number][]): [number, number][] => {
+		if (regions.length === 0) return regions
+
+		// Sort regions by start index
+		regions.sort((a, b) => a[0] - b[0])
+
+		const merged: [number, number][] = [regions[0]]
+
+		for (let i = 1; i < regions.length; i++) {
+			const last = merged[merged.length - 1]
+			const current = regions[i]
+
+			if (current[0] <= last[1] + 1) {
+				// Overlapping or adjacent regions
+				last[1] = Math.max(last[1], current[1])
+			} else {
+				merged.push(current)
+			}
+		}
+
+		return merged
+	}
+
 	const generateHighlightedText = (inputText: string, regions: [number, number][] = []) => {
+		if (regions.length === 0) {
+			return inputText
+		}
+
+		// Sort and merge overlapping regions
+		const mergedRegions = mergeRegions(regions)
+
 		let content = ""
 		let nextUnhighlightedRegionStartingIndex = 0
 
-		regions.forEach((region) => {
-			const lastRegionNextIndex = region[1] + 1
+		mergedRegions.forEach((region) => {
+			const start = region[0]
+			const end = region[1]
+			const lastRegionNextIndex = end + 1
 
 			content += [
-				inputText.substring(nextUnhighlightedRegionStartingIndex, region[0]),
+				inputText.substring(nextUnhighlightedRegionStartingIndex, start),
 				`<span class="${highlightClassName}">`,
-				inputText.substring(region[0], lastRegionNextIndex),
+				inputText.substring(start, lastRegionNextIndex),
 				"</span>",
 			].join("")
 
@@ -471,8 +504,10 @@ export const highlight = (
 			const highlightedItem = { ...item }
 
 			matches?.forEach((match) => {
-				if (match.key && typeof match.value === "string") {
-					set(highlightedItem, match.key, generateHighlightedText(match.value, [...match.indices]))
+				if (match.key && typeof match.value === "string" && match.indices) {
+					// Merge overlapping regions before generating highlighted text
+					const mergedIndices = mergeRegions([...match.indices])
+					set(highlightedItem, match.key, generateHighlightedText(match.value, mergedIndices))
 				}
 			})
 
