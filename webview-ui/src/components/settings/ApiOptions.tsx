@@ -574,10 +574,18 @@ export const formatPrice = (price: number) => {
 }
 
 export const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
+	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 
 	const infoItems = [
-		modelInfo.description && <ModelDescriptionMarkdown key="description" markdown={modelInfo.description} />,
+		modelInfo.description && (
+			<ModelDescriptionMarkdown
+				key="description"
+				markdown={modelInfo.description}
+				isExpanded={isDescriptionExpanded}
+				setIsExpanded={setIsDescriptionExpanded}
+			/>
+		),
 		<ModelInfoSupportsItem
 			key="supportsImages"
 			isSupported={modelInfo.supportsImages ?? false}
