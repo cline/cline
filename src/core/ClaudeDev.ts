@@ -781,9 +781,30 @@ export class ClaudeDev {
 
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
-			case "text":
-				await this.say("text", block.content, undefined, block.partial)
+			case "text": {
+				let content = block.content
+				if (block.partial && content) {
+					// Remove partial XML tag at the very end of the content
+					const lastOpenBracketIndex = content.lastIndexOf("<")
+					if (lastOpenBracketIndex !== -1) {
+						const possibleTag = content.slice(lastOpenBracketIndex)
+						// Check if there's a '>' after the last '<' (i.e., if the tag is complete)
+						const hasCloseBracket = possibleTag.includes(">")
+						if (!hasCloseBracket) {
+							// Extract the potential tag name
+							const tagContent = possibleTag.slice(1).trim()
+							// Check if tagContent is likely an incomplete tag name (letters and underscores only)
+							const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
+							// If the tag is incomplete and at the end, remove it from the content
+							if (isLikelyTagName) {
+								content = content.slice(0, lastOpenBracketIndex).trim()
+							}
+						}
+					}
+				}
+				await this.say("text", content, undefined, block.partial)
 				break
+			}
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
