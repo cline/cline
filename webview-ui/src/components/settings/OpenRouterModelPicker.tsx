@@ -18,6 +18,7 @@ const OpenRouterModelPicker: React.FC = () => {
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
 		setApiConfiguration({
@@ -112,6 +113,9 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	useEffect(() => {
 		setSelectedIndex(-1)
+		if (dropdownListRef.current) {
+			dropdownListRef.current.scrollTop = 0
+		}
 	}, [searchTerm])
 
 	useEffect(() => {
@@ -168,7 +172,7 @@ const OpenRouterModelPicker: React.FC = () => {
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList>
+						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => (
 								<DropdownItem
 									key={item.id}
