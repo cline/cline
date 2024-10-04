@@ -44,6 +44,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -542,7 +543,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 						</div>
 
-						<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
+						<ModelInfoView
+							selectedModelId={selectedModelId}
+							modelInfo={selectedModelInfo}
+							isDescriptionExpanded={isDescriptionExpanded}
+							setIsDescriptionExpanded={setIsDescriptionExpanded}
+						/>
 					</>
 				)}
 
@@ -573,8 +579,17 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
-export const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+export const ModelInfoView = ({
+	selectedModelId,
+	modelInfo,
+	isDescriptionExpanded,
+	setIsDescriptionExpanded,
+}: {
+	selectedModelId: string
+	modelInfo: ModelInfo
+	isDescriptionExpanded: boolean
+	setIsDescriptionExpanded: (isExpanded: boolean) => void
+}) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 
 	const infoItems = [

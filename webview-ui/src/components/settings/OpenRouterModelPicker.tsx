@@ -17,6 +17,7 @@ const OpenRouterModelPicker: React.FC = () => {
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleModelChange = (newModelId: string) => {
 		setApiConfiguration({
@@ -187,7 +188,12 @@ const OpenRouterModelPicker: React.FC = () => {
 			</DropdownWrapper>
 
 			{hasInfo ? (
-				<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
+				<ModelInfoView
+					selectedModelId={selectedModelId}
+					modelInfo={selectedModelInfo}
+					isDescriptionExpanded={isDescriptionExpanded}
+					setIsDescriptionExpanded={setIsDescriptionExpanded}
+				/>
 			) : (
 				<p
 					style={{
