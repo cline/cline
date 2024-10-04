@@ -515,7 +515,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
 					const timer = setTimeout(() => {
 						scrollToBottomSmooth()
-					}, 0)
+					}, 50)
 					return () => clearTimeout(timer)
 				}
 				case "api_req_retried": {
