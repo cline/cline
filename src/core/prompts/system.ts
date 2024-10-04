@@ -75,7 +75,7 @@ TOOL USE
 
 # Formulating Your Message
 
-You must respond to the user's message with a SINGLE tool use. When formulating your response, place the tool use at the end of your message. Here is the general structure your responses should follow:
+You must respond to the user's message with a tool use. When formulating your response, place the tool use at the end of your message. Here is the general structure your responses should follow:
 
 \`\`\`
 ...Your thoughts...
@@ -84,10 +84,6 @@ You must respond to the user's message with a SINGLE tool use. When formulating 
 <parameter_name>value</parameter_name>
 </tool_name>
 \`\`\`
-
-CRITICAL RULE: You are only allowed to use one tool per message. Multiple tool uses in a single message is STRICTLY FORBIDDEN. Even if it may seem efficient to use multiple tools at once, the system will crash and burn if you do so.
-
-Remember: *One tool use per message. No exceptions.*
 
 # Tool Use Formatting
 
@@ -243,7 +239,7 @@ Your final result description here
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task. You must use tools judiciously and effectively, as it is wasteful to use a tool when you already have the information you need. For example, if the user has already provided the contents of a file, you should not use the read_file tool to get its contents again.
 2. Choose the most appropriate tool based on the task and the tool descriptions provided. Assess if you need additional information to proceed, and which of the available tools would be most effective for gathering this information. For example using the list_files tool is more effective than running a command like \`ls\` in the terminal. It's critical that you think about each available tool and use the one that best fits the current step in the task.
 3. If multiple actions are needed, use one tool at a time per message to accomplish the task iteratively, with each tool use being informed by the result of the previous tool use. Do not assume the outcome of any tool use. Each step must be informed by the previous step's result.
-4. Formulate your tool use using the XML format specified for each tool. Remember: one tool use per message.
+4. Formulate your tool use using the XML format specified for each tool.
 5. After using a tool, you will receive the tool use result in the user's response. This result will provide you with the necessary information to continue your task or make further decisions.
 
 ## Example of Effective Tool Use
