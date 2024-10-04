@@ -1563,7 +1563,29 @@ export class ClaudeDev {
 			}
 
 			if (currentToolUse && !currentParamName) {
-				// current tool doesn't have a param match yet, it's likely partial so ignore
+				// Even though system prompt instructs to put tags on separate lines, sometimes model outputs small non-file params on single lines (have not seen this happen with a tool use tag though)
+				// E.g. <path>file</path>
+				// We're making some assumptions here, like if we do match then the entire param will be on this line.
+
+				// Try to match a parameter tag with content, even if the closing tag is missing or partial
+				// matches <paramName> and rest of line as paramContent
+				const paramMatch = trimmed.match(/^<(\w+)>(.*)$/)
+				if (paramMatch) {
+					const paramName = paramMatch[1] as ToolParamName
+					let paramContent = paramMatch[2]
+
+					// Remove any closing tag or partial closing tag from paramContent
+					// replaces any sequence that starts with </ (a closing tag) to the end of the line with an empty string
+					paramContent = paramContent?.replace(/<\/.*$/, "").trim()
+
+					if (paramName && paramContent && toolParamNames.includes(paramName)) {
+						currentToolUse.params[paramName] = paramContent
+					}
+
+					// Assuming the entire parameter is on this line, we don't need to set currentParamName
+				}
+
+				// If no param name, assume it's a partial and wait for more output
 				continue
 			}
 
