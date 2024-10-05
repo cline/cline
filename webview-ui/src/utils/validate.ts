@@ -61,7 +61,7 @@ export function validateModelId(
 			case "openrouter":
 				const modelId = apiConfiguration.openRouterModelId
 				if (!modelId) {
-					return "You must provide a model ID. If you're not sure which model to choose, Cline works best with Claude 3.5 Sonnet (anthropic/claude-3.5-sonnet)."
+					return "You must provide a model ID."
 				}
 				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					return "The model ID you provided is not available. Please choose a different model."

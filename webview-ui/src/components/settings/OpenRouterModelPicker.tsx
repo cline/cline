@@ -207,11 +207,17 @@ const OpenRouterModelPicker: React.FC = () => {
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					You can use{" "}
+					The extension automatically fetches the latest list of models available on{" "}
 					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-						any model on OpenRouter
-					</VSCodeLink>{" "}
-					with Cline. (Try searching for "free" to see if there are free models currently available.)
+						OpenRouter.
+					</VSCodeLink>
+					If you're unsure which model to choose, Cline works best with{" "}
+					<VSCodeLink
+						style={{ display: "inline", fontSize: "inherit" }}
+						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
+						anthropic/claude-3.5-sonnet:beta.
+					</VSCodeLink>
+					You can also try searching for "free" to see if there are any free models currently available.
 				</p>
 			)}
 		</>
