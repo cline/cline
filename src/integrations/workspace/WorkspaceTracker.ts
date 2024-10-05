@@ -95,7 +95,7 @@ class WorkspaceTracker {
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = path.resolve(filePath)
+		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 
