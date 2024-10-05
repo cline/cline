@@ -623,10 +623,7 @@ export class ClaudeDev {
 
 	// Tools
 
-	async executeCommandTool(
-		command: string,
-		returnEmptyStringOnSuccess: boolean = false
-	): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
@@ -691,10 +688,6 @@ export class ClaudeDev {
 			]
 		}
 
-		// for attemptCompletion, we don't want to return the command output
-		if (returnEmptyStringOnSuccess) {
-			return [false, ""]
-		}
 		if (completed) {
 			return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
 		} else {
@@ -1000,6 +993,9 @@ export class ClaudeDev {
 								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
 								// in other words, you must always repeat the block.partial logic here
 								if (!this.diffViewProvider.isEditing) {
+									// show gui message before showing edit animation
+									const partialMessage = JSON.stringify(sharedMessageProps)
+									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1339,7 +1335,7 @@ export class ClaudeDev {
 								}
 								const [userRejected, result] = await this.executeCommandTool(command)
 								if (userRejected) {
-									this.didRejectTool = true // test whats going on here
+									this.didRejectTool = true
 								}
 								pushToolResult(result)
 								break
@@ -1450,6 +1446,7 @@ export class ClaudeDev {
 								}
 								this.consecutiveMistakeCount = 0
 
+								let commandResult: ToolResponse | undefined
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// havent sent a command message yet so first send completion_result then command
@@ -1461,14 +1458,14 @@ export class ClaudeDev {
 									if (!didApprove) {
 										break
 									}
-									const [userRejected, commandResult] = await this.executeCommandTool(command!, true)
-									if (commandResult) {
-										if (userRejected) {
-											this.didRejectTool = true // test whats going on here
-										}
-										pushToolResult(commandResult)
+									const [userRejected, execCommandResult] = await this.executeCommandTool(command!)
+									if (userRejected) {
+										this.didRejectTool = true
+										pushToolResult(execCommandResult)
 										break
 									}
+									// user didn't reject, but the command may have output
+									commandResult = execCommandResult
 								} else {
 									await this.say("completion_result", result, undefined, false)
 								}
@@ -1480,12 +1477,26 @@ export class ClaudeDev {
 									break
 								}
 								await this.say("user_feedback", text ?? "", images)
-								pushToolResult(
-									formatResponse.toolResult(
-										`The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-										images
-									)
-								)
+
+								const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+								if (commandResult) {
+									if (typeof commandResult === "string") {
+										toolResults.push({ type: "text", text: commandResult })
+									} else if (Array.isArray(commandResult)) {
+										toolResults.push(...commandResult)
+									}
+								}
+								toolResults.push({
+									type: "text",
+									text: `The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
+								})
+								toolResults.push(...formatResponse.imageBlocks(images))
+								this.userMessageContent.push({
+									type: "text",
+									text: `${toolDescription()} Result:`,
+								})
+								this.userMessageContent.push(...toolResults)
+
 								break
 							}
 						} catch (error) {
