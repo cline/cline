@@ -258,7 +258,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				didJustSendMessageRef.current = true
 				setTimeout(() => {
 					didJustSendMessageRef.current = false
-				}, 1_000)
+				}, 400)
 			}
 		},
 		[messages.length, claudeAsk]
@@ -496,7 +496,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleRowHeightChange = useCallback(() => {
-		if (isAtBottomRef.current || didClickScrollToBottom || !didScrollUpRef.current) {
+		if (
+			isAtBottomRef.current ||
+			didClickScrollToBottom ||
+			!didScrollUpRef.current ||
+			didJustSendMessageRef.current
+		) {
 			scrollToBottomSmooth()
 		}
 	}, [scrollToBottomSmooth, didClickScrollToBottom])
