@@ -279,6 +279,10 @@ const StyledMarkdown = styled.div`
 	p {
 		white-space: pre-wrap;
 	}
+
+	a {
+		text-decoration: none;
+	}
 `
 
 export const ModelDescriptionMarkdown = memo(
