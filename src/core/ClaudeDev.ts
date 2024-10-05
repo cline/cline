@@ -31,7 +31,6 @@ import {
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
-import { ToolName } from "../shared/Tool"
 import { ClaudeAskResponse } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
@@ -368,7 +367,7 @@ export class ClaudeDev {
 		}
 	}
 
-	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
+	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
 			`Claude tried to use ${toolName}${
