@@ -51,10 +51,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const isAtBottomRef = useRef(false)
-	const [didScrollUp, setDidScrollUp] = useState(false)
+
 	const lastScrollTopRef = useRef(0)
 	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
-	const [didJustSendMessage, setDidJustSendMessage] = useState(false)
+	const didJustSendMessageRef = useRef(false)
+	const didScrollUpRef = useRef(false)
+	const didJustAddMessagesRef = useRef(false)
 	const [didClickCancel, setDidClickCancel] = useState(false)
 
 	// UI layout depends on the last 2 messages
@@ -253,9 +255,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				// setSecondaryButtonText(undefined)
 
 				// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
-				setDidJustSendMessage(true)
+				didJustSendMessageRef.current = true
 				setTimeout(() => {
-					setDidJustSendMessage(false)
+					didJustSendMessageRef.current = false
 				}, 1_000)
 			}
 		},
@@ -494,10 +496,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleRowHeightChange = useCallback(() => {
-		if (isAtBottomRef.current || didClickScrollToBottom || !didScrollUp) {
+		if (isAtBottomRef.current || didClickScrollToBottom || !didScrollUpRef.current) {
 			scrollToBottomSmooth()
 		}
-	}, [scrollToBottomSmooth, didClickScrollToBottom, didScrollUp])
+	}, [scrollToBottomSmooth, didClickScrollToBottom])
 
 	/*
 	- didScrollUp lets us know if the user scrolled up, so we don't auto scroll down anymore during stream
@@ -507,9 +509,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	- interestingly followoutput would scroll even if the isAtBottom param was false or wrong, so if didScrollUp we don't followoutput to mitigate that issue
 	*/
 	const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
+		if (didJustAddMessagesRef.current) {
+			// ignore scrolls that occur when new messages are added
+			return
+		}
 		const currentScrollTop = e.currentTarget.scrollTop
 		if (currentScrollTop < lastScrollTopRef.current) {
-			setDidScrollUp(true)
+			didScrollUpRef.current = true
 		}
 		lastScrollTopRef.current = currentScrollTop
 	}, [])
@@ -530,6 +536,37 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 		}
 	}, [messages, scrollToBottomAuto, scrollToBottomSmooth])
+
+	useEffect(() => {
+		let shouldScroll = false
+		if (didJustSendMessageRef.current) {
+			shouldScroll = true
+		}
+		if (isAtBottomRef.current) {
+			shouldScroll = true
+		}
+		if (didScrollUpRef.current) {
+			// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
+			shouldScroll = false
+		} else {
+			shouldScroll = true
+		}
+
+		if (shouldScroll) {
+			setTimeout(() => {
+				scrollToBottomSmooth()
+			}, 50)
+			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
+		}
+	}, [visibleMessages.length, scrollToBottomSmooth])
+
+	useEffect(() => {
+		didJustAddMessagesRef.current = true
+		const timer = setTimeout(() => {
+			didJustAddMessagesRef.current = false
+		}, 100)
+		return () => clearTimeout(timer)
+	}, [visibleMessages.length])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -610,26 +647,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							flexGrow: 1,
 							overflowY: "scroll", // always show scrollbar
 						}}
-						// followOutput works much more reliably than manually tracking visible messages count. This will scroll when the count changes, so for cases where the row height changes, we use onHeightChange to scroll.
-						followOutput={(isAtBottom: boolean) => {
-							if (didJustSendMessage) {
-								return "smooth"
-							}
-							if (isAtBottom) {
-								return "smooth"
-							}
-							if (didScrollUp) {
-								// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
-								return false
-							} else {
-								return "smooth"
-							}
-							// if (isAtBottom) {
-							// 	return "smooth" // can be 'auto' or false to avoid scrolling
-							// } else {
-							// 	return false
-							// }
-						}}
+						// followoutput would not create smooth scroll animation, so we use refs to manually scroll to bottom when needed
+						// followOutput={(isAtBottom: boolean) => {
+						// 	if (didJustSendMessage) {
+						// 		return "smooth"
+						// 	}
+						// 	if (isAtBottom) {
+						// 		return "smooth"
+						// 	}
+						// 	if (didScrollUp) {
+						// 		// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
+						// 		return false
+						// 	} else {
+						// 		return "smooth"
+						// 	}
+						// 	// if (isAtBottom) {
+						// 	// 	return "smooth" // can be 'auto' or false to avoid scrolling
+						// 	// } else {
+						// 	// 	return false
+						// 	// }
+						// }}
 						components={{
 							Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
 						}}
@@ -648,10 +685,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							isAtBottomRef.current = isAtBottom
 							// setShowScrollToBottom(!value)
 							if (isAtBottom) {
-								setDidScrollUp(false)
+								didScrollUpRef.current = false
 								setDidClickScrollToBottom(false) // reset for next time user clicks button
 							}
-							setShowScrollToBottom(didScrollUp && !isAtBottom)
+							setShowScrollToBottom(didScrollUpRef.current && !isAtBottom)
 						}}
 						atBottomThreshold={10} // anything lower causes issues with followOutput
 						onScroll={handleScroll}
