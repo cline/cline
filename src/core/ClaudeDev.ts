@@ -782,6 +782,9 @@ export class ClaudeDev {
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
+				if (this.didRejectTool) {
+					break
+				}
 				let content = block.content
 				if (block.partial && content) {
 					// Remove partial XML tag at the very end of the content
@@ -833,11 +836,16 @@ export class ClaudeDev {
 
 				if (this.didRejectTool) {
 					// ignore any tool content after user has rejected tool once
-					// we'll fill it in with a rejection message when the message is complete
 					if (!block.partial) {
 						this.userMessageContent.push({
 							type: "text",
 							text: `Skipping tool ${toolDescription()} due to user rejecting a previous tool.`,
+						})
+					} else {
+						// partial tool after user rejected a previous tool
+						this.userMessageContent.push({
+							type: "text",
+							text: `Tool ${toolDescription()} was interrupted and not executed due to user rejecting a previous tool.`,
 						})
 					}
 					break
@@ -1494,7 +1502,8 @@ export class ClaudeDev {
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
-		if (!block.partial) {
+		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
+		if (!block.partial || this.didRejectTool) {
 			// block is finished streaming and executing
 			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
 				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
@@ -1520,12 +1529,9 @@ export class ClaudeDev {
 	}
 
 	parseAssistantMessage(assistantMessage: string) {
-		let textContent: TextContent = {
-			type: "text",
-			content: "",
-			partial: true,
-		}
-		let toolUses: ToolUse[] = []
+		let contentBlocks: AssistantMessageContent[] = []
+		let currentTextContent: TextContent | undefined = undefined
+		let currentTextContentStartIndex = 0
 		let currentToolUse: ToolUse | undefined = undefined
 		let currentToolUseStartIndex = 0
 		let currentParamName: ToolParamName | undefined = undefined
@@ -1559,7 +1565,7 @@ export class ClaudeDev {
 				if (currentToolValue.endsWith(toolUseClosingTag)) {
 					// end of a tool use
 					currentToolUse.partial = false
-					toolUses.push(currentToolUse)
+					contentBlocks.push(currentToolUse)
 					currentToolUse = undefined
 					continue
 				} else {
@@ -1597,6 +1603,7 @@ export class ClaudeDev {
 
 			// no currentToolUse
 
+			let didStartToolUse = false
 			const possibleToolUseOpeningTags = toolUseNames.map((name) => `<${name}>`)
 			for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
 				if (accumulator.endsWith(toolUseOpeningTag)) {
@@ -1608,17 +1615,32 @@ export class ClaudeDev {
 						partial: true,
 					}
 					currentToolUseStartIndex = accumulator.length
-					// this also indicates the end of the text content
-					textContent.partial = false
-					// remove the partially accumulated tool use tag from the end of text (<tool)
-					textContent.content = textContent.content.slice(0, -toolUseOpeningTag.slice(0, -1).length).trim()
+					// this also indicates the end of the current text content
+					if (currentTextContent) {
+						currentTextContent.partial = false
+						// remove the partially accumulated tool use tag from the end of text (<tool)
+						currentTextContent.content = currentTextContent.content
+							.slice(0, -toolUseOpeningTag.slice(0, -1).length)
+							.trim()
+						contentBlocks.push(currentTextContent)
+						currentTextContent = undefined
+					}
+
+					didStartToolUse = true
 					break
 				}
 			}
 
-			// only add text content if we haven't started a tool yet
-			if (textContent.partial) {
-				textContent.content = accumulator.trim()
+			if (!didStartToolUse) {
+				// no tool use, so it must be text either at the beginning or between tools
+				if (currentTextContent === undefined) {
+					currentTextContentStartIndex = i
+				}
+				currentTextContent = {
+					type: "text",
+					content: accumulator.slice(currentTextContentStartIndex).trim(),
+					partial: true,
+				}
 			}
 		}
 
@@ -1628,11 +1650,17 @@ export class ClaudeDev {
 				// tool call has a parameter that was not completed
 				currentToolUse.params[currentParamName] = accumulator.slice(currentParamValueStartIndex).trim()
 			}
-			toolUses.push(currentToolUse)
+			contentBlocks.push(currentToolUse)
+		}
+
+		// Note: it doesnt matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
+		if (currentTextContent) {
+			// stream did not complete text content, add it as partial
+			contentBlocks.push(currentTextContent)
 		}
 
 		const prevLength = this.assistantMessageContent.length
-		this.assistantMessageContent = [textContent, ...toolUses]
+		this.assistantMessageContent = contentBlocks
 		if (this.assistantMessageContent.length > prevLength) {
 			this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 		}
@@ -1805,7 +1833,7 @@ export class ClaudeDev {
 					if (this.didRejectTool) {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
-						this.userMessageContentReady = true
+						// this.userMessageContentReady = true // instead of setting this premptively, we allow the present iterator to finish and set userMessageContentReady when its ready
 						break
 					}
 				}
@@ -1826,13 +1854,15 @@ export class ClaudeDev {
 
 			this.didCompleteReadingStream = true
 
-			// in case no tool calls were made or tool call wasn't closed properly, set partial to false
-			// should not do this if text block is not the last block, since presentAssistantMessage presents the last block
-			if (this.assistantMessageContent.length === 1 && this.assistantMessageContent[0].partial) {
-				// this.assistantMessageContent.forEach((e) => (e.partial = false)) // cant just do this bc a tool could be in the middle of executing
-				// this was originally intended just to update text content in case no tools were called
-				this.assistantMessageContent[0].partial = false
-				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request
+			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
+			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
+			const partialBlocks = this.assistantMessageContent.filter((block) => block.partial)
+			partialBlocks.forEach((block) => {
+				block.partial = false
+			})
+			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // cant just do this bc a tool could be in the middle of executing ()
+			if (partialBlocks.length > 0) {
+				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
 			updateApiReqMsg()
@@ -1848,12 +1878,13 @@ export class ClaudeDev {
 					content: [{ type: "text", text: assistantMessage }],
 				})
 
+				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
-				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (not you should not call presentAssistantMessage since if the last block is completed it will be presented again)
-				const completeBlocks = this.assistantMessageContent.filter((block) => !block.partial) // if there are any partial blocks after the stream ended we can consider them invalid
-				if (this.currentStreamingContentIndex >= completeBlocks.length) {
-					this.userMessageContentReady = true
-				}
+				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
+				// const completeBlocks = this.assistantMessageContent.filter((block) => !block.partial) // if there are any partial blocks after the stream ended we can consider them invalid
+				// if (this.currentStreamingContentIndex >= completeBlocks.length) {
+				// 	this.userMessageContentReady = true
+				// }
 
 				await pWaitFor(() => this.userMessageContentReady)
 
