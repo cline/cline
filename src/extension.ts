@@ -56,8 +56,8 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	)
 
-	const openClaudeDevInNewTab = async () => {
-		outputChannel.appendLine("Opening Claude Dev in new tab")
+	const openClineInNewTab = async () => {
+		outputChannel.appendLine("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabProvider = new ClineProvider(context, outputChannel)
@@ -89,8 +89,8 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.popoutButtonTapped", openClaudeDevInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.openInNewTab", openClaudeDevInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.popoutButtonTapped", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
