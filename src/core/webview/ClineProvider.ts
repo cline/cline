@@ -57,7 +57,7 @@ type GlobalStateKey =
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
-	claudeMessages: "claude_messages.json",
+	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 }
 
@@ -651,7 +651,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		historyItem: HistoryItem
 		taskDirPath: string
 		apiConversationHistoryFilePath: string
-		claudeMessagesFilePath: string
+		uiMessagesFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
@@ -659,7 +659,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
-			const claudeMessagesFilePath = path.join(taskDirPath, GlobalFileNames.claudeMessages)
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
 			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
@@ -667,12 +667,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					historyItem,
 					taskDirPath,
 					apiConversationHistoryFilePath,
-					claudeMessagesFilePath,
+					uiMessagesFilePath,
 					apiConversationHistory,
 				}
 			}
 		}
 		// if we tried to get a task that doesn't exist, remove it from state
+		// FIXME: this seems to happen sometimes when the json file doesnt save to disk for some reason
 		await this.deleteTaskFromState(id)
 		throw new Error("Task not found")
 	}
@@ -696,20 +697,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.clearTask()
 		}
 
-		const { taskDirPath, apiConversationHistoryFilePath, claudeMessagesFilePath } = await this.getTaskWithId(id)
+		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+
+		await this.deleteTaskFromState(id)
 
 		// Delete the task files
 		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 		if (apiConversationHistoryFileExists) {
 			await fs.unlink(apiConversationHistoryFilePath)
 		}
-		const claudeMessagesFileExists = await fileExistsAtPath(claudeMessagesFilePath)
-		if (claudeMessagesFileExists) {
-			await fs.unlink(claudeMessagesFilePath)
+		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+		if (uiMessagesFileExists) {
+			await fs.unlink(uiMessagesFilePath)
+		}
+		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+		if (await fileExistsAtPath(legacyMessagesFilePath)) {
+			await fs.unlink(legacyMessagesFilePath)
 		}
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-
-		await this.deleteTaskFromState(id)
 	}
 
 	async deleteTaskFromState(id: string) {

@@ -151,10 +151,17 @@ export class Cline {
 	}
 
 	private async getSavedClaudeMessages(): Promise<ClineMessage[]> {
-		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.claudeMessages)
-		const fileExists = await fileExistsAtPath(filePath)
-		if (fileExists) {
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
+		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
+		} else {
+			// check old location
+			const oldPath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+			if (await fileExistsAtPath(oldPath)) {
+				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+				await fs.unlink(oldPath) // remove old file
+				return data
+			}
 		}
 		return []
 	}
@@ -171,7 +178,7 @@ export class Cline {
 
 	private async saveClaudeMessages() {
 		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.claudeMessages)
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.claudeMessages))
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.claudeMessages.slice(1))))
