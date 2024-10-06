@@ -17,7 +17,7 @@ interface ChatRowProps {
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClaudeMessage
 	isLast: boolean
-	onHeightChange: (height: number) => void
+	onHeightChange: (isTaller: boolean) => void
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -44,10 +44,10 @@ const ChatRow = memo(
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
 			// height starts off at Infinity
 			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
-				prevHeightRef.current = height
 				if (!isInitialRender) {
-					onHeightChange(height)
+					onHeightChange(height > prevHeightRef.current)
 				}
+				prevHeightRef.current = height
 			}
 		}, [height, isLast, onHeightChange, message])
 

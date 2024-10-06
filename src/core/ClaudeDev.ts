@@ -36,20 +36,12 @@ import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
-import {
-	AssistantMessageContent,
-	TextContent,
-	ToolParamName,
-	toolParamNames,
-	ToolUse,
-	ToolUseName,
-	toolUseNames,
-} from "./prompts/AssistantMessage"
+import { AssistantMessageContent, ToolParamName, ToolUseName } from "./prompts/AssistantMessage"
+import { parseAssistantMessage } from "./prompts/parse-assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClaudeDevProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
-import { parseAssistantMessage } from "./prompts/parse-assistant-message"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -419,7 +411,7 @@ export class ClaudeDev {
 		if (lastApiReqStartedIndex !== -1) {
 			const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
 			const { cost, cancelReason }: ClaudeApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
-			if (cost === undefined || cancelReason === undefined) {
+			if (cost === undefined && cancelReason === undefined) {
 				modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
 			}
 		}

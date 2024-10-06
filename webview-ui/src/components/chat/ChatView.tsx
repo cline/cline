@@ -46,18 +46,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
-
+	const scrollContainerRef = useRef<HTMLDivElement>(null)
+	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
-	const isAtBottomRef = useRef(false)
-
-	const lastScrollTopRef = useRef(0)
-	const [didClickScrollToBottom, setDidClickScrollToBottom] = useState(false)
-	const didJustSendMessageRef = useRef(false)
-	const didScrollUpRef = useRef(false)
-	const didJustAddMessagesRef = useRef(false)
-	const [didClickCancel, setDidClickCancel] = useState(false)
+	const [isAtBottom, setIsAtBottom] = useState(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -253,12 +248,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setEnableButtons(false)
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
-
-				// when sending a message user should be scrolled to the bottom (this also addresses a bug where sometimes when sending a message virtuoso would jump upwards, possibly due to textarea changing in size)
-				didJustSendMessageRef.current = true
-				setTimeout(() => {
-					didJustSendMessageRef.current = false
-				}, 400)
+				disableAutoScrollRef.current = false
 			}
 		},
 		[messages.length, claudeAsk]
@@ -467,7 +457,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				[ts]: !prev[ts],
 			}))
 
-			if (isCollapsing && isAtBottomRef.current) {
+			// disable auto scroll when user expands row
+			if (!isCollapsing) {
+				disableAutoScrollRef.current = true
+			}
+
+			if (isCollapsing && isAtBottom) {
 				const timer = setTimeout(() => {
 					scrollToBottomAuto()
 				}, 0)
@@ -492,72 +487,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[visibleMessages, expandedRows, scrollToBottomAuto]
+		[visibleMessages, expandedRows, scrollToBottomAuto, isAtBottom]
 	)
 
-	const handleRowHeightChange = useCallback(() => {
-		if (
-			isAtBottomRef.current ||
-			didClickScrollToBottom ||
-			!didScrollUpRef.current ||
-			didJustSendMessageRef.current
-		) {
-			scrollToBottomSmooth()
-		}
-	}, [scrollToBottomSmooth, didClickScrollToBottom])
-
-	/*
-	- didScrollUp lets us know if the user scrolled up, so we don't auto scroll down anymore during stream
-	    - this variable is important to make sure we don't show the scroll to bottom button during streaming since isAtBottom gets set to false if the streamed in content is taller than the bottom threshold.
-	- didClickScrollToBottom is used to keep scrolling down when last row height changes, as isAtBottom may not update fast enough during stream
-	- we use the following scroll listener to detect that the current scroll point is less than the last scroll point, and in atBottomStateChange we set this back to false if isAtBottom. This way we can know when to show the scroll to bottom button.
-	- interestingly followoutput would scroll even if the isAtBottom param was false or wrong, so if didScrollUp we don't followoutput to mitigate that issue
-	*/
-	const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
-		if (didJustAddMessagesRef.current) {
-			// ignore scrolls that occur when new messages are added
-			return
-		}
-		const currentScrollTop = e.currentTarget.scrollTop
-		if (currentScrollTop < lastScrollTopRef.current) {
-			didScrollUpRef.current = true
-		}
-		lastScrollTopRef.current = currentScrollTop
-	}, [])
-
-	useEffect(() => {
-		const lastMessage = messages.at(-1)
-		if (lastMessage) {
-			switch (lastMessage.say) {
-				case "api_req_retried": {
-					// unique case where the api_req_started row will shrink in size when scrollview at bottom, causing didScrollUp to get set to true and followoutput to break. To mitigate this when an api request is retried, it's safe to assume they're already scrolled to the bottom
-					const timer = setTimeout(() => {
+	const handleRowHeightChange = useCallback(
+		(isTaller: boolean) => {
+			if (!disableAutoScrollRef.current) {
+				if (isTaller) {
+					scrollToBottomSmooth()
+				} else {
+					setTimeout(() => {
 						scrollToBottomAuto()
-					}, 50)
-					return () => clearTimeout(timer)
+					}, 0)
 				}
-				default:
-					break
 			}
-		}
-	}, [messages, scrollToBottomAuto, scrollToBottomSmooth])
+		},
+		[scrollToBottomSmooth, scrollToBottomAuto]
+	)
 
 	useEffect(() => {
-		let shouldScroll = false
-		if (didJustSendMessageRef.current) {
-			shouldScroll = true
-		}
-		if (isAtBottomRef.current) {
-			shouldScroll = true
-		}
-		if (didScrollUpRef.current) {
-			// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
-			shouldScroll = false
-		} else {
-			shouldScroll = true
-		}
-
-		if (shouldScroll) {
+		if (!disableAutoScrollRef.current) {
 			setTimeout(() => {
 				scrollToBottomSmooth()
 			}, 50)
@@ -565,13 +514,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [visibleMessages.length, scrollToBottomSmooth])
 
-	useEffect(() => {
-		didJustAddMessagesRef.current = true
-		const timer = setTimeout(() => {
-			didJustAddMessagesRef.current = false
-		}, 100)
-		return () => clearTimeout(timer)
-	}, [visibleMessages.length])
+	const handleWheel = useCallback((event: Event) => {
+		const wheelEvent = event as WheelEvent
+		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
+			if (scrollContainerRef.current?.contains(wheelEvent.target as Node)) {
+				// user scrolled up
+				disableAutoScrollRef.current = true
+			}
+		}
+	}, [])
+	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
@@ -644,61 +596,33 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			)}
 			{task && (
 				<>
-					<Virtuoso
-						ref={virtuosoRef}
-						key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
-						className="scrollable"
-						style={{
-							flexGrow: 1,
-							overflowY: "scroll", // always show scrollbar
-						}}
-						// followoutput would not create smooth scroll animation, so we use refs to manually scroll to bottom when needed
-						// followOutput={(isAtBottom: boolean) => {
-						// 	if (didJustSendMessage) {
-						// 		return "smooth"
-						// 	}
-						// 	if (isAtBottom) {
-						// 		return "smooth"
-						// 	}
-						// 	if (didScrollUp) {
-						// 		// would sometimes get set to true even when new items get added. followoutput taking us to bottom will set this back to false
-						// 		return false
-						// 	} else {
-						// 		return "smooth"
-						// 	}
-						// 	// if (isAtBottom) {
-						// 	// 	return "smooth" // can be 'auto' or false to avoid scrolling
-						// 	// } else {
-						// 	// 	return false
-						// 	// }
-						// }}
-						components={{
-							Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
-						}}
-						// followOutput={(isAtBottom) => {
-						// 	const lastMessage = modifiedMessages.at(-1)
-						// 	if (lastMessage && shouldShowChatRow(lastMessage)) {
-						// 		return "smooth"
-						// 	}
-						// 	return false
-						// }}
-						// increasing top by 3_000 to prevent jumping around when user collapses a row
-						increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-						data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
-						itemContent={itemContent}
-						atBottomStateChange={(isAtBottom) => {
-							isAtBottomRef.current = isAtBottom
-							// setShowScrollToBottom(!value)
-							if (isAtBottom) {
-								didScrollUpRef.current = false
-								setDidClickScrollToBottom(false) // reset for next time user clicks button
-							}
-							setShowScrollToBottom(didScrollUpRef.current && !isAtBottom)
-						}}
-						atBottomThreshold={10} // anything lower causes issues with followOutput
-						onScroll={handleScroll}
-						initialTopMostItemIndex={visibleMessages.length - 1}
-					/>
+					<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
+						<Virtuoso
+							ref={virtuosoRef}
+							key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
+							className="scrollable"
+							style={{
+								flexGrow: 1,
+								overflowY: "scroll", // always show scrollbar
+							}}
+							components={{
+								Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
+							}}
+							// increasing top by 3_000 to prevent jumping around when user collapses a row
+							increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+							data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
+							itemContent={itemContent}
+							atBottomStateChange={(isAtBottom) => {
+								setIsAtBottom(isAtBottom)
+								if (isAtBottom) {
+									disableAutoScrollRef.current = false
+								}
+								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
+							}}
+							atBottomThreshold={10} // anything lower causes issues with followOutput
+							initialTopMostItemIndex={visibleMessages.length - 1}
+						/>
+					</div>
 					{showScrollToBottom ? (
 						<div
 							style={{
@@ -708,7 +632,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							<ScrollToBottomButton
 								onClick={() => {
 									scrollToBottomSmooth()
-									setDidClickScrollToBottom(true)
+									disableAutoScrollRef.current = false
 								}}>
 								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
 							</ScrollToBottomButton>
@@ -765,7 +689,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onSelectImages={selectImages}
 				shouldDisableImages={shouldDisableImages}
 				onHeightChange={() => {
-					if (isAtBottomRef.current) {
+					if (isAtBottom) {
 						scrollToBottomAuto()
 					}
 				}}
