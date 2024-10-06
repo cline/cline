@@ -51,7 +51,7 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
-export class ClaudeDev {
+export class Cline {
 	readonly taskId: string
 	api: ApiHandler
 	private terminalManager: TerminalManager
@@ -1731,7 +1731,7 @@ export class ClaudeDev {
 				await abortStream("streaming_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
 				const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
 				if (history) {
-					await this.providerRef.deref()?.initClaudeDevWithHistoryItem(history.historyItem)
+					await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
 					// await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
