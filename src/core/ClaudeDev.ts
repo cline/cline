@@ -41,7 +41,7 @@ import { parseAssistantMessage } from "./prompts/parse-assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
-import { ClineProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
+import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution

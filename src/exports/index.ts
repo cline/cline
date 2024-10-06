@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { ClineProvider } from "../core/webview/ClaudeDevProvider"
+import { ClineProvider } from "../core/webview/ClineProvider"
 import { ClaudeDevAPI } from "./claude-dev"
 
 export function createClaudeDevAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClaudeDevAPI {
