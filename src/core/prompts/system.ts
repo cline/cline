@@ -11,7 +11,7 @@ export const SYSTEM_PROMPT = async (
 
 TOOL USE
 
-You have access to a set of powerful tools that grant you a wide range of capabilities. 
+You have access to a set of powerful tools that grant you a wide range of capabilities. You can use one tool per message, and will receive the result of that tool use in the user's response.
 
 # Tool Use Formatting
 
