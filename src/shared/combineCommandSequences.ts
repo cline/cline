@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "./ExtensionMessage"
+import { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Combines sequences of command and command_output messages in an array of ClaudeMessages.
@@ -20,8 +20,8 @@ import { ClaudeMessage } from "./ExtensionMessage"
  * const result = simpleCombineCommandSequences(messages);
  * // Result: [{ type: 'ask', ask: 'command', text: 'ls\nfile1.txt\nfile2.txt', ts: 1625097600000 }]
  */
-export function combineCommandSequences(messages: ClaudeMessage[]): ClaudeMessage[] {
-	const combinedCommands: ClaudeMessage[] = []
+export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[] {
+	const combinedCommands: ClineMessage[] = []
 
 	// First pass: combine commands with their outputs
 	for (let i = 0; i < messages.length; i++) {

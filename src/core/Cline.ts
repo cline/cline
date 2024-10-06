@@ -25,7 +25,7 @@ import {
 	ClaudeApiReqCancelReason,
 	ClaudeApiReqInfo,
 	ClaudeAsk,
-	ClaudeMessage,
+	ClineMessage,
 	ClaudeSay,
 	ClaudeSayTool,
 } from "../shared/ExtensionMessage"
@@ -60,7 +60,7 @@ export class Cline {
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
-	claudeMessages: ClaudeMessage[] = []
+	claudeMessages: ClineMessage[] = []
 	private askResponse?: ClaudeAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -150,7 +150,7 @@ export class Cline {
 		}
 	}
 
-	private async getSavedClaudeMessages(): Promise<ClaudeMessage[]> {
+	private async getSavedClaudeMessages(): Promise<ClineMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.claudeMessages)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
@@ -159,12 +159,12 @@ export class Cline {
 		return []
 	}
 
-	private async addToClaudeMessages(message: ClaudeMessage) {
+	private async addToClaudeMessages(message: ClineMessage) {
 		this.claudeMessages.push(message)
 		await this.saveClaudeMessages()
 	}
 
-	private async overwriteClaudeMessages(newMessages: ClaudeMessage[]) {
+	private async overwriteClaudeMessages(newMessages: ClineMessage[]) {
 		this.claudeMessages = newMessages
 		await this.saveClaudeMessages()
 	}

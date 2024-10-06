@@ -22,7 +22,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	ollamaModels?: string[]
 	filePaths?: string[]
-	partialMessage?: ClaudeMessage
+	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
 }
 
@@ -32,12 +32,12 @@ export interface ExtensionState {
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
 	uriScheme?: string
-	claudeMessages: ClaudeMessage[]
+	claudeMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 }
 
-export interface ClaudeMessage {
+export interface ClineMessage {
 	ts: number
 	type: "ask" | "say"
 	ask?: ClaudeAsk

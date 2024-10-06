@@ -1,4 +1,4 @@
-import { ClaudeMessage } from "./ExtensionMessage"
+import { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Combines API request start and finish messages in an array of ClaudeMessages.
@@ -18,8 +18,8 @@ import { ClaudeMessage } from "./ExtensionMessage"
  * const result = combineApiRequests(messages);
  * // Result: [{ type: "say", say: "api_req_started", text: '{"request":"GET /api/data","cost":0.005}', ts: 1000 }]
  */
-export function combineApiRequests(messages: ClaudeMessage[]): ClaudeMessage[] {
-	const combinedApiRequests: ClaudeMessage[] = []
+export function combineApiRequests(messages: ClineMessage[]): ClineMessage[] {
+	const combinedApiRequests: ClineMessage[] = []
 
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "say" && messages[i].say === "api_req_started") {
