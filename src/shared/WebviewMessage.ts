@@ -29,4 +29,4 @@ export interface WebviewMessage {
 	bool?: boolean
 }
 
-export type ClineAskResponse = "yesButtonTapped" | "noButtonTapped" | "messageResponse"
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

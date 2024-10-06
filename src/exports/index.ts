@@ -17,7 +17,7 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 			outputChannel.appendLine("Starting new task")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",

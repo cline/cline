@@ -62,27 +62,27 @@
     },
     "commands": [
       {
-        "command": "claude-dev.plusButtonTapped",
+        "command": "cline.plusButtonClicked",
         "title": "New Task",
         "icon": "$(add)"
       },
       {
-        "command": "claude-dev.historyButtonTapped",
+        "command": "cline.historyButtonClicked",
         "title": "History",
         "icon": "$(history)"
       },
       {
-        "command": "claude-dev.popoutButtonTapped",
+        "command": "cline.popoutButtonClicked",
         "title": "Open in Editor",
         "icon": "$(link-external)"
       },
       {
-        "command": "claude-dev.settingsButtonTapped",
+        "command": "cline.settingsButtonClicked",
         "title": "Settings",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "claude-dev.openInNewTab",
+        "command": "cline.openInNewTab",
         "title": "Open In New Tab",
         "category": "Cline"
       }
@@ -90,22 +90,22 @@
     "menus": {
       "view/title": [
         {
-          "command": "claude-dev.plusButtonTapped",
+          "command": "cline.plusButtonClicked",
           "group": "navigation@1",
           "when": "view == claude-dev.SidebarProvider"
         },
         {
-          "command": "claude-dev.historyButtonTapped",
+          "command": "cline.historyButtonClicked",
           "group": "navigation@2",
           "when": "view == claude-dev.SidebarProvider"
         },
         {
-          "command": "claude-dev.popoutButtonTapped",
+          "command": "cline.popoutButtonClicked",
           "group": "navigation@3",
           "when": "view == claude-dev.SidebarProvider"
         },
         {
-          "command": "claude-dev.settingsButtonTapped",
+          "command": "cline.settingsButtonClicked",
           "group": "navigation@4",
           "when": "view == claude-dev.SidebarProvider"
         }

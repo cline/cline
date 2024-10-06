@@ -269,7 +269,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "tool":
 			case "resume_task":
 			case "mistake_limit_reached":
-				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonTapped" })
+				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
 				break
 			case "completion_result":
 			case "resume_completed_task":
@@ -299,7 +299,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "command":
 			case "tool":
 				// responds to the API with a "This operation failed" and lets it try again
-				vscode.postMessage({ type: "askResponse", askResponse: "noButtonTapped" })
+				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
 		}
 		setTextAreaDisabled(true)

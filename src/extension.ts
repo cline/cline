@@ -34,11 +34,11 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
-			outputChannel.appendLine("Plus button tapped")
+		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
+			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		})
 	)
 
@@ -75,19 +75,19 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.popoutButtonTapped", openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.openInNewTab", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
+		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		})
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.historyButtonTapped", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonTapped" })
+		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
+			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
 		})
 	)
 

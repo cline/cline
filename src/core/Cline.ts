@@ -631,7 +631,7 @@ export class Cline {
 		const sendCommandOutput = async (line: string): Promise<void> => {
 			try {
 				const { response, text, images } = await this.ask("command_output", line)
-				if (response === "yesButtonTapped") {
+				if (response === "yesButtonClicked") {
 					// proceed while running
 				} else {
 					userFeedback = { text, images }
@@ -737,8 +737,8 @@ export class Cline {
 				"api_req_failed",
 				error.message ?? JSON.stringify(serializeError(error), null, 2)
 			)
-			if (response !== "yesButtonTapped") {
-				// this will never happen since if noButtonTapped, we will clear current task, aborting this instance
+			if (response !== "yesButtonClicked") {
+				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 				throw new Error("API request failed")
 			}
 			await this.say("api_req_retried")
@@ -877,7 +877,7 @@ export class Cline {
 
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
-					if (response !== "yesButtonTapped") {
+					if (response !== "yesButtonClicked") {
 						if (response === "messageResponse") {
 							await this.say("user_feedback", text, images)
 							pushToolResult(
@@ -1404,8 +1404,8 @@ export class Cline {
 							resultToSend = ""
 						}
 						const { response, text, images } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
-						if (response === "yesButtonTapped") {
-							return [false, ""] // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
+						if (response === "yesButtonClicked") {
+							return [false, ""] // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 						}
 						await this.say("user_feedback", text ?? "", images)
 						return [
@@ -1488,8 +1488,8 @@ export class Cline {
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
 								const { response, text, images } = await this.ask("completion_result", "", false)
-								if (response === "yesButtonTapped") {
-									pushToolResult("") // signals to recursive loop to stop (for now this never happens since yesButtonTapped will trigger a new task)
+								if (response === "yesButtonClicked") {
+									pushToolResult("") // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 									break
 								}
 								await this.say("user_feedback", text ?? "", images)
@@ -1809,7 +1809,7 @@ export class Cline {
 
 			return didEndLoop // will always be false for now
 		} catch (error) {
-			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonTapped, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
+			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true
 		}
 	}
