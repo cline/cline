@@ -1,9 +1,9 @@
 import * as vscode from "vscode"
 import { ClineProvider } from "../core/webview/ClineProvider"
-import { ClaudeDevAPI } from "./claude-dev"
+import { ClineAPI } from "./cline"
 
-export function createClaudeDevAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClaudeDevAPI {
-	const api: ClaudeDevAPI = {
+export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClineAPI {
+	const api: ClineAPI = {
 		setCustomInstructions: async (value: string) => {
 			await sidebarProvider.updateCustomInstructions(value)
 			outputChannel.appendLine("Custom instructions set")
