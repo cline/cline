@@ -61,10 +61,10 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 }
 
-export class ClaudeDevProvider implements vscode.WebviewViewProvider {
+export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
-	private static activeInstances: Set<ClaudeDevProvider> = new Set()
+	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private claudeDev?: ClaudeDev
@@ -72,8 +72,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	private latestAnnouncementId = "sep-21-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
-		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
-		ClaudeDevProvider.activeInstances.add(this)
+		this.outputChannel.appendLine("ClineProvider instantiated")
+		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.revertKodu()
 	}
@@ -105,7 +105,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		this.outputChannel.appendLine("Disposing ClaudeDevProvider...")
+		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
 		if (this.view && "dispose" in this.view) {
@@ -121,10 +121,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
-		ClaudeDevProvider.activeInstances.delete(this)
+		ClineProvider.activeInstances.delete(this)
 	}
 
-	public static getVisibleInstance(): ClaudeDevProvider | undefined {
+	public static getVisibleInstance(): ClineProvider | undefined {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
@@ -752,10 +752,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	/*
 	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we could to reduce memory footprint in long conversations.
 
-	- We have to be careful of what state is shared between ClaudeDevProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
 
-	We need to use a unique identifier for each ClaudeDevProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 
 	For now since we don't need to store task history, we'll just use an identifier unique to this provider instance (since there can be several provider instances open at once).
 	However in the future when we implement task history, we'll need to use a unique identifier for each task. As well as manage a data structure that keeps track of task history with their associated identifiers and the task message itself, to present in a 'Task History' view.

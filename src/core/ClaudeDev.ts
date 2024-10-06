@@ -41,7 +41,7 @@ import { parseAssistantMessage } from "./prompts/parse-assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
-import { ClaudeDevProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
+import { ClineProvider, GlobalFileNames } from "./webview/ClaudeDevProvider"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -66,7 +66,7 @@ export class ClaudeDev {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClaudeDevProvider>
+	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAborting = false
 	private diffViewProvider: DiffViewProvider
@@ -82,7 +82,7 @@ export class ClaudeDev {
 	private didCompleteReadingStream = false
 
 	constructor(
-		provider: ClaudeDevProvider,
+		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,

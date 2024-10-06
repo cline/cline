@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode"
-import { ClaudeDevProvider } from "./core/webview/ClaudeDevProvider"
+import { ClineProvider } from "./core/webview/ClaudeDevProvider"
 import delay from "delay"
 import { createClaudeDevAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
@@ -39,10 +39,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// })
 	// context.subscriptions.push(disposable)
 
-	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
+	const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.sideBarId, sidebarProvider, {
+		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		})
 	)
@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 		outputChannel.appendLine("Opening Claude Dev in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabProvider = new ClaudeDevProvider(context, outputChannel)
+		const tabProvider = new ClineProvider(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -71,7 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClaudeDevProvider.tabPanelId, "Claude Dev", targetCol, {
+		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Claude Dev", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -126,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const handleUri = async (uri: vscode.Uri) => {
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleProvider = ClaudeDevProvider.getVisibleInstance()
+		const visibleProvider = ClineProvider.getVisibleInstance()
 		if (!visibleProvider) {
 			return
 		}
