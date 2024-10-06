@@ -308,7 +308,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</>
 				)}
 			</div>
-			{/* {apiProvider === "kodu" && (
+			{/* {apiProvider === "" && (
 				<div
 					style={{
 						backgroundColor: "color-mix(in srgb, var(--vscode-badge-background) 50%, transparent)",
@@ -324,11 +324,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					}}>
 					<div style={{ fontWeight: "500" }}>Credits Remaining:</div>
 					<div>
-						{formatPrice(koduCredits || 0)}
-						{(koduCredits || 0) < 1 && (
+						{formatPrice(Credits || 0)}
+						{(Credits || 0) < 1 && (
 							<>
 								{" "}
-								<VSCodeLink style={{ fontSize: "0.9em" }} href={getKoduAddCreditsUrl(vscodeUriScheme)}>
+								<VSCodeLink style={{ fontSize: "0.9em" }} href={getAddCreditsUrl(vscodeUriScheme)}>
 									(get more?)
 								</VSCodeLink>
 							</>

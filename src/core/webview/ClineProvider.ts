@@ -75,28 +75,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
-		this.revertKodu()
-	}
-
-	async revertKodu() {
-		const apiProvider = await this.getGlobalState("apiProvider")
-		if (apiProvider === "kodu") {
-			// switch back to previous provider
-			const anthropicKey = await this.getSecret("apiKey")
-			if (anthropicKey) {
-				await this.updateGlobalState("apiProvider", "anthropic" as ApiProvider)
-			} else {
-				const openRouterApiKey = await this.getSecret("openRouterApiKey")
-				if (openRouterApiKey) {
-					await this.updateGlobalState("apiProvider", "openrouter" as ApiProvider)
-				} else {
-					const awsAccessKey = await this.getSecret("awsAccessKey")
-					if (awsAccessKey) {
-						await this.updateGlobalState("apiProvider", "bedrock" as ApiProvider)
-					}
-				}
-			}
-		}
 	}
 
 	/*

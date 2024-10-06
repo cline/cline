@@ -460,7 +460,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										)}
 									</p>
 
-									{/* {apiProvider === "kodu" && (
+									{/* {apiProvider === "" && (
 											<div
 												style={{
 													display: "flex",
@@ -481,7 +481,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 														color: "var(--vscode-errorForeground)",
 													}}></i>
 												<span>
-													Uh-oh, this could be a problem on Kodu's end. We've been alerted and
+													Uh-oh, this could be a problem on end. We've been alerted and
 													will resolve this ASAP. You can also{" "}
 													<a
 														href="https://discord.gg/claudedev"
