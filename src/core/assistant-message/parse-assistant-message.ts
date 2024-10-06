@@ -6,7 +6,7 @@ import {
 	toolParamNames,
 	toolUseNames,
 	ToolUseName,
-} from "./AssistantMessage"
+} from "."
 
 export function parseAssistantMessage(assistantMessage: string) {
 	let contentBlocks: AssistantMessageContent[] = []
