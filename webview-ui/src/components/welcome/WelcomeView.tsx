@@ -22,7 +22,7 @@ const WelcomeView = () => {
 
 	return (
 		<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: "0 20px" }}>
-			<h2>Hi, I'm Claude Dev</h2>
+			<h2>Hi, I'm Cline</h2>
 			<p>
 				I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
 				<VSCodeLink
