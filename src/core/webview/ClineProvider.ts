@@ -180,9 +180,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
 
-		// Clear previous version's (0.0.6) claudeMessage cache from workspace state. We now store in global state with a unique identifier for each provider instance. We need to store globally rather than per workspace to eventually implement task history
-		this.updateWorkspaceState("claudeMessages", undefined)
-
 		this.outputChannel.appendLine("Webview view resolved")
 	}
 
@@ -719,7 +716,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			uriScheme: vscode.env.uriScheme,
-			claudeMessages: this.cline?.claudeMessages || [],
+			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 		}
@@ -739,41 +736,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
 
 	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
-
-	For now since we don't need to store task history, we'll just use an identifier unique to this provider instance (since there can be several provider instances open at once).
-	However in the future when we implement task history, we'll need to use a unique identifier for each task. As well as manage a data structure that keeps track of task history with their associated identifiers and the task message itself, to present in a 'Task History' view.
-	Task history is a significant undertaking as it would require refactoring how we wait for ask responses--it would need to be a hidden claudeMessage, so that user's can resume tasks that ended with an ask.
-	*/
-	// private providerInstanceIdentifier = Date.now()
-	// getClaudeMessagesStateKey() {
-	// 	return `claudeMessages-${this.providerInstanceIdentifier}`
-	// }
-
-	// getApiConversationHistoryStateKey() {
-	// 	return `apiConversationHistory-${this.providerInstanceIdentifier}`
-	// }
-
-	// claude messages to present in the webview
-
-	// getClaudeMessages(): ClaudeMessage[] {
-	// 	// const messages = (await this.getGlobalState(this.getClaudeMessagesStateKey())) as ClaudeMessage[]
-	// 	// return messages || []
-	// 	return this.claudeMessages
-	// }
-
-	// setClaudeMessages(messages: ClaudeMessage[] | undefined) {
-	// 	// await this.updateGlobalState(this.getClaudeMessagesStateKey(), messages)
-	// 	this.claudeMessages = messages || []
-	// }
-
-	// addClaudeMessage(message: ClaudeMessage): ClaudeMessage[] {
-	// 	// const messages = await this.getClaudeMessages()
-	// 	// messages.push(message)
-	// 	// await this.setClaudeMessages(messages)
-	// 	// return messages
-	// 	this.claudeMessages.push(message)
-	// 	return this.claudeMessages
-	// }
 
 	// conversation history to send in API requests
 

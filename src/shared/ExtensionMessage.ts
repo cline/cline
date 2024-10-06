@@ -32,7 +32,7 @@ export interface ExtensionState {
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
 	uriScheme?: string
-	claudeMessages: ClineMessage[]
+	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 }

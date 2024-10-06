@@ -59,7 +59,7 @@ export class Cline {
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
-	claudeMessages: ClineMessage[] = []
+	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -149,7 +149,7 @@ export class Cline {
 		}
 	}
 
-	private async getSavedClaudeMessages(): Promise<ClineMessage[]> {
+	private async getSavedClineMessages(): Promise<ClineMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -165,27 +165,27 @@ export class Cline {
 		return []
 	}
 
-	private async addToClaudeMessages(message: ClineMessage) {
-		this.claudeMessages.push(message)
-		await this.saveClaudeMessages()
+	private async addToClineMessages(message: ClineMessage) {
+		this.clineMessages.push(message)
+		await this.saveClineMessages()
 	}
 
-	private async overwriteClaudeMessages(newMessages: ClineMessage[]) {
-		this.claudeMessages = newMessages
-		await this.saveClaudeMessages()
+	private async overwriteClineMessages(newMessages: ClineMessage[]) {
+		this.clineMessages = newMessages
+		await this.saveClineMessages()
 	}
 
-	private async saveClaudeMessages() {
+	private async saveClineMessages() {
 		try {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
-			await fs.writeFile(filePath, JSON.stringify(this.claudeMessages))
+			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
 			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.claudeMessages.slice(1))))
-			const taskMessage = this.claudeMessages[0] // first message is always the task say
+			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
-				this.claudeMessages[
+				this.clineMessages[
 					findLastIndex(
-						this.claudeMessages,
+						this.clineMessages,
 						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
 					)
 				]
@@ -200,7 +200,7 @@ export class Cline {
 				totalCost: apiMetrics.totalCost,
 			})
 		} catch (error) {
-			console.error("Failed to save claude messages:", error)
+			console.error("Failed to save cline messages:", error)
 		}
 	}
 
@@ -218,7 +218,7 @@ export class Cline {
 		}
 		let askTs: number
 		if (partial !== undefined) {
-			const lastMessage = this.claudeMessages.at(-1)
+			const lastMessage = this.clineMessages.at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
@@ -227,7 +227,7 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClaudeMessages()
+					// await this.saveClineMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
@@ -240,7 +240,7 @@ export class Cline {
 					// this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text, partial })
+					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, partial })
 					await this.providerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
@@ -263,7 +263,7 @@ export class Cline {
 					// lastMessage.ts = askTs
 					lastMessage.text = text
 					lastMessage.partial = false
-					await this.saveClaudeMessages()
+					await this.saveClineMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
@@ -275,19 +275,19 @@ export class Cline {
 					this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text })
+					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text })
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
-			// const lastMessage = this.claudeMessages.at(-1)
+			// const lastMessage = this.clineMessages.at(-1)
 			this.askResponse = undefined
 			this.askResponseText = undefined
 			this.askResponseImages = undefined
 			askTs = Date.now()
 			this.lastMessageTs = askTs
-			await this.addToClaudeMessages({ ts: askTs, type: "ask", ask: type, text })
+			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text })
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 
@@ -314,7 +314,7 @@ export class Cline {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.claudeMessages.at(-1)
+			const lastMessage = this.clineMessages.at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
@@ -330,7 +330,7 @@ export class Cline {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text, images, partial })
+					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, partial })
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			} else {
@@ -344,7 +344,7 @@ export class Cline {
 					lastMessage.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.saveClaudeMessages()
+					await this.saveClineMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
@@ -353,7 +353,7 @@ export class Cline {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text, images })
+					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images })
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
@@ -361,7 +361,7 @@ export class Cline {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
 			this.lastMessageTs = sayTs
-			await this.addToClaudeMessages({ ts: sayTs, type: "say", say: type, text, images })
+			await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images })
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 	}
@@ -369,7 +369,7 @@ export class Cline {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Claude tried to use ${toolName}${
+			`Cline tried to use ${toolName}${
 				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`
 		)
@@ -379,9 +379,9 @@ export class Cline {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
-		// conversationHistory (for API) and claudeMessages (for webview) need to be in sync
-		// if the extension process were killed, then on restart the claudeMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
-		this.claudeMessages = []
+		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
+		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
+		this.clineMessages = []
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
@@ -398,52 +398,52 @@ export class Cline {
 	}
 
 	private async resumeTaskFromHistory() {
-		const modifiedClaudeMessages = await this.getSavedClaudeMessages()
+		const modifiedClineMessages = await this.getSavedClineMessages()
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
-			modifiedClaudeMessages,
+			modifiedClineMessages,
 			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
 		)
 		if (lastRelevantMessageIndex !== -1) {
-			modifiedClaudeMessages.splice(lastRelevantMessageIndex + 1)
+			modifiedClineMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
 		const lastApiReqStartedIndex = findLastIndex(
-			modifiedClaudeMessages,
+			modifiedClineMessages,
 			(m) => m.type === "say" && m.say === "api_req_started"
 		)
 		if (lastApiReqStartedIndex !== -1) {
-			const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
+			const lastApiReqStarted = modifiedClineMessages[lastApiReqStartedIndex]
 			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
 			if (cost === undefined && cancelReason === undefined) {
-				modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
+				modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
 			}
 		}
 
-		await this.overwriteClaudeMessages(modifiedClaudeMessages)
-		this.claudeMessages = await this.getSavedClaudeMessages()
+		await this.overwriteClineMessages(modifiedClineMessages)
+		this.clineMessages = await this.getSavedClineMessages()
 
-		// Now present the claude messages to the user and ask if they want to resume
+		// Now present the cline messages to the user and ask if they want to resume
 
-		const lastClaudeMessage = this.claudeMessages
+		const lastClineMessage = this.clineMessages
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
-		// const lastClaudeMessage = this.claudeMessages[lastClaudeMessageIndex]
+		// const lastClineMessage = this.clineMessages[lastClineMessageIndex]
 		// could be a completion result with a command
-		// const secondLastClaudeMessage = this.claudeMessages
+		// const secondLastClineMessage = this.clineMessages
 		// 	.slice()
 		// 	.reverse()
 		// 	.find(
 		// 		(m, index) =>
-		// 			index !== lastClaudeMessageIndex && !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+		// 			index !== lastClineMessageIndex && !(m.ask === "resume_task" || m.ask === "resume_completed_task")
 		// 	)
-		// (lastClaudeMessage?.ask === "command" && secondLastClaudeMessage?.ask === "completion_result")
+		// (lastClineMessage?.ask === "command" && secondLastClineMessage?.ask === "completion_result")
 
 		let askType: ClineAsk
-		if (lastClaudeMessage?.ask === "completion_result") {
+		if (lastClineMessage?.ask === "completion_result") {
 			askType = "resume_completed_task"
 		} else {
 			askType = "resume_task"
@@ -458,7 +458,7 @@ export class Cline {
 			responseImages = images
 		}
 
-		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with claude messages
+		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
 		// if there's no tool use and only a text block, then we can just add a user message
@@ -546,7 +546,7 @@ export class Cline {
 		let newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
-			const timestamp = lastClaudeMessage?.ts ?? Date.now()
+			const timestamp = lastClineMessage?.ts ?? Date.now()
 			const now = Date.now()
 			const diff = now - timestamp
 			const minutes = Math.floor(diff / 60000)
@@ -586,11 +586,11 @@ export class Cline {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.abort) {
-			const didEndLoop = await this.recursivelyMakeClaudeRequests(nextUserContent, includeFileDetails)
+			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
-			//  The way this agentic loop works is that claude will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
-			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Claude is prompted to finish the task as efficiently as he can.
+			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
+			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
@@ -600,7 +600,7 @@ export class Cline {
 			} else {
 				// this.say(
 				// 	"tool",
-				// 	"Claude responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
+				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
 				// )
 				nextUserContent = [
 					{
@@ -708,7 +708,7 @@ export class Cline {
 
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 			if (previousApiReqIndex >= 0) {
-				const previousRequest = this.claudeMessages[previousApiReqIndex]
+				const previousRequest = this.clineMessages[previousApiReqIndex]
 				if (previousRequest && previousRequest.text) {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
 						previousRequest.text
@@ -1395,7 +1395,7 @@ export class Cline {
 						let resultToSend = result
 						if (command) {
 							await this.say("completion_result", resultToSend)
-							// TODO: currently we don't handle if this command fails, it could be useful to let claude know and retry
+							// TODO: currently we don't handle if this command fails, it could be useful to let cline know and retry
 							const [didUserReject, commandResult] = await this.executeCommand(command, true)
 							// if we received non-empty string, the command was rejected or failed
 							if (commandResult) {
@@ -1413,13 +1413,13 @@ export class Cline {
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
 						try {
-							const lastMessage = this.claudeMessages.at(-1)
+							const lastMessage = this.clineMessages.at(-1)
 							if (block.partial) {
 								if (command) {
 									// the attempt_completion text is done, now we're getting command
 									// remove the previous partial attempt_completion ask, replace with say, post state to webview, then stream command
 
-									// const secondLastMessage = this.claudeMessages.at(-2)
+									// const secondLastMessage = this.clineMessages.at(-2)
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
 										await this.ask(
@@ -1555,7 +1555,7 @@ export class Cline {
 		}
 	}
 
-	async recursivelyMakeClaudeRequests(
+	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false
 	): Promise<boolean> {
@@ -1585,7 +1585,7 @@ export class Cline {
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
-		const previousApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
+		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
@@ -1605,11 +1605,11 @@ export class Cline {
 		await this.addToApiConversationHistory({ role: "user", content: userContent })
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
-		const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
-		this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
+		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
-		await this.saveClaudeMessages()
+		await this.saveClineMessages()
 		await this.providerRef.deref()?.postStateToWebview()
 
 		try {
@@ -1623,8 +1623,8 @@ export class Cline {
 			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
 			// (it's worth removing a few months from now)
 			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
-				this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
-					...JSON.parse(this.claudeMessages[lastApiReqIndex].text || "{}"),
+				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
+					...JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}"),
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWrites: cacheWriteTokens,
@@ -1649,13 +1649,13 @@ export class Cline {
 				}
 
 				// if last message is a partial we need to update and save it
-				const lastMessage = this.claudeMessages.at(-1)
+				const lastMessage = this.clineMessages.at(-1)
 				if (lastMessage && lastMessage.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					console.log("updating partial message", lastMessage)
-					// await this.saveClaudeMessages()
+					// await this.saveClineMessages()
 				}
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -1677,7 +1677,7 @@ export class Cline {
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
-				await this.saveClaudeMessages()
+				await this.saveClineMessages()
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAborting = true
@@ -1761,7 +1761,7 @@ export class Cline {
 			}
 
 			updateApiReqMsg()
-			await this.saveClaudeMessages()
+			await this.saveClineMessages()
 			await this.providerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
@@ -1793,7 +1793,7 @@ export class Cline {
 					this.consecutiveMistakeCount++
 				}
 
-				const recDidEndLoop = await this.recursivelyMakeClaudeRequests(this.userMessageContent)
+				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
@@ -1863,7 +1863,7 @@ export class Cline {
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
-		// It could be useful for claude to know if the user went from one or no file to another between messages, so we always include this context
+		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
@@ -1911,7 +1911,7 @@ export class Cline {
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
 		/*
 		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if claude ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
+		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
 		for (const [uri, fileDiagnostics] of diagnostics) {
 			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
 			if (problems.length > 0) {
