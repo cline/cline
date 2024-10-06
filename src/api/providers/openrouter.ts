@@ -46,6 +46,7 @@ export class OpenRouterHandler implements ApiHandler {
 					],
 				}
 				// Add cache_control to the last two user messages
+				// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
 				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
 				lastTwoUserMessages.forEach((msg) => {
 					if (typeof msg.content === "string") {
