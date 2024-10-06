@@ -90,15 +90,15 @@ export interface ClineSayTool {
 	filePattern?: string
 }
 
-export interface ClaudeApiReqInfo {
+export interface ClineApiReqInfo {
 	request?: string
 	tokensIn?: number
 	tokensOut?: number
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
-	cancelReason?: ClaudeApiReqCancelReason
+	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
 }
 
-export type ClaudeApiReqCancelReason = "streaming_failed" | "user_cancelled"
+export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"

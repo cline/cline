@@ -22,8 +22,8 @@ import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import {
-	ClaudeApiReqCancelReason,
-	ClaudeApiReqInfo,
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
 	ClineAsk,
 	ClineMessage,
 	ClineSay,
@@ -416,7 +416,7 @@ export class Cline {
 		)
 		if (lastApiReqStartedIndex !== -1) {
 			const lastApiReqStarted = modifiedClaudeMessages[lastApiReqStartedIndex]
-			const { cost, cancelReason }: ClaudeApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
 			if (cost === undefined && cancelReason === undefined) {
 				modifiedClaudeMessages.splice(lastApiReqStartedIndex, 1)
 			}
@@ -710,7 +710,7 @@ export class Cline {
 			if (previousApiReqIndex >= 0) {
 				const previousRequest = this.claudeMessages[previousApiReqIndex]
 				if (previousRequest && previousRequest.text) {
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClaudeApiReqInfo = JSON.parse(
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
 						previousRequest.text
 					)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
@@ -1608,7 +1608,7 @@ export class Cline {
 		const lastApiReqIndex = findLastIndex(this.claudeMessages, (m) => m.say === "api_req_started")
 		this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
-		} satisfies ClaudeApiReqInfo)
+		} satisfies ClineApiReqInfo)
 		await this.saveClaudeMessages()
 		await this.providerRef.deref()?.postStateToWebview()
 
@@ -1622,7 +1622,7 @@ export class Cline {
 			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
 			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
 			// (it's worth removing a few months from now)
-			const updateApiReqMsg = (cancelReason?: ClaudeApiReqCancelReason, streamingFailedMessage?: string) => {
+			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				this.claudeMessages[lastApiReqIndex].text = JSON.stringify({
 					...JSON.parse(this.claudeMessages[lastApiReqIndex].text || "{}"),
 					tokensIn: inputTokens,
@@ -1640,10 +1640,10 @@ export class Cline {
 						),
 					cancelReason,
 					streamingFailedMessage,
-				} satisfies ClaudeApiReqInfo)
+				} satisfies ClineApiReqInfo)
 			}
 
-			const abortStream = async (cancelReason: ClaudeApiReqCancelReason, streamingFailedMessage?: string) => {
+			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}
