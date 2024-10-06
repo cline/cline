@@ -1,6 +1,6 @@
 {
   "name": "claude-dev",
-  "displayName": "Claude Dev",
+  "displayName": "Cline (prev. Claude Dev)",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
   "version": "1.9.7",
   "icon": "icons/icon.png",
@@ -12,13 +12,13 @@
     "vscode": "^1.84.0"
   },
   "author": {
-    "name": "Saoud Rizwan"
+    "name": "Cline Inc."
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "publisher": "saoudrizwan",
   "repository": {
     "type": "git",
-    "url": "https://github.com/saoudrizwan/claude-dev"
+    "url": "https://github.com/clinebot/cline"
   },
   "categories": [
     "AI",
@@ -29,6 +29,7 @@
     "Testing"
   ],
   "keywords": [
+    "cline",
     "claude",
     "coding",
     "agent",
@@ -45,7 +46,7 @@
       "activitybar": [
         {
           "id": "claude-dev-ActivityBar",
-          "title": "Claude Dev",
+          "title": "Cline",
           "icon": "$(robot)"
         }
       ]
@@ -83,7 +84,7 @@
       {
         "command": "claude-dev.openInNewTab",
         "title": "Open In New Tab",
-        "category": "Claude Dev"
+        "category": "Cline"
       }
     ],
     "menus": {
