@@ -162,7 +162,7 @@ export class TerminalManager {
 			if (t.busy) {
 				return false
 			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of claude's commands could have changed the cwd of the terminal
+			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
 			if (!terminalCwd) {
 				return false
 			}

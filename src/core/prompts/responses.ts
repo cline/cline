@@ -71,7 +71,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 				const relativePath = path.relative(absolutePath, file).toPosix()
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			})
-			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that claude can then explore further.
+			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that cline can then explore further.
 			.sort((a, b) => {
 				const aParts = a.split("/") // only works if we use toPosix first
 				const bParts = b.split("/")

@@ -94,7 +94,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 		if (absolutePath.includes(cwd)) {
 			return normalizedRelPath.toPosix()
 		} else {
-			// we are outside the cwd, so show the absolute path (useful for when claude passes in '../../' for example)
+			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
 			return absolutePath.toPosix()
 		}
 	}

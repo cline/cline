@@ -17,7 +17,7 @@ class WorkspaceTracker {
 	}
 
 	async initializeFilePaths() {
-		// should not auto get filepaths for desktop since it would immediately show permission popup before claude every creates a file
+		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
 		if (!cwd) {
 			return
 		}
@@ -44,7 +44,7 @@ class WorkspaceTracker {
 		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
 		 to point to the first workspace folder.
 		 */
-		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since claude will only be working within the root folder cwd)
+		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since cline will only be working within the root folder cwd)
 		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
 	}
 

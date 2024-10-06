@@ -119,7 +119,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				if (this.hotTimer) {
 					clearTimeout(this.hotTimer)
 				}
-				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to claude
+				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to cline
 				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
 				const markerNullifiers = [
 					"compiled",

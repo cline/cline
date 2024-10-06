@@ -730,9 +730,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
 
 	/*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we could to reduce memory footprint in long conversations.
+	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
 
-	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
 
 	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.

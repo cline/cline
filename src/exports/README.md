@@ -26,7 +26,7 @@ The Cline extension exposes an API that can be used by other extensions. To use 
     	console.log("Current custom instructions:", instructions)
 
     	// Start a new task with an initial message
-    	await cline.startNewTask("Hello, Claude! Let's make a new project...")
+    	await cline.startNewTask("Hello, Cline! Let's make a new project...")
 
     	// Start a new task with an initial message and images
     	await cline.startNewTask("Use this design language", ["data:image/webp;base64,..."])

@@ -15,7 +15,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	const ampm = hours >= 12 ? "pm" : "am"
 	hours = hours % 12
 	hours = hours ? hours : 12 // the hour '0' should be '12'
-	const fileName = `claude_dev_task_${month}-${day}-${year}_${hours}-${minutes}-${seconds}-${ampm}.md`
+	const fileName = `cline_task_${month}-${day}-${year}_${hours}-${minutes}-${seconds}-${ampm}.md`
 
 	// Generate markdown
 	const markdownContent = conversationHistory
