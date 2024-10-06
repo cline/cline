@@ -588,7 +588,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							</VSCodeLink>{" "}
 							I can handle complex software development tasks step-by-step. With tools that let me create
 							& edit files, explore complex projects, and execute terminal commands (after you grant
-							permission), I can assist you in ways that go beyond simple code completion or tech support.
+							permission), I can assist you in ways that go beyond code completion or tech support.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
