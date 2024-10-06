@@ -26,8 +26,8 @@ import {
 	ClaudeApiReqInfo,
 	ClineAsk,
 	ClineMessage,
-	ClaudeSay,
-	ClaudeSayTool,
+	ClineSay,
+	ClineSayTool,
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
@@ -308,7 +308,7 @@ export class Cline {
 		this.askResponseImages = images
 	}
 
-	async say(type: ClaudeSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
+	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -973,7 +973,7 @@ export class Cline {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
 
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
@@ -1028,7 +1028,7 @@ export class Cline {
 												newContent
 										  )
 										: undefined,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges()
@@ -1043,7 +1043,7 @@ export class Cline {
 											tool: fileExists ? "editedExistingFile" : "newFileCreated",
 											path: getReadablePath(cwd, relPath),
 											diff: userEdits,
-										} satisfies ClaudeSayTool)
+										} satisfies ClineSayTool)
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)${newProblemsMessage}`
@@ -1064,7 +1064,7 @@ export class Cline {
 					}
 					case "read_file": {
 						const relPath: string | undefined = block.params.path
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: "readFile",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
@@ -1073,7 +1073,7 @@ export class Cline {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: undefined,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1091,7 +1091,7 @@ export class Cline {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: absolutePath,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 								} else {
@@ -1114,7 +1114,7 @@ export class Cline {
 						const relDirPath: string | undefined = block.params.path
 						const recursiveRaw: string | undefined = block.params.recursive
 						const recursive = recursiveRaw?.toLowerCase() === "true"
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
@@ -1123,7 +1123,7 @@ export class Cline {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1143,7 +1143,7 @@ export class Cline {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
@@ -1162,7 +1162,7 @@ export class Cline {
 					}
 					case "list_code_definition_names": {
 						const relDirPath: string | undefined = block.params.path
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: "listCodeDefinitionNames",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
@@ -1171,7 +1171,7 @@ export class Cline {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1192,7 +1192,7 @@ export class Cline {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
@@ -1213,7 +1213,7 @@ export class Cline {
 						const relDirPath: string | undefined = block.params.path
 						const regex: string | undefined = block.params.regex
 						const filePattern: string | undefined = block.params.file_pattern
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: "searchFiles",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 							regex: removeClosingTag("regex", regex),
@@ -1224,7 +1224,7 @@ export class Cline {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1248,7 +1248,7 @@ export class Cline {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: results,
-								} satisfies ClaudeSayTool)
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
@@ -1267,7 +1267,7 @@ export class Cline {
 					}
 					case "inspect_site": {
 						const url: string | undefined = block.params.url
-						const sharedMessageProps: ClaudeSayTool = {
+						const sharedMessageProps: ClineSayTool = {
 							tool: "inspectSite",
 							path: removeClosingTag("url", url),
 						}

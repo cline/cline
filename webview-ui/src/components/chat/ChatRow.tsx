@@ -1,7 +1,7 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef } from "react"
-import { ClaudeApiReqInfo, ClineMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
+import { ClaudeApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
@@ -193,7 +193,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 
 	const tool = useMemo(() => {
 		if (message.ask === "tool" || message.say === "tool") {
-			return JSON.parse(message.text || "{}") as ClaudeSayTool
+			return JSON.parse(message.text || "{}") as ClineSayTool
 		}
 		return null
 	}, [message.ask, message.say, message.text])
@@ -533,7 +533,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						</div>
 					)
 				case "user_feedback_diff":
-					const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+					const tool = JSON.parse(message.text || "{}") as ClineSayTool
 					return (
 						<div
 							style={{

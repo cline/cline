@@ -41,7 +41,7 @@ export interface ClineMessage {
 	ts: number
 	type: "ask" | "say"
 	ask?: ClineAsk
-	say?: ClaudeSay
+	say?: ClineSay
 	text?: string
 	images?: string[]
 	partial?: boolean
@@ -58,7 +58,7 @@ export type ClineAsk =
 	| "resume_completed_task"
 	| "mistake_limit_reached"
 
-export type ClaudeSay =
+export type ClineSay =
 	| "task"
 	| "error"
 	| "api_req_started"
@@ -73,7 +73,7 @@ export type ClaudeSay =
 	| "shell_integration_warning"
 	| "inspect_site_result"
 
-export interface ClaudeSayTool {
+export interface ClineSayTool {
 	tool:
 		| "editedExistingFile"
 		| "newFileCreated"
