@@ -24,14 +24,14 @@ import { combineCommandSequences } from "../shared/combineCommandSequences"
 import {
 	ClaudeApiReqCancelReason,
 	ClaudeApiReqInfo,
-	ClaudeAsk,
+	ClineAsk,
 	ClineMessage,
 	ClaudeSay,
 	ClaudeSayTool,
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
-import { ClaudeAskResponse } from "../shared/WebviewMessage"
+import { ClineAskResponse } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
@@ -60,7 +60,7 @@ export class Cline {
 	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	claudeMessages: ClineMessage[] = []
-	private askResponse?: ClaudeAskResponse
+	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
@@ -208,10 +208,10 @@ export class Cline {
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
 	async ask(
-		type: ClaudeAsk,
+		type: ClineAsk,
 		text?: string,
 		partial?: boolean
-	): Promise<{ response: ClaudeAskResponse; text?: string; images?: string[] }> {
+	): Promise<{ response: ClineAskResponse; text?: string; images?: string[] }> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
@@ -302,7 +302,7 @@ export class Cline {
 		return result
 	}
 
-	async handleWebviewAskResponse(askResponse: ClaudeAskResponse, text?: string, images?: string[]) {
+	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
@@ -442,7 +442,7 @@ export class Cline {
 		// 	)
 		// (lastClaudeMessage?.ask === "command" && secondLastClaudeMessage?.ask === "completion_result")
 
-		let askType: ClaudeAsk
+		let askType: ClineAsk
 		if (lastClaudeMessage?.ask === "completion_result") {
 			askType = "resume_completed_task"
 		} else {
@@ -875,7 +875,7 @@ export class Cline {
 					}
 				}
 
-				const askApproval = async (type: ClaudeAsk, partialMessage?: string) => {
+				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonTapped") {
 						if (response === "messageResponse") {

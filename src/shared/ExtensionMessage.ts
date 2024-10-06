@@ -40,14 +40,14 @@ export interface ExtensionState {
 export interface ClineMessage {
 	ts: number
 	type: "ask" | "say"
-	ask?: ClaudeAsk
+	ask?: ClineAsk
 	say?: ClaudeSay
 	text?: string
 	images?: string[]
 	partial?: boolean
 }
 
-export type ClaudeAsk =
+export type ClineAsk =
 	| "followup"
 	| "command"
 	| "command_output"
