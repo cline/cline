@@ -96,7 +96,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span
 						className="codicon codicon-error"
 						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>Claude is having trouble...</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
 			case "command":
 				return [
@@ -108,7 +108,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Claude wants to execute this command:
+						Cline wants to execute this command:
 					</span>,
 				]
 			case "completion_result":
@@ -170,7 +170,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span
 						className="codicon codicon-question"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Claude has a question:</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 				]
 			default:
 				return [null, null]
@@ -211,7 +211,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -227,7 +227,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -244,7 +244,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
+								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -302,8 +302,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to view the top level files in this directory:"
-									: "Claude viewed the top level files in this directory:"}
+									? "Cline wants to view the top level files in this directory:"
+									: "Cline viewed the top level files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -322,8 +322,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to recursively view all files in this directory:"
-									: "Claude recursively viewed all files in this directory:"}
+									? "Cline wants to recursively view all files in this directory:"
+									: "Cline recursively viewed all files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -342,8 +342,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to view source code definition names used in this directory:"
-									: "Claude viewed source code definition names used in this directory:"}
+									? "Cline wants to view source code definition names used in this directory:"
+									: "Cline viewed source code definition names used in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -362,11 +362,11 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<>
-										Claude wants to search this directory for <code>{tool.regex}</code>:
+										Cline wants to search this directory for <code>{tool.regex}</code>:
 									</>
 								) : (
 									<>
-										Claude searched this directory for <code>{tool.regex}</code>:
+										Cline searched this directory for <code>{tool.regex}</code>:
 									</>
 								)}
 							</span>
@@ -388,9 +388,9 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
-									<>Claude wants to inspect this website:</>
+									<>Cline wants to inspect this website:</>
 								) : (
-									<>Claude is inspecting this website:</>
+									<>Cline is inspecting this website:</>
 								)}
 							</span>
 						</div>
@@ -633,7 +633,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									</span>
 								</div>
 								<div>
-									Claude won't be able to view the command's output. Please update VSCode (
+									Cline won't be able to view the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
 									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
 									"Terminal: Select Default Profile").{" "}

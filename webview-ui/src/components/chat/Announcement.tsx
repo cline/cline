@@ -34,15 +34,15 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<p style={{ margin: "5px 0px" }}></p>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Claude can now use a browser! This update adds a new <code>inspect_site</code> tool that captures
-					screenshots and console logs from websites (including localhost), making it easier for Claude to
+					Cline can now use a browser! This update adds a new <code>inspect_site</code> tool that captures
+					screenshots and console logs from websites (including localhost), making it easier for Cline to
 					troubleshoot issues on his own.
 					<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1837559914023342129">
 						See a demo here.
 					</VSCodeLink>
 				</li>
 				<li>
-					Improved automatic linter/compiler debugging by only sending Claude new errors that result from his
+					Improved automatic linter/compiler debugging by only sending Cline new errors that result from his
 					edits, rather than reporting all workspace problems.
 				</li>
 				<li>
@@ -50,10 +50,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
 						<li>
 							<strong>@url:</strong> Paste in a URL for the extension to fetch and convert to markdown
-							(i.e. give Claude the latest docs)
+							(i.e. give Cline the latest docs)
 						</li>
 						<li>
-							<strong>@problems:</strong> Add workspace errors and warnings for Claude to fix
+							<strong>@problems:</strong> Add workspace errors and warnings for Cline to fix
 						</li>
 						<li>
 							<strong>@file:</strong> Adds a file's contents so you don't have to waste API requests
@@ -66,7 +66,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>
 			{/* <p style={{ margin: "5px 0px" }}>
-				Claude can now monitor workspace problems to keep updated on linter/compiler/build issues, letting him
+				Cline can now monitor workspace problems to keep updated on linter/compiler/build issues, letting him
 				proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)
 				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1835100787275419829">
 					See a demo here.
@@ -106,16 +106,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					)}
 				</li> 
 				<li>
-					<b>Edit Claude's changes before accepting!</b> When he creates or edits a file, you can modify his
+					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
 					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
 					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
 				</li>
 				<li>
-					New <code>search_files</code> tool that lets Claude perform regex searches in your project, letting
+					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
 					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
 				</li>
 				<li>
-					When Claude runs commands, you can now type directly in the terminal (+ support for Python
+					When Cline runs commands, you can now type directly in the terminal (+ support for Python
 					environments)
 				</li>
 			</ul>*/}
