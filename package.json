@@ -20,6 +20,7 @@
     "type": "git",
     "url": "https://github.com/clinebot/cline"
   },
+  "homepage": "https://cline.bot",
   "categories": [
     "AI",
     "Chat",
