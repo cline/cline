@@ -8,6 +8,8 @@ import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 
+export const DIFF_VIEW_URI_SCHEME = "cline-diff"
+
 export class DiffViewProvider {
 	editType?: "create" | "modify"
 	isEditing = false
@@ -244,7 +246,7 @@ export class DiffViewProvider {
 			.flatMap((tg) => tg.tabs)
 			.filter(
 				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === "claude-dev-diff"
+					tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME
 			)
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
@@ -265,7 +267,7 @@ export class DiffViewProvider {
 			.find(
 				(tab) =>
 					tab.input instanceof vscode.TabInputTextDiff &&
-					tab.input?.original?.scheme === "claude-dev-diff" &&
+					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME &&
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath)
 			)
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
@@ -284,11 +286,11 @@ export class DiffViewProvider {
 			})
 			vscode.commands.executeCommand(
 				"vscode.diff",
-				vscode.Uri.parse(`claude-dev-diff:${fileName}`).with({
+				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
 					query: Buffer.from(this.originalContent ?? "").toString("base64"),
 				}),
 				uri,
-				`${fileName}: ${fileExists ? "Original ↔ Claude's Changes" : "New File"} (Editable)`
+				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`
 			)
 			// This should never happen but if it does it's worth investigating
 			setTimeout(() => {
