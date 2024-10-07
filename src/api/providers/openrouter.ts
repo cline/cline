@@ -107,6 +107,13 @@ export class OpenRouterHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
+			if (chunk.usage) {
+				yield {
+					type: "usage",
+					inputTokens: chunk.usage.prompt_tokens || 0,
+					outputTokens: chunk.usage.completion_tokens || 0,
+				}
+			}
 		}
 
 		try {
@@ -121,10 +128,13 @@ export class OpenRouterHandler implements ApiHandler {
 			console.log("OpenRouter generation details:", response.data)
 			yield {
 				type: "usage",
-				inputTokens: generation?.native_tokens_prompt || 0,
-				outputTokens: generation?.native_tokens_completion || 0,
 				// cacheWriteTokens: 0,
 				// cacheReadTokens: 0,
+				// openrouter generation endpoint fails often, so we'll report tokens from stream as normal
+				// inputTokens: generation?.native_tokens_prompt || 0,
+				// outputTokens: generation?.native_tokens_completion || 0,
+				inputTokens: 0,
+				outputTokens: 0,
 				totalCost: generation?.total_cost || 0,
 			}
 		} catch (error) {

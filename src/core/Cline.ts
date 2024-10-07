@@ -973,6 +973,13 @@ export class Cline {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
 
+						if (
+							this.api.getModel().id.includes("llama") &&
+							(newContent.includes("&gt;") || newContent.includes("&lt;"))
+						) {
+							newContent = newContent.replace(/&gt;/g, ">").replace(/&lt;/g, "<")
+						}
+
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),

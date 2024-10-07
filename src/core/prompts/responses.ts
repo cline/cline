@@ -13,25 +13,7 @@ export const formatResponse = {
 	noToolsUsed: () =>
 		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 
-# Instructions for Tool Use
-
-Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
-
-<tool_name>
-<parameter1_name>value1</parameter1_name>
-<parameter2_name>value2</parameter2_name>
-...
-</tool_name>
-
-For example:
-
-<attempt_completion>
-<result>
-I have completed the task...
-</result>
-</attempt_completion>
-
-Always adhere to this format for all tool uses to ensure proper parsing and execution.
+${toolUseInstructionsReminder}
 
 # Next Steps
 
@@ -44,7 +26,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
 
 	missingToolParameterError: (paramName: string) =>
-		`Missing value for required parameter '${paramName}'. Please retry with complete response.`,
+		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
 
 	toolResult: (
 		text: string,
@@ -126,3 +108,23 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 		  })
 		: []
 }
+
+const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
+
+Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+
+<tool_name>
+<parameter1_name>value1</parameter1_name>
+<parameter2_name>value2</parameter2_name>
+...
+</tool_name>
+
+For example:
+
+<attempt_completion>
+<result>
+I have completed the task...
+</result>
+</attempt_completion>
+
+Always adhere to this format for all tool uses to ensure proper parsing and execution.`
