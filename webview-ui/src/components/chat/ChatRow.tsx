@@ -381,7 +381,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					</>
 				)
 			case "inspectSite":
-				const isInspecting = lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+				const isInspecting =
+					isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
 				return (
 					<>
 						<div style={headerStyle}>
