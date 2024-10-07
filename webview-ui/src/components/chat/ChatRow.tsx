@@ -451,7 +451,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 												<br />
 												It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
-													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+													href="https://github.com/clinebot/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
 													style={{ color: "inherit", textDecoration: "underline" }}>
 													troubleshooting guide
 												</a>
@@ -484,9 +484,9 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 													Uh-oh, this could be a problem on end. We've been alerted and
 													will resolve this ASAP. You can also{" "}
 													<a
-														href="https://discord.gg/claudedev"
+														href=""
 														style={{ color: "inherit", textDecoration: "underline" }}>
-														contact us on discord
+														contact us
 													</a>
 													.
 												</span>
@@ -638,7 +638,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
 									"Terminal: Select Default Profile").{" "}
 									<a
-										href="https://github.com/saoudrizwan/claude-dev/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										href="https://github.com/clinebot/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
 										style={{ color: "inherit", textDecoration: "underline" }}>
 										Still having trouble?
 									</a>

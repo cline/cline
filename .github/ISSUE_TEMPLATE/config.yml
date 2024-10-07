@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
     - name: Feature Request
-      url: https://github.com/saoudrizwan/claude-dev/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop
-      about: Share and vote on feature requests for Claude Dev
-    - name: Claude Dev Discord Community
-      url: https://discord.gg/claudedev
+      url: https://github.com/clinebot/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop
+      about: Share and vote on feature requests for Cline
+    - name: Cline Discord
+      url: https://discord.gg/cline
       about: Join our Discord community for discussions and support
     - name: Other Questions?
       url: https://x.com/sdrzn
