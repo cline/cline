@@ -5,8 +5,8 @@
   "version": "1.9.7",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
-    "color": "#FFECA7",
-    "theme": "light"
+    "color": "#556C80",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.84.0"
