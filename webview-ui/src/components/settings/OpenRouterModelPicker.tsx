@@ -289,6 +289,11 @@ const StyledMarkdown = styled.div`
 	a {
 		text-decoration: none;
 	}
+	a {
+		&:hover {
+			text-decoration: underline;
+		}
+	}
 `
 
 export const ModelDescriptionMarkdown = memo(
@@ -365,17 +370,18 @@ export const ModelDescriptionMarkdown = memo(
 										"linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
 								}}
 							/>
-							<div
+							<VSCodeLink
 								style={{
-									cursor: "pointer",
-									color: "var(--vscode-textLink-foreground)",
+									// cursor: "pointer",
+									// color: "var(--vscode-textLink-foreground)",
+									fontSize: "inherit",
 									paddingRight: 0,
 									paddingLeft: 3,
 									backgroundColor: "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
 								See more
-							</div>
+							</VSCodeLink>
 						</div>
 					)}
 				</div>
