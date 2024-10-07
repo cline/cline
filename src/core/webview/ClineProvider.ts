@@ -443,6 +443,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							this.cline.abortTask()
 							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
 								timeout: 3_000,
+							}).catch(() => {
+								console.error("Failed to abort task")
 							})
 							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
 							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
