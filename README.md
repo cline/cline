@@ -86,8 +86,8 @@ Cline can also use a headless browser to inspect any website, e.g., localhost, a
 
 ### Add Context
 
--   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs!
--   **`@problems`:** Add workspace errors and warnings for Cline to fix, no more back-and-forth about debugging
+-   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
+-   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
 -   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
 -   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
