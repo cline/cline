@@ -1,7 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
-import { ApiConfiguration, ModelInfo } from "../../../src/shared/api"
+import {
+	ApiConfiguration,
+	ModelInfo,
+	openRouterDefaultModelId,
+	openRouterDefaultModelInfo,
+} from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
@@ -31,7 +36,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
-	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({})
+	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
+		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
+	})
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -80,7 +87,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				break
 			}
 			case "openRouterModels": {
-				setOpenRouterModels(message.openRouterModels ?? {})
+				const updatedModels = message.openRouterModels ?? {}
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...updatedModels,
+				})
 				break
 			}
 		}

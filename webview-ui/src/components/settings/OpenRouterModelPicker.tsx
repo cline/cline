@@ -21,6 +21,7 @@ const OpenRouterModelPicker: React.FC = () => {
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
+		// could be setting invalid model id/undefined info but validation will catch it
 		setApiConfiguration({
 			...apiConfiguration,
 			openRouterModelId: newModelId,
