@@ -117,7 +117,7 @@ export class OpenRouterHandler implements ApiHandler {
 			// }
 		}
 
-		await delay(300) // FIXME: necessary delay to ensure generation endpoint is ready
+		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
