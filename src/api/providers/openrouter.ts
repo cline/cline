@@ -5,6 +5,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import delay from "delay"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -115,6 +116,8 @@ export class OpenRouterHandler implements ApiHandler {
 			// 	}
 			// }
 		}
+
+		await delay(300) // FIXME: necessary delay to ensure generation endpoint is ready
 
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
