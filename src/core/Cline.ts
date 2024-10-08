@@ -975,9 +975,14 @@ export class Cline {
 
 						if (
 							this.api.getModel().id.includes("llama") &&
-							(newContent.includes("&gt;") || newContent.includes("&lt;"))
+							(newContent.includes("&gt;") ||
+								newContent.includes("&lt;") ||
+								newContent.includes("&quot;"))
 						) {
-							newContent = newContent.replace(/&gt;/g, ">").replace(/&lt;/g, "<")
+							newContent = newContent
+								.replace(/&gt;/g, ">")
+								.replace(/&lt;/g, "<")
+								.replace(/&quot;/g, '"')
 						}
 
 						const sharedMessageProps: ClineSayTool = {
