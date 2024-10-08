@@ -48,7 +48,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better
 					performance with other models.
 				</li>
-				<li>Search and use any model with OpenRouter (try searching "free" for free model offerings).</li>
+				<li>Search and use any model with OpenRouter (try searching "free" for no-cost options).</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>

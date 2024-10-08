@@ -218,7 +218,7 @@ const OpenRouterModelPicker: React.FC = () => {
 						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
 						anthropic/claude-3.5-sonnet:beta.
 					</VSCodeLink>
-					You can also try searching for "free" to see if there are any free models currently available.
+					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
 		</>
