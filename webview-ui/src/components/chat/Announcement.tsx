@@ -99,7 +99,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</ul>*/}
 			<p style={{ margin: "0" }}>
 				More details about the changes + benchmarks{" "}
-				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
+				<VSCodeLink href="https://github.com/clinebot/cline/releases/tag/v2.0.0" style={{ display: "inline" }}>
 					here.
 				</VSCodeLink>
 				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
