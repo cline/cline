@@ -31,47 +31,25 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{version}
 			</h3>
-			<p style={{ margin: "5px 0px" }}></p>
+			<p style={{ margin: "5px 0px" }}>
+				New name! Meet Cline, an AI assistant that can use your <strong>CLI</strong> a<strong>N</strong>d{" "}
+				<strong>E</strong>ditor.
+			</p>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Cline can now use a browser! This update adds a new <code>inspect_site</code> tool that captures
-					screenshots and console logs from websites (including localhost), making it easier for Cline to
-					troubleshoot issues on his own.
-					<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1837559914023342129">
-						See a demo here.
-					</VSCodeLink>
+					Responses are now streamed with a yellow text decoration animation to keep track of Cline's progress
+					as he edits files.
 				</li>
 				<li>
-					Improved automatic linter/compiler debugging by only sending Cline new errors that result from his
-					edits, rather than reporting all workspace problems.
+					New Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more
+					control over tasks.
 				</li>
 				<li>
-					You can now use '@' in the textarea to add context:
-					<ul style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
-						<li>
-							<strong>@url:</strong> Paste in a URL for the extension to fetch and convert to markdown
-							(i.e. give Cline the latest docs)
-						</li>
-						<li>
-							<strong>@problems:</strong> Add workspace errors and warnings for Cline to fix
-						</li>
-						<li>
-							<strong>@file:</strong> Adds a file's contents so you don't have to waste API requests
-							approving read file (+ type to search files)
-						</li>
-						<li>
-							<strong>@folder:</strong> Adds folder's files all at once
-						</li>
-					</ul>
+					Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better
+					performance with other models.
 				</li>
+				<li>Search and use any model with OpenRouter (try searching "free" for free model offerings).</li>
 			</ul>
-			{/* <p style={{ margin: "5px 0px" }}>
-				Cline can now monitor workspace problems to keep updated on linter/compiler/build issues, letting him
-				proactively fix errors on his own! (adding missing imports, fixing type errors, etc.)
-				<VSCodeLink style={{ display: "inline" }} href="https://x.com/sdrzn/status/1835100787275419829">
-					See a demo here.
-				</VSCodeLink>
-			</p> */}
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
@@ -120,9 +98,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>*/}
 			<p style={{ margin: "0" }}>
-				Follow me for more updates!{" "}
+				More details about the changes + benchmarks{" "}
 				<VSCodeLink href="https://x.com/sdrzn" style={{ display: "inline" }}>
-					@sdrzn
+					here.
+				</VSCodeLink>
+				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
+				hi!{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
+					https://discord.gg/cline
 				</VSCodeLink>
 			</p>
 		</div>
