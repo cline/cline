@@ -724,19 +724,19 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		case "openrouter":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openRouterModelId ?? openRouterDefaultModelId,
-				selectedModelInfo: apiConfiguration?.openRouterModelInfo ?? openRouterDefaultModelInfo,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openAiModelId ?? "",
+				selectedModelId: apiConfiguration?.openAiModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "ollama":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.ollamaModelId ?? "",
+				selectedModelId: apiConfiguration?.ollamaModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:
