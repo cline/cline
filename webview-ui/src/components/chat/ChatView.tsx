@@ -282,6 +282,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setEnableButtons(false)
 		// setPrimaryButtonText(undefined)
 		// setSecondaryButtonText(undefined)
+		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask])
 
 	const handleSecondaryButtonClick = useCallback(() => {
@@ -307,6 +308,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setEnableButtons(false)
 		// setPrimaryButtonText(undefined)
 		// setSecondaryButtonText(undefined)
+		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask, isStreaming])
 
 	const handleTaskCloseButtonClick = useCallback(() => {
