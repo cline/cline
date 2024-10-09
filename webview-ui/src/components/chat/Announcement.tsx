@@ -99,9 +99,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>*/}
 			<p style={{ margin: "0" }}>
-				{/* <VSCodeLink href="https://github.com/clinebot/cline/releases/tag/v2.0.0" style={{ display: "inline" }}>
+				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
 					See a demo of the changes here.
-				</VSCodeLink> */}
+				</VSCodeLink>
 				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
 				hi!{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
