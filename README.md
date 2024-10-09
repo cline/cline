@@ -40,7 +40,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.ant
 
 ---
 
-<img align="right" width="340" src="https://github.com/user-attachments/assets/aeaba01d-baab-4bdb-a74f-62aaaed59b54">
+<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
 
 ### Use any API and Model
 
@@ -50,17 +50,17 @@ The extension also keeps track of total tokens and API usage cost for the entire
 
 <img width="2000" height="0"><br>
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/9b0bdcf5-60ac-4a80-bb7e-a20adfa5f733">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
 
 ### Run Commands in Terminal
 
-Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive their output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
+Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive the output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
 
-For long running processes like dev servers, you can use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
+For long running processes like dev servers, use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
 
 <img width="2000" height="0"><br>
 
-<img align="right" width="400" src="https://github.com/user-attachments/assets/e31cc2d6-05e9-475f-bf71-453021988634">
+<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
 
 ### Create and Edit Files
 
@@ -70,7 +70,7 @@ All changes made by Cline are recorded in your file's Timeline, providing an eas
 
 <img width="2000" height="0"><br>
 
-<img align="left" width="350" src="https://github.com/user-attachments/assets/a2d71862-aab0-40cf-8844-599308be3c35">
+<img align="left" width="350" src="https://github.com/user-attachments/assets/50019dba-a63d-41f0-ab0f-fd35ebcdd4c5">
 
 ### Analyze Images and Browser Screenshots
 
@@ -80,7 +80,7 @@ Cline can also use a headless browser to inspect any website, e.g., localhost, a
 
 <img width="2000" height="0"><br>
 
-<img align="right" width="360" src="https://github.com/user-attachments/assets/819f3519-5e4d-4cf8-bc65-98a6a721c43d">
+<img align="right" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
 
 ### Add Context
 
