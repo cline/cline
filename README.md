@@ -48,7 +48,8 @@ Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, 
 
 The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
 
-<img width="2000" height="0"><br>
+<!-- Transparent pixel to create line break after floating image -->
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
 <img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
 
@@ -58,7 +59,8 @@ Thanks to the new [shell integration updates in VSCode v1.93](https://code.visua
 
 For long running processes like dev servers, use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
 
-<img width="2000" height="0"><br>
+<!-- Transparent pixel to create line break after floating image -->
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
 <img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
 
@@ -68,7 +70,8 @@ Cline can create and edit files directly in your editor, presenting you a diff v
 
 All changes made by Cline are recorded in your file's Timeline, providing an easy way to track and revert modifications if needed.
 
-<img width="2000" height="0"><br>
+<!-- Transparent pixel to create line break after floating image -->
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
 <img align="left" width="350" src="https://github.com/user-attachments/assets/50019dba-a63d-41f0-ab0f-fd35ebcdd4c5">
 
@@ -78,7 +81,8 @@ Models like Claude 3.5 Sonnet can now understand and analyze images, allowing fo
 
 Cline can also use a headless browser to inspect any website, e.g., localhost, allowing him to capture screenshots and console logs. This gives him autonomy to fixing visual bugs and runtime issues without you needing to handhold and copy-pasting error logs yourself.
 
-<img width="2000" height="0"><br>
+<!-- Transparent pixel to create line break after floating image -->
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
 <img align="right" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
 
