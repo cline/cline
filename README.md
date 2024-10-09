@@ -1,4 +1,4 @@
-# Cline (prev. Claude Dev)
+# Cline (prev. Claude Dev) – \#1 on OpenRouter
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/clinebot/cline/main/assets/docs/demo.gif" width="100%" />
