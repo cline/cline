@@ -10,7 +10,7 @@ import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
+import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
@@ -460,14 +460,49 @@ export class Cline {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
+		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
+			await this.getSavedApiConversationHistory()
+
+		// v2.0 xml tags refactor caveat: since we don't use tools anymore, we need to replace all tool use blocks with a text block since the API disallows conversations with tool uses and no tool schema
+		const conversationWithoutToolBlocks = existingApiConversationHistory.map((message) => {
+			if (Array.isArray(message.content)) {
+				const newContent = message.content.map((block) => {
+					if (block.type === "tool_use") {
+						// it's important we convert to the new tool schema format so the model doesn't get confused about how to invoke tools
+						const inputAsXml = Object.entries(block.input as Record<string, string>)
+							.map(([key, value]) => `<${key}>\n${value}\n</${key}>`)
+							.join("\n")
+						return {
+							type: "text",
+							text: `<${block.name}>\n${inputAsXml}\n</${block.name}>`,
+						} as Anthropic.Messages.TextBlockParam
+					} else if (block.type === "tool_result") {
+						// Convert block.content to text block array, removing images
+						const contentAsTextBlocks = Array.isArray(block.content)
+							? block.content.filter((item) => item.type === "text")
+							: [{ type: "text", text: block.content }]
+						const textContent = contentAsTextBlocks.map((item) => item.text).join("\n\n")
+						const toolName = findToolName(block.tool_use_id, existingApiConversationHistory)
+						return {
+							type: "text",
+							text: `[${toolName} Result]\n\n${textContent}`,
+						} as Anthropic.Messages.TextBlockParam
+					}
+					return block
+				})
+				return { ...message, content: newContent }
+			}
+			return message
+		})
+		existingApiConversationHistory = conversationWithoutToolBlocks
+
+		// FIXME: remove tool use blocks altogether
+
 		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
 		// if there's no tool use and only a text block, then we can just add a user message
 		// (note this isn't relevant anymore since we use custom tool prompts instead of tool use blocks, but this is here for legacy purposes in case users resume old tasks)
 
 		// if the last message is a user message, we can need to get the assistant message before it to see if it made tool calls, and if so, fill in the remaining tool responses with 'interrupted'
-
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
-			await this.getSavedApiConversationHistory()
 
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
 		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[] // need to remove the last user message to replace with new modified user message

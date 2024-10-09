@@ -82,7 +82,7 @@ export function formatContentBlockToMarkdown(
 	}
 }
 
-function findToolName(toolCallId: string, messages: Anthropic.MessageParam[]): string {
+export function findToolName(toolCallId: string, messages: Anthropic.MessageParam[]): string {
 	for (const message of messages) {
 		if (Array.isArray(message.content)) {
 			for (const block of message.content) {
