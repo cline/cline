@@ -252,7 +252,7 @@ export function addCustomInstructions(customInstructions: string): string {
 
 USER'S CUSTOM INSTRUCTIONS
 
-The following additional instructions are provided by the user. They should be followed and given precedence in case of conflicts with previous instructions.
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 
 ${customInstructions.trim()}`
 }
