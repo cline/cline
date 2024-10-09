@@ -17,8 +17,8 @@ export class OpenRouterHandler implements ApiHandler {
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
-				"HTTP-Referer": "https://github.com/saoudrizwan/claude-dev", // Optional, for including your app on openrouter.ai rankings.
-				"X-Title": "claude-dev", // Optional. Shows in rankings on openrouter.ai.
+				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
+				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 			},
 		})
 	}
