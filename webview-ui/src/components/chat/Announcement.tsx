@@ -12,6 +12,7 @@ interface AnnouncementProps {
 You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
+	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div
 			style={{
@@ -29,7 +30,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in v{version}
+				🎉{"  "}New in v{minorVersion}
 			</h3>
 			<p style={{ margin: "5px 0px" }}>
 				New name! Meet Cline, an AI assistant that can use your <strong>CLI</strong> a<strong>N</strong>d{" "}
@@ -37,18 +38,18 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</p>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Responses are now streamed with a yellow text decoration animation to keep track of Cline's progress
-					as he edits files.
+					Responses are now streamed + a yellow text decoration animation to keep track of Cline's progress as
+					he edits files.
 				</li>
 				<li>
-					New Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more
-					control over tasks.
+					Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more control
+					over tasks.
 				</li>
 				<li>
 					Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better
 					performance with other models.
 				</li>
-				<li>Search and use any model with OpenRouter (try searching "free" for no-cost options).</li>
+				<li>Search and use any model with OpenRouter (search "free" for no-cost options).</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
@@ -98,10 +99,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>*/}
 			<p style={{ margin: "0" }}>
-				More details about the changes + benchmarks{" "}
-				<VSCodeLink href="https://github.com/clinebot/cline/releases/tag/v2.0.0" style={{ display: "inline" }}>
-					here.
-				</VSCodeLink>
+				{/* <VSCodeLink href="https://github.com/clinebot/cline/releases/tag/v2.0.0" style={{ display: "inline" }}>
+					See a demo of the changes here.
+				</VSCodeLink> */}
 				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
 				hi!{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
