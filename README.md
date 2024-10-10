@@ -122,4 +122,4 @@ To contribute to the project, start by exploring [open issues](https://github.co
 
 ## License
 
-[Apache 2.0 © 2024 Cline Inc.](./LICENSE)
+[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
