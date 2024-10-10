@@ -1,6 +1,6 @@
 {
   "name": "claude-dev",
-  "displayName": "Cline (prev. Claude Dev)",
+  "displayName": "Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
   "version": "2.0.3",
   "icon": "assets/icons/icon.png",
