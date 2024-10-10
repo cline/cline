@@ -20,7 +20,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -402,7 +402,38 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								overflow: "hidden",
 								backgroundColor: CODE_BLOCK_BG_COLOR,
 							}}>
-							<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
+							<CodeBlock
+								source={`${"```"}shell\n${tool.path}${tool.resolution ? ` (${tool.resolution})` : ''}\n${"```"}`}
+								forceWrap={true}
+							/>
+						</div>
+					</>
+				)
+			case "inspectEmulator":
+				const isInspectingEmulator = lastModifiedMessage?.say === "inspect_emulator_result" && !lastModifiedMessage?.images
+				return (
+					<>
+						<div style={headerStyle}>
+							{isInspectingEmulator ? <ProgressIndicator /> : toolIcon("device-mobile")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>Claude wants to inspect an emulator:</>
+								) : (
+									<>Claude is inspecting an emulator:</>
+								)}
+							</span>
+						</div>
+						<div
+							style={{
+								borderRadius: 3,
+								border: "1px solid var(--vscode-editorGroup-border)",
+								overflow: "hidden",
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+							}}>
+							<CodeBlock
+								source={`${"```"}shell\nInspecting emulator\n${"```"}`}
+								forceWrap={true}
+							/>
 						</div>
 					</>
 				)
@@ -550,6 +581,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						</div>
 					)
 				case "inspect_site_result":
+				case "inspect_emulator_result":
 					const logs = message.text || ""
 					const screenshot = message.images?.[0]
 					return (
@@ -738,9 +770,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 												padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
 											}}>
 											<span
-												className={`codicon codicon-chevron-${
-													isExpanded ? "down" : "right"
-												}`}></span>
+												className={`codicon codicon-chevron-${isExpanded ? "down" : "right"
+													}`}></span>
 											<span style={{ fontSize: "0.8em" }}>Command Output</span>
 										</div>
 										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}

@@ -6,15 +6,15 @@ import { HistoryItem } from "./HistoryItem"
 // webview will hold state
 export interface ExtensionMessage {
 	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "ollamaModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-		| "openRouterModels"
+	| "action"
+	| "state"
+	| "selectedImages"
+	| "ollamaModels"
+	| "theme"
+	| "workspaceUpdated"
+	| "invoke"
+	| "partialMessage"
+	| "openRouterModels"
 	text?: string
 	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -72,22 +72,25 @@ export type ClineSay =
 	| "tool"
 	| "shell_integration_warning"
 	| "inspect_site_result"
+	| "inspect_emulator_result"
 
 export interface ClineSayTool {
 	tool:
-		| "editedExistingFile"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
-		| "inspectSite"
+	| "editedExistingFile"
+	| "newFileCreated"
+	| "readFile"
+	| "listFilesTopLevel"
+	| "listFilesRecursive"
+	| "listCodeDefinitionNames"
+	| "searchFiles"
+	| "inspectSite"
+	| "inspectEmulator"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+	resolution?: string
 }
 
 export interface ClineApiReqInfo {
