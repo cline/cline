@@ -89,16 +89,12 @@ export class DiffViewProvider {
 			accumulatedLines.pop() // remove the last partial line only if it's not the final update
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
-		const document = vscode.window.activeTextEditor?.document
+
+		const document = this.activeDiffEditor?.document
 		if (!document) {
-			console.error("No active text editor")
-			return
+			throw new Error("User closed text editor, unable to edit file...")
 		}
-		const diffViewEditor = vscode.window.activeTextEditor
-		if (!diffViewEditor) {
-			console.error("No active diff view editor")
-			return
-		}
+
 		for (let i = 0; i < diffLines.length; i++) {
 			const currentLine = this.streamedLines.length + i
 			// Replace all content up to the current line with accumulated lines
