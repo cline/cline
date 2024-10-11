@@ -57,7 +57,6 @@ export class Cline {
 	private urlContentFetcher: UrlContentFetcher
 	private didEditFile: boolean = false
 	customInstructions?: string
-	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -84,7 +83,6 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
-		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem
@@ -95,7 +93,6 @@ export class Cline {
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -106,6 +103,10 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+	}
+
+	private getAlwaysAllowReadOnly(): boolean {
+    return vscode.workspace.getConfiguration('cline').get('alwaysAllowReadOnly', false);
 	}
 
 	// Storing task to disk for history
@@ -1131,7 +1132,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1149,7 +1150,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1181,7 +1182,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1201,7 +1202,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1229,7 +1230,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1250,7 +1251,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1282,7 +1283,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1306,7 +1307,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1331,7 +1332,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1345,7 +1346,7 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 								const completeMessage = JSON.stringify(sharedMessageProps)
-								if (this.alwaysAllowReadOnly) {
+								if (this.getAlwaysAllowReadOnly()) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)

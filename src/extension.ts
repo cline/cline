@@ -92,6 +92,13 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	)
 
+	// New command to open VSCode settings
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openVSCodeSettings", () => {
+			vscode.commands.executeCommand("workbench.action.openSettings", "cline")
+		})
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
