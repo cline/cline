@@ -428,6 +428,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openMention":
 						openMention(message.text)
 						break
+					case "openVsCodeSettings":
+						vscode.commands.executeCommand('workbench.action.openSettings', 'cline')
+						break;
 					case "cancelTask":
 						if (this.cline) {
 							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
@@ -708,7 +711,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly: vscode.workspace.getConfiguration('cline').get('alwaysAllowReadOnly', false),
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
@@ -792,7 +794,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterModelInfo,
 			lastShownAnnouncementId,
 			customInstructions,
-			alwaysAllowReadOnly,
 			taskHistory,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -818,7 +819,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			vscode.workspace.getConfiguration('cline').get('alwaysAllowReadOnly', false),
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 		])
 
@@ -862,7 +862,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			},
 			lastShownAnnouncementId,
 			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
 			taskHistory,
 		}
 	}

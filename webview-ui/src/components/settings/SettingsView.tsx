@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -17,8 +17,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		version,
 		customInstructions,
 		setCustomInstructions,
-		alwaysAllowReadOnly,
-		setAlwaysAllowReadOnly,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -32,7 +30,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
-			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			onDone()
 		}
 	}
@@ -56,6 +53,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
+	}
+
+	const openVSCodeSettings = () => {
+		vscode.postMessage({ type: "openVsCodeSettings" })
 	}
 
 	return (
@@ -114,19 +115,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
-					</VSCodeCheckbox>
+					<h4 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Other Settings</h4>
 					<p
 						style={{
 							fontSize: "12px",
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Cline will automatically read files, view directories, and inspect sites without
-						requiring you to click the Allow button.
+						Modify via <VSCodeLink onClick={openVSCodeSettings}>VSCode Settings</VSCodeLink>.
+					</p>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ fontWeight: "bold" }}>AlwaysAllowReadOnly</span> - When enabled, Cline will
+						automatically read files, view directories, and inspect sites without requiring you to click the
+						Allow button.
 					</p>
 				</div>
 
@@ -142,7 +148,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							This will reset all global state and secret storage in the extension.
+							This will reset all global state and secret storage in the extension. It will not reset
+							anything stored in VS Code Settings.
 						</p>
 					</>
 				)}
@@ -162,6 +169,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							https://github.com/clinebot/cline
 						</VSCodeLink>
 					</p>
+
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
 				</div>
 			</div>

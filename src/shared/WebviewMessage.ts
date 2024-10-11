@@ -4,7 +4,6 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "customInstructions"
-		| "alwaysAllowReadOnly"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -20,6 +19,7 @@ export interface WebviewMessage {
 		| "openImage"
 		| "openFile"
 		| "openMention"
+		| "openVsCodeSettings"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
 	text?: string
