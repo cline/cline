@@ -1,5 +1,10 @@
 # Change Log
 
+## [2.0.5]
+
+- Fixed bug where Cline's edits would stream into the active tab when switching tabs during a write_to_file
+- Added explanation in task continuation prompt that an interrupted write_to_file reverts the file to its original contents, preventing unnecessary re-reads
+- Fixed non-first chunk error handling in case stream fails mid-way through
 
 ## [2.0.0]
 
