@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.7]
+
+- Misc. bug fixes
+
 ## [2.0.6]
 
 - Update URLs to https://github.com/cline/cline

@@ -2,10 +2,10 @@
   "name": "claude-dev",
   "displayName": "Cline (prev. Claude Dev)",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, executing commands, and more with your permission every step of the way.",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
-    "color": "#556C80",
+    "color": "#617A91",
     "theme": "dark"
   },
   "engines": {
