@@ -153,7 +153,7 @@ const OpenRouterModelPicker: React.FC = () => {
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
-						style={{ width: "100%", zIndex: 1001, position: "relative" }}>
+						style={{ width: "100%", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX, position: "relative" }}>
 						{searchTerm && (
 							<div
 								className="input-icon-button codicon codicon-close"
@@ -234,6 +234,8 @@ const DropdownWrapper = styled.div`
 	width: 100%;
 `
 
+export const OPENROUTER_MODEL_PICKER_Z_INDEX = 1_000
+
 const DropdownList = styled.div`
 	position: absolute;
 	top: calc(100% - 3px);
@@ -243,7 +245,7 @@ const DropdownList = styled.div`
 	overflow-y: auto;
 	background-color: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-list-activeSelectionBackground);
-	z-index: 1000;
+	z-index: ${OPENROUTER_MODEL_PICKER_Z_INDEX - 1};
 	border-bottom-left-radius: 3px;
 	border-bottom-right-radius: 3px;
 `
