@@ -1018,11 +1018,11 @@ export class Cline {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
 
+						// it seems not just llama models are doing this, but also gemini and potentially others
 						if (
-							this.api.getModel().id.includes("llama") &&
-							(newContent.includes("&gt;") ||
-								newContent.includes("&lt;") ||
-								newContent.includes("&quot;"))
+							newContent.includes("&gt;") ||
+							newContent.includes("&lt;") ||
+							newContent.includes("&quot;")
 						) {
 							newContent = newContent
 								.replace(/&gt;/g, ">")
