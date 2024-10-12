@@ -158,8 +158,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					}}>
 					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/clinebot/cline" style={{ display: "inline" }}>
-							https://github.com/clinebot/cline
+						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>

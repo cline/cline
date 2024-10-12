@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
     - name: Feature Request
-      url: https://github.com/clinebot/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop
+      url: https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop
       about: Share and vote on feature requests for Cline
     - name: Cline Discord
       url: https://discord.gg/cline

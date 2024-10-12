@@ -1,7 +1,7 @@
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
 
 <p align="center">
-  <img src="https://media.githubusercontent.com/media/clinebot/cline/main/assets/docs/demo.gif" width="100%" />
+  <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
 </p>
 
 <div align="center">
@@ -14,10 +14,10 @@
 <a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>
 </td>
 <td align="center">
-<a href="https://github.com/clinebot/cline/wiki" target="_blank"><strong>Docs</strong></a>
+<a href="https://github.com/cline/cline/wiki" target="_blank"><strong>Docs</strong></a>
 </td>
 <td align="center">
-<a href="https://github.com/clinebot/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
+<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
 </td>
 </tbody>
 </table>
@@ -99,14 +99,14 @@ Cline can also use a headless browser to inspect any website, e.g., localhost, a
 
 ## Contributing
 
-To contribute to the project, start by exploring [open issues](https://github.com/clinebot/cline/issues) or checking our [feature request board](https://github.com/clinebot/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
+To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
 
 <details>
 <summary>Local Development Instructions</summary>
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/clinebot/cline.git
+    git clone https://github.com/cline/cline.git
     ```
 2. Open the project in VSCode:
     ```bash
