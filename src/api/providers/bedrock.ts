@@ -4,7 +4,6 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
-// https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
@@ -22,6 +21,22 @@ export class AwsBedrockHandler implements ApiHandler {
 			// and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.
 			awsRegion: this.options.awsRegion,
 		})
+	}
+
+	private getCrossRegionPrefix(): string {
+		const region = this.options.awsRegion || "us-east-1"
+		return region.startsWith("eu") ? "eu." : "us."
+	}
+
+	private getModelId(): BedrockModelId {
+		let modelId = (this.options.apiModelId as BedrockModelId) || bedrockDefaultModelId
+
+		if (this.options.awsUseCrossRegionInference) {
+			const prefix = this.getCrossRegionPrefix()
+			modelId = `${prefix}${modelId}` as BedrockModelId
+		}
+
+		return modelId
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
@@ -82,10 +97,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in bedrockModels) {
-			const id = modelId as BedrockModelId
-			return { id, info: bedrockModels[id] }
+		const modelId = this.getModelId()
+
+		if (modelId in bedrockModels) {
+			return { id: modelId, info: bedrockModels[modelId] }
 		}
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}

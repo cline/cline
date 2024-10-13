@@ -6,7 +6,7 @@ import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 
 const WelcomeView = () => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration } = useExtensionState()
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
@@ -37,7 +37,12 @@ const WelcomeView = () => {
 			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
 
 			<div style={{ marginTop: "10px" }}>
-				<ApiOptions showModelOptions={false} />
+				<ApiOptions
+					showModelOptions={false}
+					apiConfiguration={apiConfiguration}
+					setApiConfiguration={setApiConfiguration}
+					apiErrorMessage={apiErrorMessage}
+				/>
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
 					Let's go!
 				</VSCodeButton>

@@ -14,6 +14,7 @@ type SettingsViewProps = {
 const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const {
 		apiConfiguration,
+		setApiConfiguration,
 		version,
 		customInstructions,
 		setCustomInstructions,
@@ -88,6 +89,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<ApiOptions
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
+						apiConfiguration={apiConfiguration}
+						setApiConfiguration={setApiConfiguration}
 						modelIdErrorMessage={modelIdErrorMessage}
 					/>
 				</div>
