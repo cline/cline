@@ -8,19 +8,10 @@ import { OpenAiHandler } from "./providers/openai"
 import { OllamaHandler } from "./providers/ollama"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
-
-export interface ApiHandlerMessageResponse {
-	message: Anthropic.Messages.Message
-	userCredits?: number
-}
+import { ApiStream } from "./transform/stream"
 
 export interface ApiHandler {
-	createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse>
-
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
 }
 

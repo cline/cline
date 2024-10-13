@@ -1,10 +1,11 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import * as vscode from "vscode"
-import { ClaudeDevProvider } from "./core/webview/ClaudeDevProvider"
 import delay from "delay"
-import { createClaudeDevAPI } from "./exports"
+import * as vscode from "vscode"
+import { ClineProvider } from "./core/webview/ClineProvider"
+import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
+import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -20,47 +21,33 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	//console.log('Congratulations, your extension "claude-dev" is now active!')
-
-	outputChannel = vscode.window.createOutputChannel("Claude Dev")
+	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
-	outputChannel.appendLine("Claude Dev extension activated")
+	outputChannel.appendLine("Cline extension activated")
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	// const disposable = vscode.commands.registerCommand("claude-dev.helloWorld", () => {
-	// 	// The code you place here will be executed every time your command is executed
-	// 	// Display a message box to the user
-	// 	vscode.window.showInformationMessage("Hello World from claude-dev!")
-	// })
-	// context.subscriptions.push(disposable)
-
-	const sidebarProvider = new ClaudeDevProvider(context, outputChannel)
+	const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ClaudeDevProvider.sideBarId, sidebarProvider, {
+		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		})
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.plusButtonTapped", async () => {
-			outputChannel.appendLine("Plus button tapped")
+		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
+			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		})
 	)
 
-	const openClaudeDevInNewTab = async () => {
-		outputChannel.appendLine("Opening Claude Dev in new tab")
+	const openClineInNewTab = async () => {
+		outputChannel.appendLine("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabProvider = new ClaudeDevProvider(context, outputChannel)
+		const tabProvider = new ClineProvider(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -71,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClaudeDevProvider.tabPanelId, "Claude Dev", targetCol, {
+		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -79,8 +66,8 @@ export function activate(context: vscode.ExtensionContext) {
 		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 
 		panel.iconPath = {
-			light: vscode.Uri.joinPath(context.extensionUri, "icons", "robot_panel_light.png"),
-			dark: vscode.Uri.joinPath(context.extensionUri, "icons", "robot_panel_dark.png"),
+			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
+			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
 		}
 		tabProvider.resolveWebviewView(panel)
 
@@ -89,20 +76,19 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.popoutButtonTapped", openClaudeDevInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("claude-dev.openInNewTab", openClaudeDevInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.settingsButtonTapped", () => {
-			//const message = "claude-dev.settingsButtonTapped!"
+		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonTapped" })
+			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		})
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("claude-dev.historyButtonTapped", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonTapped" })
+		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
+			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
 		})
 	)
 
@@ -119,14 +105,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	})()
 	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider("claude-dev-diff", diffContentProvider)
+		vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider)
 	)
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleProvider = ClaudeDevProvider.getVisibleInstance()
+		const visibleProvider = ClineProvider.getVisibleInstance()
 		if (!visibleProvider) {
 			return
 		}
@@ -144,10 +130,10 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
-	return createClaudeDevAPI(outputChannel, sidebarProvider)
+	return createClineAPI(outputChannel, sidebarProvider)
 }
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	outputChannel.appendLine("Claude Dev extension deactivated")
+	outputChannel.appendLine("Cline extension deactivated")
 }

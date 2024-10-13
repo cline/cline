@@ -19,15 +19,15 @@ const AppContent = () => {
 		switch (message.type) {
 			case "action":
 				switch (message.action!) {
-					case "settingsButtonTapped":
+					case "settingsButtonClicked":
 						setShowSettings(true)
 						setShowHistory(false)
 						break
-					case "historyButtonTapped":
+					case "historyButtonClicked":
 						setShowSettings(false)
 						setShowHistory(true)
 						break
-					case "chatButtonTapped":
+					case "chatButtonClicked":
 						setShowSettings(false)
 						setShowHistory(false)
 						break

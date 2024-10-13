@@ -39,4 +39,4 @@ webview-ui/node_modules/**
 !src/integrations/theme/default-themes/**
 
 # Include icons
-!icons/**
+!assets/icons/**

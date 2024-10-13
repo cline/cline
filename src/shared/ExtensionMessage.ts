@@ -1,18 +1,29 @@
-// type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonTapped' or 'settingsButtonTapped' or 'hello'
+// type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { ApiConfiguration } from "./api"
+import { ApiConfiguration, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type: "action" | "state" | "selectedImages" | "ollamaModels" | "theme" | "workspaceUpdated" | "invoke"
+	type:
+		| "action"
+		| "state"
+		| "selectedImages"
+		| "ollamaModels"
+		| "theme"
+		| "workspaceUpdated"
+		| "invoke"
+		| "partialMessage"
+		| "openRouterModels"
 	text?: string
-	action?: "chatButtonTapped" | "settingsButtonTapped" | "historyButtonTapped" | "didBecomeVisible"
+	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
-	models?: string[]
+	ollamaModels?: string[]
 	filePaths?: string[]
+	partialMessage?: ClineMessage
+	openRouterModels?: Record<string, ModelInfo>
 }
 
 export interface ExtensionState {
@@ -21,21 +32,22 @@ export interface ExtensionState {
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
 	uriScheme?: string
-	claudeMessages: ClaudeMessage[]
+	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 }
 
-export interface ClaudeMessage {
+export interface ClineMessage {
 	ts: number
 	type: "ask" | "say"
-	ask?: ClaudeAsk
-	say?: ClaudeSay
+	ask?: ClineAsk
+	say?: ClineSay
 	text?: string
 	images?: string[]
+	partial?: boolean
 }
 
-export type ClaudeAsk =
+export type ClineAsk =
 	| "followup"
 	| "command"
 	| "command_output"
@@ -46,7 +58,7 @@ export type ClaudeAsk =
 	| "resume_completed_task"
 	| "mistake_limit_reached"
 
-export type ClaudeSay =
+export type ClineSay =
 	| "task"
 	| "error"
 	| "api_req_started"
@@ -61,7 +73,7 @@ export type ClaudeSay =
 	| "shell_integration_warning"
 	| "inspect_site_result"
 
-export interface ClaudeSayTool {
+export interface ClineSayTool {
 	tool:
 		| "editedExistingFile"
 		| "newFileCreated"
@@ -77,3 +89,16 @@ export interface ClaudeSayTool {
 	regex?: string
 	filePattern?: string
 }
+
+export interface ClineApiReqInfo {
+	request?: string
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+	cost?: number
+	cancelReason?: ClineApiReqCancelReason
+	streamingFailedMessage?: string
+}
+
+export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"

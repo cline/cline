@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../../utils/validate"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
@@ -20,15 +20,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-
+	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
-
-		if (!apiValidationResult) {
+		setModelIdErrorMessage(modelIdValidationResult)
+		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
@@ -38,6 +40,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	useEffect(() => {
 		setApiErrorMessage(undefined)
+		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
 	// validate as soon as the component is mounted
@@ -88,6 +91,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						apiErrorMessage={apiErrorMessage}
 						apiConfiguration={apiConfiguration}
 						setApiConfiguration={setApiConfiguration}
+						modelIdErrorMessage={modelIdErrorMessage}
 					/>
 				</div>
 
@@ -124,7 +128,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Claude will automatically read files, view directories, and inspect sites without
+						When enabled, Cline will automatically read files, view directories, and inspect sites without
 						requiring you to click the Allow button.
 					</p>
 				</div>
@@ -157,8 +161,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					}}>
 					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/saoudrizwan/claude-dev" style={{ display: "inline" }}>
-							https://github.com/saoudrizwan/claude-dev
+						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>

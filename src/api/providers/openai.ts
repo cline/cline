@@ -1,13 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "../index"
 import {
 	ApiHandlerOptions,
 	azureOpenAiDefaultApiVersion,
 	ModelInfo,
 	openAiModelInfoSaneDefaults,
 } from "../../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiHandler } from "../index"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -30,37 +31,34 @@ export class OpenAiHandler implements ApiHandler {
 		}
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		const openAiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((tool) => ({
-			type: "function",
-			function: {
-				name: tool.name,
-				description: tool.description,
-				parameters: tool.input_schema,
-			},
-		}))
-		const createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+		const stream = await this.client.chat.completions.create({
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
-			temperature: 0.2,
-			tools: openAiTools,
-			tool_choice: "auto",
+			temperature: 0,
+			stream: true,
+			stream_options: { include_usage: true },
+		})
+		for await (const chunk of stream) {
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
+				}
+			}
+			if (chunk.usage) {
+				yield {
+					type: "usage",
+					inputTokens: chunk.usage.prompt_tokens || 0,
+					outputTokens: chunk.usage.completion_tokens || 0,
+				}
+			}
 		}
-		const completion = await this.client.chat.completions.create(createParams)
-		const errorMessage = (completion as any).error?.message
-		if (errorMessage) {
-			throw new Error(errorMessage)
-		}
-		const anthropicMessage = convertToAnthropicMessage(completion)
-		return { message: anthropicMessage }
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

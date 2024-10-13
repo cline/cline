@@ -1,22 +1,25 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import axios from "axios"
+import fs from "fs/promises"
+import pWaitFor from "p-wait-for"
+import * as path from "path"
 import * as vscode from "vscode"
-import { ClaudeDev } from "../ClaudeDev"
-import { ApiProvider } from "../../shared/api"
+import { buildApiHandler } from "../../api"
+import { downloadTask } from "../../integrations/misc/export-markdown"
+import { openFile, openImage } from "../../integrations/misc/open-file"
+import { selectImages } from "../../integrations/misc/process-images"
+import { getTheme } from "../../integrations/theme/getTheme"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { ApiProvider, ModelInfo } from "../../shared/api"
+import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import { HistoryItem } from "../../shared/HistoryItem"
 import { WebviewMessage } from "../../shared/WebviewMessage"
-import { findLast } from "../../utils/array"
+import { fileExistsAtPath } from "../../utils/fs"
+import { Cline } from "../Cline"
+import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { selectImages } from "../../integrations/misc/process-images"
-import { downloadTask } from "../../integrations/misc/export-markdown"
-import * as path from "path"
-import fs from "fs/promises"
-import { HistoryItem } from "../../shared/HistoryItem"
-import axios from "axios"
-import { getTheme } from "../../integrations/theme/getTheme"
-import { openFile, openImage } from "../../integrations/misc/open-file"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { openMention } from "../mentions"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -50,43 +53,29 @@ type GlobalStateKey =
 	| "ollamaBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
+	| "openRouterModelId"
+	| "openRouterModelInfo"
 
-export class ClaudeDevProvider implements vscode.WebviewViewProvider {
+export const GlobalFileNames = {
+	apiConversationHistory: "api_conversation_history.json",
+	uiMessages: "ui_messages.json",
+	openRouterModels: "openrouter_models.json",
+}
+
+export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
-	private static activeInstances: Set<ClaudeDevProvider> = new Set()
+	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
-	private claudeDev?: ClaudeDev
+	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	private latestAnnouncementId = "sep-21-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "oct-9-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
-		this.outputChannel.appendLine("ClaudeDevProvider instantiated")
-		ClaudeDevProvider.activeInstances.add(this)
+		this.outputChannel.appendLine("ClineProvider instantiated")
+		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
-		this.revertKodu()
-	}
-
-	async revertKodu() {
-		const apiProvider = await this.getGlobalState("apiProvider")
-		if (apiProvider === "kodu") {
-			// switch back to previous provider
-			const anthropicKey = await this.getSecret("apiKey")
-			if (anthropicKey) {
-				await this.updateGlobalState("apiProvider", "anthropic" as ApiProvider)
-			} else {
-				const openRouterApiKey = await this.getSecret("openRouterApiKey")
-				if (openRouterApiKey) {
-					await this.updateGlobalState("apiProvider", "openrouter" as ApiProvider)
-				} else {
-					const awsAccessKey = await this.getSecret("awsAccessKey")
-					if (awsAccessKey) {
-						await this.updateGlobalState("apiProvider", "bedrock" as ApiProvider)
-					}
-				}
-			}
-		}
 	}
 
 	/*
@@ -95,7 +84,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		this.outputChannel.appendLine("Disposing ClaudeDevProvider...")
+		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
 		if (this.view && "dispose" in this.view) {
@@ -111,10 +100,10 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
-		ClaudeDevProvider.activeInstances.delete(this)
+		ClineProvider.activeInstances.delete(this)
 	}
 
-	public static getVisibleInstance(): ClaudeDevProvider | undefined {
+	public static getVisibleInstance(): ClineProvider | undefined {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
@@ -192,22 +181,19 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		// if the extension is starting a new session, clear previous task state
 		this.clearTask()
 
-		// Clear previous version's (0.0.6) claudeMessage cache from workspace state. We now store in global state with a unique identifier for each provider instance. We need to store globally rather than per workspace to eventually implement task history
-		this.updateWorkspaceState("claudeMessages", undefined)
-
 		this.outputChannel.appendLine("Webview view resolved")
 	}
 
-	async initClaudeDevWithTask(task?: string, images?: string[]) {
+	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.claudeDev = new ClaudeDev(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
+		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
 	}
 
-	async initClaudeDevWithHistoryItem(historyItem: HistoryItem) {
+	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
 		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.claudeDev = new ClaudeDev(
+		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
@@ -293,7 +279,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
             <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
-            <title>Claude Dev</title>
+            <title>Cline</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -315,10 +301,19 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
-						await this.postStateToWebview()
-						const theme = await getTheme()
-						await this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
-						this.workspaceTracker?.initializeFilePaths()
+						this.postStateToWebview()
+						this.workspaceTracker?.initializeFilePaths() // don't await
+						getTheme().then((theme) =>
+							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
+						)
+						this.readOpenRouterModels().then((openRouterModels) => {
+							if (openRouterModels) {
+								this.postMessageToWebview({ type: "openRouterModels", openRouterModels })
+							} else {
+								// nothing cached, fetch first time
+								this.refreshOpenRouterModels()
+							}
+						})
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -328,8 +323,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						// You can send any JSON serializable data.
 						// Could also do this in extension .ts
 						//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-						// initializing new instance of ClaudeDev will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-						await this.initClaudeDevWithTask(message.text, message.images)
+						// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
+						await this.initClineWithTask(message.text, message.images)
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
@@ -354,6 +349,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								azureApiVersion,
+								openRouterModelId,
+								openRouterModelInfo,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -375,7 +372,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							this.claudeDev?.updateApi(message.apiConfiguration)
+							await this.updateGlobalState("openRouterModelId", openRouterModelId)
+							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							if (this.cline) {
+								this.cline.api = buildApiHandler(message.apiConfiguration)
+							}
 						}
 						await this.postStateToWebview()
 						break
@@ -384,11 +385,13 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						this.claudeDev?.updateAlwaysAllowReadOnly(message.bool ?? undefined)
+						if (this.cline) {
+							this.cline.alwaysAllowReadOnly = message.bool ?? false
+						}
 						await this.postStateToWebview()
 						break
 					case "askResponse":
-						this.claudeDev?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
+						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
 					case "clearTask":
 						// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
@@ -404,7 +407,7 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.postMessageToWebview({ type: "selectedImages", images })
 						break
 					case "exportCurrentTask":
-						const currentTaskId = this.claudeDev?.taskId
+						const currentTaskId = this.cline?.taskId
 						if (currentTaskId) {
 							this.exportTaskWithId(currentTaskId)
 						}
@@ -422,8 +425,11 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						await this.resetState()
 						break
 					case "requestOllamaModels":
-						const models = await this.getOllamaModels(message.text)
-						this.postMessageToWebview({ type: "ollamaModels", models })
+						const ollamaModels = await this.getOllamaModels(message.text)
+						this.postMessageToWebview({ type: "ollamaModels", ollamaModels })
+						break
+					case "refreshOpenRouterModels":
+						await this.refreshOpenRouterModels()
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -433,6 +439,20 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 						break
 					case "openMention":
 						openMention(message.text)
+						break
+					case "cancelTask":
+						if (this.cline) {
+							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
+							this.cline.abortTask()
+							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
+								timeout: 3_000,
+							}).catch(() => {
+								console.error("Failed to abort task")
+							})
+							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
+							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+						}
+
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -446,7 +466,9 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
 		await this.updateGlobalState("customInstructions", instructions || undefined)
-		this.claudeDev?.updateCustomInstructions(instructions || undefined)
+		if (this.cline) {
+			this.cline.customInstructions = instructions || undefined
+		}
 		await this.postStateToWebview()
 	}
 
@@ -489,8 +511,118 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("apiProvider", openrouter)
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
-		this.claudeDev?.updateApi({ apiProvider: openrouter, openRouterApiKey: apiKey })
-		// await this.postMessageToWebview({ type: "action", action: "settingsButtonTapped" }) // bad ux if user is on welcome
+		if (this.cline) {
+			this.cline.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
+		}
+		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
+	}
+
+	private async ensureCacheDirectoryExists(): Promise<string> {
+		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		await fs.mkdir(cacheDir, { recursive: true })
+		return cacheDir
+	}
+
+	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const openRouterModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.openRouterModels
+		)
+		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	async refreshOpenRouterModels() {
+		const openRouterModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.openRouterModels
+		)
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			/*
+			{
+				"id": "anthropic/claude-3.5-sonnet",
+				"name": "Anthropic: Claude 3.5 Sonnet",
+				"created": 1718841600,
+				"description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
+				"context_length": 200000,
+				"architecture": {
+					"modality": "text+image-\u003Etext",
+					"tokenizer": "Claude",
+					"instruct_type": null
+				},
+				"pricing": {
+					"prompt": "0.000003",
+					"completion": "0.000015",
+					"image": "0.0048",
+					"request": "0"
+				},
+				"top_provider": {
+					"context_length": 200000,
+					"max_completion_tokens": 8192,
+					"is_moderated": true
+				},
+				"per_request_limits": null
+			},
+			*/
+			if (response.data?.data) {
+				const rawModels = response.data.data
+				const parsePrice = (price: any) => {
+					if (price) {
+						return parseFloat(price) * 1_000_000
+					}
+					return undefined
+				}
+				for (const rawModel of rawModels) {
+					const modelInfo: ModelInfo = {
+						maxTokens: rawModel.top_provider?.max_completion_tokens,
+						contextWindow: rawModel.context_length,
+						supportsImages: rawModel.architecture?.modality?.includes("image"),
+						supportsPromptCache: false,
+						inputPrice: parsePrice(rawModel.pricing?.prompt),
+						outputPrice: parsePrice(rawModel.pricing?.completion),
+						description: rawModel.description,
+					}
+
+					switch (rawModel.id) {
+						case "anthropic/claude-3.5-sonnet":
+						case "anthropic/claude-3.5-sonnet:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 3.75
+							modelInfo.cacheReadsPrice = 0.3
+							break
+						case "anthropic/claude-3-opus":
+						case "anthropic/claude-3-opus:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 18.75
+							modelInfo.cacheReadsPrice = 1.5
+							break
+						case "anthropic/claude-3-haiku":
+						case "anthropic/claude-3-haiku:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 0.3
+							modelInfo.cacheReadsPrice = 0.03
+							break
+					}
+
+					models[rawModel.id] = modelInfo
+				}
+			} else {
+				console.error("Invalid response from OpenRouter API")
+			}
+			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+			console.log("OpenRouter models fetched and saved", models)
+		} catch (error) {
+			console.error("Error fetching OpenRouter models:", error)
+		}
+
+		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
 	}
 
 	// Task history
@@ -499,42 +631,40 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		historyItem: HistoryItem
 		taskDirPath: string
 		apiConversationHistoryFilePath: string
-		claudeMessagesFilePath: string
+		uiMessagesFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
-			const apiConversationHistoryFilePath = path.join(taskDirPath, "api_conversation_history.json")
-			const claudeMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			const fileExists = await fs
-				.access(apiConversationHistoryFilePath)
-				.then(() => true)
-				.catch(() => false)
+			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
 				return {
 					historyItem,
 					taskDirPath,
 					apiConversationHistoryFilePath,
-					claudeMessagesFilePath,
+					uiMessagesFilePath,
 					apiConversationHistory,
 				}
 			}
 		}
 		// if we tried to get a task that doesn't exist, remove it from state
+		// FIXME: this seems to happen sometimes when the json file doesnt save to disk for some reason
 		await this.deleteTaskFromState(id)
 		throw new Error("Task not found")
 	}
 
 	async showTaskWithId(id: string) {
-		if (id !== this.claudeDev?.taskId) {
+		if (id !== this.cline?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initClaudeDevWithHistoryItem(historyItem) // clears existing task
+			await this.initClineWithHistoryItem(historyItem) // clears existing task
 		}
-		await this.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 
 	async exportTaskWithId(id: string) {
@@ -543,30 +673,28 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 	}
 
 	async deleteTaskWithId(id: string) {
-		if (id === this.claudeDev?.taskId) {
+		if (id === this.cline?.taskId) {
 			await this.clearTask()
 		}
 
-		const { taskDirPath, apiConversationHistoryFilePath, claudeMessagesFilePath } = await this.getTaskWithId(id)
+		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+
+		await this.deleteTaskFromState(id)
 
 		// Delete the task files
-		const apiConversationHistoryFileExists = await fs
-			.access(apiConversationHistoryFilePath)
-			.then(() => true)
-			.catch(() => false)
+		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 		if (apiConversationHistoryFileExists) {
 			await fs.unlink(apiConversationHistoryFilePath)
 		}
-		const claudeMessagesFileExists = await fs
-			.access(claudeMessagesFilePath)
-			.then(() => true)
-			.catch(() => false)
-		if (claudeMessagesFileExists) {
-			await fs.unlink(claudeMessagesFilePath)
+		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+		if (uiMessagesFileExists) {
+			await fs.unlink(uiMessagesFilePath)
+		}
+		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+		if (await fileExistsAtPath(legacyMessagesFilePath)) {
+			await fs.unlink(legacyMessagesFilePath)
 		}
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-
-		await this.deleteTaskFromState(id)
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -593,61 +721,26 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			uriScheme: vscode.env.uriScheme,
-			claudeMessages: this.claudeDev?.claudeMessages || [],
+			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 		}
 	}
 
 	async clearTask() {
-		this.claudeDev?.abortTask()
-		this.claudeDev = undefined // removes reference to it, so once promises end it will be garbage collected
+		this.cline?.abortTask()
+		this.cline = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
 
 	/*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of claude messages in the user's state, but we could to reduce memory footprint in long conversations.
+	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
 
-	- We have to be careful of what state is shared between ClaudeDevProvider instances since there could be multiple instances of the extension running at once. For example when we cached claude messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
 
-	We need to use a unique identifier for each ClaudeDevProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
-
-	For now since we don't need to store task history, we'll just use an identifier unique to this provider instance (since there can be several provider instances open at once).
-	However in the future when we implement task history, we'll need to use a unique identifier for each task. As well as manage a data structure that keeps track of task history with their associated identifiers and the task message itself, to present in a 'Task History' view.
-	Task history is a significant undertaking as it would require refactoring how we wait for ask responses--it would need to be a hidden claudeMessage, so that user's can resume tasks that ended with an ask.
-	*/
-	// private providerInstanceIdentifier = Date.now()
-	// getClaudeMessagesStateKey() {
-	// 	return `claudeMessages-${this.providerInstanceIdentifier}`
-	// }
-
-	// getApiConversationHistoryStateKey() {
-	// 	return `apiConversationHistory-${this.providerInstanceIdentifier}`
-	// }
-
-	// claude messages to present in the webview
-
-	// getClaudeMessages(): ClaudeMessage[] {
-	// 	// const messages = (await this.getGlobalState(this.getClaudeMessagesStateKey())) as ClaudeMessage[]
-	// 	// return messages || []
-	// 	return this.claudeMessages
-	// }
-
-	// setClaudeMessages(messages: ClaudeMessage[] | undefined) {
-	// 	// await this.updateGlobalState(this.getClaudeMessagesStateKey(), messages)
-	// 	this.claudeMessages = messages || []
-	// }
-
-	// addClaudeMessage(message: ClaudeMessage): ClaudeMessage[] {
-	// 	// const messages = await this.getClaudeMessages()
-	// 	// messages.push(message)
-	// 	// await this.setClaudeMessages(messages)
-	// 	// return messages
-	// 	this.claudeMessages.push(message)
-	// 	return this.claudeMessages
-	// }
+	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 
 	// conversation history to send in API requests
 
@@ -707,6 +800,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			geminiApiKey,
 			openAiNativeApiKey,
 			azureApiVersion,
+			openRouterModelId,
+			openRouterModelInfo,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
@@ -732,6 +827,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
@@ -774,6 +871,8 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 				geminiApiKey,
 				openAiNativeApiKey,
 				azureApiVersion,
+				openRouterModelId,
+				openRouterModelInfo,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -858,12 +957,12 @@ export class ClaudeDevProvider implements vscode.WebviewViewProvider {
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
 		}
-		if (this.claudeDev) {
-			this.claudeDev.abortTask()
-			this.claudeDev = undefined
+		if (this.cline) {
+			this.cline.abortTask()
+			this.cline = undefined
 		}
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
-		await this.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 }

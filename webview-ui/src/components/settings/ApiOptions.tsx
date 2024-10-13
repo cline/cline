@@ -7,7 +7,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
@@ -23,7 +23,7 @@ import {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
-	openRouterModels,
+	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 	awsUseCrossRegionInferenceDefault,
@@ -32,19 +32,25 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import OpenRouterModelPicker, {
+	ModelDescriptionMarkdown,
+	OPENROUTER_MODEL_PICKER_Z_INDEX,
+} from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
+	modelIdErrorMessage?: string
 	apiConfiguration: ApiConfiguration | undefined
 	setApiConfiguration: (config: ApiConfiguration) => void
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
+const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -69,8 +75,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.models) {
-			setOllamaModels(message.models)
+		if (message.type === "ollamaModels" && message.ollamaModels) {
+			setOllamaModels(message.ollamaModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -117,7 +123,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 130 }}>
+					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -455,10 +461,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						You can use any OpenAI compatible API with models that support tool use.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
-							best with Claude models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -519,16 +524,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
-						</VSCodeLink>{" "}
-						You can use any model that supports{" "}
-						<VSCodeLink
-							href="https://ollama.com/search?c=tools"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							tool use.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Claude Dev uses complex prompts and works
-							best with Claude models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -545,22 +544,42 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage }: ApiOptionsProps) => {
 				</p>
 			)}
 
-			{selectedProvider !== "openai" && selectedProvider !== "ollama" && showModelOptions && (
-				<>
-					<div className="dropdown-container">
-						<label htmlFor="model-id">
-							<span style={{ fontWeight: 500 }}>Model</span>
-						</label>
-						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
-						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
-						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
-						{selectedProvider === "vertex" && createDropdown(vertexModels)}
-						{selectedProvider === "gemini" && createDropdown(geminiModels)}
-						{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
-					</div>
+			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} />
-				</>
+			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "openai" &&
+				selectedProvider !== "ollama" &&
+				showModelOptions && (
+					<>
+						<div className="dropdown-container">
+							<label htmlFor="model-id">
+								<span style={{ fontWeight: 500 }}>Model</span>
+							</label>
+							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
+							{selectedProvider === "vertex" && createDropdown(vertexModels)}
+							{selectedProvider === "gemini" && createDropdown(geminiModels)}
+							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+						</div>
+
+						<ModelInfoView
+							selectedModelId={selectedModelId}
+							modelInfo={selectedModelInfo}
+							isDescriptionExpanded={isDescriptionExpanded}
+							setIsDescriptionExpanded={setIsDescriptionExpanded}
+						/>
+					</>
+				)}
+
+			{modelIdErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{modelIdErrorMessage}
+				</p>
 			)}
 		</div>
 	)
@@ -579,82 +598,89 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
-const ModelInfoView = ({ selectedModelId, modelInfo }: { selectedModelId: string; modelInfo: ModelInfo }) => {
+export const ModelInfoView = ({
+	selectedModelId,
+	modelInfo,
+	isDescriptionExpanded,
+	setIsDescriptionExpanded,
+}: {
+	selectedModelId: string
+	modelInfo: ModelInfo
+	isDescriptionExpanded: boolean
+	setIsDescriptionExpanded: (isExpanded: boolean) => void
+}) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const isO1 = selectedModelId && selectedModelId.includes("o1")
+
+	const infoItems = [
+		modelInfo.description && (
+			<ModelDescriptionMarkdown
+				key="description"
+				markdown={modelInfo.description}
+				isExpanded={isDescriptionExpanded}
+				setIsExpanded={setIsDescriptionExpanded}
+			/>
+		),
+		<ModelInfoSupportsItem
+			key="supportsImages"
+			isSupported={modelInfo.supportsImages ?? false}
+			supportsLabel="Supports images"
+			doesNotSupportLabel="Does not support images"
+		/>,
+		!isGemini && (
+			<ModelInfoSupportsItem
+				key="supportsPromptCache"
+				isSupported={modelInfo.supportsPromptCache}
+				supportsLabel="Supports prompt caching"
+				doesNotSupportLabel="Does not support prompt caching"
+			/>
+		),
+		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
+			<span key="maxTokens">
+				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
+			</span>
+		),
+		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
+			<span key="inputPrice">
+				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
+			<span key="cacheWritesPrice">
+				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
+				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
+			<span key="cacheReadsPrice">
+				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
+				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
+			<span key="outputPrice">
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
+				tokens
+			</span>
+		),
+		isGemini && (
+			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
+				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
+				After that, billing depends on prompt size.{" "}
+				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
+					For more info, see pricing details.
+				</VSCodeLink>
+			</span>
+		),
+	].filter(Boolean)
+
 	return (
 		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			<ModelInfoSupportsItem
-				isSupported={modelInfo.supportsImages}
-				supportsLabel="Supports images"
-				doesNotSupportLabel="Does not support images"
-			/>
-			<br />
-			{!isGemini && (
-				<>
-					<ModelInfoSupportsItem
-						isSupported={modelInfo.supportsPromptCache}
-						supportsLabel="Supports prompt caching"
-						doesNotSupportLabel="Does not support prompt caching"
-					/>
-					<br />
-				</>
-			)}
-			<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo?.maxTokens?.toLocaleString()} tokens
-			{modelInfo.inputPrice > 0 && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million
-					tokens
-				</>
-			)}
-			{modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && modelInfo.cacheReadsPrice && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
-					{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
-					<br />
-					<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
-					{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
-				</>
-			)}
-			{modelInfo.outputPrice > 0 && (
-				<>
-					<br />
-					<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
-					tokens
-				</>
-			)}
-			{isGemini && (
-				<>
-					<br />
-					<span
-						style={{
-							fontStyle: "italic",
-						}}>
-						* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per
-						minute. After that, billing depends on prompt size.{" "}
-						<VSCodeLink
-							href="https://ai.google.dev/pricing"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							For more info, see pricing details.
-						</VSCodeLink>
-					</span>
-				</>
-			)}
-			{isO1 && (
-				<>
-					<br />
-					<span
-						style={{
-							fontStyle: "italic",
-							color: "var(--vscode-errorForeground)",
-						}}>
-						* This model does not support tool use or system prompts, so Claude Dev uses structured output
-						prompting to achieve similar results. Your mileage may vary.
-					</span>
-				</>
-			)}
+			{infoItems.map((item, index) => (
+				<Fragment key={index}>
+					{item}
+					{index < infoItems.length - 1 && <br />}
+				</Fragment>
+			))}
 		</p>
 	)
 }
@@ -706,8 +732,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
-		case "openrouter":
-			return getProviderData(openRouterModels, openRouterDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
@@ -716,16 +740,22 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "openrouter":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+			}
 		case "openai":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openAiModelId ?? "",
+				selectedModelId: apiConfiguration?.openAiModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "ollama":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.ollamaModelId ?? "",
+				selectedModelId: apiConfiguration?.ollamaModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:

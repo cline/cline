@@ -1,23 +1,23 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
-import { ClaudeDevProvider } from "../../core/webview/ClaudeDevProvider"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
-	private providerRef: WeakRef<ClaudeDevProvider>
+	private providerRef: WeakRef<ClineProvider>
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 
-	constructor(provider: ClaudeDevProvider) {
+	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
 		this.registerListeners()
 	}
 
 	async initializeFilePaths() {
-		// should not auto get filepaths for desktop since it would immediately show permission popup before claude every creates a file
+		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
 		if (!cwd) {
 			return
 		}
@@ -44,7 +44,7 @@ class WorkspaceTracker {
 		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
 		 to point to the first workspace folder.
 		 */
-		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since claude will only be working within the root folder cwd)
+		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since cline will only be working within the root folder cwd)
 		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
 	}
 
@@ -95,7 +95,7 @@ class WorkspaceTracker {
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = path.resolve(filePath)
+		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 

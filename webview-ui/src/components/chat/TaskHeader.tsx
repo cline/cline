@@ -1,14 +1,15 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { ClaudeMessage } from "../../../../src/shared/ExtensionMessage"
+import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import Thumbnails from "../common/Thumbnails"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
+import { formatLargeNumber } from "../../utils/format"
 
 interface TaskHeaderProps {
-	task: ClaudeMessage
+	task: ClineMessage
 	tokensIn: number
 	tokensOut: number
 	doesModelSupportPromptCache: boolean
@@ -257,20 +258,20 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											className="codicon codicon-arrow-up"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 										/>
-										{tokensIn?.toLocaleString()}
+										{formatLargeNumber(tokensIn || 0)}
 									</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 										<i
 											className="codicon codicon-arrow-down"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-2px" }}
 										/>
-										{tokensOut?.toLocaleString()}
+										{formatLargeNumber(tokensOut || 0)}
 									</span>
 								</div>
 								{!isCostAvailable && <ExportButton />}
 							</div>
 
-							{(shouldShowPromptCacheInfo || cacheReads !== undefined || cacheWrites !== undefined) && (
+							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
 								<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 									<span style={{ fontWeight: "bold" }}>Cache:</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
@@ -278,14 +279,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											className="codicon codicon-database"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "-1px" }}
 										/>
-										+{(cacheWrites || 0)?.toLocaleString()}
+										+{formatLargeNumber(cacheWrites || 0)}
 									</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 										<i
 											className="codicon codicon-arrow-right"
 											style={{ fontSize: "12px", fontWeight: "bold", marginBottom: 0 }}
 										/>
-										{(cacheReads || 0)?.toLocaleString()}
+										{formatLargeNumber(cacheReads || 0)}
 									</span>
 								</div>
 							)}
@@ -307,7 +308,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</>
 				)}
 			</div>
-			{/* {apiProvider === "kodu" && (
+			{/* {apiProvider === "" && (
 				<div
 					style={{
 						backgroundColor: "color-mix(in srgb, var(--vscode-badge-background) 50%, transparent)",
@@ -323,11 +324,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					}}>
 					<div style={{ fontWeight: "500" }}>Credits Remaining:</div>
 					<div>
-						{formatPrice(koduCredits || 0)}
-						{(koduCredits || 0) < 1 && (
+						{formatPrice(Credits || 0)}
+						{(Credits || 0) < 1 && (
 							<>
 								{" "}
-								<VSCodeLink style={{ fontSize: "0.9em" }} href={getKoduAddCreditsUrl(vscodeUriScheme)}>
+								<VSCodeLink style={{ fontSize: "0.9em" }} href={getAddCreditsUrl(vscodeUriScheme)}>
 									(get more?)
 								</VSCodeLink>
 							</>

@@ -4,6 +4,7 @@ import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
+import { formatLargeNumber } from "../../utils/format"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -84,6 +85,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
 					)
 				case "mostRelevant":
+					// NOTE: you must never sort directly on object since it will cause members to be reordered
 					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
 				case "newest":
 				default:
@@ -305,7 +307,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-2px",
 														}}
 													/>
-													{item.tokensIn?.toLocaleString()}
+													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
 												<span
 													style={{
@@ -322,7 +324,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-2px",
 														}}
 													/>
-													{item.tokensOut?.toLocaleString()}
+													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 											</div>
 											{!item.totalCost && <ExportButton itemId={item.id} />}
@@ -358,7 +360,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: "-1px",
 														}}
 													/>
-													+{item.cacheWrites?.toLocaleString()}
+													+{formatLargeNumber(item.cacheWrites || 0)}
 												</span>
 												<span
 													style={{
@@ -375,7 +377,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: 0,
 														}}
 													/>
-													{(item.cacheReads || 0).toLocaleString()}
+													{formatLargeNumber(item.cacheReads || 0)}
 												</span>
 											</div>
 										)}
@@ -426,7 +428,10 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 )
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (
+	fuseSearchResult: FuseResult<any>[],
+	highlightClassName: string = "history-item-highlight"
+) => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
@@ -438,17 +443,50 @@ const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: stri
 		obj[pathValue[i]] = value
 	}
 
+	// Function to merge overlapping regions
+	const mergeRegions = (regions: [number, number][]): [number, number][] => {
+		if (regions.length === 0) return regions
+
+		// Sort regions by start index
+		regions.sort((a, b) => a[0] - b[0])
+
+		const merged: [number, number][] = [regions[0]]
+
+		for (let i = 1; i < regions.length; i++) {
+			const last = merged[merged.length - 1]
+			const current = regions[i]
+
+			if (current[0] <= last[1] + 1) {
+				// Overlapping or adjacent regions
+				last[1] = Math.max(last[1], current[1])
+			} else {
+				merged.push(current)
+			}
+		}
+
+		return merged
+	}
+
 	const generateHighlightedText = (inputText: string, regions: [number, number][] = []) => {
+		if (regions.length === 0) {
+			return inputText
+		}
+
+		// Sort and merge overlapping regions
+		const mergedRegions = mergeRegions(regions)
+
 		let content = ""
 		let nextUnhighlightedRegionStartingIndex = 0
 
-		regions.forEach((region) => {
-			const lastRegionNextIndex = region[1] + 1
+		mergedRegions.forEach((region) => {
+			const start = region[0]
+			const end = region[1]
+			const lastRegionNextIndex = end + 1
 
 			content += [
-				inputText.substring(nextUnhighlightedRegionStartingIndex, region[0]),
+				inputText.substring(nextUnhighlightedRegionStartingIndex, start),
 				`<span class="${highlightClassName}">`,
-				inputText.substring(region[0], lastRegionNextIndex),
+				inputText.substring(start, lastRegionNextIndex),
 				"</span>",
 			].join("")
 
@@ -466,8 +504,10 @@ const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: stri
 			const highlightedItem = { ...item }
 
 			matches?.forEach((match) => {
-				if (match.key && typeof match.value === "string") {
-					set(highlightedItem, match.key, generateHighlightedText(match.value, [...match.indices]))
+				if (match.key && typeof match.value === "string" && match.indices) {
+					// Merge overlapping regions before generating highlighted text
+					const mergedIndices = mergeRegions([...match.indices])
+					set(highlightedItem, match.key, generateHighlightedText(match.value, mergedIndices))
 				}
 			})
 

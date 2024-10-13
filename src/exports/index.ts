@@ -1,12 +1,9 @@
 import * as vscode from "vscode"
-import { ClaudeDevProvider } from "../core/webview/ClaudeDevProvider"
-import { ClaudeDevAPI } from "./claude-dev"
+import { ClineProvider } from "../core/webview/ClineProvider"
+import { ClineAPI } from "./cline"
 
-export function createClaudeDevAPI(
-	outputChannel: vscode.OutputChannel,
-	sidebarProvider: ClaudeDevProvider
-): ClaudeDevAPI {
-	const api: ClaudeDevAPI = {
+export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClineAPI {
+	const api: ClineAPI = {
 		setCustomInstructions: async (value: string) => {
 			await sidebarProvider.updateCustomInstructions(value)
 			outputChannel.appendLine("Custom instructions set")
@@ -20,7 +17,7 @@ export function createClaudeDevAPI(
 			outputChannel.appendLine("Starting new task")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",

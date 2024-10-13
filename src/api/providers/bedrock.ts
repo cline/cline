@@ -1,7 +1,8 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse } from "../"
+import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
+import { ApiStream } from "../transform/stream"
 
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -38,24 +39,61 @@ export class AwsBedrockHandler implements ApiHandler {
 		return modelId
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
-		const modelId = this.getModelId()
-		const { info } = this.getModel()
-
-		const message = await this.client.messages.create({
-			model: modelId,
-			max_tokens: info.maxTokens,
-			temperature: 0.2,
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const stream = await this.client.messages.create({
+			model: this.getModel().id,
+			max_tokens: this.getModel().info.maxTokens || 8192,
+			temperature: 0,
 			system: systemPrompt,
 			messages,
-			tools,
-			tool_choice: { type: "auto" },
+			stream: true,
 		})
-		return { message }
+		for await (const chunk of stream) {
+			switch (chunk.type) {
+				case "message_start":
+					const usage = chunk.message.usage
+					yield {
+						type: "usage",
+						inputTokens: usage.input_tokens || 0,
+						outputTokens: usage.output_tokens || 0,
+					}
+					break
+				case "message_delta":
+					yield {
+						type: "usage",
+						inputTokens: 0,
+						outputTokens: chunk.usage.output_tokens || 0,
+					}
+					break
+
+				case "content_block_start":
+					switch (chunk.content_block.type) {
+						case "text":
+							if (chunk.index > 0) {
+								yield {
+									type: "text",
+									text: "\n",
+								}
+							}
+							yield {
+								type: "text",
+								text: chunk.content_block.text,
+							}
+							break
+					}
+					break
+				case "content_block_delta":
+					switch (chunk.delta.type) {
+						case "text_delta":
+							yield {
+								type: "text",
+								text: chunk.delta.text,
+							}
+							break
+					}
+					break
+			}
+		}
 	}
 
 	getModel(): { id: BedrockModelId; info: ModelInfo } {

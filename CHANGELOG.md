@@ -1,8 +1,26 @@
 # Change Log
 
-All notable changes to the "claude-dev" extension will be documented in this file.
+## [2.0.7]
 
-<!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
+- Misc. bug fixes
+
+## [2.0.6]
+
+- Update URLs to https://github.com/cline/cline
+
+## [2.0.5]
+
+- Fixed bug where Cline's edits would stream into the active tab when switching tabs during a write_to_file
+- Added explanation in task continuation prompt that an interrupted write_to_file reverts the file to its original contents, preventing unnecessary re-reads
+- Fixed non-first chunk error handling in case stream fails mid-way through
+
+## [2.0.0]
+
+- New name! Meet Cline, an AI assistant that can use your CLI and Editor
+- Responses are now streamed with a yellow text decoration animation to keep track of Cline's progress as he edits files
+- New Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more control over tasks
+- Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better performance with other models
+- Search and use any model with OpenRouter
 
 ## [1.9.7]
 

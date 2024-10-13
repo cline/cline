@@ -1,27 +1,35 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useMemo } from "react"
-import ReactMarkdown from "react-markdown"
-import { ClaudeMessage, ClaudeSayTool } from "../../../../src/shared/ExtensionMessage"
+import React, { memo, useEffect, useMemo, useRef } from "react"
+import { ClineApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { highlightMentions } from "./TaskHeader"
+import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
+import { highlightMentions } from "./TaskHeader"
+import { useSize } from "react-use"
 
 interface ChatRowProps {
-	message: ClaudeMessage
+	message: ClineMessage
 	isExpanded: boolean
 	onToggleExpand: () => void
-	lastModifiedMessage?: ClaudeMessage
+	lastModifiedMessage?: ClineMessage
 	isLast: boolean
+	onHeightChange: (isTaller: boolean) => void
 }
+
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
-		return (
+		const { isLast, onHeightChange, message } = props
+		// Store the previous height to compare with the current height
+		// This allows us to detect changes without causing re-renders
+		const prevHeightRef = useRef(0)
+
+		const [chatrow, { height }] = useSize(
 			<div
 				style={{
 					padding: "10px 6px 10px 15px",
@@ -29,6 +37,22 @@ const ChatRow = memo(
 				<ChatRowContent {...props} />
 			</div>
 		)
+
+		useEffect(() => {
+			// used for partials, command output, etc.
+			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
+			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
+			// height starts off at Infinity
+			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+				if (!isInitialRender) {
+					onHeightChange(height > prevHeightRef.current)
+				}
+				prevHeightRef.current = height
+			}
+		}, [height, isLast, onHeightChange, message])
+
+		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
+		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
 	deepEqual
@@ -36,13 +60,15 @@ const ChatRow = memo(
 
 export default ChatRow
 
-const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowProps) => {
-	const cost = useMemo(() => {
+const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
-			return JSON.parse(message.text).cost
+			const info: ClineApiReqInfo = JSON.parse(message.text)
+			return [info.cost, info.cancelReason, info.streamingFailedMessage]
 		}
-		return undefined
+		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
+	// when resuming task, last wont be api_req_failed but a resume_task message, so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
 			? lastModifiedMessage?.text
@@ -54,6 +80,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 	const normalColor = "var(--vscode-foreground)"
 	const errorColor = "var(--vscode-errorForeground)"
 	const successColor = "var(--vscode-charts-green)"
+	const cancelledColor = "var(--vscode-descriptionForeground)"
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -69,7 +96,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span
 						className="codicon codicon-error"
 						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>Claude is having trouble...</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
 			case "command":
 				return [
@@ -81,7 +108,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Claude wants to execute this command:
+						Cline wants to execute this command:
 					</span>,
 				]
 			case "completion_result":
@@ -92,19 +119,45 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
 			case "api_req_started":
+				const getIconSpan = (iconName: string, color: string) => (
+					<div
+						style={{
+							width: 16,
+							height: 16,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+						}}>
+						<span
+							className={`codicon codicon-${iconName}`}
+							style={{
+								color,
+								fontSize: 16,
+								marginBottom: "-1.5px",
+							}}></span>
+					</div>
+				)
 				return [
-					cost != null ? (
-						<span
-							className="codicon codicon-check"
-							style={{ color: successColor, marginBottom: "-1.5px" }}></span>
+					apiReqCancelReason != null ? (
+						apiReqCancelReason === "user_cancelled" ? (
+							getIconSpan("error", cancelledColor)
+						) : (
+							getIconSpan("error", errorColor)
+						)
+					) : cost != null ? (
+						getIconSpan("check", successColor)
 					) : apiRequestFailedMessage ? (
-						<span
-							className="codicon codicon-error"
-							style={{ color: errorColor, marginBottom: "-1.5px" }}></span>
+						getIconSpan("error", errorColor)
 					) : (
 						<ProgressIndicator />
 					),
-					cost != null ? (
+					apiReqCancelReason != null ? (
+						apiReqCancelReason === "user_cancelled" ? (
+							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+						) : (
+							<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+						)
+					) : cost != null ? (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
@@ -117,12 +170,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<span
 						className="codicon codicon-question"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Claude has a question:</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 				]
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -140,7 +193,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 
 	const tool = useMemo(() => {
 		if (message.ask === "tool" || message.say === "tool") {
-			return JSON.parse(message.text || "{}") as ClaudeSayTool
+			return JSON.parse(message.text || "{}") as ClineSayTool
 		}
 		return null
 	}, [message.ask, message.say, message.text])
@@ -158,9 +211,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>Claude wants to edit this file:</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
+							isLoading={message.partial}
 							diff={tool.diff!}
 							path={tool.path!}
 							isExpanded={isExpanded}
@@ -173,9 +227,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Claude wants to create a new file:</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
 						<CodeAccordian
+							isLoading={message.partial}
 							code={tool.content!}
 							path={tool.path!}
 							isExpanded={isExpanded}
@@ -189,7 +244,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Claude wants to read this file:" : "Claude read this file:"}
+								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -247,8 +302,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to view the top level files in this directory:"
-									: "Claude viewed the top level files in this directory:"}
+									? "Cline wants to view the top level files in this directory:"
+									: "Cline viewed the top level files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -267,8 +322,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to recursively view all files in this directory:"
-									: "Claude recursively viewed all files in this directory:"}
+									? "Cline wants to recursively view all files in this directory:"
+									: "Cline recursively viewed all files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -287,8 +342,8 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Claude wants to view source code definition names used in this directory:"
-									: "Claude viewed source code definition names used in this directory:"}
+									? "Cline wants to view source code definition names used in this directory:"
+									: "Cline viewed source code definition names used in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -307,11 +362,11 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<>
-										Claude wants to search this directory for <code>{tool.regex}</code>:
+										Cline wants to search this directory for <code>{tool.regex}</code>:
 									</>
 								) : (
 									<>
-										Claude searched this directory for <code>{tool.regex}</code>:
+										Cline searched this directory for <code>{tool.regex}</code>:
 									</>
 								)}
 							</span>
@@ -326,16 +381,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					</>
 				)
 			case "inspectSite":
-				const isInspecting = lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+				const isInspecting =
+					isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
 				return (
 					<>
 						<div style={headerStyle}>
 							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
-									<>Claude wants to inspect this website:</>
+									<>Cline wants to inspect this website:</>
 								) : (
-									<>Claude is inspecting this website:</>
+									<>Cline is inspecting this website:</>
 								)}
 							</span>
 						</div>
@@ -364,7 +420,10 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<div
 								style={{
 									...headerStyle,
-									marginBottom: cost == null && apiRequestFailedMessage ? 10 : 0,
+									marginBottom:
+										(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
+											? 10
+											: 0,
 									justifyContent: "space-between",
 									cursor: "pointer",
 									userSelect: "none",
@@ -376,21 +435,24 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
-									{cost != null && cost > 0 && <VSCodeBadge>${Number(cost)?.toFixed(4)}</VSCodeBadge>}
+									{/* Need to render this everytime since it affects height of row by 2px */}
+									<VSCodeBadge style={{ opacity: cost != null && cost > 0 ? 1 : 0 }}>
+										${Number(cost || 0)?.toFixed(4)}
+									</VSCodeBadge>
 								</div>
 								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
-							{cost == null && apiRequestFailedMessage && (
+							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
 									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
-										{apiRequestFailedMessage}
+										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
 										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
 												<br />
 												It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
-													href="https://github.com/saoudrizwan/claude-dev/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
 													style={{ color: "inherit", textDecoration: "underline" }}>
 													troubleshooting guide
 												</a>
@@ -399,7 +461,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										)}
 									</p>
 
-									{/* {apiProvider === "kodu" && (
+									{/* {apiProvider === "" && (
 											<div
 												style={{
 													display: "flex",
@@ -420,12 +482,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 														color: "var(--vscode-errorForeground)",
 													}}></i>
 												<span>
-													Uh-oh, this could be a problem on Kodu's end. We've been alerted and
+													Uh-oh, this could be a problem on end. We've been alerted and
 													will resolve this ASAP. You can also{" "}
 													<a
-														href="https://discord.gg/claudedev"
+														href=""
 														style={{ color: "inherit", textDecoration: "underline" }}>
-														contact us on discord
+														contact us
 													</a>
 													.
 												</span>
@@ -472,7 +534,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						</div>
 					)
 				case "user_feedback_diff":
-					const tool = JSON.parse(message.text || "{}") as ClaudeSayTool
+					const tool = JSON.parse(message.text || "{}") as ClineSayTool
 					return (
 						<div
 							style={{
@@ -572,12 +634,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 									</span>
 								</div>
 								<div>
-									Claude won't be able to view the command's output. Please update VSCode (
+									Cline won't be able to view the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
 									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
 									"Terminal: Select Default Profile").{" "}
 									<a
-										href="https://github.com/saoudrizwan/claude-dev/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
 										style={{ color: "inherit", textDecoration: "underline" }}>
 										Still having trouble?
 									</a>
@@ -739,115 +801,9 @@ const ProgressIndicator = () => (
 )
 
 const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	// react-markdown lets us customize elements, so here we're using their example of replacing code blocks with SyntaxHighlighter. However when there are no language matches (` or ``` without a language specifier) then we default to a normal code element for inline code. Code blocks without a language specifier shouldn't be a common occurrence as we prompt Claude to always use a language specifier.
-	// when claude wraps text in thinking tags, he doesnt use line breaks so we need to insert those ourselves to render markdown correctly
-	const parsed = markdown?.replace(/<thinking>([\s\S]*?)<\/thinking>/g, (match, content) => {
-		return content
-		// return `_<thinking>_\n\n${content}\n\n_</thinking>_`
-	})
 	return (
-		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -10, marginTop: -10 }}>
-			<ReactMarkdown
-				children={parsed}
-				components={{
-					p(props) {
-						const { style, ...rest } = props
-						return (
-							<p
-								style={{
-									...style,
-									margin: 0,
-									marginTop: 10,
-									marginBottom: 10,
-									whiteSpace: "pre-wrap",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					ol(props) {
-						const { style, ...rest } = props
-						return (
-							<ol
-								style={{
-									...style,
-									padding: "0 0 0 20px",
-									margin: "10px 0",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					ul(props) {
-						const { style, ...rest } = props
-						return (
-							<ul
-								style={{
-									...style,
-									padding: "0 0 0 20px",
-									margin: "10px 0",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-								}}
-								{...rest}
-							/>
-						)
-					},
-					// pre always surrounds a code, and we custom handle code blocks below. Pre has some non-10 margin, while all other elements in markdown have a 10 top/bottom margin and the outer div has a -10 top/bottom margin to counteract this between chat rows. However we render markdown in a completion_result row so make sure to add padding as necessary when used within other rows.
-					pre(props) {
-						const { style, ...rest } = props
-						return (
-							<pre
-								style={{
-									...style,
-									marginTop: 10,
-									marginBlock: 10,
-								}}
-								{...rest}
-							/>
-						)
-					},
-					// https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
-					code(props) {
-						const { children, className, node, ...rest } = props
-						const match = /language-(\w+)/.exec(className || "")
-						return match ? (
-							<div
-								style={{
-									borderRadius: 3,
-									border: "1px solid var(--vscode-editorGroup-border)",
-									overflow: "hidden",
-								}}>
-								<CodeBlock
-									source={`${"```"}${match[1]}\n${String(children).replace(/\n$/, "")}\n${"```"}`}
-								/>
-							</div>
-						) : (
-							<code
-								{...rest}
-								className={className}
-								style={{
-									whiteSpace: "pre-line",
-									wordBreak: "break-word",
-									overflowWrap: "anywhere",
-									backgroundColor: "var(--vscode-textCodeBlock-background)",
-									color: "var(--vscode-textPreformat-foreground)",
-									fontFamily: "var(--vscode-editor-font-family)",
-									fontSize: "var(--vscode-editor-font-size)",
-									borderRadius: "3px",
-									border: "1px solid var(--vscode-textSeparator-foreground)",
-									padding: "0px 2px",
-								}}>
-								{children}
-							</code>
-						)
-					},
-				}}
-			/>
+		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
+			<MarkdownBlock markdown={markdown} />
 		</div>
 	)
 })
