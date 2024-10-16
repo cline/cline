@@ -1,5 +1,10 @@
 # Change Log
 
+## [2.0.8]
+
+- Fix o1-mini and o1-preview for OpenAI
+- Fix diff editor not opening sometimes in slow environments like project idx
+
 ## [2.0.7]
 
 - Misc. bug fixes
