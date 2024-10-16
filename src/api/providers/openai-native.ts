@@ -23,8 +23,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		let systemPromptMessage: OpenAI.Chat.ChatCompletionMessageParam
+		switch (this.getModel().id) {
+			case "o1-preview":
+			case "o1-mini":
+				systemPromptMessage = { role: "user", content: systemPrompt }
+				break
+			default:
+				systemPromptMessage = { role: "system", content: systemPrompt }
+		}
+
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
+			systemPromptMessage,
 			...convertToOpenAiMessages(messages),
 		]
 
