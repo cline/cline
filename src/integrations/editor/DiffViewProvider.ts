@@ -288,11 +288,11 @@ export class DiffViewProvider {
 				uri,
 				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`
 			)
-			// This should never happen but if it does it's worth investigating
+			// This may happen on very slow machines ie project idx
 			setTimeout(() => {
 				disposable.dispose()
-				reject(new Error("Failed to open diff editor"))
-			}, 5_000)
+				reject(new Error("Failed to open diff editor, please try again..."))
+			}, 10_000)
 		})
 	}
 
