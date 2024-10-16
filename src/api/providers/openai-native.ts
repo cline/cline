@@ -24,13 +24,16 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let systemPromptMessage: OpenAI.Chat.ChatCompletionMessageParam
+		let temperature = 0
 		switch (this.getModel().id) {
 			case "o1-preview":
 			case "o1-mini":
 				systemPromptMessage = { role: "user", content: systemPrompt }
+				temperature = 1
 				break
 			default:
 				systemPromptMessage = { role: "system", content: systemPrompt }
+				temperature = 0
 		}
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -41,7 +44,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			// max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: 0,
+			temperature,
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
