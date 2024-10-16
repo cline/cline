@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.9]
+
+- Update system prompt to try to prevent Cline from lazy coding (`// rest of code here...`)
+
 ## [2.0.8]
 
 - Fix o1-mini and o1-preview for OpenAI
