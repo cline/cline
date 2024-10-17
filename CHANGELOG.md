@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.13]
+
+- Detect code omission and show warning with troubleshooting link
+
 ## [2.0.12]
 
 - Keep cursor out of the way during file edit streaming animation
