@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.14]
+
+- Gracefully cancel requests while stream could be hanging
+
 ## [2.0.13]
 
 - Detect code omission and show warning with troubleshooting link
