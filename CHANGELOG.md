@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.12]
+
+- Keep cursor out of the way during file edit streaming animation
+
 ## [2.0.11]
 
 - Adjust prompts around read_file to prevent re-reading files unnecessarily
