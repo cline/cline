@@ -7,7 +7,7 @@ import * as vscode from "vscode"
  */
 function detectCodeOmission(fileContent: string): boolean {
 	const lines = fileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "existing", "previous", "..."]
+	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "..."]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
