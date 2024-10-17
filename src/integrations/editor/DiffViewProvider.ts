@@ -90,10 +90,15 @@ export class DiffViewProvider {
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
-		const document = this.activeDiffEditor?.document
-		if (!document) {
+		const diffEditor = this.activeDiffEditor
+		const document = diffEditor?.document
+		if (!diffEditor || !document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
+
+		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		const beginningOfDocument = new vscode.Position(0, 0)
+		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
 		for (let i = 0; i < diffLines.length; i++) {
 			const currentLine = this.streamedLines.length + i
