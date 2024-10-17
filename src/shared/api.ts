@@ -225,38 +225,45 @@ export const geminiModels = {
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
-	// don't support tool use yet
-	"o1-preview": {
-		maxTokens: 32_768,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 15,
-		outputPrice: 60,
-	},
-	"o1-mini": {
-		maxTokens: 65_536,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
-	},
+	// GPT-4o
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 5,
-		outputPrice: 15,
+		supportsPromptCache: true,
+		inputPrice: 2.50, // $2.50 per million input tokens
+		outputPrice: 10.00, // $10.00 per million output tokens
+		cacheWritesPrice: 1.25, // $1.25 per million cached input tokens
 	},
+	// GPT-4o mini
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0.15,
-		outputPrice: 0.6,
+		supportsPromptCache: true,
+		inputPrice: 0.15, // $0.150 per million input tokens
+		outputPrice: 0.60, // $0.600 per million output tokens
+		cacheWritesPrice: 0.075, // $0.075 per million cached input tokens
+	},
+	// OpenAI o1-preview
+	"o1-preview": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.00, // $15.00 per million input tokens
+		outputPrice: 60.00, // $60.00 per million output tokens
+		cacheWritesPrice: 7.50, // $7.50 per million cached input tokens
+	},
+	// OpenAI o1-mini
+	"o1-mini": {
+		maxTokens: 65_536,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.00, // $3.00 per million input tokens
+		outputPrice: 12.00, // $12.00 per million output tokens
+		cacheWritesPrice: 1.50, // $1.50 per million cached input tokens
 	},
 } as const satisfies Record<string, ModelInfo>
 
