@@ -69,6 +69,7 @@ export class Cline {
 	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAborting = false
+	abandoned = false
 	private diffViewProvider: DiffViewProvider
 
 	// streaming
@@ -1780,7 +1781,10 @@ export class Cline {
 
 					if (this.abort) {
 						console.log("aborting stream...")
-						await abortStream("user_cancelled")
+						if (!this.abandoned) {
+							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
+							await abortStream("user_cancelled")
+						}
 						break // aborts the stream
 					}
 
@@ -1792,12 +1796,18 @@ export class Cline {
 					}
 				}
 			} catch (error) {
-				this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-				await abortStream("streaming_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
-				const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
-				if (history) {
-					await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-					// await this.providerRef.deref()?.postStateToWebview()
+				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
+				if (!this.abandoned) {
+					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
+					await abortStream(
+						"streaming_failed",
+						error.message ?? JSON.stringify(serializeError(error), null, 2)
+					)
+					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+					if (history) {
+						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
+						// await this.providerRef.deref()?.postStateToWebview()
+					}
 				}
 			}
 
@@ -1869,7 +1879,7 @@ export class Cline {
 			return didEndLoop // will always be false for now
 		} catch (error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
-			return true
+			return true // needs to be true so parent loop knows to end task
 		}
 	}
 
