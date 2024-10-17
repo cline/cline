@@ -14,6 +14,7 @@ function detectCodeOmission(originalFileContent: string, newFileContent: string)
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
 		/^\s*#/, // Single-line comment for Python, Ruby, etc.
+		/^\s*\/\*/, // Multi-line comment opening
 		/^\s*{\s*\/\*/, // JSX comment opening
 		/^\s*<!--/, // HTML comment opening
 	]
