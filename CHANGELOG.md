@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.11]
+
+- Adjust prompts around read_file to prevent re-reading files unnecessarily
+
 ## [2.0.10]
 
 - More adjustments to system prompt to prevent lazy coding
