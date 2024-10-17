@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.10]
+
+- More adjustments to system prompt to prevent lazy coding
+
 ## [2.0.9]
 
 - Update system prompt to try to prevent Cline from lazy coding (`// rest of code here...`)
