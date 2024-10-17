@@ -1075,8 +1075,7 @@ export class Cline {
 								await this.diffViewProvider.update(newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
-
-								showOmissionWarning(newContent)
+								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,

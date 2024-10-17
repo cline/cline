@@ -2,12 +2,14 @@ import * as vscode from "vscode"
 
 /**
  * Detects potential AI-generated code omissions in the given file content.
- * @param fileContent The content of the file to check.
+ * @param originalFileContent The original content of the file.
+ * @param newFileContent The new content of the file to check.
  * @returns True if a potential omission is detected, false otherwise.
  */
-function detectCodeOmission(fileContent: string): boolean {
-	const lines = fileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "..."]
+function detectCodeOmission(originalFileContent: string, newFileContent: string): boolean {
+	const originalLines = originalFileContent.split("\n")
+	const newLines = newFileContent.split("\n")
+	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "..."]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
@@ -16,11 +18,13 @@ function detectCodeOmission(fileContent: string): boolean {
 		/^\s*<!--/, // HTML comment opening
 	]
 
-	for (const line of lines) {
+	for (const line of newLines) {
 		if (commentPatterns.some((pattern) => pattern.test(line))) {
 			const words = line.toLowerCase().split(/\s+/)
 			if (omissionKeywords.some((keyword) => words.includes(keyword))) {
-				return true
+				if (!originalLines.includes(line)) {
+					return true
+				}
 			}
 		}
 	}
@@ -30,10 +34,11 @@ function detectCodeOmission(fileContent: string): boolean {
 
 /**
  * Shows a warning in VSCode if a potential code omission is detected.
- * @param fileContent The content of the file to check.
+ * @param originalFileContent The original content of the file.
+ * @param newFileContent The new content of the file to check.
  */
-export function showOmissionWarning(fileContent: string): void {
-	if (detectCodeOmission(fileContent)) {
+export function showOmissionWarning(originalFileContent: string, newFileContent: string): void {
+	if (detectCodeOmission(originalFileContent, newFileContent)) {
 		vscode.window
 			.showWarningMessage(
 				"Potential code truncation detected. This happens when the AI reaches its max output limit.",
