@@ -138,9 +138,13 @@ export class DiffViewProvider {
 		}
 	}
 
-	async saveChanges(): Promise<{ newProblemsMessage: string | undefined; userEdits: string | undefined }> {
+	async saveChanges(): Promise<{
+		newProblemsMessage: string | undefined
+		userEdits: string | undefined
+		finalContent: string | undefined
+	}> {
 		if (!this.relPath || !this.newContent || !this.activeDiffEditor) {
-			return { newProblemsMessage: undefined, userEdits: undefined }
+			return { newProblemsMessage: undefined, userEdits: undefined, finalContent: undefined }
 		}
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
@@ -192,10 +196,10 @@ export class DiffViewProvider {
 				normalizedNewContent,
 				normalizedEditedContent
 			)
-			return { newProblemsMessage, userEdits }
+			return { newProblemsMessage, userEdits, finalContent: normalizedEditedContent }
 		} else {
 			// no changes to cline's edits
-			return { newProblemsMessage, userEdits: undefined }
+			return { newProblemsMessage, userEdits: undefined, finalContent: normalizedEditedContent }
 		}
 	}
 
