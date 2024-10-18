@@ -1,5 +1,11 @@
 # Change Log
 
+## [2.0.15]
+
+- Fix bug where modifying Cline's edits would lead him to try to re-apply the edits
+- Fix bug where weaker models would display file contents before using the write_to_file tool
+- Fix o1-mini and o1-preview errors when using OpenAI native
+
 ## [2.0.14]
 
 - Gracefully cancel requests while stream could be hanging
