@@ -4,7 +4,6 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
-// https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
@@ -26,7 +25,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const stream = await this.client.messages.create({
-			model: this.getModel().id,
+			model: this.getModelId(),
 			max_tokens: this.getModel().info.maxTokens || 8192,
 			temperature: 0,
 			system: systemPrompt,
@@ -88,5 +87,28 @@ export class AwsBedrockHandler implements ApiHandler {
 			return { id, info: bedrockModels[id] }
 		}
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
+	}
+
+	private getModelId(): string {
+		const { id } = this.getModel()
+		const region = this.options.awsRegion || ""
+		const useCrossRegion = this.options.awsUseCrossRegionInference
+
+		if (useCrossRegion) {
+			if (region.startsWith("us-")) {
+				console.log(`[AWS Bedrock] Using cross-region inference with US model: us.${id}`)
+				return `us.${id}`
+			} else if (region.startsWith("eu-")) {
+				console.log(`[AWS Bedrock] Using cross-region inference with EU model: eu.${id}`)
+				return `eu.${id}`
+			} else {
+				console.warn(
+					`[AWS Bedrock] Cross-region inference not supported for region: ${region}. Falling back to standard model.`
+				)
+			}
+		}
+
+		console.log(`[AWS Bedrock] Using standard model: ${id}`)
+		return id
 	}
 }
