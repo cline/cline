@@ -61,6 +61,9 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 }
 
+/**
+ * Provides a webview view for the Cline extension, managing its lifecycle and communication.
+ */
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -71,17 +74,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private workspaceTracker?: WorkspaceTracker
 	private latestAnnouncementId = "oct-9-2024" // update to some unique identifier when we add a new announcement
 
+	/**
+	 * Initializes a new instance of the ClineProvider class.
+	 * @param context - The extension context.
+	 * @param outputChannel - The output channel for logging.
+	 */
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 	}
 
-	/*
-	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
-	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
-	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-	*/
+	/**
+	 * Disposes of the ClineProvider instance, cleaning up resources.
+	 */
 	async dispose() {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
@@ -106,6 +112,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
+	/**
+	 * Resolves the webview view, setting up its options and message listeners.
+	 * @param webviewView - The webview view or panel to resolve.
+	 */
 	resolveWebviewView(
 		webviewView: vscode.WebviewView | vscode.WebviewPanel
 		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
@@ -183,12 +193,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("Webview view resolved")
 	}
 
+	/**
+	 * Initializes the Cline instance with a new task.
+	 * @param task - The task to initialize with.
+	 * @param images - Optional array of image URLs.
+	 */
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
 		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
 	}
 
+	/**
+	 * Initializes the Cline instance with a history item.
+	 * @param historyItem - The history item to initialize with.
+	 */
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
 		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
@@ -203,7 +222,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
-	// Send any JSON serializable data to the react app
+	/**
+	 * Sends a message to the webview.
+	 * @param message - The message to send.
+	 */
 	async postMessageToWebview(message: ExtensionMessage) {
 		await this.view?.webview.postMessage(message)
 	}
@@ -290,10 +312,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
-	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is recieved.
-	 *
-	 * @param webview A reference to the extension webview
+	 * Sets up a message listener for the webview.
+	 * @param webview - The webview instance.
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
@@ -464,6 +484,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
+	/**
+	 * Updates the custom instructions in the global state.
+	 * @param instructions - The custom instructions to set.
+	 */
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
 		await this.updateGlobalState("customInstructions", instructions || undefined)
@@ -473,8 +497,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postStateToWebview()
 	}
 
-	// Ollama
-
+	/**
+	 * Retrieves the Ollama models from the specified base URL.
+	 * @param baseUrl - The base URL to fetch models from. Defaults to "http://localhost:11434".
+	 * @returns An array of model names.
+	 */
 	async getOllamaModels(baseUrl?: string) {
 		try {
 			if (!baseUrl) {
@@ -492,8 +519,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	// OpenRouter
-
+	/**
+	 * Handles the OpenRouter callback to exchange a code for an API key.
+	 * @param code - The code received from OpenRouter.
+	 */
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
@@ -518,12 +547,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
 
+	/**
+	 * Ensures that the cache directory exists, creating it if necessary.
+	 * @returns The path to the cache directory.
+	 */
 	private async ensureCacheDirectoryExists(): Promise<string> {
 		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
 	}
 
+	/**
+	 * Reads the OpenRouter models from the cache file.
+	 * @returns A record of OpenRouter models or undefined if the file does not exist.
+	 */
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
@@ -537,6 +574,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return undefined
 	}
 
+	/**
+	 * Refreshes the OpenRouter models by fetching them from the API and saving them to the cache.
+	 */
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
@@ -626,8 +666,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
 	}
 
-	// Task history
-
+	/**
+	 * Retrieves a task by its ID, including its history item and file paths.
+	 * @param id - The ID of the task to retrieve.
+	 * @returns An object containing the history item and file paths.
+	 * @throws An error if the task is not found.
+	 */
 	async getTaskWithId(id: string): Promise<{
 		historyItem: HistoryItem
 		taskDirPath: string
@@ -659,6 +703,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		throw new Error("Task not found")
 	}
 
+	/**
+	 * Shows a task by its ID, initializing it if it's not the current task.
+	 * @param id - The ID of the task to show.
+	 */
 	async showTaskWithId(id: string) {
 		if (id !== this.cline?.taskId) {
 			// non-current task
@@ -668,11 +716,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 
+	/**
+	 * Exports a task by its ID, downloading its conversation history.
+	 * @param id - The ID of the task to export.
+	 */
 	async exportTaskWithId(id: string) {
 		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
+	/**
+	 * Deletes a task by its ID, including its associated files.
+	 * @param id - The ID of the task to delete.
+	 */
 	async deleteTaskWithId(id: string) {
 		if (id === this.cline?.taskId) {
 			await this.clearTask()
@@ -698,6 +754,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 	}
 
+	/**
+	 * Deletes a task from the state by its ID.
+	 * @param id - The ID of the task to remove from state.
+	 */
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
@@ -708,11 +768,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postStateToWebview()
 	}
 
+	/**
+	 * Posts the current state to the webview.
+	 */
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
 		this.postMessageToWebview({ type: "state", state })
 	}
 
+	/**
+	 * Retrieves the state to post to the webview.
+	 * @returns An object containing the state information.
+	 */
 	async getStateToPostToWebview() {
 		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
 			await this.getState()
@@ -728,6 +795,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/**
+	 * Clears the current task, aborting it if necessary.
+	 */
 	async clearTask() {
 		this.cline?.abortTask()
 		this.cline = undefined // removes reference to it, so once promises end it will be garbage collected
@@ -779,6 +849,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
+	/**
+	 * Retrieves the current state of the provider, including API configuration and task history.
+	 * @returns An object containing the current state.
+	 */
 	async getState() {
 		const [
 			storedApiProvider,
@@ -879,6 +953,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/**
+	 * Updates the task history with a new or existing item.
+	 * @param item - The history item to update or add.
+	 * @returns The updated task history.
+	 */
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
@@ -893,20 +972,40 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// global
 
+	/**
+	 * Updates the global state with a specified key and value.
+	 * @param key - The key to update in the global state.
+	 * @param value - The value to set for the specified key.
+	 */
 	async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
 
+	/**
+	 * Retrieves a value from the global state by its key.
+	 * @param key - The key to retrieve from the global state.
+	 * @returns The value associated with the specified key.
+	 */
 	async getGlobalState(key: GlobalStateKey) {
 		return await this.context.globalState.get(key)
 	}
 
 	// workspace
 
+	/**
+	 * Updates the workspace state with a specified key and value.
+	 * @param key - The key to update in the workspace state.
+	 * @param value - The value to set for the specified key.
+	 */
 	private async updateWorkspaceState(key: string, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}
 
+	/**
+	 * Retrieves a value from the workspace state by its key.
+	 * @param key - The key to retrieve from the workspace state.
+	 * @returns The value associated with the specified key.
+	 */
 	private async getWorkspaceState(key: string) {
 		return await this.context.workspaceState.get(key)
 	}
@@ -923,6 +1022,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// secrets
 
+	/**
+	 * Stores a secret value in the context's secrets storage.
+	 * @param key - The key under which to store the secret.
+	 * @param value - The secret value to store.
+	 */
 	private async storeSecret(key: SecretKey, value?: string) {
 		if (value) {
 			await this.context.secrets.store(key, value)
@@ -931,12 +1035,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/**
+	 * Retrieves a secret value from the context's secrets storage.
+	 * @param key - The key of the secret to retrieve.
+	 * @returns The secret value associated with the specified key.
+	 */
 	private async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
 	}
 
 	// dev
 
+	/**
+	 * Resets the state of the provider, clearing all stored values and secrets.
+	 */
 	async resetState() {
 		vscode.window.showInformationMessage("Resetting state...")
 		for (const key of this.context.globalState.keys()) {

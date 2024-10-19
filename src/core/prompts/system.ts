@@ -2,6 +2,13 @@ import osName from "os-name"
 import defaultShell from "default-shell"
 import os from "os"
 
+/**
+ * Generates the system prompt for the AI assistant.
+ * 
+ * @param cwd - The current working directory.
+ * @param supportsImages - Boolean indicating whether image support is available.
+ * @returns A promise that resolves to the system prompt string.
+ */
 export const SYSTEM_PROMPT = async (
 	cwd: string,
 	supportsImages: boolean
@@ -246,6 +253,12 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
+/**
+ * Adds custom instructions to the system prompt.
+ * 
+ * @param customInstructions - The custom instructions provided by the user.
+ * @returns A string containing the formatted custom instructions.
+ */
 export function addCustomInstructions(customInstructions: string): string {
 	return `
 ====

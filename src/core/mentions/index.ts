@@ -8,6 +8,11 @@ import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 
+/**
+ * Opens a file or folder in the workspace based on the provided mention.
+ * 
+ * @param mention - The mention string that indicates the file or folder to open.
+ */
 export function openMention(mention?: string): void {
 	if (!mention) {
 		return
@@ -33,6 +38,14 @@ export function openMention(mention?: string): void {
 	}
 }
 
+/**
+ * Parses the given text for mentions and retrieves their content.
+ * 
+ * @param text - The text to parse for mentions.
+ * @param cwd - The current working directory.
+ * @param urlContentFetcher - An instance of UrlContentFetcher to fetch content from URLs.
+ * @returns A promise that resolves to the parsed text with mentions replaced by their content.
+ */
 export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
@@ -113,6 +126,14 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 	return parsedText
 }
 
+/**
+ * Retrieves the content of a file or folder based on the provided path.
+ * 
+ * @param mentionPath - The path of the file or folder to retrieve content from.
+ * @param cwd - The current working directory.
+ * @returns A promise that resolves to the content of the file or folder.
+ * @throws An error if the path cannot be accessed.
+ */
 async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
@@ -169,6 +190,12 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 	}
 }
 
+/**
+ * Retrieves workspace problems as a string.
+ * 
+ * @param cwd - The current working directory.
+ * @returns A string representation of the workspace problems.
+ */
 function getWorkspaceProblems(cwd: string): string {
 	const diagnostics = vscode.languages.getDiagnostics()
 	const result = diagnosticsToProblemsString(
