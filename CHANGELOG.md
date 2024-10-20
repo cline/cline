@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.16]
+
+- Adjustments to system prompt
+
 ## [2.0.15]
 
 - Fix bug where modifying Cline's edits would lead him to try to re-apply the edits
