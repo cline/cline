@@ -39,39 +39,10 @@ import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { presentAssistantMessageContent } from "./cline/presentAssistantMessageContent"
 import { UserContent, ToolResponse } from "./cline/clineTypes"
+import { handleConsecutiveMistakes } from "./cline/recursivelyMakeClineRequests"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
-
-async function handleConsecutiveMistakes(
-	consecutiveMistakeCount: number,
-	apiModelId: string,
-	ask: (type: ClineAsk, text?: string) => Promise<{ response: ClineAskResponse; text?: string; images?: string[] }>,
-	say: (type: ClineSay, text?: string, images?: string[]) => Promise<undefined>,
-	userContent: UserContent,
-): Promise<number> {
-	if (consecutiveMistakeCount >= 3) {
-		const { response, text, images } = await ask(
-		"mistake_limit_reached",
-		apiModelId.includes("claude")
-			? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-			: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.5 Sonnet for its advanced agentic coding capabilities."
-		)
-		if (response === "messageResponse") {
-		userContent.push(
-			...[
-			{
-				type: "text",
-				text: formatResponse.tooManyMistakes(text),
-			} as Anthropic.Messages.TextBlockParam,
-			...formatResponse.imageBlocks(images),
-			]
-		)
-		}
-		return 0 // Reset consecutive mistake count
-	}
-	return consecutiveMistakeCount
-}
 
 export class Cline {
 	readonly taskId: string
