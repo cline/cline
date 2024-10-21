@@ -51,6 +51,9 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
+/**
+ * Represents the Cline class that handles API interactions and manages conversation history.
+ */
 export class Cline {
 	readonly taskId: string
 	api: ApiHandler
@@ -81,7 +84,16 @@ export class Cline {
 	private userMessageContentReady = false
 	private didRejectTool = false
 	private didCompleteReadingStream = false
-
+	/**
+	 * Creates an instance of the Cline class.
+	 * @param provider - The ClineProvider instance.
+	 * @param apiConfiguration - The API configuration object.
+	 * @param customInstructions - Optional custom instructions for the API.
+	 * @param alwaysAllowReadOnly - Flag to always allow read-only access.
+	 * @param task - Optional task identifier.
+	 * @param images - Optional array of image URLs.
+	 * @param historyItem - Optional history item to resume from.
+	 */
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
@@ -110,8 +122,11 @@ export class Cline {
 		}
 	}
 
-	// Storing task to disk for history
-
+	/**
+	 * Ensures that the task directory exists for saving task-related files.
+	 * @returns The path to the task directory.
+	 * @throws Will throw an error if the global storage URI is invalid.
+	 */
 	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
@@ -122,6 +137,10 @@ export class Cline {
 		return taskDir
 	}
 
+	/**
+	 * Retrieves the saved API conversation history from disk.
+	 * @returns An array of messages representing the API conversation history.
+	 */
 	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
@@ -131,16 +150,28 @@ export class Cline {
 		return []
 	}
 
+	/**
+	 * Adds a message to the API conversation history and saves it.
+	 * @param message - The message to add to the history.
+	 */
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
 		await this.saveApiConversationHistory()
 	}
 
+	/**
+	 * Overwrites the API conversation history with a new history.
+	 * @param newHistory - The new history to overwrite with.
+	 */
 	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
 		this.apiConversationHistory = newHistory
 		await this.saveApiConversationHistory()
 	}
 
+	/**
+	 * Saves the API conversation history to disk.
+	 * @throws Will log an error if saving fails.
+	 */
 	private async saveApiConversationHistory() {
 		try {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
@@ -151,6 +182,10 @@ export class Cline {
 		}
 	}
 
+	/**
+	 * Retrieves saved Cline messages from disk.
+	 * @returns An array of Cline messages.
+	 */
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
@@ -167,16 +202,28 @@ export class Cline {
 		return []
 	}
 
+	/**
+	 * Adds a message to the Cline messages and saves it.
+	 * @param message - The message to add.
+	 */
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
 		await this.saveClineMessages()
 	}
 
+	/**
+	 * Overwrites the Cline messages with new messages.
+	 * @param newMessages - The new messages to overwrite with.
+	 */
 	private async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
 	}
 
+	/**
+	 * Saves the Cline messages to disk.
+	 * @throws Will log an error if saving fails.
+	 */
 	private async saveClineMessages() {
 		try {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
@@ -206,9 +253,14 @@ export class Cline {
 		}
 	}
 
-	// Communicate with webview
-
-	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
+	/**
+	 * Asks a question and handles the response.
+	 * @param type - The type of ask.
+	 * @param text - Optional text for the ask.
+	 * @param partial - Optional flag indicating if the message is partial.
+	 * @returns The response from the ask.
+	 * @throws Will throw an error if the Cline instance is aborted.
+	 */
 	async ask(
 		type: ClineAsk,
 		text?: string,
@@ -269,7 +321,7 @@ export class Cline {
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef
 						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage }) // more performant than an entire postStateToWebview
 				} else {
 					// this is a new partial=false message, so add it like normal
 					this.askResponse = undefined
@@ -304,12 +356,25 @@ export class Cline {
 		return result
 	}
 
+	/**
+	 * Handles the response from the webview ask.
+	 * @param askResponse - The response from the webview ask.
+	 * @param text - Optional text from the response.
+	 * @param images - Optional array of image URLs from the response.
+	 */
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
 	}
 
+	/**
+	 * Says a message to the user.
+	 * @param type - The type of say.
+	 * @param text - Optional text for the say.
+	 * @param images - Optional array of image URLs.
+	 * @param partial - Optional flag indicating if the message is partial.
+	 */
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
@@ -368,6 +433,13 @@ export class Cline {
 		}
 	}
 
+	/**
+	 * Says an error message about a missing tool parameter.
+	 * @param toolName - The name of the tool.
+	 * @param paramName - The name of the missing parameter.
+	 * @param relPath - Optional relative path associated with the tool use.
+	 * @returns The formatted error response.
+	 */
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
@@ -378,8 +450,11 @@ export class Cline {
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
-	// Task lifecycle
-
+	/**
+	 * Starts a new task.
+	 * @param task - The task description.
+	 * @param images - Optional array of image URLs.
+	 */
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
@@ -399,6 +474,9 @@ export class Cline {
 		])
 	}
 
+	/**
+	 * Resumes a task from history.
+	 */
 	private async resumeTaskFromHistory() {
 		const modifiedClineMessages = await this.getSavedClineMessages()
 
@@ -1601,7 +1679,7 @@ export class Cline {
 		if (!block.partial || this.didRejectTool) {
 			// block is finished streaming and executing
 			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
-				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
+				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssistantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
 				// last block is complete and it is finished executing
 				this.userMessageContentReady = true // will allow pwaitfor to continue
 			}
