@@ -455,6 +455,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
+					case 'deleteMessage':
+						await this.deleteMessage(message.ts!);
+						break;
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -962,5 +965,29 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+	}
+
+	private async deleteMessage(ts: number) {
+		if (this.cline) {
+			this.cline.clineMessages = this.cline.clineMessages.filter((msg) => msg.ts !== ts);
+			await this.saveClineMessages();
+			await this.postMessageToWebview({ type: 'messageDeleted', ts });
+		}
+	}
+
+	private async saveClineMessages() {
+		if (this.cline) {
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", this.cline.taskId);
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages);
+
+			try {
+				await fs.mkdir(taskDirPath, { recursive: true });
+				await fs.writeFile(uiMessagesFilePath, JSON.stringify(this.cline.clineMessages), 'utf8');
+			} catch (error) {
+				console.error("Error saving cline messages:", error);
+				// Optionally, you can show an error message to the user
+				vscode.window.showErrorMessage("Failed to save chat messages.");
+			}
+		}
 	}
 }

@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing, VSCodeButton as IconButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef } from "react"
 import { ClineApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
@@ -18,13 +18,14 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onDelete: () => void  // Add this line
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message } = props
+		const { isLast, onHeightChange, message, onDelete } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -34,7 +35,7 @@ const ChatRow = memo(
 				style={{
 					padding: "10px 6px 10px 15px",
 				}}>
-				<ChatRowContent {...props} />
+				<ChatRowContent {...props} onDelete={onDelete} />
 			</div>
 		)
 
@@ -60,7 +61,7 @@ const ChatRow = memo(
 
 export default ChatRow
 
-const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast, onDelete }: ChatRowContentProps) => {
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -182,6 +183,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 		alignItems: "center",
 		gap: "10px",
 		marginBottom: "10px",
+		justifyContent: "space-between",  // Add this line
 	}
 
 	const pStyle: React.CSSProperties = {
@@ -210,8 +212,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("edit")}
+								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -226,8 +237,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("new-file")}
+								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -242,10 +262,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("file-code")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("file-code")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						{/* <CodeAccordian
 							code={tool.content!}
@@ -299,12 +328,21 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("folder-opened")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to view the top level files in this directory:"
-									: "Cline viewed the top level files in this directory:"}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("folder-opened")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to view the top level files in this directory:"
+										: "Cline viewed the top level files in this directory:"}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							code={tool.content!}
@@ -319,12 +357,21 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("folder-opened")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to recursively view all files in this directory:"
-									: "Cline recursively viewed all files in this directory:"}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("folder-opened")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to recursively view all files in this directory:"
+										: "Cline recursively viewed all files in this directory:"}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							code={tool.content!}
@@ -339,12 +386,21 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("file-code")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to view source code definition names used in this directory:"
-									: "Cline viewed source code definition names used in this directory:"}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("file-code")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to view source code definition names used in this directory:"
+										: "Cline viewed source code definition names used in this directory:"}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							code={tool.content!}
@@ -358,18 +414,27 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("search")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? (
-									<>
-										Cline wants to search this directory for <code>{tool.regex}</code>:
-									</>
-								) : (
-									<>
-										Cline searched this directory for <code>{tool.regex}</code>:
-									</>
-								)}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{toolIcon("search")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask" ? (
+										<>
+											Cline wants to search this directory for <code>{tool.regex}</code>:
+										</>
+									) : (
+										<>
+											Cline searched this directory for <code>{tool.regex}</code>:
+										</>
+									)}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<CodeAccordian
 							code={tool.content!}
@@ -386,14 +451,23 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				return (
 					<>
 						<div style={headerStyle}>
-							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? (
-									<>Cline wants to inspect this website:</>
-								) : (
-									<>Cline is inspecting this website:</>
-								)}
-							</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask" ? (
+										<>Cline wants to inspect this website:</>
+									) : (
+										<>Cline is inspecting this website:</>
+									)}
+								</span>
+							</div>
+							<IconButton
+								appearance="secondary"
+								aria-label="Delete message"
+								onClick={onDelete}
+							>
+								<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+							</IconButton>
 						</div>
 						<div
 							style={{
@@ -440,7 +514,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 										${Number(cost || 0)?.toFixed(4)}
 									</VSCodeBadge>
 								</div>
-								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+									<IconButton
+										appearance="secondary"
+										aria-label="Delete message"
+										onClick={(e) => {
+											e.stopPropagation();
+											onDelete();
+										}}
+									>
+										<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+									</IconButton>
+								</div>
 							</div>
 							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
@@ -513,24 +599,46 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				case "text":
 					return (
 						<div>
+							<div style={headerStyle}>
+								<div></div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<Markdown markdown={message.text} />
 						</div>
 					)
 				case "user_feedback":
 					return (
-						<div
-							style={{
-								backgroundColor: "var(--vscode-badge-background)",
-								color: "var(--vscode-badge-foreground)",
-								borderRadius: "3px",
-								padding: "9px",
-								whiteSpace: "pre-line",
-								wordWrap: "break-word",
-							}}>
-							<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
-							{message.images && message.images.length > 0 && (
-								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
-							)}
+						<div>
+							<div style={headerStyle}>
+								<div></div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
+							<div
+								style={{
+									backgroundColor: "var(--vscode-badge-background)",
+									color: "var(--vscode-badge-foreground)",
+									borderRadius: "3px",
+									padding: "9px",
+									whiteSpace: "pre-line",
+									wordWrap: "break-word",
+								}}>
+								<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
+								{message.images && message.images.length > 0 && (
+									<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
+								)}
+							</div>
 						</div>
 					)
 				case "user_feedback_diff":
@@ -541,6 +649,16 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								marginTop: -10,
 								width: "100%",
 							}}>
+							<div style={headerStyle}>
+								<div></div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<CodeAccordian
 								diff={tool.diff!}
 								isFeedback={true}
@@ -558,6 +676,16 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								marginTop: -10,
 								width: "100%",
 							}}>
+							<div style={headerStyle}>
+								<div></div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							{screenshot && (
 								<img
 									src={screenshot}
@@ -588,12 +716,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				case "error":
 					return (
 						<>
-							{title && (
-								<div style={headerStyle}>
+							<div style={headerStyle}>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
 								</div>
-							)}
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
 					)
@@ -601,8 +736,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					return (
 						<>
 							<div style={headerStyle}>
-								{icon}
-								{title}
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									{icon}
+									{title}
+								</div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
 							</div>
 							<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
@@ -612,6 +756,16 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				case "shell_integration_warning":
 					return (
 						<>
+							<div style={headerStyle}>
+								<div></div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<div
 								style={{
 									display: "flex",
@@ -651,12 +805,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				default:
 					return (
 						<>
-							{title && (
-								<div style={headerStyle}>
+							<div style={headerStyle}>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
 								</div>
-							)}
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
 							</div>
@@ -669,8 +830,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					return (
 						<>
 							<div style={headerStyle}>
-								{icon}
-								{title}
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									{icon}
+									{title}
+								</div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
 							</div>
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
@@ -709,8 +879,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					return (
 						<>
 							<div style={headerStyle}>
-								{icon}
-								{title}
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									{icon}
+									{title}
+								</div>
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
 							</div>
 							{/* <Terminal
 								rawOutput={command + (output ? "\n" + output : "")}
@@ -741,7 +920,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 												className={`codicon codicon-chevron-${
 													isExpanded ? "down" : "right"
 												}`}></span>
-											<span style={{ fontSize: "0.8em" }}>Command Output</span>
+											<span>Output</span>
 										</div>
 										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
 									</div>
@@ -754,8 +933,17 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						return (
 							<div>
 								<div style={headerStyle}>
-									{icon}
-									{title}
+									<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+										{icon}
+										{title}
+									</div>
+									<IconButton
+										appearance="secondary"
+										aria-label="Delete message"
+										onClick={onDelete}
+									>
+										<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+									</IconButton>
 								</div>
 								<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
 									<Markdown markdown={message.text} />
@@ -768,12 +956,19 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 				case "followup":
 					return (
 						<>
-							{title && (
-								<div style={headerStyle}>
+							<div style={headerStyle}>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{icon}
 									{title}
 								</div>
-							)}
+								<IconButton
+									appearance="secondary"
+									aria-label="Delete message"
+									onClick={onDelete}
+								>
+									<span className="codicon codicon-trash" style={{ fontSize: "16px" }}></span>
+								</IconButton>
+							</div>
 							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
 							</div>

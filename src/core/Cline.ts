@@ -60,7 +60,7 @@ export class Cline {
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
-	clineMessages: ClineMessage[] = []
+	public clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
