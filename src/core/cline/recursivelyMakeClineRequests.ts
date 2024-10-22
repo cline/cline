@@ -69,3 +69,152 @@ export async function handleConsecutiveMistakes(
 	}
 	return consecutiveMistakeCount
 }
+
+interface EnvironmentDetailsOptions {
+  cwd: string;
+  includeFileDetails: boolean;
+  terminalManager: TerminalManager;
+  didEditFile: boolean;
+  urlContentFetcher: UrlContentFetcher;
+}
+
+export async function loadContext(
+  userContent: UserContent,
+  cwd: string,
+  urlContentFetcher: UrlContentFetcher
+): Promise<[UserContent, string]> {
+  const processedUserContent = await Promise.all(
+    userContent.map(async (block) => {
+      if (block.type === "text") {
+        return {
+          ...block,
+          text: await parseMentions(block.text, cwd, urlContentFetcher),
+        };
+      } else if (block.type === "tool_result") {
+        const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>");
+        if (typeof block.content === "string" && isUserMessage(block.content)) {
+          return {
+            ...block,
+            content: await parseMentions(block.content, cwd, urlContentFetcher),
+          };
+        } else if (Array.isArray(block.content)) {
+          const parsedContent = await Promise.all(
+            block.content.map(async (contentBlock) => {
+              if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
+                return {
+                  ...contentBlock,
+                  text: await parseMentions(contentBlock.text, cwd, urlContentFetcher),
+                };
+              }
+              return contentBlock;
+            })
+          );
+          return {
+            ...block,
+            content: parsedContent,
+          };
+        }
+      }
+      return block;
+    })
+  );
+
+  const environmentDetails = await getEnvironmentDetails({
+    cwd,
+    includeFileDetails: true,
+    terminalManager: new TerminalManager(), // This should be passed from Cline
+    didEditFile: false, // This should be passed from Cline
+    urlContentFetcher,
+  });
+
+  return [processedUserContent, environmentDetails];
+}
+
+export async function getEnvironmentDetails(options: EnvironmentDetailsOptions): Promise<string> {
+  const { cwd, includeFileDetails, terminalManager, didEditFile, urlContentFetcher } = options;
+  let details = "";
+
+  // VSCode Visible Files
+  details += "\n\n# VSCode Visible Files";
+  const visibleFiles = vscode.window.visibleTextEditors
+    ?.map((editor) => editor.document?.uri?.fsPath)
+    .filter(Boolean)
+    .map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+    .join("\n");
+  details += visibleFiles ? `\n${visibleFiles}` : "\n(No visible files)";
+
+  // VSCode Open Tabs
+  details += "\n\n# VSCode Open Tabs";
+  const openTabs = vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+    .filter(Boolean)
+    .map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+    .join("\n");
+  details += openTabs ? `\n${openTabs}` : "\n(No open tabs)";
+
+  // Terminal details
+  const busyTerminals = terminalManager.getTerminals(true);
+  const inactiveTerminals = terminalManager.getTerminals(false);
+
+  if (busyTerminals.length > 0 && didEditFile) {
+    await delay(300);
+  }
+
+  if (busyTerminals.length > 0) {
+    await pWaitFor(() => busyTerminals.every((t) => !terminalManager.isProcessHot(t.id)), {
+      interval: 100,
+      timeout: 15_000,
+    }).catch(() => {});
+  }
+
+  let terminalDetails = "";
+  if (busyTerminals.length > 0) {
+    terminalDetails += "\n\n# Actively Running Terminals";
+    for (const busyTerminal of busyTerminals) {
+      terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``;
+      const newOutput = terminalManager.getUnretrievedOutput(busyTerminal.id);
+      if (newOutput) {
+        terminalDetails += `\n### New Output\n${newOutput}`;
+      }
+    }
+  }
+
+  if (inactiveTerminals.length > 0) {
+    const inactiveTerminalOutputs = new Map<number, string>();
+    for (const inactiveTerminal of inactiveTerminals) {
+      const newOutput = terminalManager.getUnretrievedOutput(inactiveTerminal.id);
+      if (newOutput) {
+        inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput);
+      }
+    }
+    if (inactiveTerminalOutputs.size > 0) {
+      terminalDetails += "\n\n# Inactive Terminals";
+      for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
+        const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId);
+        if (inactiveTerminal) {
+          terminalDetails += `\n## ${inactiveTerminal.lastCommand}`;
+          terminalDetails += `\n### New Output\n${newOutput}`;
+        }
+      }
+    }
+  }
+
+  if (terminalDetails) {
+    details += terminalDetails;
+  }
+
+  if (includeFileDetails) {
+    details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`;
+    const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"));
+    if (isDesktop) {
+      details += "(Desktop files not shown automatically. Use list_files to explore if needed.)";
+    } else {
+      const [files, didHitLimit] = await listFiles(cwd, true, 200);
+      const result = formatResponse.formatFilesList(cwd, files, didHitLimit);
+      details += result;
+    }
+  }
+
+  return `<environment_details>\n${details.trim()}\n</environment_details>`;
+}
