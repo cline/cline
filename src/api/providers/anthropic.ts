@@ -26,7 +26,7 @@ export class AnthropicHandler implements ApiHandler {
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 		const modelId = this.getModel().id
 		switch (modelId) {
-			case "claude-3-5-sonnet-20240620":
+			case "claude-3-5-sonnet-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/*
@@ -76,7 +76,7 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
-							case "claude-3-5-sonnet-20240620":
+							case "claude-3-5-sonnet-20241022":
 								return {
 									headers: {
 										"anthropic-beta": "prompt-caching-2024-07-31",

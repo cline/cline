@@ -52,9 +52,9 @@ export interface ModelInfo {
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20240620"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
 export const anthropicModels = {
-	"claude-3-5-sonnet-20240620": {
+	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -89,9 +89,9 @@ export const anthropicModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 export const bedrockModels = {
-	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
+	"anthropic.claude-3-5-sonnet-20241022-v2:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -136,9 +136,9 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620"
+export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet-v2@20241022"
 export const vertexModels = {
-	"claude-3-5-sonnet@20240620": {
+	"claude-3-5-sonnet-v2@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
