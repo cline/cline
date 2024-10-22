@@ -19,6 +19,7 @@ import { AssistantMessageContent, ToolParamName, ToolUseName } from "../assistan
 import { formatResponse } from "../prompts/responses"
 import { showOmissionWarning } from "../../integrations/editor/detect-omission"
 import { ToolResponse } from "./clineTypes"
+import { TerminalManager } from "../../integrations/terminal/TerminalManager";
 
 export interface PresentAssistantMessageParams {
 	block: AssistantMessageContent;
@@ -29,10 +30,11 @@ export interface PresentAssistantMessageParams {
 	say: (type: ClineSay, text?: string, images?: string[], partial?: boolean) => Promise<undefined>;
 	sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<ToolResponse>;
 	diffViewProvider: DiffViewProvider;
-	executeCommandTool: (command: string) => Promise<[boolean, ToolResponse]>;
 	urlContentFetcher: { launchBrowser: () => Promise<void>; urlToScreenshotAndLogs: (url: string) => Promise<{ screenshot: string; logs: string }>; closeBrowser: () => Promise<void> };
 	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[];
 	clineMessages: ClineMessage[];
+	commandExecutionContext: CommandExecutionContext;
+	messageHandler: MessageHandler;
 }
 
 export async function presentAssistantMessageContent(params: PresentAssistantMessageParams) {
@@ -45,10 +47,11 @@ export async function presentAssistantMessageContent(params: PresentAssistantMes
 		say,
 		sayAndCreateMissingParamError,
 		diffViewProvider,
-		executeCommandTool,
 		urlContentFetcher,
 		userMessageContent,
 		clineMessages,
+		commandExecutionContext,
+		messageHandler,
 	} = params
 	switch (block.type) {
 		case "text": {
@@ -554,7 +557,7 @@ export async function presentAssistantMessageContent(params: PresentAssistantMes
 					const command: string | undefined = block.params.command
 					try {
 						if (block.partial) {
-							await ask("command", removeClosingTag("command", command), block.partial).catch(
+							await messageHandler.ask("command", removeClosingTag("command", command), block.partial).catch(
 								() => {}
 							)
 							break
@@ -569,7 +572,7 @@ export async function presentAssistantMessageContent(params: PresentAssistantMes
 							if (!didApprove) {
 								break
 							}
-							const [userRejected, result] = await executeCommandTool(command)
+							const [userRejected, result] = await executeCommandTool(command, commandExecutionContext, messageHandler)
 							if (userRejected) {
 								//this.didRejectTool = true
 								return 
@@ -659,7 +662,7 @@ export async function presentAssistantMessageContent(params: PresentAssistantMes
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, execCommandResult] = await executeCommandTool(command!)
+								const [userRejected, execCommandResult] = await executeCommandTool(command!, commandExecutionContext, messageHandler)
 								if (userRejected) {
 									//this.didRejectTool = true
 									pushToolResult(execCommandResult)
@@ -706,4 +709,91 @@ export async function presentAssistantMessageContent(params: PresentAssistantMes
 			}
 			break
 	}
+}
+
+export interface CommandExecutionContext {
+  terminalManager: TerminalManager;
+  cwd: string;
+}
+
+export interface MessageHandler {
+  say: (type: ClineSay, text?: string, images?: string[], partial?: boolean) => Promise<void>;
+  ask: (type: ClineAsk, text?: string, partial?: boolean) => Promise<{ response: ClineAskResponse; text?: string; images?: string[] }>;
+}
+
+export async function executeCommandTool(
+  command: string,
+  context: CommandExecutionContext,
+  messageHandler: MessageHandler
+): Promise<[boolean, ToolResponse]> {
+  const { terminalManager, cwd } = context;
+  const { say, ask } = messageHandler;
+
+  const terminalInfo = await terminalManager.getOrCreateTerminal(cwd);
+  terminalInfo.terminal.show();
+  const process = terminalManager.runCommand(terminalInfo, command);
+
+  let userFeedback: { text?: string; images?: string[] } | undefined;
+  let didContinue = false;
+  const sendCommandOutput = async (line: string): Promise<void> => {
+    try {
+      const { response, text, images } = await ask("command_output", line);
+      if (response === "yesButtonClicked") {
+        // proceed while running
+      } else {
+        userFeedback = { text, images };
+      }
+      didContinue = true;
+      process.continue(); // continue past the await
+    } catch {
+      // This can only happen if this ask promise was ignored, so ignore this error
+    }
+  };
+
+  let result = "";
+  process.on("line", (line) => {
+    result += line + "\n";
+    if (!didContinue) {
+      sendCommandOutput(line);
+    } else {
+      say("command_output", line);
+    }
+  });
+
+  let completed = false;
+  process.once("completed", () => {
+    completed = true;
+  });
+
+  process.once("no_shell_integration", async () => {
+    await say("shell_integration_warning");
+  });
+
+  await process;
+
+  // Wait for a short delay to ensure all messages are sent to the webview
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  result = result.trim();
+
+  if (userFeedback) {
+    await say("user_feedback", userFeedback.text, userFeedback.images);
+    return [
+      true,
+      `Command is still running in the user's terminal.${
+        result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+      }\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
+    ];
+  }
+
+  if (completed) {
+    return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`];
+  } else {
+    return [
+      false,
+      `Command is still running in the user's terminal.${
+        result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+      }\n\nYou will be updated on the terminal status and new output in the future.`,
+    ];
+  }
 }

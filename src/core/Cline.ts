@@ -1,19 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import delay from "delay"
 import fs from "fs/promises"
-import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
-import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
+import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { listFiles } from "../services/glob/list-files"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -30,14 +26,12 @@ import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
-import { arePathsEqual } from "../utils/path"
-import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { presentAssistantMessageContent } from "./cline/presentAssistantMessageContent"
+import { presentAssistantMessageContent, CommandExecutionContext, MessageHandler } from "./cline/presentAssistantMessageContent"
 import { UserContent, ToolResponse } from "./cline/clineTypes"
 import { handleConsecutiveMistakes, loadContext } from "./cline/recursivelyMakeClineRequests"
 import { TaskHistoryManager, getTimeAgoText, getResumptionMessage, cwd } from "./cline/TaskHistoryManager"
@@ -515,85 +509,6 @@ export class Cline {
 		this.urlContentFetcher.closeBrowser()
 	}
 
-	// Tools
-
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
-		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
-
-		let userFeedback: { text?: string; images?: string[] } | undefined
-		let didContinue = false
-		const sendCommandOutput = async (line: string): Promise<void> => {
-			try {
-				const { response, text, images } = await this.ask("command_output", line)
-				if (response === "yesButtonClicked") {
-					// proceed while running
-				} else {
-					userFeedback = { text, images }
-				}
-				didContinue = true
-				process.continue() // continue past the await
-			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
-			}
-		}
-
-		let result = ""
-		process.on("line", (line) => {
-			result += line + "\n"
-			if (!didContinue) {
-				sendCommandOutput(line)
-			} else {
-				this.say("command_output", line)
-			}
-		})
-
-		let completed = false
-		process.once("completed", () => {
-			completed = true
-		})
-
-		process.once("no_shell_integration", async () => {
-			await this.say("shell_integration_warning")
-		})
-
-		await process
-
-		// Wait for a short delay to ensure all messages are sent to the webview
-		// This delay allows time for non-awaited promises to be created and
-		// for their associated messages to be sent to the webview, maintaining
-		// the correct order of messages (although the webview is smart about
-		// grouping command_output messages despite any gaps anyways)
-		await delay(50)
-
-		result = result.trim()
-
-		if (userFeedback) {
-			await this.say("user_feedback", userFeedback.text, userFeedback.images)
-			return [
-				true,
-				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
-					userFeedback.images
-				),
-			]
-		}
-
-		if (completed) {
-			return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
-		} else {
-			return [
-				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-				}\n\nYou will be updated on the terminal status and new output in the future.`,
-			]
-		}
-	}
-
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages ?? false)
 		if (this.customInstructions && this.customInstructions.trim()) {
@@ -675,14 +590,21 @@ export class Cline {
 			didRejectTool: this.didRejectTool,
 			alwaysAllowReadOnly: this.alwaysAllowReadOnly,
 			cwd,
-  			ask: this.ask.bind(this), 
-  			say: this.say.bind(this),
-  			sayAndCreateMissingParamError: this.sayAndCreateMissingParamError.bind(this),
+			ask: this.ask.bind(this),
+			say: this.say.bind(this),
+			sayAndCreateMissingParamError: this.sayAndCreateMissingParamError.bind(this),
 			diffViewProvider: this.diffViewProvider,
-  			executeCommandTool: this.executeCommandTool.bind(this),
-  			urlContentFetcher: this.urlContentFetcher,
-  			userMessageContent: this.userMessageContent,
+			urlContentFetcher: this.urlContentFetcher,
+			userMessageContent: this.userMessageContent,
 			clineMessages: this.clineMessages,
+			commandExecutionContext: {
+				terminalManager: this.terminalManager,
+				cwd: cwd,
+			},
+			messageHandler: {
+				say: this.say.bind(this),
+				ask: this.ask.bind(this),
+			},
 		});
 
 		this.presentAssistantMessageLocked = false
