@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.18]
+
+- Add support for both v1 and v2 of Claude 3.5 Sonnet for GCP Vertex and AWS Bedrock (for cases where the new model is not enabled yet or unavailable in your region)
+
 ## [2.0.17]
 
 - Update Anthropic model IDs
