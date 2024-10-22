@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.0.17]
+
+- Update Anthropic model IDs
+
 ## [2.0.16]
 
 - Adjustments to system prompt

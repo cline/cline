@@ -26,6 +26,7 @@ export class AnthropicHandler implements ApiHandler {
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 		const modelId = this.getModel().id
 		switch (modelId) {
+			// 'latest' alias does not support cache_control
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
