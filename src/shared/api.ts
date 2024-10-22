@@ -99,6 +99,14 @@ export const bedrockModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
+	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	"anthropic.claude-3-opus-20240229-v1:0": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
@@ -139,6 +147,14 @@ export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet-v2@20241022"
 export const vertexModels = {
 	"claude-3-5-sonnet-v2@20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"claude-3-5-sonnet@20240620": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
