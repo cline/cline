@@ -94,6 +94,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				})
 				break
 			}
+			case 'messageDeleted':
+				setState((prevState) => ({
+					...prevState,
+					clineMessages: prevState.clineMessages.filter((msg) => msg.ts !== message.ts),
+				}));
+				break;
 		}
 	}, [])
 

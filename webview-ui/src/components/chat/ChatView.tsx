@@ -536,6 +536,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return text
 	}, [task])
 
+	const handleDeleteMessage = useCallback((messageTs: number) => {
+		vscode.postMessage({ type: 'deleteMessage', ts: messageTs });
+	}, []);
+
 	const itemContent = useCallback(
 		(index: number, message: any) => (
 			<ChatRow
@@ -546,9 +550,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				isLast={index === visibleMessages.length - 1}
 				onHeightChange={handleRowHeightChange}
+				onDelete={() => handleDeleteMessage(message.ts)}
 			/>
 		),
-		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]
+		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange, handleDeleteMessage]
 	)
 
 	return (
