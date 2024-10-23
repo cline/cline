@@ -594,6 +594,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					switch (rawModel.id) {
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
+						case "anthropic/claude-3.5-sonnet-20240620":
+						case "anthropic/claude-3.5-sonnet-20240620:beta":
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
