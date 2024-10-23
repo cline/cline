@@ -305,12 +305,26 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						getTheme().then((theme) =>
 							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
 						)
+						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
 							if (openRouterModels) {
 								this.postMessageToWebview({ type: "openRouterModels", openRouterModels })
-							} else {
-								// nothing cached, fetch first time
-								this.refreshOpenRouterModels()
+							}
+						})
+						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
+						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
+						// (see normalizeApiConfiguration > openrouter)
+						this.refreshOpenRouterModels().then(async (openRouterModels) => {
+							if (openRouterModels) {
+								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+								const { apiConfiguration } = await this.getState()
+								if (apiConfiguration.openRouterModelId) {
+									await this.updateGlobalState(
+										"openRouterModelInfo",
+										openRouterModels[apiConfiguration.openRouterModelId]
+									)
+									await this.postStateToWebview()
+								}
 							}
 						})
 						break
@@ -594,6 +608,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					switch (rawModel.id) {
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
+							// NOTE: this needs to be synced with api.ts/openrouter default model info
+							modelInfo.supportsComputerUse = true
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 3.75
+							modelInfo.cacheReadsPrice = 0.3
+							break
 						case "anthropic/claude-3.5-sonnet-20240620":
 						case "anthropic/claude-3.5-sonnet-20240620:beta":
 							modelInfo.supportsPromptCache = true
@@ -626,6 +646,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
+		return models
 	}
 
 	// Task history

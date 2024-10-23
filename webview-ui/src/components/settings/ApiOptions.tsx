@@ -610,6 +610,12 @@ export const ModelInfoView = ({
 			supportsLabel="Supports images"
 			doesNotSupportLabel="Does not support images"
 		/>,
+		<ModelInfoSupportsItem
+			key="supportsComputerUse"
+			isSupported={modelInfo.supportsComputerUse ?? false}
+			supportsLabel="Supports computer use"
+			doesNotSupportLabel="Does not support computer use"
+		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
 				key="supportsPromptCache"
