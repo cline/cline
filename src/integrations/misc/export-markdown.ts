@@ -1,7 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import os from "os"
-import * as path from "path"
-import * as vscode from "vscode"
+import { Anthropic } from "@anthropic-ai/sdk";
+import { Buffer } from 'buffer';
+import os from "os";
+import * as path from "path";
+import * as vscode from "vscode";
 
 export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
 	// File name
@@ -36,7 +37,8 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 
 	if (saveUri) {
 		// Write content to the selected location
-		await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+		// await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+		await vscode.workspace.fs.writeFile(saveUri, new Uint8Array(Buffer.from(markdownContent)));
 		vscode.window.showTextDocument(saveUri, { preview: true })
 	}
 }
