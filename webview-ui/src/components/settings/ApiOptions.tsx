@@ -47,6 +47,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [azureApiVersionSelected_1, setAzureApiVersionSelected_1] = useState(!!apiConfiguration?.azureApiVersion_1)
+	const [azureApiVersionSelected_2, setAzureApiVersionSelected_2] = useState(!!apiConfiguration?.azureApiVersion_2)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -110,6 +112,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 		)
 	}
 
+	const openAiSlots = [
+		"openai",
+		"openai_alt_1",
+		"openai_alt_2"
+	];
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 			<div className="dropdown-container">
@@ -120,7 +128,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
+					style={{ minWidth: 200, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -128,6 +136,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="openai_alt_1">OpenAI Compatible (alt. 1)</VSCodeOption>
+					<VSCodeOption value="openai_alt_2">OpenAI Compatible (alt. 2)</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
@@ -395,63 +405,96 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-			{selectedProvider === "openai" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiBaseUrl || ""}
-						style={{ width: "100%" }}
-						type="url"
-						onInput={handleInputChange("openAiBaseUrl")}
-						placeholder={"Enter base URL..."}>
-						<span style={{ fontWeight: 500 }}>Base URL</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("openAiApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>API Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<VSCodeCheckbox
-						checked={azureApiVersionSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setAzureApiVersionSelected(isChecked)
-							if (!isChecked) {
-								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
-							}
-						}}>
-						Set Azure API version
-					</VSCodeCheckbox>
-					{azureApiVersionSelected && (
-						<VSCodeTextField
-							value={apiConfiguration?.azureApiVersion || ""}
-							style={{ width: "100%", marginTop: 3 }}
-							onInput={handleInputChange("azureApiVersion")}
-							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
-						/>
-					)}
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
-							with Claude models. Less capable models may not work as expected.)
-						</span>
-					</p>
-				</div>
+
+			{openAiSlots.map((key) => {
+				let baseUrl: keyof ApiConfiguration = "openAiBaseUrl";
+				let openAiApiKey: keyof ApiConfiguration = "openAiApiKey";
+				let openAiModelId: keyof ApiConfiguration = "openAiModelId";
+				let azureApiVersionToUse: keyof ApiConfiguration = "azureApiVersion";
+				let azureApiVersionState = azureApiVersionSelected;
+				let setAzureApiVersion = setAzureApiVersionSelected;
+				switch (key) {
+					case "openai_alt_1":
+						baseUrl = "openAiBaseUrl_1";
+						openAiApiKey = "openAiApiKey_1";
+						openAiModelId = "openAiModelId_1";
+						azureApiVersionToUse = "azureApiVersion_1";
+						azureApiVersionState = azureApiVersionSelected_1;
+						setAzureApiVersion = setAzureApiVersionSelected_1;
+						break;
+					case "openai_alt_2":
+						baseUrl = "openAiBaseUrl_2";
+						openAiApiKey = "openAiApiKey_2";
+						openAiModelId = "openAiModelId_2";
+						azureApiVersionToUse = "azureApiVersion_2";
+						azureApiVersionState = azureApiVersionSelected_2;
+						setAzureApiVersion = setAzureApiVersionSelected_2;
+						break;
+				}
+
+				return (
+					selectedProvider === key && (
+						<div>
+							<VSCodeTextField
+								value={apiConfiguration?.[baseUrl] || ""}
+								style={{ width: "100%" }}
+								type="url"
+								onInput={handleInputChange(baseUrl)}
+								placeholder={"Enter base URL..."}>
+								<span style={{ fontWeight: 500 }}>Base URL</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.[openAiApiKey] || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange(openAiApiKey)}
+								placeholder="Enter API Key...">
+								<span style={{ fontWeight: 500 }}>API Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.[openAiModelId] || ""}
+								style={{ width: "100%" }}
+								onInput={handleInputChange(openAiModelId)}
+								placeholder={"Enter Model ID..."}>
+								<span style={{ fontWeight: 500 }}>Model ID</span>
+							</VSCodeTextField>
+							<VSCodeCheckbox
+								checked={azureApiVersionState}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									setAzureApiVersion(isChecked)
+									if (!isChecked) {
+										setApiConfiguration({ ...apiConfiguration, [azureApiVersionToUse]: "" })
+									}
+								}}>
+								Set Azure API version
+							</VSCodeCheckbox>
+							{azureApiVersionState && (
+								<VSCodeTextField
+									value={apiConfiguration?.[azureApiVersionToUse] || ""}
+									style={{ width: "100%", marginTop: 3 }}
+									onInput={handleInputChange(azureApiVersionToUse)}
+									placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
+								/>
+							)}
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: 3,
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								<span style={{ color: "var(--vscode-errorForeground)" }}>
+									(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+									with Claude models. Less capable models may not work as expected.)
+								</span>
+							</p>
+						</div>
+					)
+				);
+			}
 			)}
+
+
 
 			{selectedProvider === "ollama" && (
 				<div>
@@ -531,7 +574,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
 
 			{selectedProvider !== "openrouter" &&
-				selectedProvider !== "openai" &&
+				!openAiSlots.includes(selectedProvider) &&
 				selectedProvider !== "ollama" &&
 				showModelOptions && (
 					<>
@@ -734,6 +777,18 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openAiModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "openai_alt_1":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openAiModelId_1 || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "openai_alt_2":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openAiModelId_2 || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "ollama":

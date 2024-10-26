@@ -4,6 +4,8 @@ export type ApiProvider =
 	| "bedrock"
 	| "vertex"
 	| "openai"
+	| "openai_alt_1"
+	| "openai_alt_2"
 	| "ollama"
 	| "gemini"
 	| "openai-native"
@@ -24,11 +26,19 @@ export interface ApiHandlerOptions {
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
+	openAiBaseUrl_1?: string
+	openAiApiKey_1?: string
+	openAiModelId_1?: string
+	openAiBaseUrl_2?: string
+	openAiApiKey_2?: string
+	openAiModelId_2?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
+	azureApiVersion_1?: string
+	azureApiVersion_2?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

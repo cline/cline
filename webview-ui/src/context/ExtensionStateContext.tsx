@@ -48,15 +48,17 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				const config = message.state?.apiConfiguration
 				const hasKey = config
 					? [
-							config.apiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-					  ].some((key) => key !== undefined)
+						config.apiKey,
+						config.openRouterApiKey,
+						config.awsRegion,
+						config.vertexProjectId,
+						config.openAiApiKey,
+						config.openAiApiKey_1,
+						config.openAiApiKey_2,
+						config.ollamaModelId,
+						config.geminiApiKey,
+						config.openAiNativeApiKey,
+					].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
