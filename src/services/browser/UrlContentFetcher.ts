@@ -50,6 +50,10 @@ export class UrlContentFetcher {
 			return
 		}
 		const stats = await this.ensureChromiumExists()
+		const config = vscode.workspace.getConfiguration('cline')
+		const viewportWidth = config.get<number>('viewport.width') || 1280
+		const viewportHeight = config.get<number>('viewport.height') || 720
+
 		this.browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -58,6 +62,10 @@ export class UrlContentFetcher {
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
+		await this.page?.setViewport({
+			width: viewportWidth,
+			height: viewportHeight,
+		})
 	}
 
 	async closeBrowser(): Promise<void> {

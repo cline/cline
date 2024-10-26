@@ -45,6 +45,25 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Cline",
+      "properties": {
+        "cline.viewport.width": {
+          "type": "number",
+          "default": 1280,
+          "minimum": 320,
+          "maximum": 7680,
+          "description": "Width of the browser viewport for screenshots (in pixels)"
+        },
+        "cline.viewport.height": {
+          "type": "number",
+          "default": 720,
+          "minimum": 240,
+          "maximum": 4320,
+          "description": "Height of the browser viewport for screenshots (in pixels)"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
