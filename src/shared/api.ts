@@ -91,10 +91,7 @@ export const anthropicModels = {
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-<<<<<<< HEAD
-=======
 export const awsUseCrossRegionInferenceDefault = true // Add this line here
->>>>>>> 48d7930 (update the default for bedrock cross region use)
 export const bedrockModels = {
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
