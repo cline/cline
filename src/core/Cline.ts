@@ -42,6 +42,7 @@ import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { EmulatorFinder } from "../services/emulator/EmulatorFinder"
+import { showOmissionWarning } from "../integrations/editor/detect-omission"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -70,6 +71,7 @@ export class Cline {
 	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAborting = false
+	abandoned = false
 	private diffViewProvider: DiffViewProvider
 
 	// streaming
@@ -601,10 +603,16 @@ export class Cline {
 			return "just now"
 		})()
 
+		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
+
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task. Note: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry.` +
+				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry.${
+					wasRecent
+						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+						: ""
+				}` +
 				(responseText
 					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
 					: ""),
@@ -733,38 +741,36 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		try {
-			let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages ?? false)
-			if (this.customInstructions && this.customInstructions.trim()) {
-				// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-				systemPrompt += addCustomInstructions(this.customInstructions)
-			}
+		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsImages ?? false)
+		if (this.customInstructions && this.customInstructions.trim()) {
+			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
+			systemPrompt += addCustomInstructions(this.customInstructions)
+		}
 
-			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-			if (previousApiReqIndex >= 0) {
-				const previousRequest = this.clineMessages[previousApiReqIndex]
-				if (previousRequest && previousRequest.text) {
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
-						previousRequest.text
-					)
-					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-					const contextWindow = this.api.getModel().info.contextWindow || 128_000
-					const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
-					if (totalTokens >= maxAllowedSize) {
-						const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-						await this.overwriteApiConversationHistory(truncatedMessages)
-					}
+		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+		if (previousApiReqIndex >= 0) {
+			const previousRequest = this.clineMessages[previousApiReqIndex]
+			if (previousRequest && previousRequest.text) {
+				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
+					previousRequest.text
+				)
+				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+				const contextWindow = this.api.getModel().info.contextWindow || 128_000
+				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+				if (totalTokens >= maxAllowedSize) {
+					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+					await this.overwriteApiConversationHistory(truncatedMessages)
 				}
 			}
+		}
 
-			const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
-			const iterator = stream[Symbol.asyncIterator]()
+		const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
+		const iterator = stream[Symbol.asyncIterator]()
+
+		try {
 			// awaiting first chunk to see if it will throw an error
 			const firstChunk = await iterator.next()
 			yield firstChunk.value
-			// no error, so we can continue to yield all remaining chunks
-			// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
-			yield* iterator
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			const { response } = await this.ask(
@@ -778,7 +784,13 @@ export class Cline {
 			await this.say("api_req_retried")
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
+			return
 		}
+
+		// no error, so we can continue to yield all remaining chunks
+		// (needs to be placed outside of try/catch since it we want caller to handle errors not with api_req_failed as that is reserved for first chunk failures only)
+		// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
+		yield* iterator
 	}
 
 	async presentAssistantMessage() {
@@ -1008,11 +1020,11 @@ export class Cline {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
 
+						// it seems not just llama models are doing this, but also gemini and potentially others
 						if (
-							this.api.getModel().id.includes("llama") &&
-							(newContent.includes("&gt;") ||
-								newContent.includes("&lt;") ||
-								newContent.includes("&quot;"))
+							newContent.includes("&gt;") ||
+							newContent.includes("&lt;") ||
+							newContent.includes("&quot;")
 						) {
 							newContent = newContent
 								.replace(/&gt;/g, ">")
@@ -1064,6 +1076,7 @@ export class Cline {
 								await this.diffViewProvider.update(newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
+								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -1081,7 +1094,8 @@ export class Cline {
 									await this.diffViewProvider.revertChanges()
 									break
 								}
-								const { newProblemsMessage, userEdits } = await this.diffViewProvider.saveChanges()
+								const { newProblemsMessage, userEdits, finalContent } =
+									await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 								if (userEdits) {
 									await this.say(
@@ -1093,7 +1107,14 @@ export class Cline {
 										} satisfies ClineSayTool)
 									)
 									pushToolResult(
-										`The user made the following updates to your content:\n\n${userEdits}\n\nThe updated content, which includes both your original modifications and the user's additional edits, has been successfully saved to ${relPath.toPosix()}. (Note this does not mean you need to re-write the file with the user's changes, as they have already been applied to the file.)${newProblemsMessage}`
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+											`Please note:\n` +
+											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+											`2. Proceed with the task using this updated file content as the new baseline.\n` +
+											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+											`${newProblemsMessage}`
 									)
 								} else {
 									pushToolResult(
@@ -1812,7 +1833,10 @@ export class Cline {
 
 					if (this.abort) {
 						console.log("aborting stream...")
-						await abortStream("user_cancelled")
+						if (!this.abandoned) {
+							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
+							await abortStream("user_cancelled")
+						}
 						break // aborts the stream
 					}
 
@@ -1824,12 +1848,18 @@ export class Cline {
 					}
 				}
 			} catch (error) {
-				this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-				await abortStream("streaming_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
-				const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
-				if (history) {
-					await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-					// await this.providerRef.deref()?.postStateToWebview()
+				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
+				if (!this.abandoned) {
+					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
+					await abortStream(
+						"streaming_failed",
+						error.message ?? JSON.stringify(serializeError(error), null, 2)
+					)
+					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+					if (history) {
+						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
+						// await this.providerRef.deref()?.postStateToWebview()
+					}
 				}
 			}
 
@@ -1901,7 +1931,7 @@ export class Cline {
 			return didEndLoop // will always be false for now
 		} catch (error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
-			return true
+			return true // needs to be true so parent loop knows to end task
 		}
 	}
 

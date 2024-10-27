@@ -446,6 +446,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}).catch(() => {
 								console.error("Failed to abort task")
 							})
+							if (this.cline) {
+								// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
+								this.cline.abandoned = true
+							}
 							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
 							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 						}
@@ -590,6 +594,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					switch (rawModel.id) {
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
+						case "anthropic/claude-3.5-sonnet-20240620":
+						case "anthropic/claude-3.5-sonnet-20240620:beta":
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3

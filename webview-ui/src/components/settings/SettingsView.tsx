@@ -117,7 +117,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<VSCodeCheckbox
 						checked={alwaysAllowReadOnly}
 						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
+						<span style={{ fontWeight: "500" }}>Always approve read-only operations</span>
 					</VSCodeCheckbox>
 					<p
 						style={{
@@ -126,7 +126,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						When enabled, Cline will automatically read files, view directories, and inspect sites without
-						requiring you to click the Allow button.
+						requiring you to click the Approve button.
 					</p>
 				</div>
 
@@ -158,8 +158,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					}}>
 					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/clinebot/cline" style={{ display: "inline" }}>
-							https://github.com/clinebot/cline
+						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>

@@ -1,5 +1,69 @@
 # Change Log
 
+## [2.0.19]
+
+- Fix model info for Claude 3.5 Sonnet v1 on OpenRouter
+
+## [2.0.18]
+
+- Add support for both v1 and v2 of Claude 3.5 Sonnet for GCP Vertex and AWS Bedrock (for cases where the new model is not enabled yet or unavailable in your region)
+
+## [2.0.17]
+
+- Update Anthropic model IDs
+
+## [2.0.16]
+
+- Adjustments to system prompt
+
+## [2.0.15]
+
+- Fix bug where modifying Cline's edits would lead him to try to re-apply the edits
+- Fix bug where weaker models would display file contents before using the write_to_file tool
+- Fix o1-mini and o1-preview errors when using OpenAI native
+
+## [2.0.14]
+
+- Gracefully cancel requests while stream could be hanging
+
+## [2.0.13]
+
+- Detect code omission and show warning with troubleshooting link
+
+## [2.0.12]
+
+- Keep cursor out of the way during file edit streaming animation
+
+## [2.0.11]
+
+- Adjust prompts around read_file to prevent re-reading files unnecessarily
+
+## [2.0.10]
+
+- More adjustments to system prompt to prevent lazy coding
+
+## [2.0.9]
+
+- Update system prompt to try to prevent Cline from lazy coding (`// rest of code here...`)
+
+## [2.0.8]
+
+- Fix o1-mini and o1-preview for OpenAI
+- Fix diff editor not opening sometimes in slow environments like project idx
+
+## [2.0.7]
+
+- Misc. bug fixes
+
+## [2.0.6]
+
+- Update URLs to https://github.com/cline/cline
+
+## [2.0.5]
+
+- Fixed bug where Cline's edits would stream into the active tab when switching tabs during a write_to_file
+- Added explanation in task continuation prompt that an interrupted write_to_file reverts the file to its original contents, preventing unnecessary re-reads
+- Fixed non-first chunk error handling in case stream fails mid-way through
 
 ## [2.0.0]
 
