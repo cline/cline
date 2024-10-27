@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
-import { ClineAsk, ClineSayTool, ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import {
+	ClineAsk,
+	ClineMessage,
+	ClineSayBrowserAction,
+	ClineSayTool,
+	ExtensionMessage,
+} from "../../../../src/shared/ExtensionMessage"
 import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
@@ -14,6 +20,7 @@ import { vscode } from "../../utils/vscode"
 import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import Announcement from "./Announcement"
+import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
@@ -437,6 +444,66 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
+	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
+		// which of visible messages are browser session messages, see above
+		if (message.type === "ask") {
+			return ["browser_action_launch"].includes(message.ask!)
+		}
+		if (message.type === "say") {
+			return ["api_req_started", "text", "browser_action", "browser_action_result"].includes(message.say!)
+		}
+		return false
+	}
+
+	const groupedMessages = useMemo(() => {
+		const result: (ClineMessage | ClineMessage[])[] = []
+		let currentGroup: ClineMessage[] = []
+		let isInBrowserSession = false
+
+		const endBrowserSession = () => {
+			if (currentGroup.length > 0) {
+				result.push([...currentGroup])
+				currentGroup = []
+				isInBrowserSession = false
+			}
+		}
+
+		visibleMessages.forEach((message) => {
+			if (message.ask === "browser_action_launch") {
+				// complete existing browser session if any
+				endBrowserSession()
+				// start new
+				isInBrowserSession = true
+				currentGroup.push(message)
+			} else if (isInBrowserSession) {
+				if (isBrowserSessionMessage(message)) {
+					currentGroup.push(message)
+
+					// Check if this is a close action
+					if (message.say === "browser_action") {
+						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						if (browserAction.action === "close") {
+							endBrowserSession()
+						}
+					}
+				} else {
+					// complete existing browser session if any
+					endBrowserSession()
+					result.push(message)
+				}
+			} else {
+				result.push(message)
+			}
+		})
+
+		// Handle case where browser session is the last group
+		if (currentGroup.length > 0) {
+			result.push([...currentGroup])
+		}
+
+		return result
+	}, [visibleMessages])
+
 	// scrolling
 
 	const scrollToBottomSmooth = useMemo(
@@ -465,10 +532,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
-			const isLast = visibleMessages.at(-1)?.ts === ts
-			const isSecondToLast = visibleMessages.at(-2)?.ts === ts
+			const lastGroup = groupedMessages.at(-1)
+			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
+			const secondToLastGroup = groupedMessages.at(-2)
+			const isSecondToLast = Array.isArray(secondToLastGroup)
+				? secondToLastGroup[0].ts === ts
+				: secondToLastGroup?.ts === ts
+
 			const isLastCollapsedApiReq =
-				visibleMessages.at(-1)?.say === "api_req_started" && !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
+				isLast &&
+				!Array.isArray(lastGroup) && // Make sure it's not a browser session group
+				lastGroup?.say === "api_req_started" &&
+				!expandedRows[lastGroup.ts]
+
 			setExpandedRows((prev) => ({
 				...prev,
 				[ts]: !prev[ts],
@@ -496,7 +572,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				} else {
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
-							index: visibleMessages.length - (isLast ? 1 : 2),
+							index: groupedMessages.length - (isLast ? 1 : 2),
 							align: "start",
 						})
 					}, 0)
@@ -504,7 +580,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[visibleMessages, expandedRows, scrollToBottomAuto, isAtBottom]
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom]
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -548,18 +624,37 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [task])
 
 	const itemContent = useCallback(
-		(index: number, message: any) => (
-			<ChatRow
-				key={message.ts}
-				message={message}
-				isExpanded={expandedRows[message.ts] || false}
-				onToggleExpand={() => toggleRowExpansion(message.ts)}
-				lastModifiedMessage={modifiedMessages.at(-1)}
-				isLast={index === visibleMessages.length - 1}
-				onHeightChange={handleRowHeightChange}
-			/>
-		),
-		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]
+		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
+			// browser session group
+			if (Array.isArray(messageOrGroup)) {
+				const firstMessage = messageOrGroup[0]
+				return (
+					<BrowserSessionRow
+						key={firstMessage.ts}
+						messages={messageOrGroup}
+						isExpanded={expandedRows[firstMessage.ts] || false}
+						onToggleExpand={() => toggleRowExpansion(firstMessage.ts)}
+						lastModifiedMessage={modifiedMessages.at(-1)}
+						isLast={index === groupedMessages.length - 1}
+						onHeightChange={handleRowHeightChange}
+					/>
+				)
+			}
+
+			// regular message
+			return (
+				<ChatRow
+					key={messageOrGroup.ts}
+					message={messageOrGroup}
+					isExpanded={expandedRows[messageOrGroup.ts] || false}
+					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
+					lastModifiedMessage={modifiedMessages.at(-1)}
+					isLast={index === groupedMessages.length - 1}
+					onHeightChange={handleRowHeightChange}
+				/>
+			)
+		},
+		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange]
 	)
 
 	return (
@@ -627,7 +722,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}}
 							// increasing top by 3_000 to prevent jumping around when user collapses a row
 							increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-							data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
+							data={groupedMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 							itemContent={itemContent}
 							atBottomStateChange={(isAtBottom) => {
 								setIsAtBottom(isAtBottom)
@@ -637,7 +732,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 							}}
 							atBottomThreshold={10} // anything lower causes issues with followOutput
-							initialTopMostItemIndex={visibleMessages.length - 1}
+							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
 					</div>
 					{showScrollToBottom ? (

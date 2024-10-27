@@ -1356,6 +1356,7 @@ export class Cline {
 								// if the block is complete and we don't have a valid action this is a mistake
 								this.consecutiveMistakeCount++
 								pushToolResult(await this.sayAndCreateMissingParamError("browser_action", "action"))
+								await this.browserSession.closeBrowser()
 							}
 							break
 						}
@@ -1363,14 +1364,18 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									await this.ask("browser_action_launch", url, block.partial).catch(() => {})
+									await this.ask(
+										"browser_action_launch",
+										removeClosingTag("url", url),
+										block.partial
+									).catch(() => {})
 								} else {
 									await this.say(
 										"browser_action",
 										JSON.stringify({
 											action: action as BrowserAction,
-											coordinate,
-											text,
+											coordinate: removeClosingTag("coordinate", coordinate),
+											text: removeClosingTag("text", text),
 										} satisfies ClineSayBrowserAction),
 										undefined,
 										block.partial
@@ -1385,6 +1390,7 @@ export class Cline {
 										pushToolResult(
 											await this.sayAndCreateMissingParamError("browser_action", "url")
 										)
+										await this.browserSession.closeBrowser()
 										break
 									}
 									this.consecutiveMistakeCount = 0
@@ -1401,6 +1407,7 @@ export class Cline {
 											pushToolResult(
 												await this.sayAndCreateMissingParamError("browser_action", "coordinate")
 											)
+											await this.browserSession.closeBrowser()
 											break // can't be within an inner switch
 										}
 									}
@@ -1410,6 +1417,7 @@ export class Cline {
 											pushToolResult(
 												await this.sayAndCreateMissingParamError("browser_action", "text")
 											)
+											await this.browserSession.closeBrowser()
 											break
 										}
 									}
@@ -1446,13 +1454,13 @@ export class Cline {
 								// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
 								// await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
 
-								await this.say("browser_action_result", JSON.stringify(browserActionResult))
 								switch (action) {
 									case "launch":
 									case "click":
 									case "type":
 									case "scroll_down":
 									case "scroll_up":
+										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
 												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
@@ -1473,6 +1481,7 @@ export class Cline {
 								break
 							}
 						} catch (error) {
+							await this.browserSession.closeBrowser() // if any error occurs, the browser session is terminated
 							await handleError("executing browser action", error)
 							break
 						}
