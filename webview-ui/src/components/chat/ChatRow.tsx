@@ -1,7 +1,13 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef } from "react"
-import { ClineApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
+import {
+	BrowserActionResult,
+	ClineApiReqInfo,
+	ClineMessage,
+	ClineSayBrowserAction,
+	ClineSayTool,
+} from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
@@ -380,32 +386,32 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						/>
 					</>
 				)
-			case "inspectSite":
-				const isInspecting =
-					isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
-				return (
-					<>
-						<div style={headerStyle}>
-							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? (
-									<>Cline wants to inspect this website:</>
-								) : (
-									<>Cline is inspecting this website:</>
-								)}
-							</span>
-						</div>
-						<div
-							style={{
-								borderRadius: 3,
-								border: "1px solid var(--vscode-editorGroup-border)",
-								overflow: "hidden",
-								backgroundColor: CODE_BLOCK_BG_COLOR,
-							}}>
-							<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
-						</div>
-					</>
-				)
+			// case "inspectSite":
+			// 	const isInspecting =
+			// 		isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+			// 	return (
+			// 		<>
+			// 			<div style={headerStyle}>
+			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
+			// 				<span style={{ fontWeight: "bold" }}>
+			// 					{message.type === "ask" ? (
+			// 						<>Cline wants to inspect this website:</>
+			// 					) : (
+			// 						<>Cline is inspecting this website:</>
+			// 					)}
+			// 				</span>
+			// 			</div>
+			// 			<div
+			// 				style={{
+			// 					borderRadius: 3,
+			// 					border: "1px solid var(--vscode-editorGroup-border)",
+			// 					overflow: "hidden",
+			// 					backgroundColor: CODE_BLOCK_BG_COLOR,
+			// 				}}>
+			// 				<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
+			// 			</div>
+			// 		</>
+			// 	)
 			default:
 				return null
 		}
@@ -549,42 +555,6 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							/>
 						</div>
 					)
-				case "inspect_site_result":
-					const logs = message.text || ""
-					const screenshot = message.images?.[0]
-					return (
-						<div
-							style={{
-								marginTop: -10,
-								width: "100%",
-							}}>
-							{screenshot && (
-								<img
-									src={screenshot}
-									alt="Inspect screenshot"
-									style={{
-										width: "calc(100% - 2px)",
-										height: "auto",
-										objectFit: "contain",
-										marginBottom: logs ? 7 : 0,
-										borderRadius: 3,
-										cursor: "pointer",
-										marginLeft: "1px",
-									}}
-									onClick={() => vscode.postMessage({ type: "openImage", text: screenshot })}
-								/>
-							)}
-							{logs && (
-								<CodeAccordian
-									code={logs}
-									language="shell"
-									isConsoleLogs={true}
-									isExpanded={isExpanded}
-									onToggleExpand={onToggleExpand}
-								/>
-							)}
-						</div>
-					)
 				case "error":
 					return (
 						<>
@@ -647,7 +617,58 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							</div>
 						</>
 					)
-
+				case "browser_action":
+					const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+					return (
+						<div
+							style={{
+								marginTop: -10,
+								width: "100%",
+							}}>
+							<div style={{ fontWeight: "bold" }}>{browserAction.action}</div>
+							{browserAction.coordinate && <div>{browserAction.coordinate}</div>}
+							{browserAction.text && <div>{browserAction.text}</div>}
+						</div>
+					)
+				case "browser_action_result":
+					const { screenshot, logs, currentMousePosition, currentUrl } = JSON.parse(
+						message.text || "{}"
+					) as BrowserActionResult
+					return (
+						<div
+							style={{
+								marginTop: -10,
+								width: "100%",
+							}}>
+							{currentMousePosition && <div>{currentMousePosition}</div>}
+							{currentUrl && <div>{currentUrl}</div>}
+							{screenshot && (
+								<img
+									src={screenshot}
+									alt="Inspect screenshot"
+									style={{
+										width: "calc(100% - 2px)",
+										height: "auto",
+										objectFit: "contain",
+										marginBottom: logs ? 7 : 0,
+										borderRadius: 3,
+										cursor: "pointer",
+										marginLeft: "1px",
+									}}
+									onClick={() => vscode.postMessage({ type: "openImage", text: screenshot })}
+								/>
+							)}
+							{logs && (
+								<CodeAccordian
+									code={logs}
+									language="shell"
+									isConsoleLogs={true}
+									isExpanded={isExpanded}
+									onToggleExpand={onToggleExpand}
+								/>
+							)}
+						</div>
+					)
 				default:
 					return (
 						<>
@@ -776,6 +797,29 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							)}
 							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={message.text} />
+							</div>
+						</>
+					)
+				case "browser_action_launch":
+					// const isInspecting =
+					// isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+
+					return (
+						<>
+							<div style={headerStyle}>
+								{/* {isInspecting ? <ProgressIndicator /> : toolIcon("inspect")} */}
+								<span style={{ fontWeight: "bold" }}>
+									<>Cline wants to use the browser:</>
+								</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									border: "1px solid var(--vscode-editorGroup-border)",
+									overflow: "hidden",
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+								}}>
+								<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
 							</div>
 						</>
 					)

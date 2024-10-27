@@ -105,6 +105,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									break
 							}
 							break
+						case "browser_action_launch":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("browser_action_launch")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
+							break
 						case "command":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
@@ -162,7 +169,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "error":
 						case "api_req_finished":
 						case "text":
-						case "inspect_site_result":
+						case "browser_action":
+						case "browser_action_result":
 						case "command_output":
 						case "completion_result":
 						case "tool":
@@ -229,6 +237,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					switch (clineAsk) {
 						case "followup":
 						case "tool":
+						case "browser_action_launch":
 						case "command": // user can provide feedback to a tool or command use
 						case "command_output": // user can send input to command stdin
 						case "completion_result": // if this happens then the user has feedback for the completion result
@@ -271,6 +280,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "command":
 			case "command_output":
 			case "tool":
+			case "browser_action_launch":
 			case "resume_task":
 			case "mistake_limit_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
@@ -303,6 +313,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				break
 			case "command":
 			case "tool":
+			case "browser_action_launch":
 				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
@@ -418,9 +429,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
-				case "inspect_site_result":
-					// don't show row for inspect site result until a screenshot is captured
-					return !!message.images
+				// case "inspect_site_result":
+				// 	// don't show row for inspect site result until a screenshot is captured
+				// 	return !!message.images
 			}
 			return true
 		})

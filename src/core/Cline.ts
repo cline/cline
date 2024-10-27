@@ -22,11 +22,15 @@ import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import {
+	BrowserAction,
+	BrowserActionResult,
+	browserActions,
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
 	ClineAsk,
 	ClineMessage,
 	ClineSay,
+	ClineSayBrowserAction,
 	ClineSayTool,
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
@@ -42,6 +46,7 @@ import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
+import { BrowserSession } from "../services/browser/BrowserSession"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -56,6 +61,7 @@ export class Cline {
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
+	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
@@ -95,6 +101,7 @@ export class Cline {
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
+		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
@@ -660,6 +667,7 @@ export class Cline {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
+		this.browserSession.closeBrowser()
 	}
 
 	// Tools
@@ -881,8 +889,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
 							return `[${block.name} for '${block.params.path}']`
-						case "inspect_site":
-							return `[${block.name} for '${block.params.url}']`
+						case "browser_action":
+							return `[${block.name} for '${block.params.action}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
 						case "attempt_completion":
@@ -990,6 +998,10 @@ export class Cline {
 						"g"
 					)
 					return text.replace(tagRegex, "")
+				}
+
+				if (block.name !== "browser_action") {
+					await this.browserSession.closeBrowser()
 				}
 
 				switch (block.name) {
@@ -1333,66 +1345,135 @@ export class Cline {
 							break
 						}
 					}
-					case "inspect_site": {
+					case "browser_action": {
+						const action: BrowserAction | undefined = block.params.action as BrowserAction
 						const url: string | undefined = block.params.url
-						const sharedMessageProps: ClineSayTool = {
-							tool: "inspectSite",
-							path: removeClosingTag("url", url),
+						const coordinate: string | undefined = block.params.coordinate
+						const text: string | undefined = block.params.text
+						if (!action || !browserActions.includes(action)) {
+							// checking for action to ensure it is complete and valid
+							if (!block.partial) {
+								// if the block is complete and we don't have a valid action this is a mistake
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("browser_action", "action"))
+							}
+							break
 						}
+
 						try {
 							if (block.partial) {
-								const partialMessage = JSON.stringify(sharedMessageProps)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
+								if (action === "launch") {
+									await this.ask("browser_action_launch", url, block.partial).catch(() => {})
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.say(
+										"browser_action",
+										JSON.stringify({
+											action: action as BrowserAction,
+											coordinate,
+											text,
+										} satisfies ClineSayBrowserAction),
+										undefined,
+										block.partial
+									)
 								}
 								break
 							} else {
-								if (!url) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("inspect_site", "url"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-								const completeMessage = JSON.stringify(sharedMessageProps)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
+								let browserActionResult: BrowserActionResult
+								if (action === "launch") {
+									if (!url) {
+										this.consecutiveMistakeCount++
+										pushToolResult(
+											await this.sayAndCreateMissingParamError("browser_action", "url")
+										)
+										break
+									}
+									this.consecutiveMistakeCount = 0
+									const didApprove = await askApproval("browser_action_launch", url)
 									if (!didApprove) {
 										break
 									}
-								}
-
-								// execute tool
-								// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
-								await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
-								await this.urlContentFetcher.launchBrowser()
-								let result: {
-									screenshot: string
-									logs: string
-								}
-								try {
-									result = await this.urlContentFetcher.urlToScreenshotAndLogs(url)
-								} finally {
-									await this.urlContentFetcher.closeBrowser()
-								}
-								const { screenshot, logs } = result
-								await this.say("inspect_site_result", logs, [screenshot])
-
-								pushToolResult(
-									formatResponse.toolResult(
-										`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
-											logs || "(No logs)"
-										}`,
-										[screenshot]
+									await this.browserSession.launchBrowser()
+									browserActionResult = await this.browserSession.navigateToUrl(url)
+								} else {
+									if (action === "click") {
+										if (!coordinate) {
+											this.consecutiveMistakeCount++
+											pushToolResult(
+												await this.sayAndCreateMissingParamError("browser_action", "coordinate")
+											)
+											break // can't be within an inner switch
+										}
+									}
+									if (action === "type") {
+										if (!text) {
+											this.consecutiveMistakeCount++
+											pushToolResult(
+												await this.sayAndCreateMissingParamError("browser_action", "text")
+											)
+											break
+										}
+									}
+									this.consecutiveMistakeCount = 0
+									await this.say(
+										"browser_action",
+										JSON.stringify({
+											action: action as BrowserAction,
+											coordinate,
+											text,
+										} satisfies ClineSayBrowserAction),
+										undefined,
+										false
 									)
-								)
+									switch (action) {
+										case "click":
+											browserActionResult = await this.browserSession.click(coordinate!)
+											break
+										case "type":
+											browserActionResult = await this.browserSession.type(text!)
+											break
+										case "scroll_down":
+											browserActionResult = await this.browserSession.scrollDown()
+											break
+										case "scroll_up":
+											browserActionResult = await this.browserSession.scrollUp()
+											break
+										case "close":
+											browserActionResult = await this.browserSession.closeBrowser()
+											break
+									}
+								}
+
+								// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
+								// await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
+
+								await this.say("browser_action_result", JSON.stringify(browserActionResult))
+								switch (action) {
+									case "launch":
+									case "click":
+									case "type":
+									case "scroll_down":
+									case "scroll_up":
+										pushToolResult(
+											formatResponse.toolResult(
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
+													browserActionResult.logs || "(No new logs)"
+												}\n\n(Remember: if you need to proceed to using non-\`browser_action\` tools, you must first close the browser.)`,
+												browserActionResult.screenshot ? [browserActionResult.screenshot] : []
+											)
+										)
+										break
+									case "close":
+										pushToolResult(
+											formatResponse.toolResult(
+												`The browser has been closed. You may now proceed to using other tools.`
+											)
+										)
+										break
+								}
 								break
 							}
 						} catch (error) {
-							await handleError("inspecting site", error)
+							await handleError("executing browser action", error)
 							break
 						}
 					}
@@ -1425,7 +1506,7 @@ export class Cline {
 								break
 							}
 						} catch (error) {
-							await handleError("inspecting site", error)
+							await handleError("executing command", error)
 							break
 						}
 					}
