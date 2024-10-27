@@ -494,7 +494,7 @@ const BrowserActionBox = ({
 		}
 	}
 	return (
-		<div style={{ padding: "15px 0 0 0" }}>
+		<div style={{ padding: "10px 0 0 0" }}>
 			<div
 				style={{
 					borderRadius: 3,
