@@ -1398,6 +1398,11 @@ export class Cline {
 									if (!didApprove) {
 										break
 									}
+
+									// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
+									// await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
+									await this.say("browser_action_result", "") // starts loading spinner
+
 									await this.browserSession.launchBrowser()
 									browserActionResult = await this.browserSession.navigateToUrl(url)
 								} else {
@@ -1450,9 +1455,6 @@ export class Cline {
 											break
 									}
 								}
-
-								// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
-								// await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
 
 								switch (action) {
 									case "launch":

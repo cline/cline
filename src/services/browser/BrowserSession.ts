@@ -59,10 +59,10 @@ export class BrowserSession {
 			],
 			executablePath: stats.executablePath,
 			defaultViewport: {
-				width: 800,
+				width: 900,
 				height: 600,
 			},
-			headless: false,
+			// headless: false,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
@@ -125,7 +125,7 @@ export class BrowserSession {
 			clip: {
 				x: 0,
 				y: 0,
-				width: 800,
+				width: 900,
 				height: 600,
 			},
 		}

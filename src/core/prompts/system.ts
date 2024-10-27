@@ -103,7 +103,7 @@ Usage:
 Description: Request to interact with a Puppeteer-controlled browser. Every action except \`close\` will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action at a time, as you should assess the screenshot and logs to determine the next action.
 - The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
 - While the browser is active, only the \`browser_action\` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser.
-- The browser window has a resolution of **800x600** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
+- The browser window has a resolution of **900x600** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
 - Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.
 Parameters:
 - action: (required) The action to perform. The available actions are:
@@ -121,8 +121,8 @@ Parameters:
         - Example: \`<action>close</action>\`
 - url: (optional) Use this for providing the URL for the \`launch\` action.
     * Example: <url>https://example.com</url>
-- coordinate: (optional) The X and Y coordinates for the \`click\` action. Coordinates should be within the **800x600** resolution.
-    * Example: <coordinate>400,300</coordinate>
+- coordinate: (optional) The X and Y coordinates for the \`click\` action. Coordinates should be within the **900x600** resolution.
+    * Example: <coordinate>450,300</coordinate>
 - text: (optional) Use this for providing the text for the \`type\` action.
     * Example: <text>Hello, world!</text>
 Usage:

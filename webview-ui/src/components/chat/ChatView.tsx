@@ -436,9 +436,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
-				// case "inspect_site_result":
-				// 	// don't show row for inspect site result until a screenshot is captured
-				// 	return !!message.images
 			}
 			return true
 		})
