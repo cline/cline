@@ -74,6 +74,7 @@ export class BrowserSession {
 			await this.browser?.close().catch(() => {})
 			this.browser = undefined
 			this.page = undefined
+			this.currentMousePosition = undefined
 		}
 		return {}
 	}
@@ -122,12 +123,13 @@ export class BrowserSession {
 
 		let options: ScreenshotOptions = {
 			encoding: "base64",
-			clip: {
-				x: 0,
-				y: 0,
-				width: 900,
-				height: 600,
-			},
+
+			// clip: {
+			// 	x: 0,
+			// 	y: 0,
+			// 	width: 900,
+			// 	height: 600,
+			// },
 		}
 
 		let screenshotBase64 = await this.page.screenshot({
@@ -172,8 +174,8 @@ export class BrowserSession {
 
 	// page.goto { waitUntil: "networkidle0" } may not ever resolve, and not waiting could return page content too early before js has loaded
 	// https://stackoverflow.com/questions/52497252/puppeteer-wait-until-page-is-completely-loaded/61304202#61304202
-	private async waitTillHTMLStable(page: Page, timeout = 4_000) {
-		const checkDurationMsecs = 400 // 1000
+	private async waitTillHTMLStable(page: Page, timeout = 5_000) {
+		const checkDurationMsecs = 500 // 1000
 		const maxChecks = timeout / checkDurationMsecs
 		let lastHTMLSize = 0
 		let checkCounts = 1
@@ -245,16 +247,24 @@ export class BrowserSession {
 	async scrollDown(): Promise<BrowserActionResult> {
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
-				window.scrollBy(0, window.innerHeight)
+				window.scrollBy({
+					top: 600,
+					behavior: "auto",
+				})
 			})
+			await delay(300)
 		})
 	}
 
 	async scrollUp(): Promise<BrowserActionResult> {
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
-				window.scrollBy(0, -window.innerHeight)
+				window.scrollBy({
+					top: -600,
+					behavior: "auto",
+				})
 			})
+			await delay(300)
 		})
 	}
 }

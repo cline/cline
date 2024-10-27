@@ -100,9 +100,9 @@ Usage:
 		? `
 
 ## browser_action
-Description: Request to interact with a Puppeteer-controlled browser. Every action except \`close\` will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action at a time, as you should assess the screenshot and logs to determine the next action.
+Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
 - The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
-- While the browser is active, only the \`browser_action\` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser.
+- While the browser is active, only the \`browser_action\` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser. For example if you run into an error and need to fix a file, you must close the browser, then use other tools to make the necessary changes, then re-launch the browser to verify the result.
 - The browser window has a resolution of **900x600** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
 - Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.
 Parameters:
