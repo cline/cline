@@ -1,9 +1,13 @@
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import { BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../../../src/shared/ExtensionMessage"
+import {
+	BrowserAction,
+	BrowserActionResult,
+	ClineMessage,
+	ClineSayBrowserAction,
+} from "../../../../src/shared/ExtensionMessage"
 import { vscode } from "../../utils/vscode"
-import CodeAccordian from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent, ProgressIndicator } from "./ChatRow"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -21,10 +25,14 @@ interface BrowserSessionRowProps {
 
 - console logs will be aggregate up to that current page
 - while isbrowsing, disable next prev buttons and latest action if click use that as position instead of display state
+- action rows ui
+- pagination make look better
+- test cancel/abort session
+- test resume task
 */
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange, lastModifiedMessage, isExpanded } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
@@ -276,6 +284,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 								position: "absolute",
 								top: `${(parseInt(displayState.mousePosition.split(",")[1]) / 600) * 100}%`,
 								left: `${(parseInt(displayState.mousePosition.split(",")[0]) / 800) * 100}%`,
+								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
 					)}
@@ -315,7 +324,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						justifyContent: "space-between",
 						alignItems: "center",
 						padding: "8px",
-						marginTop: "10px",
+						marginTop: "15px",
 						borderTop: "1px solid var(--vscode-editorGroup-border)",
 					}}>
 					<div>
@@ -376,13 +385,30 @@ const BrowserSessionRowContent = ({
 	// This includes handling all message types: api_req_started, browser_action, text, etc.
 	// The implementation would be identical to ChatRowContent
 
+	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
+		switch (action) {
+			case "click":
+				return `Click (${coordinate?.replace(",", ", ")})`
+			case "type":
+				return `Type "${text}"`
+			case "scroll_down":
+				return "Scroll down"
+			case "scroll_up":
+				return "Scroll up"
+			case "close":
+				return "Close browser"
+			default:
+				return action
+		}
+	}
+
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
 				case "api_req_started":
 				case "text":
 					return (
-						<div style={{ padding: "15px 0 5px 0" }}>
+						<div style={{ padding: "15px 0 0px 0" }}>
 							<ChatRowContent
 								message={message}
 								isExpanded={isExpanded(message.ts)}
@@ -401,46 +427,36 @@ const BrowserSessionRowContent = ({
 				case "browser_action":
 					const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
 					return (
-						<div style={{ marginBottom: 10 }}>
-							<div style={{ fontWeight: "bold" }}>{browserAction.action}</div>
-							{browserAction.coordinate && <div>{browserAction.coordinate}</div>}
-							{browserAction.text && <div>{browserAction.text}</div>}
-						</div>
-					)
-
-				case "browser_action_result":
-					const { screenshot, logs, currentMousePosition, currentUrl } = JSON.parse(
-						message.text || "{}"
-					) as BrowserActionResult
-					return (
-						<div style={{ marginBottom: 10 }}>
-							{currentMousePosition && <div>{currentMousePosition}</div>}
-							{currentUrl && <div>{currentUrl}</div>}
-							{screenshot && (
-								<img
-									src={screenshot}
-									alt="Browser action screenshot"
+						<div style={{ padding: "15px 0 0 0" }}>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+								}}>
+								<div
 									style={{
-										width: "calc(100% - 2px)",
-										height: "auto",
-										objectFit: "contain",
-										marginBottom: logs ? 7 : 0,
-										borderRadius: 3,
-										cursor: "pointer",
-										marginLeft: "1px",
-									}}
-									onClick={() => vscode.postMessage({ type: "openImage", text: screenshot })}
-								/>
-							)}
-							{logs && (
-								<CodeAccordian
-									code={logs}
-									language="shell"
-									isConsoleLogs={true}
-									isExpanded={isExpanded(message.ts)}
-									onToggleExpand={() => onToggleExpand(message.ts)}
-								/>
-							)}
+										display: "flex",
+										alignItems: "center",
+										padding: "9px 10px",
+									}}>
+									<span
+										style={{
+											whiteSpace: "nowrap",
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											marginRight: "8px",
+										}}>
+										<span style={{ fontWeight: 500 }}>Browse Action: </span>
+										{getBrowserActionText(
+											browserAction.action,
+											browserAction.coordinate,
+											browserAction.text
+										)}
+									</span>
+								</div>
+							</div>
 						</div>
 					)
 
