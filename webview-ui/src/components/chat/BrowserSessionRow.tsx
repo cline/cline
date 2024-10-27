@@ -1,11 +1,12 @@
 import deepEqual from "fast-deep-equal"
-import React, { memo, useEffect, useRef, useState } from "react"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../../../src/shared/ExtensionMessage"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent } from "./ChatRow"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -25,29 +26,134 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange } = props
 	const prevHeightRef = useRef(0)
 
-	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
-	const consoleLogs = "console logs\nhere\n..."
+	// Organize messages into pages with current state and next action
+	const pages = useMemo(() => {
+		const result: {
+			currentState: {
+				url?: string
+				screenshot?: string
+				messages: ClineMessage[] // messages up to and including the result
+			}
+			nextAction?: {
+				messages: ClineMessage[] // messages leading to next result
+			}
+		}[] = []
+
+		let currentStateMessages: ClineMessage[] = []
+		let nextActionMessages: ClineMessage[] = []
+
+		messages.forEach((message) => {
+			if (message.ask === "browser_action_launch") {
+				// Start first page
+				currentStateMessages = [message]
+			} else if (message.say === "browser_action_result") {
+				// Complete current state
+				currentStateMessages.push(message)
+				const resultData = JSON.parse(message.text || "{}") as BrowserActionResult
+
+				// Add page with current state and previous next actions
+				result.push({
+					currentState: {
+						url: resultData.currentUrl,
+						screenshot: resultData.screenshot,
+						messages: [...currentStateMessages],
+					},
+					nextAction:
+						nextActionMessages.length > 0
+							? {
+									messages: [...nextActionMessages],
+							  }
+							: undefined,
+				})
+
+				// Reset for next page
+				currentStateMessages = []
+				nextActionMessages = []
+			} else if (
+				message.say === "api_req_started" ||
+				message.say === "text" ||
+				message.say === "browser_action"
+			) {
+				// These messages lead to the next result, so they should always go in nextActionMessages
+				nextActionMessages.push(message)
+			} else {
+				// Any other message types
+				currentStateMessages.push(message)
+			}
+		})
+
+		// Add incomplete page if exists
+		if (currentStateMessages.length > 0 || nextActionMessages.length > 0) {
+			result.push({
+				currentState: {
+					messages: [...currentStateMessages],
+				},
+				nextAction:
+					nextActionMessages.length > 0
+						? {
+								messages: [...nextActionMessages],
+						  }
+						: undefined,
+			})
+		}
+
+		return result
+	}, [messages])
+
+	// Auto-advance to latest page
+	const [currentPageIndex, setCurrentPageIndex] = useState(0)
+	useEffect(() => {
+		setCurrentPageIndex(pages.length - 1)
+	}, [pages.length])
+
+	// Get initial URL from launch message
+	const initialUrl = useMemo(() => {
+		const launchMessage = messages.find((m) => m.ask === "browser_action_launch")
+		return launchMessage?.text || ""
+	}, [messages])
+
+	// Find the latest available URL and screenshot
+	const latestState = useMemo(() => {
+		for (let i = pages.length - 1; i >= 0; i--) {
+			const page = pages[i]
+			if (page.currentState.url || page.currentState.screenshot) {
+				return {
+					url: page.currentState.url,
+					screenshot: page.currentState.screenshot,
+				}
+			}
+		}
+		return { url: undefined, screenshot: undefined }
+	}, [pages])
+
+	const currentPage = pages[currentPageIndex]
+	const isLastPage = currentPageIndex === pages.length - 1
+
+	// Use latest state if we're on the last page and don't have a state yet
+	const displayState = isLastPage
+		? {
+				url: currentPage?.currentState.url || latestState.url || initialUrl,
+				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
+		  }
+		: {
+				url: currentPage?.currentState.url || initialUrl,
+				screenshot: currentPage?.currentState.screenshot,
+		  }
 
 	const [browserSessionRow, { height }] = useSize(
 		<div style={{ padding: "10px 6px 10px 15px" }}>
-			<h3>Browser Session Group</h3>
-
 			<div
 				style={{
 					borderRadius: 3,
 					border: "1px solid var(--vscode-editorGroup-border)",
 					overflow: "hidden",
 					backgroundColor: CODE_BLOCK_BG_COLOR,
-					display: "flex",
-					flexDirection: "column",
-					justifyContent: "center",
-					alignItems: "center",
 				}}>
+				{/* URL Bar */}
 				<div
 					style={{
-						width: "calc(100% - 10px)",
-						boxSizing: "border-box", // includes padding in width calculation
 						margin: "5px auto",
+						width: "calc(100% - 10px)",
 						backgroundColor: "var(--vscode-input-background)",
 						border: "1px solid var(--vscode-input-border)",
 						borderRadius: "4px",
@@ -57,79 +163,90 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						justifyContent: "center",
 						color: "var(--vscode-input-foreground)",
 						fontSize: "12px",
-						wordBreak: "break-all", // Allow breaks anywhere
-						whiteSpace: "normal", // Allow wrapping
+						wordBreak: "break-all",
+						whiteSpace: "normal",
 					}}>
-					{"https://example.com/thisisalongurl/asdfasfdasdf?asdfasdfasf"}
+					{displayState.url}
 				</div>
+
+				{/* Screenshot Area */}
 				<div
 					style={{
 						width: "100%",
-						paddingBottom: "75%", // This creates a 4:3 aspect ratio
+						paddingBottom: "75%",
 						position: "relative",
+						backgroundColor: "var(--vscode-input-background)",
 					}}>
-					{/* <div
-						style={{
-							position: "absolute",
-							top: 0,
-							left: 0,
-							right: 0,
-							bottom: 0,
-							backgroundColor: "red",
-						}}
-					/> */}
-					<div
-						style={{
-							position: "absolute",
-							top: "50%",
-							left: "50%",
-							transform: "translate(-50%, -50%)",
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							width: "100%",
-							height: "100%",
-						}}>
-						<span
-							className="codicon codicon-globe"
+					{displayState.screenshot ? (
+						<img
+							src={displayState.screenshot}
+							alt="Browser screenshot"
 							style={{
-								fontSize: "80px",
-								color: "var(--vscode-input-background)",
-							}}></span>
-					</div>
-					<BrowserCursor style={{ position: "absolute", bottom: "10%", right: "20%" }} />
-				</div>
-				<div style={{ width: "100%" }}>
-					<div
-						onClick={() => {
-							if (consoleLogs) {
-								setConsoleLogsExpanded(!consoleLogsExpanded)
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: "100%",
+								objectFit: "contain",
+							}}
+							onClick={() =>
+								vscode.postMessage({
+									type: "openImage",
+									text: displayState.screenshot,
+								})
 							}
-						}}
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "4px",
-							width: "100%",
-							justifyContent: "flex-start",
-							cursor: consoleLogs ? "pointer" : "default",
-							opacity: consoleLogs ? 1 : 0.5,
-							padding: `8px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
-						}}>
-						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span style={{ fontSize: "0.8em" }}>Console Logs</span>
+						/>
+					) : (
+						<div
+							style={{
+								position: "absolute",
+								top: "50%",
+								left: "50%",
+								transform: "translate(-50%, -50%)",
+							}}>
+							<span
+								className="codicon codicon-globe"
+								style={{ fontSize: "80px", color: "var(--vscode-descriptionForeground)" }}
+							/>
+						</div>
+					)}
+				</div>
+
+				{/* Pagination */}
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						padding: "8px",
+						borderTop: "1px solid var(--vscode-editorGroup-border)",
+					}}>
+					<div>
+						Step {currentPageIndex + 1} of {pages.length}
 					</div>
-					{consoleLogsExpanded && <CodeBlock source={`${"```"}shell\n${consoleLogs}\n${"```"}`} />}
+					<div style={{ display: "flex", gap: "4px" }}>
+						<VSCodeButton
+							disabled={currentPageIndex === 0}
+							onClick={() => setCurrentPageIndex((i) => i - 1)}>
+							Previous
+						</VSCodeButton>
+						<VSCodeButton
+							disabled={currentPageIndex === pages.length - 1}
+							onClick={() => setCurrentPageIndex((i) => i + 1)}>
+							Next
+						</VSCodeButton>
+					</div>
 				</div>
 			</div>
 
-			{messages.map((message, index) => (
+			{/* Show next action messages if they exist */}
+			{currentPage?.nextAction?.messages.map((message) => (
 				<BrowserSessionRowContent key={message.ts} {...props} message={message} />
 			))}
-			<h3>END Browser Session Group</h3>
 		</div>
 	)
 
+	// Height change effect
 	useEffect(() => {
 		const isInitialRender = prevHeightRef.current === 0
 		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
