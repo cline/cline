@@ -37,8 +37,19 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
 
+	// const isLastApiReqInterrupted = useMemo(() => {
+	// 	// Check if last api_req_started is cancelled
+	// 	const lastApiReqStarted = [...messages].reverse().find((m) => m.say === "api_req_started")
+	// 	if (lastApiReqStarted?.text != null) {
+	// 		const info = JSON.parse(lastApiReqStarted.text)
+	// 		return info.cancelReason != null
+	// 	}
+	// 	const lastApiReqFailed = isLast && lastModifiedMessage?.ask === "api_req_failed"
+	// 	return lastApiReqFailed
+	// }, [messages, lastModifiedMessage, isLast])
+
 	const isBrowsing = useMemo(() => {
-		return isLast && messages.some((m) => m.say === "browser_action_result") // after user approves, browser_action_result with "" is sent to indicate that the session has started
+		return isLast && messages.some((m) => m.say === "browser_action_result") //&& !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
 	}, [isLast, messages])
 
 	// Organize messages into pages with current state and next action

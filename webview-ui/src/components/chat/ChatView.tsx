@@ -473,6 +473,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				isInBrowserSession = true
 				currentGroup.push(message)
 			} else if (isInBrowserSession) {
+				// end session if api_req_started is cancelled
+
+				if (message.say === "api_req_started") {
+					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
+					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
+					if (lastApiReqStarted?.text != null) {
+						const info = JSON.parse(lastApiReqStarted.text)
+						const isCancelled = info.cancelReason != null
+						if (isCancelled) {
+							endBrowserSession()
+							result.push(message)
+							return
+						}
+					}
+				}
+
 				if (isBrowserSessionMessage(message)) {
 					currentGroup.push(message)
 
