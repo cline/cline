@@ -25,6 +25,7 @@ interface BrowserSessionRowProps {
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange } = props
 	const prevHeightRef = useRef(0)
+	const maxActionHeightRef = useRef(0) // Track max height of action section
 
 	// Organize messages into pages with current state and next action
 	const pages = useMemo(() => {
@@ -140,6 +141,23 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				screenshot: currentPage?.currentState.screenshot,
 		  }
 
+	const [actionContent, { height: actionHeight }] = useSize(
+		<div>
+			{currentPage?.nextAction?.messages.map((message) => (
+				<BrowserSessionRowContent key={message.ts} {...props} message={message} />
+			))}
+		</div>
+	)
+
+	useEffect(() => {
+		if (actionHeight === 0 || actionHeight === Infinity) {
+			return
+		}
+		if (actionHeight > maxActionHeightRef.current) {
+			maxActionHeightRef.current = actionHeight
+		}
+	}, [actionHeight])
+
 	const [browserSessionRow, { height }] = useSize(
 		<div style={{ padding: "10px 6px 10px 15px" }}>
 			<div
@@ -211,14 +229,20 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						</div>
 					)}
 				</div>
+			</div>
 
-				{/* Pagination */}
+			{/* Action content with min height */}
+			<div style={{ minHeight: maxActionHeightRef.current }}>{actionContent}</div>
+
+			{/* Pagination moved to bottom */}
+			{pages.length > 1 && (
 				<div
 					style={{
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
 						padding: "8px",
+						marginTop: "10px",
 						borderTop: "1px solid var(--vscode-editorGroup-border)",
 					}}>
 					<div>
@@ -237,12 +261,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						</VSCodeButton>
 					</div>
 				</div>
-			</div>
-
-			{/* Show next action messages if they exist */}
-			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent key={message.ts} {...props} message={message} />
-			))}
+			)}
 		</div>
 	)
 
