@@ -42,6 +42,7 @@ import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
+import { first } from "puppeteer-core/lib/esm/third_party/rxjs/rxjs.js"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -186,10 +187,10 @@ export class Cline {
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-					)
+				findLastIndex(
+					this.clineMessages,
+					(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+				)
 				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
@@ -371,8 +372,7 @@ export class Cline {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -607,10 +607,9 @@ export class Cline {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry.${
-					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
-						: ""
+				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry.${wasRecent
+					? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+					: ""
 				}` +
 				(responseText
 					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
@@ -721,8 +720,7 @@ export class Cline {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images
 				),
@@ -734,8 +732,7 @@ export class Cline {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -746,6 +743,65 @@ export class Cline {
 		if (this.customInstructions && this.customInstructions.trim()) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addCustomInstructions(this.customInstructions)
+		}
+
+		if (this.apiConversationHistory && this.apiConversationHistory.length > 0) {
+			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1];
+			if (lastMessage.role === "user") {
+				for (let i = 0; i < lastMessage.content.length; i++) {
+					const contentBlock = lastMessage.content[i];
+					if (typeof contentBlock !== 'string' && contentBlock && typeof contentBlock === 'object' && 'text' in contentBlock) {
+						const activeEditor = vscode.window.activeTextEditor;
+						if (activeEditor) {
+							const selectedFile = activeEditor.document.fileName
+							const selectedText = activeEditor.document.getText(activeEditor.selection);
+							const additionalInstructions = " If there are blank lines, keep them as they are. Keep the indentation as is, even if you would have done differently. All the rest of the code should remain EXACTLY the same.\nInstruction: ";
+
+							if (contentBlock.text.includes("@selection")) {
+								if (selectedText.trim()) {
+									const customInstructionSelection = `Update the following part of the code and only this part of the code.
+File: \`${selectedFile}\` 
+From line ${activeEditor.selection.start.line}, column ${activeEditor.selection.start.character} to line ${activeEditor.selection.end.line}, column ${activeEditor.selection.end.character}.
+Code to be updated:
+\`\`\`
+${selectedText}
+\`\`\`
+You can change as many lines as you want within this portion of code, but don't make modification anywhere else. ${additionalInstructions}`
+									contentBlock.text = contentBlock.text.replace("@selection", customInstructionSelection);
+								} else {
+									contentBlock.text = contentBlock.text.replace("@selection", "@cursor");
+								}
+							}
+
+							if (contentBlock.text.includes("@cursor")) {
+								let textBefore = activeEditor.document.getText(new vscode.Range(new vscode.Position(0, 0), activeEditor.selection.start)).trim().slice(-100);
+								if (textBefore.length === 0) {
+									textBefore = "the begining of the file";
+								} else {
+									textBefore = `
+\`\`\`
+${textBefore}
+\`\`\`
+`
+									let textAfter = activeEditor.document.getText(new vscode.Range(activeEditor.selection.end, new vscode.Position(activeEditor.document.lineCount, 0))).trim().slice(0, 100);
+									if (textAfter.length === 0) {
+										textAfter = "the end of the file";
+									} else {
+										textAfter = `
+\`\`\`
+${textAfter}
+\`\`\`
+`
+									}
+									const customInstructionSelection = `Insert your modification only in file \`${selectedFile}\` at the following position: line ${activeEditor.selection.start.line}, column ${activeEditor.selection.start.character} just after ${textBefore} and before ${textAfter}.
+You can add as many lines as you want, but don't make modification anywhere else. ${additionalInstructions}`;
+									contentBlock.text = contentBlock.text.replace("@cursor", customInstructionSelection);
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -874,9 +930,8 @@ export class Cline {
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${
-								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-							}]`
+							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+								}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -1040,7 +1095,7 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1070,7 +1125,7 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1083,10 +1138,10 @@ export class Cline {
 									content: fileExists ? undefined : newContent,
 									diff: fileExists
 										? formatResponse.createPrettyPatch(
-												relPath,
-												this.diffViewProvider.originalContent,
-												newContent
-										  )
+											relPath,
+											this.diffViewProvider.originalContent,
+											newContent
+										)
 										: undefined,
 								} satisfies ClineSayTool)
 								const didApprove = await askApproval("tool", completeMessage)
@@ -1108,13 +1163,13 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`
 									)
 								} else {
 									pushToolResult(
@@ -1145,7 +1200,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1195,7 +1250,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1243,7 +1298,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1296,7 +1351,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1345,7 +1400,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1383,8 +1438,7 @@ export class Cline {
 
 								pushToolResult(
 									formatResponse.toolResult(
-										`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${
-											logs || "(No logs)"
+										`The site has been visited, with console logs captured and a screenshot taken for your analysis.\n\nConsole logs:\n${logs || "(No logs)"
 										}`,
 										[screenshot]
 									)
@@ -1401,7 +1455,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {}
+									() => { }
 								)
 								break
 							} else {
@@ -1435,7 +1489,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(
-									() => {}
+									() => { }
 								)
 								break
 							} else {
@@ -1494,7 +1548,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial
-										).catch(() => {})
+										).catch(() => { })
 									} else {
 										// last message is completion_result
 										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
@@ -1508,7 +1562,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial
-										).catch(() => {})
+										).catch(() => { })
 									}
 								} else {
 									// no command, still outputting partial result
@@ -1734,10 +1788,9 @@ export class Cline {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+								`\n\n[${cancelReason === "streaming_failed"
+									? "Response interrupted by API Error"
+									: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -1982,7 +2035,7 @@ export class Cline {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch(() => { })
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
