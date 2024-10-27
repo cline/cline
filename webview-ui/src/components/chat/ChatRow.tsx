@@ -754,7 +754,7 @@ export const ChatRowContent = ({
 	}
 }
 
-const ProgressIndicator = () => (
+export const ProgressIndicator = () => (
 	<div
 		style={{
 			width: "16px",

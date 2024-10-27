@@ -5,13 +5,13 @@ import { BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../
 import { vscode } from "../../utils/vscode"
 import CodeAccordian from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { ChatRowContent } from "./ChatRow"
+import { ChatRowContent, ProgressIndicator } from "./ChatRow"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
-	isExpanded: boolean
-	onToggleExpand: () => void
+	isExpanded: (messageTs: number) => boolean
+	onToggleExpand: (messageTs: number) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
@@ -20,12 +20,20 @@ interface BrowserSessionRowProps {
 /*
 
 - console logs will be aggregate up to that current page
+- while isbrowsing, disable next prev buttons and latest action if click use that as position instead of display state
 */
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage, isExpanded } = props
 	const prevHeightRef = useRef(0)
-	const maxActionHeightRef = useRef(0) // Track max height of action section
+	const [maxActionHeight, setMaxActionHeight] = useState(0)
+	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
+
+	const isBrowsing = useMemo(() => {
+		return (
+			isLast && lastModifiedMessage?.ask !== "resume_task" && lastModifiedMessage?.ask !== "resume_completed_task"
+		)
+	}, [isLast, lastModifiedMessage])
 
 	// Organize messages into pages with current state and next action
 	const pages = useMemo(() => {
@@ -33,6 +41,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			currentState: {
 				url?: string
 				screenshot?: string
+				mousePosition?: string
+				consoleLogs?: string
 				messages: ClineMessage[] // messages up to and including the result
 			}
 			nextAction?: {
@@ -57,6 +67,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					currentState: {
 						url: resultData.currentUrl,
 						screenshot: resultData.screenshot,
+						mousePosition: resultData.currentMousePosition,
+						consoleLogs: resultData.logs,
 						messages: [...currentStateMessages],
 					},
 					nextAction:
@@ -120,11 +132,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			if (page.currentState.url || page.currentState.screenshot) {
 				return {
 					url: page.currentState.url,
+					mousePosition: page.currentState.mousePosition,
+					consoleLogs: page.currentState.consoleLogs,
 					screenshot: page.currentState.screenshot,
 				}
 			}
 		}
-		return { url: undefined, screenshot: undefined }
+		return { url: undefined, mousePosition: undefined, consoleLogs: undefined, screenshot: undefined }
 	}, [pages])
 
 	const currentPage = pages[currentPageIndex]
@@ -134,17 +148,26 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const displayState = isLastPage
 		? {
 				url: currentPage?.currentState.url || latestState.url || initialUrl,
+				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || "400,300",
+				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
 		  }
 		: {
 				url: currentPage?.currentState.url || initialUrl,
+				mousePosition: currentPage?.currentState.mousePosition || "400,300",
+				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot,
 		  }
 
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent key={message.ts} {...props} message={message} />
+				<BrowserSessionRowContent
+					key={message.ts}
+					{...props}
+					message={message}
+					setMaxActionHeight={setMaxActionHeight}
+				/>
 			))}
 		</div>
 	)
@@ -153,13 +176,31 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		if (actionHeight === 0 || actionHeight === Infinity) {
 			return
 		}
-		if (actionHeight > maxActionHeightRef.current) {
-			maxActionHeightRef.current = actionHeight
+		if (actionHeight > maxActionHeight) {
+			setMaxActionHeight(actionHeight)
 		}
-	}, [actionHeight])
+	}, [actionHeight, maxActionHeight])
+
+	useEffect(() => {
+		if (!displayState.consoleLogs || displayState.consoleLogs.trim() === "") {
+			setConsoleLogsExpanded(false)
+		}
+	}, [displayState.consoleLogs])
 
 	const [browserSessionRow, { height }] = useSize(
 		<div style={{ padding: "10px 6px 10px 15px" }}>
+			<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+				{isBrowsing ? (
+					<ProgressIndicator />
+				) : (
+					<span
+						className={`codicon codicon-inspect`}
+						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+				)}
+				<span style={{ fontWeight: "bold" }}>
+					<>Cline wants to use the browser:</>
+				</span>
+			</div>
 			<div
 				style={{
 					borderRadius: 3,
@@ -172,6 +213,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					style={{
 						margin: "5px auto",
 						width: "calc(100% - 10px)",
+						boxSizing: "border-box", // includes padding in width calculation
 						backgroundColor: "var(--vscode-input-background)",
 						border: "1px solid var(--vscode-input-border)",
 						borderRadius: "4px",
@@ -228,11 +270,42 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							/>
 						</div>
 					)}
+					{displayState.mousePosition && (
+						<BrowserCursor
+							style={{
+								position: "absolute",
+								top: `${(parseInt(displayState.mousePosition.split(",")[1]) / 600) * 100}%`,
+								left: `${(parseInt(displayState.mousePosition.split(",")[0]) / 800) * 100}%`,
+							}}
+						/>
+					)}
+				</div>
+
+				<div style={{ width: "100%" }}>
+					<div
+						onClick={() => {
+							setConsoleLogsExpanded(!consoleLogsExpanded)
+						}}
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							width: "100%",
+							justifyContent: "flex-start",
+							cursor: "pointer",
+							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
+						}}>
+						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
+						<span style={{ fontSize: "0.8em" }}>Console Logs</span>
+					</div>
+					{consoleLogsExpanded && (
+						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+					)}
 				</div>
 			</div>
 
 			{/* Action content with min height */}
-			<div style={{ minHeight: maxActionHeightRef.current }}>{actionContent}</div>
+			<div style={{ minHeight: maxActionHeight }}>{actionContent}</div>
 
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (
@@ -250,12 +323,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					</div>
 					<div style={{ display: "flex", gap: "4px" }}>
 						<VSCodeButton
-							disabled={currentPageIndex === 0}
+							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
 							Previous
 						</VSCodeButton>
 						<VSCodeButton
-							disabled={currentPageIndex === pages.length - 1}
+							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i + 1)}>
 							Next
 						</VSCodeButton>
@@ -281,6 +354,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
 	message: ClineMessage
+	setMaxActionHeight: (height: number) => void
 }
 
 const BrowserSessionRowContent = ({
@@ -289,6 +363,7 @@ const BrowserSessionRowContent = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
+	setMaxActionHeight,
 }: BrowserSessionRowContentProps) => {
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -307,13 +382,20 @@ const BrowserSessionRowContent = ({
 				case "api_req_started":
 				case "text":
 					return (
-						<ChatRowContent
-							message={message}
-							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
-							lastModifiedMessage={lastModifiedMessage}
-							isLast={isLast}
-						/>
+						<div style={{ padding: "15px 0 5px 0" }}>
+							<ChatRowContent
+								message={message}
+								isExpanded={isExpanded(message.ts)}
+								onToggleExpand={() => {
+									if (message.say === "api_req_started") {
+										setMaxActionHeight(0)
+									}
+									onToggleExpand(message.ts)
+								}}
+								lastModifiedMessage={lastModifiedMessage}
+								isLast={isLast}
+							/>
+						</div>
 					)
 
 				case "browser_action":
@@ -355,8 +437,8 @@ const BrowserSessionRowContent = ({
 									code={logs}
 									language="shell"
 									isConsoleLogs={true}
-									isExpanded={isExpanded}
-									onToggleExpand={onToggleExpand}
+									isExpanded={isExpanded(message.ts)}
+									onToggleExpand={() => onToggleExpand(message.ts)}
 								/>
 							)}
 						</div>

@@ -627,16 +627,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
 			// browser session group
 			if (Array.isArray(messageOrGroup)) {
-				const firstMessage = messageOrGroup[0]
 				return (
 					<BrowserSessionRow
-						key={firstMessage.ts}
 						messages={messageOrGroup}
-						isExpanded={expandedRows[firstMessage.ts] || false}
-						onToggleExpand={() => toggleRowExpansion(firstMessage.ts)}
-						lastModifiedMessage={modifiedMessages.at(-1)}
 						isLast={index === groupedMessages.length - 1}
+						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
+						// Pass handlers for each message in the group
+						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
+						onToggleExpand={(messageTs: number) => {
+							setExpandedRows((prev) => ({
+								...prev,
+								[messageTs]: !prev[messageTs],
+							}))
+						}}
 					/>
 				)
 			}
