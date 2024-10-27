@@ -32,25 +32,30 @@ interface BrowserSessionRowProps {
 */
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
 
-	// const isLastApiReqInterrupted = useMemo(() => {
-	// 	// Check if last api_req_started is cancelled
-	// 	const lastApiReqStarted = [...messages].reverse().find((m) => m.say === "api_req_started")
-	// 	if (lastApiReqStarted?.text != null) {
-	// 		const info = JSON.parse(lastApiReqStarted.text)
-	// 		return info.cancelReason != null
-	// 	}
-	// 	const lastApiReqFailed = isLast && lastModifiedMessage?.ask === "api_req_failed"
-	// 	return lastApiReqFailed
-	// }, [messages, lastModifiedMessage, isLast])
+	const isLastApiReqInterrupted = useMemo(() => {
+		// Check if last api_req_started is cancelled
+		const lastApiReqStarted = [...messages].reverse().find((m) => m.say === "api_req_started")
+		if (lastApiReqStarted?.text != null) {
+			const info = JSON.parse(lastApiReqStarted.text)
+			if (info.cancelReason != null) {
+				return true
+			}
+		}
+		const lastApiReqFailed = isLast && lastModifiedMessage?.ask === "api_req_failed"
+		if (lastApiReqFailed) {
+			return true
+		}
+		return false
+	}, [messages, lastModifiedMessage, isLast])
 
 	const isBrowsing = useMemo(() => {
-		return isLast && messages.some((m) => m.say === "browser_action_result") //&& !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
-	}, [isLast, messages])
+		return isLast && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
+	}, [isLast, messages, isLastApiReqInterrupted])
 
 	// Organize messages into pages with current state and next action
 	const pages = useMemo(() => {
