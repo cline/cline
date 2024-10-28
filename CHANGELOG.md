@@ -1,5 +1,9 @@
 # Change Log
 
+## [2.1.0]
+
+- Cline now uses Anthropic's new "Computer Use" feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging, end-to-end testing, and even general web use. Try asking "look up the weather in San Diego" to see it in action! (Available with Claude 3.5 Sonnet v2)
+
 ## [2.0.19]
 
 - Fix model info for Claude 3.5 Sonnet v1 on OpenRouter

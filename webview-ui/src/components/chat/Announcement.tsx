@@ -33,24 +33,18 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				🎉{"  "}New in v{minorVersion}
 			</h3>
 			<p style={{ margin: "5px 0px" }}>
-				New name! Meet Cline, an AI assistant that can use your <strong>CLI</strong> a<strong>N</strong>d{" "}
-				<strong>E</strong>ditor.
+				Cline now uses Anthropic's new{" "}
+				<VSCodeLink
+					href="https://www.anthropic.com/news/3-5-models-and-computer-use"
+					style={{ display: "inline" }}>
+					"Computer Use"
+				</VSCodeLink>{" "}
+				feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging,
+				end-to-end testing, and even general web use!{" "}
+				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
+					See a demo here.
+				</VSCodeLink>
 			</p>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				<li>
-					Responses are now streamed + a yellow text decoration animation to keep track of Cline's progress as
-					he edits files.
-				</li>
-				<li>
-					Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more control
-					over tasks.
-				</li>
-				<li>
-					Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better
-					performance with other models.
-				</li>
-				<li>Search and use any model with OpenRouter (search "free" for no-cost options).</li>
-			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
@@ -99,14 +93,11 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>*/}
 			<p style={{ margin: "0" }}>
-				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
-					See a demo of the changes here.
-				</VSCodeLink>
-				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
-				hi!{" "}
+				Join
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					https://discord.gg/cline
+					discord.gg/cline
 				</VSCodeLink>
+				for more updates!
 			</p>
 		</div>
 	)

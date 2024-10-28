@@ -69,7 +69,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	private latestAnnouncementId = "oct-9-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "oct-28-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClineProvider instantiated")

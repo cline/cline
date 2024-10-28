@@ -716,8 +716,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								Claude 3.5 Sonnet's agentic coding capabilities,
 							</VSCodeLink>{" "}
 							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, explore complex projects, and execute terminal commands (after you grant
-							permission), I can assist you in ways that go beyond code completion or tech support.
+							& edit files, explore complex projects, use the browser, and execute terminal commands
+							(after you grant permission), I can assist you in ways that go beyond code completion or
+							tech support.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
