@@ -40,9 +40,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					"Computer Use"
 				</VSCodeLink>{" "}
 				feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging,
-				end-to-end testing, and even general web use!{" "}
+				end-to-end testing, and even general web use. Try asking "look up the weather in San Diego" to see it in
+				action, or{" "}
 				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
-					See a demo here.
+					see a full demo here.
 				</VSCodeLink>
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
