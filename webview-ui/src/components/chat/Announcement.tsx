@@ -42,7 +42,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging,
 				end-to-end testing, and even general web use. Try asking "Look up the weather in Colorado" to see it in
 				action, or{" "}
-				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
+				<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
 					see a full demo here.
 				</VSCodeLink>
 			</p>
