@@ -21,16 +21,6 @@ interface BrowserSessionRowProps {
 	onHeightChange: (isTaller: boolean) => void
 }
 
-/*
-
-- console logs will be aggregate up to that current page
-- while isbrowsing, disable next prev buttons and latest action if click use that as position instead of display state
-- action rows ui
-- pagination make look better
-- test cancel/abort session
-- test resume task
-*/
-
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
 	const prevHeightRef = useRef(0)
