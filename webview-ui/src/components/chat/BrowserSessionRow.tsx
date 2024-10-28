@@ -360,7 +360,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
-						padding: "8px",
+						padding: "8px 0px",
 						marginTop: "15px",
 						borderTop: "1px solid var(--vscode-editorGroup-border)",
 					}}>
