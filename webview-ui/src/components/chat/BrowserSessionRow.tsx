@@ -270,10 +270,17 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							? "var(--vscode-input-foreground)"
 							: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
-						wordBreak: "break-all",
-						whiteSpace: "normal",
 					}}>
-					{displayState.url || "http"}
+					<div
+						style={{
+							textOverflow: "ellipsis",
+							overflow: "hidden",
+							whiteSpace: "nowrap",
+							width: "100%",
+							textAlign: "center",
+						}}>
+						{displayState.url || "http"}
+					</div>
 				</div>
 
 				{/* Screenshot Area */}
@@ -295,6 +302,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 								width: "100%",
 								height: "100%",
 								objectFit: "contain",
+								cursor: "pointer",
 							}}
 							onClick={() =>
 								vscode.postMessage({
