@@ -15,7 +15,7 @@ export const toolUseNames = [
 	"search_files",
 	"list_files",
 	"list_code_definition_names",
-	"inspect_site",
+	"browser_action",
 	"ask_followup_question",
 	"attempt_completion",
 ] as const
@@ -30,7 +30,10 @@ export const toolParamNames = [
 	"regex",
 	"file_pattern",
 	"recursive",
+	"action",
 	"url",
+	"coordinate",
+	"text",
 	"question",
 	"result",
 ] as const
@@ -76,9 +79,9 @@ export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
 
-export interface InspectSiteToolUse extends ToolUse {
-	name: "inspect_site"
-	params: Partial<Pick<Record<ToolParamName, string>, "url">>
+export interface BrowserActionToolUse extends ToolUse {
+	name: "browser_action"
+	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text">>
 }
 
 export interface AskFollowupQuestionToolUse extends ToolUse {
