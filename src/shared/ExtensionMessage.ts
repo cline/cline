@@ -57,6 +57,7 @@ export type ClineAsk =
 	| "resume_task"
 	| "resume_completed_task"
 	| "mistake_limit_reached"
+	| "browser_action_launch"
 
 export type ClineSay =
 	| "task"
@@ -71,7 +72,8 @@ export type ClineSay =
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
-	| "inspect_site_result"
+	| "browser_action"
+	| "browser_action_result"
 
 export interface ClineSayTool {
 	tool:
@@ -82,12 +84,28 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
-		| "inspectSite"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+}
+
+// must keep in sync with system prompt
+export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+export type BrowserAction = (typeof browserActions)[number]
+
+export interface ClineSayBrowserAction {
+	action: BrowserAction
+	coordinate?: string
+	text?: string
+}
+
+export type BrowserActionResult = {
+	screenshot?: string
+	logs?: string
+	currentUrl?: string
+	currentMousePosition?: string
 }
 
 export interface ClineApiReqInfo {

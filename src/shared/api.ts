@@ -41,6 +41,7 @@ export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
+	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number
 	outputPrice?: number
@@ -58,6 +59,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
+		supportsComputerUse: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
@@ -95,6 +97,7 @@ export const bedrockModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
+		supportsComputerUse: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -132,13 +135,14 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
+	supportsComputerUse: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/models/anthropic/claude-3.5-sonnet) variant._",
+		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/anthropic/claude-3.5-sonnet) variant._",
 }
 
 // Vertex AI
@@ -150,6 +154,7 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
+		supportsComputerUse: true,
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,

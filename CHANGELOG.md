@@ -1,5 +1,17 @@
 # Change Log
 
+## [2.1.1]
+
+- Add stricter prompt to prevent Cline from editing files during a browser session without first closing the browser
+
+## [2.1.0]
+
+- Cline now uses Anthropic's new "Computer Use" feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging, end-to-end testing, and even general web use. Try asking "Look up the weather in Colorado" to see it in action! (Available with Claude 3.5 Sonnet v2)
+
+## [2.0.19]
+
+- Fix model info for Claude 3.5 Sonnet v1 on OpenRouter
+
 ## [2.0.18]
 
 - Add support for both v1 and v2 of Claude 3.5 Sonnet for GCP Vertex and AWS Bedrock (for cases where the new model is not enabled yet or unavailable in your region)
