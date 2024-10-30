@@ -685,10 +685,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async showTaskWithId(id: string) {
 		if (id !== this.cline?.taskId) {
 			// non-current task
-			const { historyItem } = await this.getTaskWithId(id)
-			await this.initClineWithHistoryItem(historyItem) // clears existing task
+			try {
+				const { historyItem } = await this.getTaskWithId(id)
+				await this.initClineWithHistoryItem(historyItem) // clears existing task
+			} catch (error) {
+				console.error("Error showing task:", error)
+			}
 		}
-		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 
 	async exportTaskWithId(id: string) {
