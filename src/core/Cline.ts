@@ -1036,12 +1036,16 @@ export class Cline {
 						if (
 							newContent.includes("&gt;") ||
 							newContent.includes("&lt;") ||
-							newContent.includes("&quot;")
+							newContent.includes("&quot;") ||
+							newContent.includes("&amp;") ||
+							newContent.includes("&apos;")
 						) {
 							newContent = newContent
 								.replace(/&gt;/g, ">")
 								.replace(/&lt;/g, "<")
 								.replace(/&quot;/g, '"')
+								.replace(/&amp;/g, "&")
+								.replace(/&apos;/g, "'")
 						}
 
 						const sharedMessageProps: ClineSayTool = {
