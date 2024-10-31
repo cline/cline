@@ -12,13 +12,12 @@ export class GeminiHandler implements ApiHandler {
 	private client: GoogleGenerativeAI
 
 	constructor(options: ApiHandlerOptions) {
+		this.setProxy()
 		if (!options.geminiApiKey) {
 			throw new Error("API key is required for Google Gemini")
 		}
 		this.options = options
 		this.client = new GoogleGenerativeAI(options.geminiApiKey)
-
-		this.setProxy()
 	}
 
 	private setProxy() {
