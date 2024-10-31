@@ -1,8 +1,8 @@
 {
-  "name": "claude-dev",
-  "displayName": "Cline (prev. Claude Dev)",
-  "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.1.1",
+  "name": "ivwv-claude-dev",
+  "displayName": "ivwv-Cline (prev. Claude Dev)",
+  "description": "自主编码代理就在你的集成开发环境中，能够创建/编辑文件、执行命令等，每一步都经过你的许可。",
+  "version": "3.0.0",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -12,10 +12,10 @@
     "vscode": "^1.84.0"
   },
   "author": {
-    "name": "Cline Bot Inc."
+    "name": "ivwv"
   },
   "license": "Apache-2.0",
-  "publisher": "saoudrizwan",
+  "publisher": "ivwv",
   "repository": {
     "type": "git",
     "url": "https://github.com/cline/cline"
@@ -178,6 +178,7 @@
     "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
     "turndown": "^7.2.0",
+    "undici": "^6.20.1",
     "web-tree-sitter": "^0.22.6"
   }
 }

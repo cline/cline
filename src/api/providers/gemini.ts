@@ -4,17 +4,31 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
+import { setGlobalDispatcher, ProxyAgent } from "undici"
+import * as vscode from "vscode"
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenerativeAI
 
 	constructor(options: ApiHandlerOptions) {
+		this.setProxy()
 		if (!options.geminiApiKey) {
 			throw new Error("API key is required for Google Gemini")
 		}
 		this.options = options
 		this.client = new GoogleGenerativeAI(options.geminiApiKey)
+	}
+
+	private setProxy() {
+		// Get http.proxy from VSCode settings
+		const proxy = vscode.workspace.getConfiguration().get<string>("http.proxy")
+
+		// If proxy exists, set an agent
+		if (proxy) {
+			const dispatcher = new ProxyAgent({ uri: new URL(proxy).toString() })
+			setGlobalDispatcher(dispatcher)
+		}
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
