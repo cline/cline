@@ -19,6 +19,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		alwaysAllowWrite,
+		setAlwaysAllowWrite,
+		alwaysAllowExecute,
+		setAlwaysAllowExecute,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -33,6 +37,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
+			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
 			onDone()
 		}
 	}
@@ -129,6 +135,41 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						requiring you to click the Approve button.
 					</p>
 				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowWrite}
+						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always approve write operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will automatically write to files and create directories
+						without requiring you to click the Approve button.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowExecute}
+						onChange={(e: any) => setAlwaysAllowExecute(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always approve execute operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will automatically CLI commands without requiring
+						you to click the Approve button.
+					</p>
+				</div>
+
 
 				{IS_DEV && (
 					<>

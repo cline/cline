@@ -31,6 +31,8 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
+	alwaysAllowWrite?: boolean
+	alwaysAllowExecute?: boolean
 	uriScheme?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
@@ -74,6 +76,7 @@ export type ClineSay =
 	| "shell_integration_warning"
 	| "browser_action"
 	| "browser_action_result"
+	| "command"
 
 export interface ClineSayTool {
 	tool:
