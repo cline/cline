@@ -1032,16 +1032,18 @@ export class Cline {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
 
-						// it seems not just llama models are doing this, but also gemini and potentially others
-						if (
-							newContent.includes("&gt;") ||
-							newContent.includes("&lt;") ||
-							newContent.includes("&quot;")
-						) {
-							newContent = newContent
-								.replace(/&gt;/g, ">")
-								.replace(/&lt;/g, "<")
-								.replace(/&quot;/g, '"')
+						if (!this.api.getModel().id.includes("claude")) {
+							// it seems not just llama models are doing this, but also gemini and potentially others
+							if (
+								newContent.includes("&gt;") ||
+								newContent.includes("&lt;") ||
+								newContent.includes("&quot;")
+							) {
+								newContent = newContent
+									.replace(/&gt;/g, ">")
+									.replace(/&lt;/g, "<")
+									.replace(/&quot;/g, '"')
+							}
 						}
 
 						const sharedMessageProps: ClineSayTool = {
