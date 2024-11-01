@@ -76,13 +76,13 @@ All changes made by Cline are recorded in your file's Timeline, providing an eas
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="350" src="https://github.com/user-attachments/assets/50019dba-a63d-41f0-ab0f-fd35ebcdd4c5">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5">
 
-### Analyze Images and Browser Screenshots
+### Use the Browser
 
-Models like Claude 3.5 Sonnet can now understand and analyze images, allowing for exciting possibilities of multimodal workflows. Paste images directly in chat to give Cline context that can't be explained in words, and turn mockups into apps, fix bugs with screenshots, and more.
+With Claude 3.5 Sonnet's new [Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use) capability, Cline can launch a browser, click elements, type text, and scroll, capturing screenshots and console logs at each step. This allows for interactive debugging, end-to-end testing, and even general web use! This gives him autonomy to fixing visual bugs and runtime issues without you needing to handhold and copy-pasting error logs yourself.
 
-Cline can also use a headless browser to launch and interact with any website, e.g., localhost, allowing him to capture screenshots and console logs. This gives him autonomy to fixing visual bugs and runtime issues without you needing to handhold and copy-pasting error logs yourself.
+Try asking Cline to "test the app", and watch as he runs a command like `npm run dev`, launches your locally running dev server in a browser, and performs a series of tests to confirm that everything functions as expected. [See a demo here.](https://x.com/sdrzn/status/1850880547825823989)
 
 <!-- Transparent pixel to create line break after floating image -->
 
