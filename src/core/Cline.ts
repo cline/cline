@@ -65,6 +65,9 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	alwaysAllowWrite: boolean
+	alwaysAllowExecute: boolean
+
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -94,6 +97,8 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
+		alwaysAllowWrite?: boolean,
+		alwaysAllowExecute?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -106,6 +111,8 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.alwaysAllowWrite = alwaysAllowWrite ?? false
+		this.alwaysAllowExecute = alwaysAllowExecute ?? false		
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1066,7 +1073,11 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowWrite) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1096,7 +1107,11 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									if (this.alwaysAllowWrite) {
+										await this.say("tool", partialMessage, undefined, true)
+									} else {
+										await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									}
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1115,7 +1130,7 @@ export class Cline {
 											)
 										: undefined,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
+								const didApprove = this.alwaysAllowWrite || (await askApproval("tool", completeMessage))
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges()
 									break
@@ -1509,9 +1524,13 @@ export class Cline {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {},
-								)
+								if (this.alwaysAllowExecute) {
+									await this.say("command", command, undefined, block.partial)
+								} else {
+									await this.ask("command", removeClosingTag("command", command), block.partial).catch(
+										() => {}
+									)
+								}								
 								break
 							} else {
 								if (!command) {
@@ -1522,7 +1541,7 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = await askApproval("command", command)
+								const didApprove = this.alwaysAllowExecute || (await askApproval("command", command))
 								if (!didApprove) {
 									break
 								}
