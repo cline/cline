@@ -1,3 +1,34 @@
+# Roo-Cline
+
+## Roo Packaging and Installation
+
+### Packaging
+1. Bump the version in `package.json`
+2. Build the VSIX file:
+   ```bash
+   npm run vsix
+   ```
+3. The new VSIX file will be created in the `bin/` directory
+4. Commit the new VSIX file to git and remove the old one:
+   ```bash
+   git rm bin/roo-cline-*.vsix
+   git add bin/roo-cline-<new_version>.vsix
+   git commit -m "chore: update VSIX to version <new_version>"
+   ```
+
+### Installation
+Install the plugin using the Cursor CLI:
+
+```bash
+cursor --install-extension bin/roo-cline-<latest_version>.vsix
+```
+
+Note: The VSIX file is checked into the git repository's `bin/` directory for easy distribution.
+
+After installation, Roo Cline will appear in your Cursor's installed extensions list. You can verify this by opening Cursor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
+
+---
+
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
 
 <p align="center">
