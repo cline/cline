@@ -1,24 +1,22 @@
 {
-  "name": "claude-dev",
-  "displayName": "Cline (prev. Claude Dev)",
+  "name": "roo-cline",
+  "displayName": "Roo Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.1.1",
+  "version": "1.0.1",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
     "color": "#617A91",
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.84.0"
+    "vscode": "1.93.1"
   },
   "author": {
     "name": "Cline Bot Inc."
   },
-  "license": "Apache-2.0",
-  "publisher": "saoudrizwan",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cline/cline"
+    "url": "https://github.com/RooVetGit/Roo-Cline"
   },
   "homepage": "https://cline.bot",
   "categories": [
@@ -117,6 +115,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
+    "vsix": "vsce package --out bin",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
@@ -139,7 +138,6 @@
     "@types/jest": "^29.5.14",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
-    "@types/vscode": "^1.95.0",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",
     "@vscode/test-cli": "^0.0.9",
@@ -157,6 +155,7 @@
     "@types/clone-deep": "^4.0.4",
     "@types/pdf-parse": "^1.1.4",
     "@types/turndown": "^5.0.5",
+    "@types/vscode": "^1.95.0",
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
     "cheerio": "^1.0.0",
