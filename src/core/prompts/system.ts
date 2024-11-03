@@ -1,6 +1,8 @@
 import osName from "os-name"
 import defaultShell from "default-shell"
 import os from "os"
+import fs from 'fs/promises'
+import path from 'path'
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
@@ -281,13 +283,44 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-export function addCustomInstructions(customInstructions: string): string {
-	return `
+async function loadRuleFiles(cwd: string): Promise<string> {
+    const ruleFiles = ['.clinerules', '.cursorrules']
+    let combinedRules = ''
+
+    for (const file of ruleFiles) {
+        try {
+            const content = await fs.readFile(path.join(cwd, file), 'utf-8')
+            if (content.trim()) {
+                combinedRules += `\n# Rules from ${file}:\n${content.trim()}\n`
+            }
+        } catch (err) {
+            // Silently skip if file doesn't exist
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw err
+            }
+        }
+    }
+
+    return combinedRules
+}
+
+export async function addCustomInstructions(customInstructions: string, cwd: string): Promise<string> {
+    const ruleFileContent = await loadRuleFiles(cwd)
+    const allInstructions = [customInstructions.trim()]
+
+    if (ruleFileContent && ruleFileContent.trim()) {
+        allInstructions.push(ruleFileContent.trim())
+    }
+
+    const joinedInstructions = allInstructions.join('\n\n')
+
+    return joinedInstructions ? `
 ====
 
 USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 
-${customInstructions.trim()}`
+${joinedInstructions}`
+		: ""
 }
