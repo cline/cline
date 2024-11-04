@@ -86,6 +86,7 @@ export class Cline {
 	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 	private userMessageContentReady = false
 	private didRejectTool = false
+	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
 	constructor(
@@ -828,7 +829,7 @@ export class Cline {
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
-				if (this.didRejectTool) {
+				if (this.didRejectTool || this.didAlreadyUseTool) {
 					break
 				}
 				let content = block.content
@@ -915,6 +916,15 @@ export class Cline {
 					break
 				}
 
+				if (this.didAlreadyUseTool) {
+					// ignore any content after a tool has already been used
+					this.userMessageContent.push({
+						type: "text",
+						text: `Tool [${block.name}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
+					})
+					break
+				}
+
 				const pushToolResult = (content: ToolResponse) => {
 					this.userMessageContent.push({
 						type: "text",
@@ -928,6 +938,8 @@ export class Cline {
 					} else {
 						this.userMessageContent.push(...content)
 					}
+					// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
+					this.didAlreadyUseTool = true
 				}
 
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
@@ -1692,7 +1704,7 @@ export class Cline {
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
-		if (!block.partial || this.didRejectTool) {
+		if (!block.partial || this.didRejectTool || this.didAlreadyUseTool) {
 			// block is finished streaming and executing
 			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
 				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
@@ -1852,6 +1864,7 @@ export class Cline {
 			this.userMessageContent = []
 			this.userMessageContentReady = false
 			this.didRejectTool = false
+			this.didAlreadyUseTool = false
 			this.presentAssistantMessageLocked = false
 			this.presentAssistantMessageHasPendingUpdates = false
 			await this.diffViewProvider.reset()
@@ -1896,6 +1909,14 @@ export class Cline {
 						// this.userMessageContentReady = true // instead of setting this premptively, we allow the present iterator to finish and set userMessageContentReady when its ready
 						break
 					}
+
+					// we need to let the request finish for openrouter to get generation details
+					// if (this.didAlreadyUseTool) {
+					// 	// a tool has been called, so interrupt the assistant's response to present the user's feedback
+					// 	assistantMessage +=
+					// 		"\n\n[Response interrupted by a tool use. Only one tool may be used per message.]"
+					// 	break
+					// }
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
