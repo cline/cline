@@ -1910,13 +1910,13 @@ export class Cline {
 						break
 					}
 
-					// we need to let the request finish for openrouter to get generation details
-					// if (this.didAlreadyUseTool) {
-					// 	// a tool has been called, so interrupt the assistant's response to present the user's feedback
-					// 	assistantMessage +=
-					// 		"\n\n[Response interrupted by a tool use. Only one tool may be used per message.]"
-					// 	break
-					// }
+					// PREV: we need to let the request finish for openrouter to get generation details
+					// UPDATE: it's better UX to interrupt the request at the cost of the api cost not being retrieved
+					if (this.didAlreadyUseTool) {
+						assistantMessage +=
+							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
+						break
+					}
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
