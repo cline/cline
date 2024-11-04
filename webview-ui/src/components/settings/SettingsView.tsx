@@ -125,8 +125,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Cline will automatically read files, view directories, and inspect sites without
-						requiring you to click the Approve button.
+						When enabled, Cline will automatically view directory contents and read files without requiring
+						you to click the Approve button.
 					</p>
 				</div>
 

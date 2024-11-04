@@ -1,5 +1,10 @@
 # Change Log
 
+## [2.1.2]
+
+- Misc. bug fixes
+- Update README with new browser feature
+
 ## [2.1.1]
 
 - Add stricter prompt to prevent Cline from editing files during a browser session without first closing the browser
