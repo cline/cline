@@ -295,10 +295,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
-	private setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage(
-			async (message: WebviewMessage) => {
-				switch (message.type) {
+private setWebviewMessageListener(webview: vscode.Webview) {
+    webview.onDidReceiveMessage(
+        async (message: WebviewMessage) => {
+            switch (message.type) {
 					case "webviewDidLaunch":
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
@@ -451,6 +451,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openMention":
 						openMention(message.text)
 						break
+                	case "setAutoAccept":
+						if (this.cline) {
+							this.cline.setAutoAccept(message.value ?? false, message.threadId);
+						}
+                    	break;
 					case "cancelTask":
 						if (this.cline) {
 							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
@@ -471,10 +476,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
-				}
-			},
-			null,
-			this.disposables
+            }
+        },
+        null,
+        this.disposables
 		)
 	}
 

@@ -17,6 +17,8 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	onClose: () => void
+	autoAcceptEnabled?: boolean
+	onAutoAcceptToggle?: () => void
 }
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
@@ -28,6 +30,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	onClose,
+	autoAcceptEnabled,
+	onAutoAcceptToggle
 }) => {
 	const { apiConfiguration } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
@@ -103,7 +107,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
 
 	return (
-		<div style={{ padding: "10px 13px 10px 13px" }}>
+		<div style={{ padding: "10px 13px 10px 13px", width: "100%" }}>
 			<div
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
@@ -154,25 +158,37 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							)}
 						</div>
 					</div>
-					{!isTaskExpanded && isCostAvailable && (
-						<div
-							style={{
-								marginLeft: 10,
-								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
-								color: "var(--vscode-badge-background)",
-								padding: "2px 4px",
-								borderRadius: "500px",
-								fontSize: "11px",
-								fontWeight: 500,
-								display: "inline-block",
-								flexShrink: 0,
-							}}>
-							${totalCost?.toFixed(4)}
-						</div>
-					)}
-					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
-						<span className="codicon codicon-close"></span>
-					</VSCodeButton>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+						{onAutoAcceptToggle && (
+							<VSCodeButton
+								appearance={autoAcceptEnabled ? "primary" : "secondary"}
+								onClick={(e) => {
+									e.stopPropagation();
+									onAutoAcceptToggle();
+								}}
+							>
+								Auto-Accept: {autoAcceptEnabled ? 'On' : 'Off'}
+							</VSCodeButton>
+						)}
+						{!isTaskExpanded && isCostAvailable && (
+							<div
+								style={{
+									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
+									color: "var(--vscode-badge-background)",
+									padding: "2px 4px",
+									borderRadius: "500px",
+									fontSize: "11px",
+									fontWeight: 500,
+									display: "inline-block",
+									flexShrink: 0,
+								}}>
+								${totalCost?.toFixed(4)}
+							</div>
+						)}
+						<VSCodeButton appearance="icon" onClick={onClose} style={{ flexShrink: 0 }}>
+							<span className="codicon codicon-close"></span>
+						</VSCodeButton>
+					</div>
 				</div>
 				{isTaskExpanded && (
 					<>

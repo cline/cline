@@ -60,6 +60,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -194,6 +195,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 		}
 	}, [lastMessage, secondLastMessage])
+
+	// Add this callback function near other useCallback declarations
+	const toggleAutoAccept = useCallback(() => {
+		setAutoAcceptEnabled(prev => {
+			const newValue = !prev;
+			vscode.postMessage({
+				type: "setAutoAccept",
+				value: newValue,
+				threadId: task?.ts
+			});
+			return newValue;
+		});
+	}, [task?.ts]);
+
 
 	useEffect(() => {
 		if (messages.length === 0) {
@@ -696,7 +711,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
 					onClose={handleTaskCloseButtonClick}
+					autoAcceptEnabled={autoAcceptEnabled}
+					onAutoAcceptToggle={toggleAutoAccept}
 				/>
+
 			) : (
 				<div
 					style={{
@@ -849,3 +867,5 @@ const ScrollToBottomButton = styled.div`
 `
 
 export default ChatView
+
+

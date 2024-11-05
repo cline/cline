@@ -138,6 +138,7 @@
     "@types/diff": "^5.2.1",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
+    "@types/react": "^18.3.12",
     "@types/vscode": "^1.84.0",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",

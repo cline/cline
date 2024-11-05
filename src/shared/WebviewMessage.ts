@@ -1,4 +1,4 @@
-import { ApiConfiguration, ApiProvider } from "./api"
+import { ApiConfiguration } from "./api"
 
 export interface WebviewMessage {
 	type:
@@ -22,11 +22,14 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "setAutoAccept"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
+	value?: boolean
+	threadId?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
