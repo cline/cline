@@ -146,8 +146,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setClineAsk("resume_task")
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false) // special case where we reset the cancel button state
+							setSecondaryButtonText("Terminate")
+							setDidClickCancel(false)
 							break
 						case "resume_completed_task":
 							setTextAreaDisabled(false)
@@ -316,20 +316,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		switch (clineAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
+			case "resume_task":
 				startNewTask()
 				break
 			case "command":
 			case "tool":
 			case "browser_action_launch":
-				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
 		}
 		setTextAreaDisabled(true)
 		setClineAsk(undefined)
 		setEnableButtons(false)
-		// setPrimaryButtonText(undefined)
-		// setSecondaryButtonText(undefined)
 		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask, isStreaming])
 
