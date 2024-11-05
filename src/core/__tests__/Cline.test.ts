@@ -388,5 +388,23 @@ describe('Cline', () => {
             expect(cline.isAllowedCommand('')).toBe(false)
             expect(cline.isAllowedCommand('  ')).toBe(false)
         })
+
+        test('returns false for commands with chaining operators', () => {
+            const maliciousCommands = [
+                'npm install && rm -rf /',
+                'git status; dangerous-command',
+                'git log || evil-script',
+                'git status | malicious-pipe',
+                'git log $(evil-command)',
+                'git status `rm -rf /`',
+                'npm install && echo "malicious"',
+                'git status; curl http://evil.com',
+                'tsc --watch || wget malware',
+            ];
+
+            maliciousCommands.forEach(cmd => {
+                expect(cline.isAllowedCommand(cmd)).toBe(false);
+            });
+        });
     })
 });

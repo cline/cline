@@ -134,7 +134,18 @@ export class Cline {
 	}
 
 	protected isAllowedCommand(command?: string): boolean {
-		if (!command) return false;
+		if (!command) {
+			return false;
+		}
+		// Check for command chaining characters
+		if (command.includes('&&') ||
+			command.includes(';') ||
+			command.includes('||') ||
+			command.includes('|') ||
+			command.includes('$(') ||
+			command.includes('`')) {
+			return false;
+		}
 		const trimmedCommand = command.trim().toLowerCase();
 		return ALLOWED_AUTO_EXECUTE_COMMANDS.some(prefix => 
 			trimmedCommand.startsWith(prefix.toLowerCase())
