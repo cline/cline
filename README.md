@@ -15,7 +15,7 @@
 4. The new VSIX file will be created in the `bin/` directory
 5. Commit the new VSIX file to git:
    ```bash
-   git add --all
+   git add bin/*.vsix
    git commit -m "chore: update VSIX to version <new_version>"
    ```
 
