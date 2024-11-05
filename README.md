@@ -4,15 +4,18 @@
 
 ### Packaging
 1. Bump the version in `package.json`
-2. Build the VSIX file:
+2. Remove the old VSIX file:
+   ```bash
+   rm bin/roo-cline-*.vsix
+   ```
+3. Build the VSIX file:
    ```bash
    npm run vsix
    ```
-3. The new VSIX file will be created in the `bin/` directory
-4. Commit the new VSIX file to git and remove the old one:
+4. The new VSIX file will be created in the `bin/` directory
+5. Commit the new VSIX file to git:
    ```bash
-   git rm bin/roo-cline-*.vsix
-   git add bin/roo-cline-<new_version>.vsix
+   git add bin/*.vsix
    git commit -m "chore: update VSIX to version <new_version>"
    ```
 

@@ -56,6 +56,16 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
+// Add near the top of the file, after imports:
+const ALLOWED_AUTO_EXECUTE_COMMANDS = [
+	'npm',
+	'npx',
+	'tsc',
+	'git log',
+	'git diff',
+	'list'
+] as const
+
 export class Cline {
 	readonly taskId: string
 	api: ApiHandler
@@ -122,6 +132,25 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+	}
+
+	protected isAllowedCommand(command?: string): boolean {
+		if (!command) {
+			return false;
+		}
+		// Check for command chaining characters
+		if (command.includes('&&') ||
+			command.includes(';') ||
+			command.includes('||') ||
+			command.includes('|') ||
+			command.includes('$(') ||
+			command.includes('`')) {
+			return false;
+		}
+		const trimmedCommand = command.trim().toLowerCase();
+		return ALLOWED_AUTO_EXECUTE_COMMANDS.some(prefix => 
+			trimmedCommand.startsWith(prefix.toLowerCase())
+		);
 	}
 
 	// Storing task to disk for history
@@ -555,8 +584,8 @@ export class Cline {
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
-						? previousAssistantMessage.content
-						: [{ type: "text", text: previousAssistantMessage.content }]
+							? previousAssistantMessage.content
+							: [{ type: "text", text: previousAssistantMessage.content }]
 
 					const toolUseBlocks = assistantContent.filter(
 						(block) => block.type === "tool_use"
@@ -839,7 +868,7 @@ export class Cline {
 					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
 					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
 					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
+					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?$/, "")
 					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
 					// - Needs to be separate since we dont want to remove the line break before the first tag
 					// - Needs to happen before the xml parsing below
@@ -1503,7 +1532,7 @@ export class Cline {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								if (this.alwaysAllowExecute) {
+								if (this.alwaysAllowExecute && this.isAllowedCommand(command)) {
 									await this.say("command", command, undefined, block.partial)
 								} else {
 									await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1520,7 +1549,9 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = this.alwaysAllowExecute || (await askApproval("command", command))
+
+								const didApprove = (this.alwaysAllowExecute && this.isAllowedCommand(command)) || 
+									(await askApproval("command", command))
 								if (!didApprove) {
 									break
 								}

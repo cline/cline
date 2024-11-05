@@ -318,5 +318,93 @@ describe('Cline', () => {
             expect(writeDisabledCline.alwaysAllowWrite).toBe(false);
             // The write operation would require approval in actual implementation
         });
-    });    
+    });
+
+    describe('isAllowedCommand', () => {
+        let cline: any
+
+        beforeEach(() => {
+            // Create a more complete mock provider
+            const mockProvider = {
+                context: {
+                    globalStorageUri: { fsPath: '/mock/path' }
+                },
+                postStateToWebview: jest.fn(),
+                postMessageToWebview: jest.fn(),
+                updateTaskHistory: jest.fn()
+            }
+
+            // Mock the required dependencies
+            const mockApiConfig = {
+                getModel: () => ({
+                    id: 'claude-3-sonnet',
+                    info: { supportsComputerUse: true }
+                })
+            }
+
+            // Create test instance with mocked constructor params
+            cline = new Cline(
+                mockProvider as any,
+                mockApiConfig as any,
+                undefined,  // customInstructions
+                false,      // alwaysAllowReadOnly
+                false,      // alwaysAllowWrite
+                false,      // alwaysAllowExecute
+                'test task' // task
+            )
+
+            // Mock internal methods that are called during initialization
+            cline.initiateTaskLoop = jest.fn()
+            cline.say = jest.fn()
+            cline.addToClineMessages = jest.fn()
+            cline.overwriteClineMessages = jest.fn()
+            cline.addToApiConversationHistory = jest.fn()
+            cline.overwriteApiConversationHistory = jest.fn()
+        })
+
+        test('returns true for allowed commands', () => {
+            expect(cline.isAllowedCommand('npm install')).toBe(true)
+            expect(cline.isAllowedCommand('npx create-react-app')).toBe(true)
+            expect(cline.isAllowedCommand('tsc --watch')).toBe(true)
+            expect(cline.isAllowedCommand('git log --oneline')).toBe(true)
+            expect(cline.isAllowedCommand('git diff main')).toBe(true)
+        })
+
+        test('returns true regardless of case or whitespace', () => {
+            expect(cline.isAllowedCommand('NPM install')).toBe(true)
+            expect(cline.isAllowedCommand('  npm install')).toBe(true)
+            expect(cline.isAllowedCommand('GIT DIFF')).toBe(true)
+        })
+
+        test('returns false for non-allowed commands', () => {
+            expect(cline.isAllowedCommand('rm -rf /')).toBe(false)
+            expect(cline.isAllowedCommand('git push')).toBe(false)
+            expect(cline.isAllowedCommand('git commit')).toBe(false)
+            expect(cline.isAllowedCommand('curl http://example.com')).toBe(false)
+        })
+
+        test('returns false for undefined or empty commands', () => {
+            expect(cline.isAllowedCommand()).toBe(false)
+            expect(cline.isAllowedCommand('')).toBe(false)
+            expect(cline.isAllowedCommand('  ')).toBe(false)
+        })
+
+        test('returns false for commands with chaining operators', () => {
+            const maliciousCommands = [
+                'npm install && rm -rf /',
+                'git status; dangerous-command',
+                'git log || evil-script',
+                'git status | malicious-pipe',
+                'git log $(evil-command)',
+                'git status `rm -rf /`',
+                'npm install && echo "malicious"',
+                'git status; curl http://evil.com',
+                'tsc --watch || wget malware',
+            ];
+
+            maliciousCommands.forEach(cmd => {
+                expect(cline.isAllowedCommand(cmd)).toBe(false);
+            });
+        });
+    })
 });
