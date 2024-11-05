@@ -62,7 +62,8 @@ const ALLOWED_AUTO_EXECUTE_COMMANDS = [
 	'npx',
 	'tsc',
 	'git log',
-	'git diff'
+	'git diff',
+	'list'
 ] as const
 
 export class Cline {
