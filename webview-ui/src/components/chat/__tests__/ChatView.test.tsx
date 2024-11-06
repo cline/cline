@@ -107,21 +107,31 @@ describe('ChatView', () => {
     }
 
     describe('Streaming State', () => {
-        it('should show cancel button while streaming', () => {
+        it('should show cancel button while streaming and trigger cancel on click', async () => {
             mockState.clineMessages = [
                 { 
-                    type: 'say', 
+                    type: 'say',
+                    say: 'task',
+                    ts: Date.now(),
+                },
+                { 
+                    type: 'say',
+                    say: 'text',
                     partial: true,
                     ts: Date.now(),
                 }
             ]
             renderChatView()
             
-            const buttons = screen.queryAllByRole('button')
-            expect(buttons.length).toBeGreaterThan(0)
+            const cancelButton = screen.getByText('Cancel')
+            await userEvent.click(cancelButton)
+            
+            expect(vscode.postMessage).toHaveBeenCalledWith({
+                type: 'cancelTask'
+            })
         })
 
-        it('should show terminate button when task is paused', () => {
+        it('should show terminate button when task is paused and trigger terminate on click', async () => {
             mockState.clineMessages = [
                 { 
                     type: 'ask',
@@ -131,22 +141,31 @@ describe('ChatView', () => {
             ]
             renderChatView()
             
-            const buttons = screen.queryAllByRole('button')
-            expect(buttons.length).toBeGreaterThan(0)
+            const terminateButton = screen.getByText('Terminate')
+            await userEvent.click(terminateButton)
+            
+            expect(vscode.postMessage).toHaveBeenCalledWith({
+                type: 'clearTask'
+            })
         })
 
-        it('should show retry button when API error occurs', () => {
+        it('should show retry button when API error occurs and trigger retry on click', async () => {
             mockState.clineMessages = [
                 { 
-                    type: 'say',
-                    say: 'error',
+                    type: 'ask',
+                    ask: 'api_req_failed',
                     ts: Date.now(),
                 }
             ]
             renderChatView()
             
-            const buttons = screen.queryAllByRole('button')
-            expect(buttons.length).toBeGreaterThan(0)
+            const retryButton = screen.getByText('Retry')
+            await userEvent.click(retryButton)
+            
+            expect(vscode.postMessage).toHaveBeenCalledWith({
+                type: 'askResponse',
+                askResponse: 'yesButtonClicked'
+            })
         })
     })
 }) 
