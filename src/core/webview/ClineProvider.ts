@@ -620,6 +620,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
 							break
+						case "anthropic/claude-3-5-haiku":
+						case "anthropic/claude-3-5-haiku:beta":
+						case "anthropic/claude-3-5-haiku-20241022":
+						case "anthropic/claude-3-5-haiku-20241022:beta":
+						case "anthropic/claude-3.5-haiku":
+						case "anthropic/claude-3.5-haiku:beta":
+						case "anthropic/claude-3.5-haiku-20241022":
+						case "anthropic/claude-3.5-haiku-20241022:beta":
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 1.25
+							modelInfo.cacheReadsPrice = 0.1
+							break
 						case "anthropic/claude-3-opus":
 						case "anthropic/claude-3-opus:beta":
 							modelInfo.supportsPromptCache = true
