@@ -146,8 +146,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setClineAsk("resume_task")
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
-							setSecondaryButtonText(undefined)
-							setDidClickCancel(false) // special case where we reset the cancel button state
+							setSecondaryButtonText("Terminate")
+							setDidClickCancel(false) // special case where we reset the cancel button state							
 							break
 						case "resume_completed_task":
 							setTextAreaDisabled(false)
@@ -316,6 +316,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		switch (clineAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
+			case "resume_task":
 				startNewTask()
 				break
 			case "command":
