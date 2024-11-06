@@ -56,13 +56,13 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
-// Add near the top of the file, after imports:
 const ALLOWED_AUTO_EXECUTE_COMMANDS = [
 	'npm',
 	'npx',
 	'tsc',
 	'git log',
 	'git diff',
+	'git show',
 	'list'
 ] as const
 
@@ -134,7 +134,7 @@ export class Cline {
 		}
 	}
 
-	protected isAllowedCommand(command?: string): boolean {
+	private isAllowedCommand(command?: string): boolean {
 		if (!command) {
 			return false;
 		}
