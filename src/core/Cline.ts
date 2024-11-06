@@ -56,6 +56,16 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
+const ALLOWED_AUTO_EXECUTE_COMMANDS = [
+	'npm',
+	'npx',
+	'tsc',
+	'git log',
+	'git diff',
+	'git show',
+	'list'
+] as const
+
 export class Cline {
 	readonly taskId: string
 	api: ApiHandler
@@ -218,6 +228,25 @@ export class Cline {
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
 		}
+	}
+
+	protected isAllowedCommand(command?: string): boolean {
+		if (!command) {
+			return false;
+		}
+		// Check for command chaining characters
+		if (command.includes('&&') ||
+			command.includes(';') ||
+			command.includes('||') ||
+			command.includes('|') ||
+			command.includes('$(') ||
+			command.includes('`')) {
+			return false;
+		}
+		const trimmedCommand = command.trim().toLowerCase();
+		return ALLOWED_AUTO_EXECUTE_COMMANDS.some(prefix => 
+			trimmedCommand.startsWith(prefix.toLowerCase())
+		);
 	}
 
 	// Communicate with webview
@@ -1507,7 +1536,7 @@ export class Cline {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								if (this.alwaysAllowExecute) {
+								if (this.alwaysAllowExecute && this.isAllowedCommand(command)) {
 									await this.say("command", command, undefined, block.partial)
 								} else {
 									await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1524,7 +1553,7 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = this.alwaysAllowExecute || (await askApproval("command", command))
+								const didApprove = (this.alwaysAllowExecute && this.isAllowedCommand(command)) || (await askApproval("command", command))
 								if (!didApprove) {
 									break
 								}
