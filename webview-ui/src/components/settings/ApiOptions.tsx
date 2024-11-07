@@ -307,6 +307,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</div>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.awsUseCrossRegionInference || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
+						}}>
+						Use cross-region inference
+					</VSCodeCheckbox>
 					<p
 						style={{
 							fontSize: "12px",
