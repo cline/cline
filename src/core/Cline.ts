@@ -10,6 +10,7 @@ import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
+import { CodeMerger } from "./code-merger/CodeMerger"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
@@ -59,11 +60,12 @@ type UserContent = Array<
 export class Cline {
     readonly taskId: string
     api: ApiHandler
-    private autoAcceptEnabled: boolean = false
-    private autoAcceptThreadId?: number
+	private autoAcceptEnabled: boolean = false
+	private autoAcceptThreadId?: number
     private terminalManager: TerminalManager
     private urlContentFetcher: UrlContentFetcher
     private browserSession: BrowserSession
+    private codeMerger: CodeMerger
     private didEditFile: boolean = false
     customInstructions?: string
     alwaysAllowReadOnly: boolean
@@ -104,7 +106,8 @@ export class Cline {
         this.api = buildApiHandler(apiConfiguration)
         this.terminalManager = new TerminalManager()
         this.urlContentFetcher = new UrlContentFetcher(provider.context)
-        this.browserSession = new BrowserSession(provider.context)
+       this.browserSession = new BrowserSession(provider.context)
+        this.codeMerger = new CodeMerger()
         this.diffViewProvider = new DiffViewProvider(cwd)
         this.customInstructions = customInstructions
         this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
@@ -951,6 +954,11 @@ export class Cline {
 
 				const askApproval = async (type: ClineAsk, partialMessage?: string, relPath?: string): Promise<boolean> => {
 					// If auto-accept is enabled and for the correct thread
+					
+					if (this.autoAcceptEnabled)
+					{
+						return true;
+					}
 					if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
 						// For read-only operations, use the alwaysAllowReadOnly setting
 						if (type === 'tool' && ['read_file', 'list_files', 'list_code_definition_names', 'search_files'].includes(block.name)) {
@@ -1023,42 +1031,83 @@ export class Cline {
 						const relPath: string | undefined = block.params.path
 						let newContent: string | undefined = block.params.content
 						if (!relPath || !newContent) {
-							// checking for newContent ensure relPath is complete
-							// wait so we can determine if it's a new file or editing an existing file
-							break
-						}
-						// Check if file exists using cached map or fs.access
-						let fileExists: boolean
-						if (this.diffViewProvider.editType !== undefined) {
-							fileExists = this.diffViewProvider.editType === "modify"
-						} else {
-							const absolutePath = path.resolve(cwd, relPath)
-							fileExists = await fileExistsAtPath(absolutePath)
-							this.diffViewProvider.editType = fileExists ? "modify" : "create"
-						}
+                            // checking for newContent ensure relPath is complete
+                            // wait so we can determine if it's a new file or editing an existing file
+                            break
+                        }
 
-						// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
-						if (newContent.startsWith("```")) {
-							// this handles cases where it includes language specifiers like ```python ```js
-							newContent = newContent.split("\n").slice(1).join("\n").trim()
-						}
-						if (newContent.endsWith("```")) {
-							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
-						}
+                        // Check if file exists using cached map or fs.access
+                        let fileExists: boolean
+                        if (this.diffViewProvider.editType !== undefined) {
+                            fileExists = this.diffViewProvider.editType === "modify"
+                        } else {
+                            const absolutePath = path.resolve(cwd, relPath)
+                            fileExists = await fileExistsAtPath(absolutePath)
+                            this.diffViewProvider.editType = fileExists ? "modify" : "create"
+                        }
 
-						if (!this.api.getModel().id.includes("claude")) {
-							// it seems not just llama models are doing this, but also gemini and potentially others
-							if (
-								newContent.includes("&gt;") ||
-								newContent.includes("&lt;") ||
-								newContent.includes("&quot;")
-							) {
-								newContent = newContent
-									.replace(/&gt;/g, ">")
-									.replace(/&lt;/g, "<")
-									.replace(/&quot;/g, '"')
-							}
-						}
+                       // Process content based on whether it contains SEARCH/REPLACE blocks
+                        if (newContent.includes("<<<<<<< SEARCH")) {
+                            try {
+                                // Extract the actual file content from the SEARCH/REPLACE blocks
+                                const blocks = this.codeMerger.findCodeBlocks(newContent)
+                                if (blocks.length > 0) {
+                                    // Get the current file content if it exists
+                                    let currentContent = ''
+                                    if (fileExists) {
+                                        const absolutePath = path.resolve(cwd, relPath)
+                                        currentContent = await fs.readFile(absolutePath, 'utf8')
+                                    }
+
+                                    // Apply each block's changes sequentially
+                                    for (const block of blocks) {
+                                        const result = await this.codeMerger.applyCodeChange(
+                                            block.filename,
+                                            currentContent || block.original,
+                                            block.original,
+                                            block.new
+                                        )
+                                        if (!result.success) {
+                                            // If merge fails, notify user with detailed error
+                                            await this.say(
+                                                "error",
+                                                `Auto-merge failed: ${result.error}\n\nPlease check that your SEARCH block exactly matches the file content.`
+                                            )
+                                            throw new Error(result.error)
+                                        }
+                                        currentContent = result.content!
+                                    }
+                                    newContent = currentContent
+                                }
+                            } catch (error) {
+                                // Just throw the error, no need for diff view
+                                throw error
+                            }
+                        } else {
+                            // Handle regular content (non-SEARCH/REPLACE blocks)
+                            // pre-processing newContent for cases where weaker models might add artifacts
+                            if (newContent.startsWith("```")) {
+                                // this handles cases where it includes language specifiers like ```python ```js
+                                newContent = newContent.split("\n").slice(1).join("\n").trim()
+                            }
+                            if (newContent.endsWith("```")) {
+                                newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+                            }
+
+                            if (!this.api.getModel().id.includes("claude")) {
+                                // it seems not just llama models are doing this, but also gemini and potentially others
+                                if (
+                                    newContent.includes("&gt;") ||
+                                    newContent.includes("&lt;") ||
+                                    newContent.includes("&quot;")
+                                ) {
+                                    newContent = newContent
+                                        .replace(/&gt;/g, ">")
+                                        .replace(/&lt;/g, "<")
+                                        .replace(/&quot;/g, '"')
+                                }
+                            }
+                        }
 
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
@@ -1243,7 +1292,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
-									const didApprove = await askApproval("tool", completeMessage)
+									const didApprove = this.alwaysAllowReadOnly ||  await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
 									}

@@ -7,6 +7,7 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { CodeMerger } from "../../core/code-merger/CodeMerger"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -23,6 +24,7 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private accumulatedSearchReplaceContent: string = ""
 
 	constructor(private cwd: string) {}
 
@@ -77,65 +79,129 @@ export class DiffViewProvider {
 		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
+		this.accumulatedSearchReplaceContent = ""
 	}
 
 	async update(accumulatedContent: string, isFinal: boolean) {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
 		}
-		this.newContent = accumulatedContent
-		const accumulatedLines = accumulatedContent.split("\n")
-		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
-		}
-		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
+		this.newContent = accumulatedContent
+
+		// Accumulate search/replace content
+		if (accumulatedContent.includes("<<<<<<< SEARCH")) {
+			this.accumulatedSearchReplaceContent += accumulatedContent
+		}
+
+		// Process content as it comes in
 		const diffEditor = this.activeDiffEditor
 		const document = diffEditor?.document
 		if (!diffEditor || !document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		// Place cursor at the beginning of the diff editor
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
-			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			edit.replace(document.uri, rangeToReplace, contentToReplace)
-			await vscode.workspace.applyEdit(edit)
-			// Update decorations
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
-		}
-		// Update the streamedLines with the new accumulated content
-		this.streamedLines = accumulatedLines
-		if (isFinal) {
-			// Handle any remaining lines if the new content is shorter than the original
-			if (this.streamedLines.length < document.lineCount) {
-				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
-				await vscode.workspace.applyEdit(edit)
-			}
-			// Add empty last line if original content had one
-			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
+		// Check if this is a new file
+		const isNewFile = this.editType !== "modify"
+
+		// Initialize content based on what's currently in the editor
+		let currentContent = this.streamedLines.length === 0 ? (this.originalContent || "") : document.getText()
+
+		// Process content when it's final or when we have a complete search/replace block
+		if (isFinal || this.isSearchReplaceBlockComplete(this.accumulatedSearchReplaceContent)) {
+			const contentToProcess = isFinal ? accumulatedContent : this.accumulatedSearchReplaceContent
+
+			// Check for SEARCH/REPLACE blocks
+			const hasSearchReplaceBlocks = contentToProcess.includes("<<<<<<< SEARCH")
+
+			if (hasSearchReplaceBlocks) {
+				// Process any SEARCH/REPLACE blocks
+				let lastProcessedIndex = 0
+				let searchStart = contentToProcess.indexOf("<<<<<<< SEARCH", lastProcessedIndex)
+				
+				while (searchStart !== -1) {
+					const dividerStart = contentToProcess.indexOf("=======", searchStart)
+					const replaceEnd = contentToProcess.indexOf(">>>>>>> REPLACE", searchStart)
+
+					// Only process if we have a complete block
+					if (dividerStart !== -1 && replaceEnd !== -1 && searchStart < dividerStart && dividerStart < replaceEnd) {
+						// Extract the search and replace content
+						const searchContent = contentToProcess.substring(searchStart + "<<<<<<< SEARCH".length, dividerStart).trim()
+						const replaceContent = contentToProcess.substring(dividerStart + "=======".length, replaceEnd).trim()
+
+						if (isNewFile) {
+							// For new files, just use the replace content directly
+							currentContent = replaceContent
+							// Break after first block since we only need the replace content
+							break
+						} else {
+							// For existing files, replace the search content with the replace content
+							if (currentContent.includes(searchContent)) {
+								currentContent = currentContent.replace(searchContent, replaceContent)
+							}
+						}
+
+						lastProcessedIndex = replaceEnd + ">>>>>>> REPLACE".length
+						searchStart = contentToProcess.indexOf("<<<<<<< SEARCH", lastProcessedIndex)
+					} else {
+						// Incomplete block, break the loop
+						break
+					}
+				}
+			} else {
+				// For content without SEARCH/REPLACE blocks
+				if (isNewFile) {
+					// For new files, use the content as-is
+					currentContent = accumulatedContent
+				} else if (currentContent !== accumulatedContent) {
+					// For existing files, only update if content has changed
+					currentContent = accumulatedContent
 				}
 			}
-			// Clear all decorations at the end (before applying final edit)
+
+			// Reset accumulated content if processing is complete
+			if (isFinal) {
+				this.accumulatedSearchReplaceContent = ""
+			}
+		}
+
+		// Update only the right pane with the processed content
+		const edit = new vscode.WorkspaceEdit()
+		const fullRange = new vscode.Range(0, 0, document.lineCount, 0)
+		edit.replace(document.uri, fullRange, currentContent)
+		await vscode.workspace.applyEdit(edit)
+
+		// Update streamedLines to track what we've processed
+		this.streamedLines = currentContent.split("\n")
+
+		// Update decorations
+		const currentLine = this.streamedLines.length - 1
+		if (currentLine >= 0) {
+			this.activeLineController.setActiveLine(currentLine)
+			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
+			this.scrollEditorToLine(currentLine)
+		}
+
+		if (isFinal) {
+			// Clear decorations since this is final
 			this.fadedOverlayController.clear()
 			this.activeLineController.clear()
 		}
+	}
+
+	// Helper method to check if a search/replace block is complete
+	private isSearchReplaceBlockComplete(content: string): boolean {
+		const searchCount = (content.match(/<<<<<<< SEARCH/g) || []).length
+		const replaceCount = (content.match(/>>>>>>> REPLACE/g) || []).length
+		const dividerCount = (content.match(/=======/g) || []).length
+
+		return searchCount > 0 && 
+			   searchCount === replaceCount && 
+			   searchCount === dividerCount
 	}
 
 	async saveChanges(): Promise<{
@@ -149,6 +215,82 @@ export class DiffViewProvider {
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
 		const editedContent = updatedDocument.getText()
+
+		// If the content contains SEARCH/REPLACE blocks, use the CodeMerger
+		if (editedContent.includes("<<<<<<< SEARCH")) {
+			// First verify we have complete blocks
+			const searchCount = (editedContent.match(/<<<<<<< SEARCH/g) || []).length
+			const replaceCount = (editedContent.match(/>>>>>>> REPLACE/g) || []).length
+			const dividerCount = (editedContent.match(/=======/g) || []).length
+
+			// Check if we have matching markers
+			if (searchCount !== replaceCount || searchCount !== dividerCount) {
+				throw new Error("Incomplete SEARCH/REPLACE blocks detected. Please wait for the complete content to be loaded in the diff view.")
+			}
+
+			const codeMerger = new CodeMerger()
+			try {
+				const blocks = codeMerger.findCodeBlocks(editedContent)
+				if (blocks.length > 0) {
+					// Verify each block is complete and has content
+					for (const block of blocks) {
+						if (!block.original.trim() || !block.new.trim()) {
+							throw new Error("Incomplete SEARCH/REPLACE block content detected. Please wait for the complete content to be loaded in the diff view.")
+						}
+					}
+
+					let currentContent = ''
+					if (this.editType === "modify") {
+						currentContent = this.originalContent || ''
+					}
+
+					// Apply each block's changes sequentially
+					for (const block of blocks) {
+						const result = await codeMerger.applyCodeChange(
+							block.filename,
+							currentContent || block.original,
+							block.original,
+							block.new
+						)
+						if (!result.success) {
+							throw new Error(`Auto-merge failed: ${result.error}\nPlease check that your SEARCH block exactly matches the file content.`)
+						}
+						currentContent = result.content!
+					}
+
+					// Verify the merged content is complete
+					if (!currentContent.trim()) {
+						throw new Error("Merged content is empty. Please wait for the complete content to be loaded in the diff view.")
+					}
+
+					// Save the merged content
+					await fs.writeFile(absolutePath, currentContent)
+					await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+					await this.closeAllDiffViews()
+
+					// Get diagnostics after the merge
+					const postDiagnostics = vscode.languages.getDiagnostics()
+					const newProblems = diagnosticsToProblemsString(
+						getNewDiagnostics(this.preDiagnostics, postDiagnostics),
+						[vscode.DiagnosticSeverity.Error],
+						this.cwd
+					)
+					const newProblemsMessage = newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
+
+					return { 
+						newProblemsMessage, 
+						userEdits: undefined, // No user edits since we used auto-merger
+						finalContent: currentContent 
+					}
+				}
+			} catch (error) {
+				// If auto-merge fails, show the error and prevent falling back to normal save behavior
+				console.error("Auto-merge failed:", error)
+				throw error
+			}
+		}
+
+		// Normal save behavior for non-SEARCH/REPLACE content
 		if (updatedDocument.isDirty) {
 			await updatedDocument.save()
 		}
@@ -283,20 +425,35 @@ export class DiffViewProvider {
 		return new Promise<vscode.TextEditor>((resolve, reject) => {
 			const fileName = path.basename(uri.fsPath)
 			const fileExists = this.editType === "modify"
+
+			// For the left pane (original content)
+			const originalContent = fileExists ? this.originalContent : ""
+			const originalUri = vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
+				query: Buffer.from(originalContent ?? "").toString("base64"),
+			})
+
+			// For the right pane (modified content)
+			const modifiedUri = uri
+
 			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
 				if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
 					disposable.dispose()
 					resolve(editor)
 				}
 			})
+
 			vscode.commands.executeCommand(
 				"vscode.diff",
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
-					query: Buffer.from(this.originalContent ?? "").toString("base64"),
-				}),
-				uri,
-				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`
+				originalUri,
+				modifiedUri,
+				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+				{
+					preview: false,
+					preserveFocus: false,
+					viewColumn: vscode.ViewColumn.Active
+				}
 			)
+
 			// This may happen on very slow machines ie project idx
 			setTimeout(() => {
 				disposable.dispose()
@@ -351,3 +508,4 @@ export class DiffViewProvider {
 		this.preDiagnostics = []
 	}
 }
+
