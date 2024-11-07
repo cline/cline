@@ -19,6 +19,7 @@ export interface ApiHandlerOptions {
 	awsSecretKey?: string
 	awsSessionToken?: string
 	awsRegion?: string
+	awsUseCrossRegionInference?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -66,6 +67,16 @@ export const anthropicModels = {
 		cacheWritesPrice: 3.75, // $3.75 per million tokens
 		cacheReadsPrice: 0.3, // $0.30 per million tokens
 	},
+	"claude-3-5-haiku-20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
@@ -102,6 +113,14 @@ export const bedrockModels = {
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 	},
+	"anthropic.claude-3-5-haiku-20241022-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -117,6 +136,14 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
+	},
+	"anthropic.claude-3-sonnet-20240229-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
 	},
 	"anthropic.claude-3-haiku-20240307-v1:0": {
 		maxTokens: 4096,
@@ -166,6 +193,14 @@ export const vertexModels = {
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+	},
+	"claude-3-5-haiku@20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
 	},
 	"claude-3-opus@20240229": {
 		maxTokens: 4096,

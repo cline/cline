@@ -284,14 +284,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							<VSCodeOption value="">Select a region...</VSCodeOption>
 							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
 							<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
-							{/* <VSCodeOption value="us-east-2">us-east-2</VSCodeOption> */}
+							<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
 							{/* <VSCodeOption value="us-west-1">us-west-1</VSCodeOption> */}
 							<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
 							{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
 							{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
 							<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
 							<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
-							{/* <VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption> */}
+							<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
 							{/* <VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption> */}
 							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
 							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
@@ -303,8 +303,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{/* <VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption> */}
 							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
+							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</div>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.awsUseCrossRegionInference || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
+						}}>
+						Use cross-region inference
+					</VSCodeCheckbox>
 					<p
 						style={{
 							fontSize: "12px",
