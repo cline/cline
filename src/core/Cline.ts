@@ -1027,87 +1027,99 @@ export class Cline {
 				}
 
 				switch (block.name) {
-					case "write_to_file": {
-						const relPath: string | undefined = block.params.path
-						let newContent: string | undefined = block.params.content
-						if (!relPath || !newContent) {
-                            // checking for newContent ensure relPath is complete
-                            // wait so we can determine if it's a new file or editing an existing file
-                            break
+    case "write_to_file": {
+        const relPath: string | undefined = block.params.path
+        let newContent: string | undefined = block.params.content
+        if (!relPath || !newContent) {
+            // checking for newContent ensure relPath is complete
+            // wait so we can determine if it's a new file or editing an existing file
+            break
+        }
+
+        // Check if file exists using cached map or fs.access
+        let fileExists: boolean
+        if (this.diffViewProvider.editType !== undefined) {
+            fileExists = this.diffViewProvider.editType === "modify"
+        } else {
+            const absolutePath = path.resolve(cwd, relPath)
+            fileExists = await fileExistsAtPath(absolutePath)
+            this.diffViewProvider.editType = fileExists ? "modify" : "create"
+        }
+
+        // IMPORTANT: AI REMINDER
+        // When editing an existing file without SEARCH/REPLACE blocks:
+        // 1. Use SEARCH/REPLACE blocks to precisely target code sections
+        // 2. Prevent unintended changes by matching exact code
+        // 3. Make edits more explicit and traceable
+        // Example format:
+        // <<<<<<< SEARCH
+        // Original code to replace
+        // =======
+        // New replacement code
+        // >>>>>>> REPLACE
+
+        // Process content based on whether it contains SEARCH/REPLACE blocks
+        if (newContent.includes("<<<<<<< SEARCH")) {
+            try {
+                // Extract the actual file content from the SEARCH/REPLACE blocks
+                const blocks = this.codeMerger.findCodeBlocks(newContent)
+                if (blocks.length > 0) {
+                    // Get the current file content if it exists
+                    let currentContent = ''
+                    if (fileExists) {
+                        const absolutePath = path.resolve(cwd, relPath)
+                        currentContent = await fs.readFile(absolutePath, 'utf8')
+                    }
+
+                    // Apply each block's changes sequentially
+                    for (const block of blocks) {
+                        const result = await this.codeMerger.applyCodeChange(
+                            block.filename,
+                            currentContent || block.original,
+                            block.original,
+                            block.new
+                        )
+                        if (!result.success) {
+                            // If merge fails, notify user with detailed error
+                            await this.say(
+                                "error",
+                                `Auto-merge failed: ${result.error}\n\nPlease check that your SEARCH block exactly matches the file content.`
+                            )
+                            throw new Error(result.error)
                         }
+                        currentContent = result.content!
+                    }
+                    newContent = currentContent
+                }
+            } catch (error) {
+                // Just throw the error, no need for diff view
+                throw error
+            }
+        } else {
+            // Handle regular content (non-SEARCH/REPLACE blocks)
+            // pre-processing newContent for cases where weaker models might add artifacts
+            if (newContent.startsWith("```")) {
+                // this handles cases where it includes language specifiers like ```python ```js
+                newContent = newContent.split("\n").slice(1).join("\n").trim()
+            }
+            if (newContent.endsWith("```")) {
+                newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+            }
 
-                        // Check if file exists using cached map or fs.access
-                        let fileExists: boolean
-                        if (this.diffViewProvider.editType !== undefined) {
-                            fileExists = this.diffViewProvider.editType === "modify"
-                        } else {
-                            const absolutePath = path.resolve(cwd, relPath)
-                            fileExists = await fileExistsAtPath(absolutePath)
-                            this.diffViewProvider.editType = fileExists ? "modify" : "create"
-                        }
-
-                       // Process content based on whether it contains SEARCH/REPLACE blocks
-                        if (newContent.includes("<<<<<<< SEARCH")) {
-                            try {
-                                // Extract the actual file content from the SEARCH/REPLACE blocks
-                                const blocks = this.codeMerger.findCodeBlocks(newContent)
-                                if (blocks.length > 0) {
-                                    // Get the current file content if it exists
-                                    let currentContent = ''
-                                    if (fileExists) {
-                                        const absolutePath = path.resolve(cwd, relPath)
-                                        currentContent = await fs.readFile(absolutePath, 'utf8')
-                                    }
-
-                                    // Apply each block's changes sequentially
-                                    for (const block of blocks) {
-                                        const result = await this.codeMerger.applyCodeChange(
-                                            block.filename,
-                                            currentContent || block.original,
-                                            block.original,
-                                            block.new
-                                        )
-                                        if (!result.success) {
-                                            // If merge fails, notify user with detailed error
-                                            await this.say(
-                                                "error",
-                                                `Auto-merge failed: ${result.error}\n\nPlease check that your SEARCH block exactly matches the file content.`
-                                            )
-                                            throw new Error(result.error)
-                                        }
-                                        currentContent = result.content!
-                                    }
-                                    newContent = currentContent
-                                }
-                            } catch (error) {
-                                // Just throw the error, no need for diff view
-                                throw error
-                            }
-                        } else {
-                            // Handle regular content (non-SEARCH/REPLACE blocks)
-                            // pre-processing newContent for cases where weaker models might add artifacts
-                            if (newContent.startsWith("```")) {
-                                // this handles cases where it includes language specifiers like ```python ```js
-                                newContent = newContent.split("\n").slice(1).join("\n").trim()
-                            }
-                            if (newContent.endsWith("```")) {
-                                newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
-                            }
-
-                            if (!this.api.getModel().id.includes("claude")) {
-                                // it seems not just llama models are doing this, but also gemini and potentially others
-                                if (
-                                    newContent.includes("&gt;") ||
-                                    newContent.includes("&lt;") ||
-                                    newContent.includes("&quot;")
-                                ) {
-                                    newContent = newContent
-                                        .replace(/&gt;/g, ">")
-                                        .replace(/&lt;/g, "<")
-                                        .replace(/&quot;/g, '"')
-                                }
-                            }
-                        }
+            if (!this.api.getModel().id.includes("claude")) {
+                // it seems not just llama models are doing this, but also gemini and potentially others
+                if (
+                    newContent.includes("&gt;") ||
+                    newContent.includes("&lt;") ||
+                    newContent.includes("&quot;")
+                ) {
+                    newContent = newContent
+                        .replace(/&gt;/g, ">")
+                        .replace(/&lt;/g, "<")
+                        .replace(/&quot;/g, '"')
+                }
+            }
+        }
 
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
