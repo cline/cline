@@ -104,7 +104,7 @@ To contribute to the project, start by exploring [open issues](https://github.co
 <details>
 <summary>Local Development Instructions</summary>
 
-1. Clone the repository:
+1. Clone the repository *(Requires [git-lfs](https://git-lfs.com/))*:
     ```bash
     git clone https://github.com/cline/cline.git
     ```
