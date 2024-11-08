@@ -1,5 +1,18 @@
 # Change Log
 
+## [2.1.4]
+
+- AWS Bedrock fixes (add missing regions, support for cross-region inference, and older Sonnet model for regions where new model is not available)
+
+## [2.1.3]
+
+- Add support for Claude 3.5 Haiku, 66% cheaper than Sonnet with similar intelligence
+
+## [2.1.2]
+
+- Misc. bug fixes
+- Update README with new browser feature
+
 ## [2.1.1]
 
 - Add stricter prompt to prevent Cline from editing files during a browser session without first closing the browser
