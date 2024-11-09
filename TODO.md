@@ -78,6 +78,6 @@
    - [ ] Document advanced features
 
 2. **Contributing Guide**
-   - [ ] Add code style guide
-   - [ ] Document testing procedures
-   - [ ] Add architecture decision records
+   - [X] Add code style guide
+   - [X] Document testing procedures
+   - [X] Add architecture decision records
