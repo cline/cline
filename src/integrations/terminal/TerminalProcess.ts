@@ -1,6 +1,7 @@
 import { EventEmitter } from "events"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
+import { ContentFilterManager, defaultFilters } from "../../utils/content-filter"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -22,9 +23,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private filterManager: ContentFilterManager
 
-	// constructor() {
-	// 	super()
+	constructor() {
+		super()
+		this.filterManager = new ContentFilterManager()
+		// Initialize with default filters
+		this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters)
+		this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters)
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
@@ -35,6 +42,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
+				// Apply content filters at the earliest point
+				data = this.filterManager.filterText(data)
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
