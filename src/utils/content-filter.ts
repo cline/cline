@@ -148,16 +148,11 @@ export const defaultFilters = {
 			// Progress bar line - replace with simplified version
 			{
 				pattern: /^\s*[\u2500-\u259F=#\s]+.*?(\d+%|\d+\.\d+\/\d+\.\d+ (?:MB|KB)).*$/gm,
-				// pattern: /^\s*[━]+[\s\S]*?(\d+\.\d+\/\d+\.\d+ (?:MB|KB))(?: \d+\.\d+ (?:MB|KB)\/s)?(?: eta [0-9:-]+)?$/gm,
-				// pattern: /^\s*[━─╸╺╾╼]+.*\r?$/gm,
-				// pattern: /^\s*[━─╸╺╾╼]+.*$/gm,
 				replacement: "     [==========] Downloading...",
 			},
 			// Clean up multiple blank lines but preserve single line breaks
 			{
 				pattern: /\n{3,}/g,
-				// Remove empty lines after our replacements
-				//pattern: /\n\s*\n\s*\n/g,
 				replacement: "\n\n",
 			},
 			// Clean up any trailing whitespace
@@ -165,40 +160,203 @@ export const defaultFilters = {
 				pattern: /[ \t]+$/gm,
 				replacement: "",
 			},
-			// Installation summary cleanup
-			// {
-			// 	pattern: /Installing collected packages:.*$/gm,
-			// 	replacement: "Installing packages...",
-			// },
-			// Successfully installed cleanup
-			// {
-			// 	pattern: /Successfully installed.*$/gm,
-			// 	replacement: "Installation complete.",
-			// },
 		],
 	},
 	npm: {
 		name: "npm",
 		filters: [
+			// Progress and loading indicators
 			{
-				pattern: /(added|removed|changed)\s+\d+\s+packages?/g,
+				pattern: /^\s*[\u2500-\u259F=#\s]+.*?(\d+%|\d+\.\d+\/\d+\.\d+ (?:MB|KB)).*$/gm,
+				replacement: "     [==========] Installing...",
+			},
+			// npm install output cleanup
+			{
+				pattern: /^npm.*(?:WARN|notice)\s+(?:deprecated|optional|saveError|permissions?|engine).*$/gm,
+				replacement: "",
+			},
+			// Remove package resolution lines
+			{
+				pattern: /^.*?resolution:.*$/gm,
+				replacement: "",
+			},
+			// Clean up package add/remove/update messages
+			{
+				pattern: /(?:added|removed|changed)\s+\d+\s+packages?,?\s*(?:and\s+\d+\s+packages?\s+(?:updated|are\s+looking\s+for\s+funding))?\s*(?:in\s+(?:\d+[ms]|(?:\d+)?\.\d+s))?/g,
 				replacement: "Dependencies updated",
 			},
+			// Clean up audit messages
 			{
-				pattern: /found \d+ vulnerabilities/g,
+				pattern: /found \d+ vulnerabilities?.*$/gm,
 				replacement: "Security scan complete",
 			},
+			// Clean up funding messages
 			{
-				pattern: /npm WARN/g,
-				replacement: "Notice",
+				pattern: /^\d+\s+packages? are looking for funding.*$/gm,
+				replacement: "",
 			},
+			// Clean up progress indicators
+			{
+				pattern: /^.*?⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏.*$/gm,
+				replacement: "",
+			},
+			// Clean up npm timing messages
+			{
+				pattern: /^npm timing.*$/gm,
+				replacement: "",
+			},
+			// Clean up npm http fetch messages
+			{
+				pattern: /^npm http fetch.*$/gm,
+				replacement: "",
+			},
+			// Clean up package lock messages
+			{
+				pattern: /^.*?package-lock\.json.*$/gm,
+				replacement: "",
+			},
+			// Clean up node_modules messages
+			{
+				pattern: /^.*?node_modules.*$/gm,
+				replacement: "",
+			},
+			// Error formatting
 			{
 				pattern: /npm ERR!/g,
 				replacement: "Error",
 			},
+			// Notice formatting
+			{
+				pattern: /npm WARN|npm notice/g,
+				replacement: "Notice",
+			},
+			// Clean up multiple blank lines
+			{
+				pattern: /\n{3,}/g,
+				replacement: "\n\n",
+			},
+			// Clean up trailing whitespace
+			{
+				pattern: /[ \t]+$/gm,
+				replacement: "",
+			},
 		],
 	},
-	// Add more filter groups as needed
+	curl: {
+		name: "curl",
+		filters: [
+			// Clean up progress meter and download stats
+			{
+				pattern: /^\s*\d+\s+(?:\[=*>\s*\]|\[=*\s*\])\s+(?:\d+\.\d+[KMG]?|\d+)\s+(?:\d+\.\d+[KMG]?|\d+)\s+(?:\d+\.\d+[KMG]?|\d+)\s+(?:\d+:\d+:\d+|\d+:\d+|\d+[ms])\s*$/gm,
+				replacement: "     [==========] Downloading...",
+			},
+			// Remove transfer statistics header
+			{
+				pattern: /^\s*% Total\s+% Received\s+% Xferd\s+Average\s+Speed\s+Time\s+Time\s+Time\s+Current.*\n\s*Dload\s+Upload\s+Total\s+Spent\s+Left\s+Speed.*$/gm,
+				replacement: "",
+			},
+			// Clean up TLS handshake messages
+			{
+				pattern: /^\* TLSv[\d.]+ \([A-Z]+\).*$/gm,
+				replacement: "",
+			},
+			// Clean up connection information
+			{
+				pattern: /^\*\s+Trying \d+\.\d+\.\d+\.\d+\.\.\.\s*\n\*\s+Connected to .* \(\d+\.\d+\.\d+\.\d+\) port \d+ \(#\d+\)$/gm,
+				replacement: "Connected to server",
+			},
+			// Clean up DNS resolution
+			{
+				pattern: /^\* Trying \d+\.\d+\.\d+\.\d+\.\.\.$/gm,
+				replacement: "",
+			},
+			// Clean up certificate information
+			{
+				pattern: /^\* Server certificate:[\s\S]*?subject:.*$/gm,
+				replacement: "",
+			},
+			// Clean up HTTP version information
+			{
+				pattern: /^\* Using HTTP.*$/gm,
+				replacement: "",
+			},
+			// Clean up request sent message
+			{
+				pattern: /^\* Request written to socket.*$/gm,
+				replacement: "",
+			},
+			// Clean up timing information
+			{
+				pattern: /^\* Operation timed out after \d+ milliseconds with \d+ bytes received$/gm,
+				replacement: "Request timed out",
+			},
+			// Clean up connection reuse information
+			{
+				pattern: /^\* Connection #\d+ to host .* left intact$/gm,
+				replacement: "",
+			},
+			// Clean up HTTP/2 information
+			{
+				pattern: /^\* Using HTTP2.*$|^\* HTTP\/2 Stream.*$|^\* Connection state changed.*$/gm,
+				replacement: "",
+			},
+			// Clean up ALPN information
+			{
+				pattern: /^\* ALPN,.*$/gm,
+				replacement: "",
+			},
+			// Clean up CAfile/CApath information
+			{
+				pattern: /^\*\s+CAfile:.*$|^\*\s+CApath:.*$/gm,
+				replacement: "",
+			},
+			// Clean up all TLS handshake details
+			{
+				pattern: /^\* TLSv[\d.]+ \([A-Z]+\),.*$|^\* Using HTTP2.*$|^\* Connection state changed.*$|^\* Copying HTTP\/2.*$/gm,
+				replacement: "",
+			},
+			// Format SSL connection info
+			{
+				pattern: /^\* SSL connection using.*$/m,
+				replacement: "Secure connection established",
+			},
+			// Clean up certificate information but keep important details
+			{
+				pattern: /^\* Server certificate:[\s\S]*?SSL certificate verify ok\./gm,
+				replacement: "Certificate verified",
+			},
+			// Format request headers
+			{
+				pattern: /^> ([A-Z]+.*$)/gm,
+				replacement: "Request: $1",
+			},
+			// Format response headers
+			{
+				pattern: /^< ([A-Z]+.*$)/gm,
+				replacement: "Response: $1",
+			},
+			// Clean up connection reuse information
+			{
+				pattern: /^\* Connection #\d+ to host .* left intact$/gm,
+				replacement: "Connection maintained",
+			},
+			// Format error messages
+			{
+				pattern: /^curl: \(\d+\)/g,
+				replacement: "Error",
+			},
+			// Clean up multiple blank lines
+			{
+				pattern: /\n{3,}/g,
+				replacement: "\n\n",
+			},
+			// Clean up trailing whitespace
+			{
+				pattern: /[ \t]+$/gm,
+				replacement: "",
+			},
+		],
+	},
 }
 
 // Example usage:
