@@ -33,6 +33,9 @@ export class OpenRouterHandler implements ApiHandler {
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		switch (this.getModel().id) {
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
 			case "anthropic/claude-3-haiku:beta":
 			case "anthropic/claude-3-opus:beta":
 				openAiMessages[0] = {
