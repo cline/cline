@@ -5,6 +5,7 @@ export type ApiProvider =
 	| "vertex"
 	| "openai"
 	| "ollama"
+	| "lmstudio"
 	| "gemini"
 	| "openai-native"
 	| "github-copilot"
@@ -28,6 +29,8 @@ export interface ApiHandlerOptions {
 	openAiModelId?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
