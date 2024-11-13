@@ -1,6 +1,9 @@
 import { EventEmitter } from "events"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
+import path from "path"
+import * as os from "os"
+import * as fs from "fs"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -25,8 +28,23 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	// constructor() {
 	// 	super()
+	createTempFile(content: string): string {
+		const tempDir = os.tmpdir();
+		const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e3)}`;
+		const tempFilePath = path.join(tempDir, `cline-temp-${uniqueSuffix}.txt`);
+		fs.writeFileSync(tempFilePath, content, { encoding: 'utf8' });
+		return tempFilePath;
+	}
 
-	async run(terminal: vscode.Terminal, command: string) {
+	async run(terminal: vscode.Terminal, command: string, pipein?: string) {
+		let tmppath = undefined
+
+		if (pipein) {
+			console.log(pipein)
+			tmppath = this.createTempFile(pipein)
+			command = command + " < " + tmppath
+		}
+
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -179,6 +197,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// 	console.log(`Emitting continue after delay for terminal`)
 			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
 			// }, 500) // Adjust this delay as needed
+		}
+
+		if (tmppath) {
+			fs.unlinkSync(tmppath);
 		}
 	}
 

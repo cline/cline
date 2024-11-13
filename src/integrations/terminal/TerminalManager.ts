@@ -109,7 +109,7 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+	runCommand(terminalInfo: TerminalInfo, command: string, pipein?: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -141,7 +141,7 @@ export class TerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
+			process.run(terminalInfo.terminal, command, pipein)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
