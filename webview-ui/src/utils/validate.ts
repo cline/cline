@@ -42,6 +42,24 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
+			case "openai_alt_1":
+				if (
+					!apiConfiguration.openAiBaseUrl_1 ||
+					!apiConfiguration.openAiApiKey_1 ||
+					!apiConfiguration.openAiModelId_1
+				) {
+					return "You must provide a valid base URL, API key, and model ID."
+				}
+				break
+			case "openai_alt_2":
+				if (
+					!apiConfiguration.openAiBaseUrl_2 ||
+					!apiConfiguration.openAiApiKey_2 ||
+					!apiConfiguration.openAiModelId_2
+				) {
+					return "You must provide a valid base URL, API key, and model ID."
+				}
+				break
 			case "ollama":
 				if (!apiConfiguration.ollamaModelId) {
 					return "You must provide a valid model ID."

@@ -28,6 +28,18 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new VertexHandler(options)
 		case "openai":
 			return new OpenAiHandler(options)
+		case "openai_alt_1":
+			options.openAiBaseUrl = options.openAiBaseUrl_1;
+			options.openAiApiKey = options.openAiApiKey_1;
+			options.openAiModelId = options.openAiModelId_1;
+			options.azureApiVersion = options.azureApiVersion_1;
+			return new OpenAiHandler(options)
+		case "openai_alt_2":
+			options.openAiBaseUrl = options.openAiBaseUrl_2;
+			options.openAiApiKey = options.openAiApiKey_2;
+			options.openAiModelId = options.openAiModelId_2;
+			options.azureApiVersion = options.azureApiVersion_2;
+			return new OpenAiHandler(options)
 		case "ollama":
 			return new OllamaHandler(options)
 		case "gemini":
