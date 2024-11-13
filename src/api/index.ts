@@ -9,6 +9,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
+import { GithHubCopilotHandler } from "./providers/github-copilot"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -17,6 +18,10 @@ export interface ApiHandler {
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 	const { apiProvider, ...options } = configuration
+	return new GithHubCopilotHandler({
+		...options,
+		githubCopilotModelId: "gpt-4o",
+	})
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler(options)
