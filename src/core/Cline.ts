@@ -89,6 +89,10 @@ export class Cline {
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
+    // Constants for retry mechanism
+    private readonly MAX_RETRIES = 3;
+    private readonly BASE_RETRY_DELAY = 1000; // 1 second base delay for exponential backoff
+
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
@@ -119,15 +123,72 @@ export class Cline {
 	}
 
 	// Storing task to disk for history
+    private async saveWithRetry(filePath: string, content: any, operation: string): Promise<void> {
+        let lastError: Error | undefined;
+        
+        for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+            try {
+                // Serialize content with proper error handling
+                let contentStr: string;
+                try {
+                    contentStr = JSON.stringify(content);
+                } catch (err) {
+                    throw new Error(`Failed to serialize ${operation} content: ${err.message}`);
+                }
 
-	private async ensureTaskDirectoryExists(): Promise<string> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-		const taskDir = path.join(globalStoragePath, "tasks", this.taskId)
-		await fs.mkdir(taskDir, { recursive: true })
-		return taskDir
+                // Write file
+                await fs.writeFile(filePath, contentStr);
+                
+                // Verify file was written correctly
+                const exists = await fileExistsAtPath(filePath);
+                if (!exists) {
+                    throw new Error(`File was not created at ${filePath}`);
+                }
+                
+                // Read and verify content
+                const savedContent = await fs.readFile(filePath, 'utf8');
+                try {
+                    // Verify content can be parsed as JSON
+                    const parsedSaved = JSON.parse(savedContent);
+                    const parsedOriginal = JSON.parse(contentStr);
+                    
+                    // Deep comparison of content
+                    if (JSON.stringify(parsedSaved) !== JSON.stringify(parsedOriginal)) {
+                        throw new Error("File verification failed: content mismatch");
+                    }
+                } catch (err) {
+                    throw new Error(`File verification failed: ${err.message}`);
+                }
+
+                return; // Success
+            } catch (error) {
+                lastError = error as Error;
+                console.error(`Save attempt ${attempt} failed for ${operation}:`, error);
+                
+                if (attempt < this.MAX_RETRIES) {
+                    // Exponential backoff with jitter
+                    const delay = Math.min(this.BASE_RETRY_DELAY * Math.pow(2, attempt - 1), 5000) + 
+                                Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // If we get here, all attempts failed
+        const errorMsg = `Failed to save ${operation} after ${this.MAX_RETRIES} attempts. Your chat history may be incomplete.`;
+        console.error(errorMsg, lastError);
+        vscode.window.showErrorMessage(errorMsg);
+        throw lastError;
+    }
+
+    private async ensureTaskDirectoryExists(): Promise<string> {
+        const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath;
+        if (!globalStoragePath) {
+            throw new Error("Global storage uri is invalid");
+        }
+        const taskDir = path.join(globalStoragePath, "tasks", this.taskId);
+        await fs.mkdir(taskDir, { recursive: true });
+        return taskDir;
 	}
 
 	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
@@ -149,14 +210,14 @@ export class Cline {
 		await this.saveApiConversationHistory()
 	}
 
-	private async saveApiConversationHistory() {
-		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
-			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
-		} catch (error) {
-			// in the off chance this fails, we don't want to stop the task
-			console.error("Failed to save API conversation history:", error)
-		}
+    private async saveApiConversationHistory() {
+        try {
+            const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory);
+            await this.saveWithRetry(filePath, this.apiConversationHistory, "API conversation history");
+        } catch (error) {
+            // Even if saving fails, we want to continue the task but the user has been notified
+            console.error("Final attempt to save API conversation history failed:", error);
+        }
 	}
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
@@ -185,34 +246,36 @@ export class Cline {
 		await this.saveClineMessages()
 	}
 
-	private async saveClineMessages() {
-		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
-			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
-			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-					)
-				]
-			await this.providerRef.deref()?.updateTaskHistory({
-				id: this.taskId,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
-			})
-		} catch (error) {
-			console.error("Failed to save cline messages:", error)
-		}
-	}
+    private async saveClineMessages() {
+        try {
+            const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages);
+            await this.saveWithRetry(filePath, this.clineMessages, "UI messages");
+
+            // Update task history after successful save
+            const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))));
+            const taskMessage = this.clineMessages[0]; // first message is always the task say
+            const lastRelevantMessage = this.clineMessages[
+                findLastIndex(
+                    this.clineMessages,
+                    (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+                )
+            ];
+            await this.providerRef.deref()?.updateTaskHistory({
+                id: this.taskId,
+                ts: lastRelevantMessage.ts,
+                task: taskMessage.text ?? "",
+                tokensIn: apiMetrics.totalTokensIn,
+                tokensOut: apiMetrics.totalTokensOut,
+                cacheWrites: apiMetrics.totalCacheWrites,
+                cacheReads: apiMetrics.totalCacheReads,
+                totalCost: apiMetrics.totalCost,
+            });
+        } catch (error) {
+            const errorMsg = "Failed to save chat messages. Some chat history may be lost.";
+            console.error(errorMsg, error);
+            vscode.window.showErrorMessage(errorMsg);
+        }
+    }
 
 	// Communicate with webview
 

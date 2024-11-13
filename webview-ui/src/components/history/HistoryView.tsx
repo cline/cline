@@ -28,13 +28,35 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleHistorySelect = (id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
+	const handleHistorySelect = (e: React.MouseEvent, id: string) => {
+		// Always prevent default to avoid any unintended behaviors
+		e.preventDefault()
+		e.stopPropagation()
+		
+		// Check if the click is on a button or within a button
+		const target = e.target as HTMLElement;
+		if (
+			target.tagName === 'BUTTON' || 
+			target.closest('button') ||
+			target.classList.contains('delete-button') ||
+			target.classList.contains('export-button') ||
+			target.closest('.delete-button') ||
+			target.closest('.export-button')
+		) {
+			return;
+		}
+
+		// If not clicking a button, proceed with showing the task and closing the history view
+		vscode.postMessage({ type: "showTaskWithId", text: id });
+		onDone(); // Close the history view after selecting a task
 	}
 
-	const handleDeleteHistoryItem = (id: string) => {
+	const handleDeleteHistoryItem = (e: React.MouseEvent, id: string) => {
+		e.preventDefault()
+		e.stopPropagation()
 		vscode.postMessage({ type: "deleteTaskWithId", text: id })
 	}
+
 
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
@@ -223,7 +245,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											? "1px solid var(--vscode-panel-border)"
 											: "none",
 								}}
-								onClick={() => handleHistorySelect(item.id)}>
+								onClick={(e) => handleHistorySelect(e, item.id)}>
 								<div
 									style={{
 										display: "flex",
@@ -247,15 +269,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											}}>
 											{formatDate(item.ts)}
 										</span>
+										{
 										<VSCodeButton
 											appearance="icon"
-											onClick={(e) => {
-												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
-											}}
+											onClick={(e) => handleDeleteHistoryItem(e, item.id)}
 											className="delete-button">
 											<span className="codicon codicon-trash"></span>
 										</VSCodeButton>
+										}
 									</div>
 									<div
 										style={{
