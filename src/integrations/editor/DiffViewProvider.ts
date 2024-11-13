@@ -33,7 +33,7 @@ export class DiffViewProvider {
 		this.isEditing = true
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
+			const existingDocument = vscode.workspace.textDocuments.find((doc: vscode.TextDocument) =>
 				arePathsEqual(doc.uri.fsPath, absolutePath)
 			)
 			if (existingDocument && existingDocument.isDirty) {
@@ -59,10 +59,10 @@ export class DiffViewProvider {
 		this.documentWasOpen = false
 		// close the tab if it's open (it's already saved above)
 		const tabs = vscode.window.tabGroups.all
-			.map((tg) => tg.tabs)
+			.map((tg: vscode.TabGroup) => tg.tabs)
 			.flat()
 			.filter(
-				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
+				(tab: vscode.Tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
 			)
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
@@ -84,55 +84,32 @@ export class DiffViewProvider {
 			throw new Error("Required values not set")
 		}
 		this.newContent = accumulatedContent
-		const accumulatedLines = accumulatedContent.split("\n")
-		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
-		}
-		const diffLines = accumulatedLines.slice(this.streamedLines.length)
-
+		const accumulatedLines = accumulatedContent.split(/\r?\n/)
+		
 		const diffEditor = this.activeDiffEditor
 		const document = diffEditor?.document
 		if (!diffEditor || !document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
-		const beginningOfDocument = new vscode.Position(0, 0)
-		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
+		// Replace the entire content of the document
+		const edit = new vscode.WorkspaceEdit()
+		const fullRange = new vscode.Range(0, 0, document.lineCount, 0)
+		const contentToReplace = accumulatedLines.join('\n') + (isFinal && !accumulatedContent.endsWith('\n') ? '\n' : '')
+		edit.replace(document.uri, fullRange, contentToReplace)
+		await vscode.workspace.applyEdit(edit)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
-			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			edit.replace(document.uri, rangeToReplace, contentToReplace)
-			await vscode.workspace.applyEdit(edit)
-			// Update decorations
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
-		}
-		// Update the streamedLines with the new accumulated content
+		// Update decorations
+		this.activeLineController.setActiveLine(accumulatedLines.length - 1)
+		this.fadedOverlayController.updateOverlayAfterLine(accumulatedLines.length - 1, document.lineCount)
+
+		// Scroll to the last line
+		this.scrollEditorToLine(accumulatedLines.length - 1)
+
 		this.streamedLines = accumulatedLines
+
 		if (isFinal) {
-			// Handle any remaining lines if the new content is shorter than the original
-			if (this.streamedLines.length < document.lineCount) {
-				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
-				await vscode.workspace.applyEdit(edit)
-			}
-			// Add empty last line if original content had one
-			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
-			}
-			// Clear all decorations at the end (before applying final edit)
+			// Clear all decorations at the end
 			this.fadedOverlayController.clear()
 			this.activeLineController.clear()
 		}
@@ -156,38 +133,20 @@ export class DiffViewProvider {
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 		await this.closeAllDiffViews()
 
-		/*
-		Getting diagnostics before and after the file edit is a better approach than
-		automatically tracking problems in real-time. This method ensures we only
-		report new problems that are a direct result of this specific edit.
-		Since these are new problems resulting from Cline's edit, we know they're
-		directly related to the work he's doing. This eliminates the risk of Cline
-		going off-task or getting distracted by unrelated issues, which was a problem
-		with the previous auto-debug approach. Some users' machines may be slow to
-		update diagnostics, so this approach provides a good balance between automation
-		and avoiding potential issues where Cline might get stuck in loops due to
-		outdated problem information. If no new problems show up by the time the user
-		accepts the changes, they can always debug later using the '@problems' mention.
-		This way, Cline only becomes aware of new problems resulting from his edits
-		and can address them accordingly. If problems don't change immediately after
-		applying a fix, Cline won't be notified, which is generally fine since the
-		initial fix is usually correct and it may just take time for linters to catch up.
-		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
 		const newProblems = diagnosticsToProblemsString(
 			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
 			[
-				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+				vscode.DiagnosticSeverity.Error,
 			],
 			this.cwd
-		) // will be empty string if no errors
+		)
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedEditedContent = editedContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		// just in case the new content has a mix of varying EOL characters
+		const normalizedEditedContent = editedContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
 		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
 		if (normalizedEditedContent !== normalizedNewContent) {
 			// user made changes before approving edit
@@ -248,9 +207,9 @@ export class DiffViewProvider {
 
 	private async closeAllDiffViews() {
 		const tabs = vscode.window.tabGroups.all
-			.flatMap((tg) => tg.tabs)
+			.flatMap((tg: vscode.TabGroup) => tg.tabs)
 			.filter(
-				(tab) =>
+				(tab: vscode.Tab) =>
 					tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME
 			)
 		for (const tab of tabs) {
@@ -268,9 +227,9 @@ export class DiffViewProvider {
 		const uri = vscode.Uri.file(path.resolve(this.cwd, this.relPath))
 		// If this diff editor is already open (ie if a previous write file was interrupted) then we should activate that instead of opening a new diff
 		const diffTab = vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
+			.flatMap((group: vscode.TabGroup) => group.tabs)
 			.find(
-				(tab) =>
+				(tab: vscode.Tab) =>
 					tab.input instanceof vscode.TabInputTextDiff &&
 					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME &&
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath)
@@ -283,7 +242,7 @@ export class DiffViewProvider {
 		return new Promise<vscode.TextEditor>((resolve, reject) => {
 			const fileName = path.basename(uri.fsPath)
 			const fileExists = this.editType === "modify"
-			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+			const disposable = vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor | undefined) => {
 				if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
 					disposable.dispose()
 					resolve(editor)
