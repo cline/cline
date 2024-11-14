@@ -45,6 +45,17 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Cline",
+      "properties": {
+        "cline.filterManager.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Reduce token usage [EXPERIMENTAL]",
+          "scope": "window"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
