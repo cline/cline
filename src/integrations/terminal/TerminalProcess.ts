@@ -23,14 +23,44 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
-	private filterManager: ContentFilterManager
+	private filterManager: ContentFilterManager | null = null
+	private disposables: vscode.Disposable[] = []
+	private wasOutputFiltered: boolean = false
 
 	constructor() {
 		super()
-		this.filterManager = new ContentFilterManager()
-		// Initialize with default filters
-		this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters)
-		this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters)
+		this.initializeFilterManager()
+		
+		// Listen for configuration changes
+		this.disposables.push(
+			vscode.workspace.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('cline.filterManager.enabled')) {
+					this.initializeFilterManager()
+				}
+			})
+		)
+	}
+
+	private initializeFilterManager() {
+		const config = vscode.workspace.getConfiguration('cline')
+		const filterEnabled = config.get<boolean>('filterManager.enabled', false)
+		
+		if (filterEnabled) {
+			console.log('Initializing content filter manager')
+			this.filterManager = new ContentFilterManager()
+			// Initialize with default filters
+			this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters)
+			this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters)
+		} else {
+			console.log('Not initializing content filter manager')
+			this.filterManager = null
+		}
+		this.wasOutputFiltered = false
+	}
+
+	// Method to check if output was filtered
+	public wasFiltered(): boolean {
+		return this.wasOutputFiltered
 	}
 
 	async run(terminal: vscode.Terminal, command: string) {
@@ -42,8 +72,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
-				// Apply content filters at the earliest point
-				data = this.filterManager.filterText(data)
+				// Apply content filters only if enabled
+				if (this.filterManager) {
+					const originalLength = data.length
+					data = this.filterManager.filterText(data)
+					// If the length changed, output was filtered
+					if (data.length !== originalLength) {
+						this.wasOutputFiltered = true
+					}
+				}
 
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
@@ -241,6 +278,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
 		}
 		return lines.join("\n").trimEnd()
+	}
+
+	dispose() {
+		this.disposables.forEach(d => d.dispose())
 	}
 }
 
