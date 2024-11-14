@@ -130,6 +130,16 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
+	// Handle messages from webview
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.handleWebviewMessage", async (message: any) => {
+			if (message.type === "filterManagerEnabled") {
+				const config = vscode.workspace.getConfiguration('cline')
+				await config.update('filterManager.enabled', message.bool, true)
+			}
+		})
+	)
+
 	return createClineAPI(outputChannel, sidebarProvider)
 }
 
