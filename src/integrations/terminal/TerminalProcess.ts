@@ -52,84 +52,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+			let output = ""
 			for await (let data of stream) {
-				// 1. Process chunk and remove artifacts
-				if (isFirstChunk) {
-					/*
-					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
-					*/
+				output += data
 
-					// bug where sometimes the command output makes its way into vscode shell integration metadata
-					/*
-					]633 is a custom sequence number used by VSCode shell integration:
-					- OSC 633 ; A ST - Mark prompt start
-					- OSC 633 ; B ST - Mark prompt end
-					- OSC 633 ; C ST - Mark pre-execution (start of command output)
-					- OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
-					- OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
-					*/
-					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
-					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
-					// Gets output between ]633;C (command start) and ]633;D (command end)
-					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
-					).trim()
+				// console.log("chunk before: " + data)
 
-					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
-					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
-					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
-					if (lastMatch && lastMatch.index !== undefined) {
-						data = data.slice(lastMatch.index + lastMatch[0].length)
-					}
-					// Place output back after removing vscode sequences
-					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
-					}
-					// remove ansi
-					data = stripAnsi(data)
-					// Split data by newlines
-					let lines = data ? data.split("\n") : []
-					// Remove non-human readable characters from the first line
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-						lines[0] = lines[0].slice(1)
-					}
-					// Remove everything up to the first alphanumeric character for first two lines
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					// Join lines back
-					data = lines.join("\n")
-					isFirstChunk = false
-				} else {
-					data = stripAnsi(data)
-				}
+				// remove vscode/ansi escapes for streaming pretty-prints, but
+				// final output extraction happens below this loop:
+				data = data.replace(/\x1b\](777|633);[^\x07]+\x07/sg, "") || data
+				data = stripAnsi(data)
 
-				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
-				if (!didOutputNonCommand) {
-					const lines = data.split("\n")
-					for (let i = 0; i < lines.length; i++) {
-						if (command.includes(lines[i].trim())) {
-							lines.splice(i, 1)
-							i-- // Adjust index after removal
-						} else {
-							didOutputNonCommand = true
-							break
-						}
-					}
-					data = lines.join("\n")
-				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
+				// console.log("chunk after : " + data)
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
@@ -164,19 +98,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				)
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
-				if (!didEmitEmptyLine && !this.fullOutput && data) {
+				if (!didEmitEmptyLine && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true
 				}
-
-				this.fullOutput += data
-				if (this.isListening) {
-					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
-				}
 			}
+			
+			// console.log("final before: " + output)
+			
+			// Extract clean output from raw accumulated output:
+			output = output.match(/\x1b\]633;C\x07(.*)\x1b\]777;notify;Command completed;/s)?.[1] || ""
+			output = stripAnsi(output) || output
+			this.emit("line", output)
+			
+			// do these matter?
+			this.buffer = ""
+			this.fullOutput = output
 
-			this.emitRemainingBufferIfListening()
+			// console.log("final after : " + output)
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
 			if (this.hotTimer) {
