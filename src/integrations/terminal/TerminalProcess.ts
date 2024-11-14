@@ -26,15 +26,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private filterManager: ContentFilterManager | null = null
 	private disposables: vscode.Disposable[] = []
 	private wasOutputFiltered: boolean = false
+	private isFilterEnabled: boolean = false
+	private outputChannel: vscode.OutputChannel
 
 	constructor() {
 		super()
+		this.outputChannel = vscode.window.createOutputChannel("Cline")
+		console.log('TerminalProcess constructor - checking filter manager setting')
 		this.initializeFilterManager()
 		
 		// Listen for configuration changes
 		this.disposables.push(
 			vscode.workspace.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration('cline.filterManager.enabled')) {
+					console.log('Configuration changed - reinitializing filter manager')
 					this.initializeFilterManager()
 				}
 			})
@@ -44,15 +49,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private initializeFilterManager() {
 		const config = vscode.workspace.getConfiguration('cline')
 		const filterEnabled = config.get<boolean>('filterManager.enabled', false)
+		this.outputChannel.appendLine(`Filter manager initialization - enabled: ${filterEnabled}`)
 		
+		this.isFilterEnabled = filterEnabled
 		if (filterEnabled) {
-			console.log('Initializing content filter manager')
+			this.outputChannel.appendLine('Initializing content filter manager with default filters')
 			this.filterManager = new ContentFilterManager()
-			// Initialize with default filters
-			this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters)
-			this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters)
+			// Initialize with default filters and explicitly enable them
+			this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters, true)
+			this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters, true)
+			this.filterManager.addFilterGroup(defaultFilters.curl.name, defaultFilters.curl.filters, true)
+			
+			// Log current filter groups state
+			const groups = this.filterManager.getFilterGroups()
+			groups.forEach(group => {
+				this.outputChannel.appendLine(`Filter group ${group.name}: ${group.enabled ? 'enabled' : 'disabled'}`)
+			})
 		} else {
-			console.log('Not initializing content filter manager')
+			this.outputChannel.appendLine('Content filter manager disabled - no filters will be applied')
 			this.filterManager = null
 		}
 		this.wasOutputFiltered = false
@@ -63,7 +77,13 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		return this.wasOutputFiltered
 	}
 
+	// Method to check if filter manager is enabled
+	public isFilterManagerEnabled(): boolean {
+		return this.isFilterEnabled
+	}
+
 	async run(terminal: vscode.Terminal, command: string) {
+		this.outputChannel.appendLine(`Running command: ${command} (Filter manager ${this.isFilterEnabled ? 'enabled' : 'disabled'})`)
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -73,12 +93,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
 				// Apply content filters only if enabled
+				const originalLength = data.length
 				if (this.filterManager) {
-					const originalLength = data.length
+					this.outputChannel.appendLine(`Processing output chunk of length ${originalLength}`)
 					data = this.filterManager.filterText(data)
 					// If the length changed, output was filtered
 					if (data.length !== originalLength) {
 						this.wasOutputFiltered = true
+						this.outputChannel.appendLine(`Content filtered: ${originalLength} -> ${data.length} characters`)
 					}
 				}
 
@@ -213,6 +235,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			this.isHot = false
 
+			// Log final filtering status for this command
+			if (this.isFilterEnabled) {
+				this.outputChannel.appendLine(`Command completed - Output was ${this.wasOutputFiltered ? '' : 'not '}filtered`)
+			}
+
 			this.emit("completed")
 			this.emit("continue")
 		} else {
@@ -282,6 +309,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	dispose() {
 		this.disposables.forEach(d => d.dispose())
+		this.outputChannel.dispose()
 	}
 }
 

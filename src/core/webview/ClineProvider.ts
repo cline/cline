@@ -406,6 +406,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "filterManagerEnabled":
 						const config = vscode.workspace.getConfiguration('cline')
+						console.log("filterManagerEnabled", message.bool)
 						await config.update('filterManager.enabled', message.bool, true)
 						await this.postStateToWebview()
 						break
