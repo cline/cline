@@ -17,6 +17,7 @@ export interface WebviewMessage {
 		| "exportTaskWithId"
 		| "resetState"
 		| "requestOllamaModels"
+		| "requestLmStudioModels"
 		| "openImage"
 		| "openFile"
 		| "openMention"
