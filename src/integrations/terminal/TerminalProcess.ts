@@ -32,6 +32,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private outputChannel: vscode.OutputChannel
 	private commandCompletionResolver: (() => void) | null = null
 	private commandCompletionPromise: Promise<void> | null = null
+	private filteringDetails: {
+		totalOriginalLength: number,
+		totalFilteredLength: number,
+		filterGroups: string[]
+	} = {
+		totalOriginalLength: 0,
+		totalFilteredLength: 0,
+		filterGroups: []
+	}
 
 	constructor() {
 		super()
@@ -74,6 +83,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.filterManager = null
 		}
 		this.wasOutputFiltered = false
+		this.filteringDetails = {
+			totalOriginalLength: 0,
+			totalFilteredLength: 0,
+			filterGroups: []
+		}
 	}
 
 	// Method to check if output was filtered
@@ -92,6 +106,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer = ""
 		this.lastRetrievedIndex = 0
 		this.wasOutputFiltered = false
+		this.filteringDetails = {
+			totalOriginalLength: 0,
+			totalFilteredLength: 0,
+			filterGroups: []
+		}
 
 		// Create a promise to track command completion
 		this.commandCompletionPromise = new Promise<void>((resolve) => {
@@ -99,6 +118,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		})
 
 		this.outputChannel.appendLine(`Running command: ${command} (Filter manager ${this.isFilterEnabled ? 'enabled' : 'disabled'})`)
+
+		// Initial logging of filter status with more context
+		console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: ${this.wasOutputFiltered}) [Command Start]`)
+
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -107,18 +130,26 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			let hasReceivedOutput = false
+			let filteringOccurred = false
 
 			try {
 				for await (let data of stream) {
 					// Apply content filters only if enabled
 					const originalLength = data.length
+					this.filteringDetails.totalOriginalLength += originalLength
+
 					if (this.filterManager) {
 						this.outputChannel.appendLine(`Processing output chunk of length ${originalLength}`)
 						data = this.filterManager.filterText(data)
 						// If the length changed, output was filtered
 						if (data.length !== originalLength) {
 							this.wasOutputFiltered = true
+							filteringOccurred = true
+							this.filteringDetails.totalFilteredLength += data.length
 							this.outputChannel.appendLine(`Content filtered: ${originalLength} -> ${data.length} characters`)
+
+							// Log detailed filtering status
+							console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: ${this.wasOutputFiltered}) [Chunk Filtered]`)
 						}
 					}
 
@@ -203,7 +234,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// Track that we've received some output
 					if (data && data.trim()) {
 						hasReceivedOutput = true
-					}
+				}
 
 					// 2. Set isHot depending on the command
 					// Set to hot to stall API requests until terminal is cool again
@@ -268,6 +299,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					this.outputChannel.appendLine(`Command completed - Output was ${this.wasOutputFiltered ? '' : 'not '}filtered`)
 				}
 
+				// Final logging of filtering status
+				if (filteringOccurred) {
+					console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: true) [Command End]`)
+					this.outputChannel.appendLine(`Total filtering: ${this.filteringDetails.totalOriginalLength} -> ${this.filteringDetails.totalFilteredLength} characters`)
+				} else {
+					console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: false) [Command End]`)
+				}
+
 				// Resolve command completion
 				if (this.commandCompletionResolver) {
 					this.commandCompletionResolver()
@@ -277,6 +316,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.emit("continue")
 
 			} catch (error) {
+				// Log error scenario
+				console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: false) [Error]`)
+
 				this.outputChannel.appendLine(`Error during command execution: ${error}`)
 				this.emit("error", error instanceof Error ? error : new Error(String(error)))
 
@@ -286,6 +328,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 			}
 		} else {
+			// Non-shell integration terminal logging
+			console.log(`API Request using filter manager: ${this.isFilterEnabled} (Content was filtered: false) [Non-shell integration]`)
+
 			terminal.sendText(command, true)
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
