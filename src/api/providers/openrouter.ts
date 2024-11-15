@@ -31,9 +31,19 @@ export class OpenRouterHandler implements ApiHandler {
 		]
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
+		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (this.getModel().id) {
+			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
+			case "anthropic/claude-3-haiku":
 			case "anthropic/claude-3-haiku:beta":
+			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
 				openAiMessages[0] = {
 					role: "system",
@@ -76,6 +86,12 @@ export class OpenRouterHandler implements ApiHandler {
 		switch (this.getModel().id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
 				maxTokens = 8_192
 				break
 		}
