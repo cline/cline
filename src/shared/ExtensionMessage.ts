@@ -10,6 +10,7 @@ export interface ExtensionMessage {
 		| "state"
 		| "selectedImages"
 		| "ollamaModels"
+		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
 		| "invoke"
@@ -21,6 +22,7 @@ export interface ExtensionMessage {
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
+	lmStudioModels?: string[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
