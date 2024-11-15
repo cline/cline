@@ -410,6 +410,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						await this.postStateToWebview()
 						break
+					case "filterManagerEnabled":
+						const config = vscode.workspace.getConfiguration('cline')
+						console.log("filterManagerEnabled", message.bool)
+						await config.update('filterManager.enabled', message.bool, true)
+						await this.postStateToWebview()
+						break
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -783,11 +789,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async getStateToPostToWebview() {
 		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
 			await this.getState()
+
+		// Get the filterManager setting from VS Code configuration
+		const config = vscode.workspace.getConfiguration('cline')
+		const filterManagerEnabled = config.get<boolean>('filterManager.enabled', false)
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
+			filterManagerEnabled,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
@@ -920,6 +932,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				apiProvider = "openrouter"
 			}
 		}
+
+		// Get the filterManager setting from VS Code configuration
+		const config = vscode.workspace.getConfiguration('cline')
+		const filterManagerEnabled = config.get<boolean>('filterManager.enabled', false)
 
 		return {
 			apiConfiguration: {

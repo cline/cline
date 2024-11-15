@@ -23,6 +23,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "filterManagerEnabled"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

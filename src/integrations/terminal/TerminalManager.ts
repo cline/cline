@@ -198,6 +198,17 @@ export class TerminalManager {
 		return process ? process.isHot : false
 	}
 
+	getActiveProcess(): TerminalProcess | undefined {
+		const activeTerminal = Array.from(this.terminalIds)
+			.map((id) => TerminalRegistry.getTerminal(id))
+			.find((t): t is TerminalInfo => t !== undefined && t.busy === true)
+		
+		if (activeTerminal) {
+			return this.processes.get(activeTerminal.id)
+		}
+		return undefined
+	}
+
 	disposeAll() {
 		// for (const info of this.terminals) {
 		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted

@@ -23,6 +23,7 @@ export class ContentFilterManager {
 	 */
 	addFilterGroup(name: string, filters: ContentFilter[], enabled: boolean = true): void {
 		this.filterGroups.set(name, { name, filters, enabled })
+		console.log(`Added filter group: ${name} (enabled: ${enabled})`)
 	}
 
 	/**
@@ -34,6 +35,7 @@ export class ContentFilterManager {
 		const group = this.filterGroups.get(name)
 		if (group) {
 			group.enabled = enabled
+			console.log(`Filter group ${name} ${enabled ? 'enabled' : 'disabled'}`)
 		}
 	}
 
@@ -43,21 +45,28 @@ export class ContentFilterManager {
 	 * @returns Filtered text
 	 */
 	filterText(text: string): string {
+		console.log('Starting content filtering')
 		let result = removeAnsiCodes(text)
 		result = removeControlCharacters(result)
-		result = removeVSCodeMarkers(result) // added in attempt to format better
-		result = removeCommandText(result) // interesting add but we might want to remove it.
+		result = removeVSCodeMarkers(result)
+		result = removeCommandText(result)
 
 		for (const group of this.filterGroups.values()) {
 			if (!group.enabled) {
+				console.log(`Skipping disabled filter group: ${group.name}`)
 				continue
 			}
 
+			console.log(`Applying filter group: ${group.name}`)
 			for (const filter of group.filters) {
+				const originalLength = result.length
 				if (typeof filter.pattern === "string") {
 					result = result.replace(new RegExp(filter.pattern, "g"), filter.replacement)
 				} else {
 					result = result.replace(filter.pattern, filter.replacement)
+				}
+				if (result.length !== originalLength) {
+					console.log(`Filter matched in group ${group.name}: length changed from ${originalLength} to ${result.length}`)
 				}
 			}
 		}
@@ -72,6 +81,7 @@ export class ContentFilterManager {
 	 */
 	removeFilterGroup(name: string): void {
 		this.filterGroups.delete(name)
+		console.log(`Removed filter group: ${name}`)
 	}
 
 	/**
@@ -358,17 +368,3 @@ export const defaultFilters = {
 		],
 	},
 }
-
-// Example usage:
-/*
-const filterManager = new ContentFilterManager()
-
-// Add pip-specific filters
-filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters)
-
-// Use in TerminalProcess.ts:
-for await (let data of stream) {
-    data = filterManager.filterText(data)
-    // ... rest of the processing
-}
-*/
