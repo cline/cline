@@ -20,9 +20,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
 		openRouterModels,
+		filterManagerEnabled,
+		setFilterManagerEnabled,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
@@ -42,20 +45,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
-	// validate as soon as the component is mounted
-	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
-
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
+	}
+
+	const handleFilterManagerChange = (e: any) => {
+		const enabled = e.target.checked
+		setFilterManagerEnabled(enabled)
+		vscode.postMessage({ type: "filterManagerEnabled", bool: enabled })
 	}
 
 	return (
@@ -127,6 +124,22 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={filterManagerEnabled}
+						onChange={handleFilterManagerChange}>
+						<span style={{ fontWeight: "500" }}>Reduce token usage [EXPERIMENTAL]</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will filter terminal output to reduce token usage. This may affect the readability of command output.
 					</p>
 				</div>
 
