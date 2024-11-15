@@ -34,7 +34,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.outputChannel = vscode.window.createOutputChannel("Cline")
 		console.log('TerminalProcess constructor - checking filter manager setting')
 		this.initializeFilterManager()
-		
+
 		// Listen for configuration changes
 		this.disposables.push(
 			vscode.workspace.onDidChangeConfiguration(e => {
@@ -50,7 +50,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		const config = vscode.workspace.getConfiguration('cline')
 		const filterEnabled = config.get<boolean>('filterManager.enabled', false)
 		this.outputChannel.appendLine(`Filter manager initialization - enabled: ${filterEnabled}`)
-		
+
 		this.isFilterEnabled = filterEnabled
 		if (filterEnabled) {
 			this.outputChannel.appendLine('Initializing content filter manager with default filters')
@@ -59,7 +59,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.filterManager.addFilterGroup(defaultFilters.pip.name, defaultFilters.pip.filters, true)
 			this.filterManager.addFilterGroup(defaultFilters.npm.name, defaultFilters.npm.filters, true)
 			this.filterManager.addFilterGroup(defaultFilters.curl.name, defaultFilters.curl.filters, true)
-			
+
 			// Log current filter groups state
 			const groups = this.filterManager.getFilterGroups()
 			groups.forEach(group => {
