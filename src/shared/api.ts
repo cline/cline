@@ -277,6 +277,14 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"gemini-exp-1114": {
+		maxTokens: 8192,
+		contextWindow: 32_767,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenAI Native
