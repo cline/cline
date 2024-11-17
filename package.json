@@ -50,7 +50,7 @@
         {
           "id": "claude-dev-ActivityBar",
           "title": "Cades",
-          "icon": "$(robot)"
+          "icon": "assets/icons/robot_light.png"
         }
       ]
     },
