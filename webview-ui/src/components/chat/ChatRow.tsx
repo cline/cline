@@ -176,7 +176,7 @@ export const ChatRowContent = ({
 					<span
 						className="codicon codicon-question"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cades has a question:</span>,
 				]
 			default:
 				return [null, null]
@@ -217,7 +217,7 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							<span style={{ fontWeight: "bold" }}>Cades wants to edit this file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -233,7 +233,7 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+							<span style={{ fontWeight: "bold" }}>Cades wants to create a new file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -250,7 +250,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
+								{message.type === "ask" ? "Cades wants to read this file:" : "Cades read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -308,8 +308,8 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to view the top level files in this directory:"
-									: "Cline viewed the top level files in this directory:"}
+									? "Cades wants to view the top level files in this directory:"
+									: "Cades viewed the top level files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -328,8 +328,8 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to recursively view all files in this directory:"
-									: "Cline recursively viewed all files in this directory:"}
+									? "Cades wants to recursively view all files in this directory:"
+									: "Cades recursively viewed all files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -348,8 +348,8 @@ export const ChatRowContent = ({
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to view source code definition names used in this directory:"
-									: "Cline viewed source code definition names used in this directory:"}
+									? "Cades wants to view source code definition names used in this directory:"
+									: "Cades viewed source code definition names used in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -368,11 +368,11 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<>
-										Cline wants to search this directory for <code>{tool.regex}</code>:
+										Cades wants to search this directory for <code>{tool.regex}</code>:
 									</>
 								) : (
 									<>
-										Cline searched this directory for <code>{tool.regex}</code>:
+										Cades searched this directory for <code>{tool.regex}</code>:
 									</>
 								)}
 							</span>
@@ -395,9 +395,9 @@ export const ChatRowContent = ({
 			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
 			// 				<span style={{ fontWeight: "bold" }}>
 			// 					{message.type === "ask" ? (
-			// 						<>Cline wants to inspect this website:</>
+			// 						<>Cades wants to inspect this website:</>
 			// 					) : (
-			// 						<>Cline is inspecting this website:</>
+			// 						<>Cades is inspecting this website:</>
 			// 					)}
 			// 				</span>
 			// 			</div>
@@ -456,12 +456,12 @@ export const ChatRowContent = ({
 											<>
 												<br />
 												<br />
-												It seems like you're having Windows PowerShell issues, please see this{" "}
+												{/* It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
 													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
 													style={{ color: "inherit", textDecoration: "underline" }}>
 													troubleshooting guide
-												</a>
+												</a> */}
 												.
 											</>
 										)}
@@ -604,7 +604,7 @@ export const ChatRowContent = ({
 									</span>
 								</div>
 								<div>
-									Cline won't be able to view the command's output. Please update VSCode (
+									Cades won't be able to view the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
 									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
 									"Terminal: Select Default Profile").{" "}

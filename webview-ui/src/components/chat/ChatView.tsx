@@ -705,7 +705,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						display: "flex",
 						flexDirection: "column",
 					}}>
-					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
+				    {/* // TODO: Remove Announcments */}
+					{/* {showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />} */}
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
 						<h2>What can I do for you?</h2>
 						<p>

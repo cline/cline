@@ -125,7 +125,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Cline will automatically view directory contents and read files without requiring
+						When enabled, Cades will automatically view directory contents and read files without requiring
 						you to click the Approve button.
 					</p>
 				</div>
@@ -156,12 +156,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						marginTop: "auto",
 						padding: "10px 8px 15px 0px",
 					}}>
-					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
+					{/* <p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
 						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
 							https://github.com/cline/cline
 						</VSCodeLink>
-					</p>
+					</p> */}
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
 				</div>
 			</div>
