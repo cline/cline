@@ -57,6 +57,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							config.lmStudioModelId,
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
+							config.apiProvider === 'github-copilot-native' ? config.apiProvider : undefined,
 					  ].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)

@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "github-copilot-native"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -323,3 +324,83 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
+
+
+// GitHub Copilot
+// https://code.visualstudio.com/api/extension-guides/language-model#related-content
+export type GithHubCopilotNativeModelId = keyof typeof githHubCopilotNativeModels
+export const githHubCopilotNativeDefaultModelId: GithHubCopilotNativeModelId = "gpt-4"
+export const githHubCopilotNativeModels = {
+	"gpt-3.5-turbo": {
+		maxTokens: 12114,
+		contextWindow: 12114,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"gpt-4": {
+		maxTokens: 28501,
+		contextWindow: 28501,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"gpt-4o": {
+		maxTokens: 123734,
+		contextWindow: 123734,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"o1-preview": {
+		maxTokens: 19827,
+		contextWindow: 19827,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"o1-mini": {
+		maxTokens: 19827,
+		contextWindow: 19827,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"gpt-4o-mini": {
+		maxTokens: 12115,
+		contextWindow: 12115,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"gpt-4-0125-preview": {
+		maxTokens: 63826,
+		contextWindow: 63826,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	},
+	"claude-3-5-sonnet": {
+		maxTokens: 194827,
+		contextWindow: 194827,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0
+	}
+} as const satisfies Record<string, ModelInfo>

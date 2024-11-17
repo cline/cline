@@ -26,6 +26,8 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	githHubCopilotNativeModels,
+	githHubCopilotNativeDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -135,6 +137,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="github-copilot-native">GithHub Copilot</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -630,6 +633,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+							{selectedProvider === "github-copilot-native" && createDropdown(githHubCopilotNativeModels)}
 						</div>
 
 						<ModelInfoView
@@ -840,6 +844,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
+		case "github-copilot-native":
+			return getProviderData(githHubCopilotNativeModels, githHubCopilotNativeDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
