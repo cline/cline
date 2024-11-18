@@ -47,7 +47,7 @@ export class GithHubCopilotNativeHandler implements ApiHandler {
 
     async *createMessage(systemPrompt: string, messages: MessageParam[]): ApiStream {
         if(!vscode.lm.selectChatModels){
-            throw new Error('Language Model API not available in this version of VS Code, update it to >=1.9.0')
+            throw new Error('Language Model API not available in this version of VS Code, update it to >=1.91.0')
         }
         if (!this.client) {
             this.client = await new Promise((resolve, reject) => {
