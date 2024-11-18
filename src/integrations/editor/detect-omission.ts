@@ -9,7 +9,31 @@ import * as vscode from "vscode"
 function detectCodeOmission(originalFileContent: string, newFileContent: string): boolean {
 	const originalLines = originalFileContent.split("\n")
 	const newLines = newFileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "..."]
+	const omissionKeywords = [
+		// English
+		"remain", "remains", "unchanged", "rest", "previous", "existing", "...", "omitted",
+		"skip", "skipped", "same as above", "continued",
+
+		// Japanese
+		"以下同様", "変更なし", "従来通り", "以下略", "省略", "既存", "同上", "略",
+		"以下省略", "以下同じ",
+
+		// Spanish
+		"resto", "restante", "sin cambios", "existente", "anterior", "otros", "omitido",
+		"igual", "continúa",
+
+		// French  
+		"reste", "inchangé", "existant", "précédent", "autres", "omis", "pareil",
+		"identique", "suite",
+
+		// German
+		"unverändert", "bestehend", "vorherig", "andere", "gleich", "ausgelassen",
+		"identisch", "fortgesetzt",
+
+		// Chinese
+		"其余", "其他", "保持不变", "现有", "原有", "等等", "省略", "相同",
+		"略", "同上"
+	]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
