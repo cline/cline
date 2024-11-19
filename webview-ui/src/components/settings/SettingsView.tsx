@@ -19,6 +19,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		soundEnabled,
+		setSoundEnabled,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -33,6 +35,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			onDone()
 		}
 	}
@@ -129,7 +132,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						you to click the Approve button.
 					</p>
 				</div>
-
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Enable sound effects</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will play sound effects for notifications and events.
+					</p>
+				</div>
 				{IS_DEV && (
 					<>
 						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>

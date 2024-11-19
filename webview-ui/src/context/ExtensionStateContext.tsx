@@ -21,6 +21,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
+	setSoundEnabled: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -31,6 +32,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,
+		soundEnabled: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -115,6 +117,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
