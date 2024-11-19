@@ -31,6 +31,7 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
       - run: |
+          npm install -g vsce
           npm run co:login
           latest_published_version=$(npm show roo-cline version)
           current_package_version=$(node -p "require('./package.json').version")
@@ -40,7 +41,6 @@ jobs:
             echo "Latest version is already published to NPM"
           else
             npm run install:all
-            npm install -g vsce
             npm run vsix
             npm publish
             echo "Successfully published to NPM"
