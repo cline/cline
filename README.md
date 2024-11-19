@@ -2,31 +2,47 @@
 
 ## Roo Packaging and Installation
 
-### Packaging
-1. Bump the version in `package.json`
-2. Remove the old VSIX file:
+### Setup
+
+- Install dependencies:
    ```bash
-   rm bin/roo-cline-*.vsix
+   npm run install:all
    ```
-3. Build the VSIX file:
+- Now you can either:
+  1. Install the latest extension from `bin/roo-cline-<latest_version>.vsix`, skip the packaging steps below
+  2. Or build the extension from source and proceed to the packaging steps below
+
+
+### Packaging
+1. **If** you have new changes, bump the version in `package.json`
+    - Remove the old VSIX file:
+    ```bash
+    rm bin/roo-cline-*.vsix
+    ```
+2. Build the VSIX file:
    ```bash
    npm run vsix
    ```
-4. The new VSIX file will be created in the `bin/` directory
-5. Commit the new VSIX file to git:
+3. The new VSIX file will be created in the `bin/` directory
+4. Commit the new VSIX file to git:
    ```bash
    git add bin/*.vsix
    git commit -m "chore: update VSIX to version <new_version>"
    ```
 
 ### Installation
-Install the plugin using the Cursor CLI:
+- **Option 1:** Follow these [instructions](https://www.cursor.com/how-to-install-extension) to manually drag the `.vsix` file into Cursor's Extensions panel (Cmd/Ctrl+Shift+X) and install it.
 
-```bash
-cursor --install-extension bin/roo-cline-<latest_version>.vsix
-```
+- **Option 2:** Make sure you have the Cursor CLI installed and in your PATH.
+  `export PATH="$PATH:/Applications/Cursor.app/Contents/MacOS"`
+- Install the plugin using the Cursor CLI:
 
-Note: The VSIX file is checked into the git repository's `bin/` directory for easy distribution.
+    ```bash
+    cursor --install-extension bin/roo-cline-<latest_version>.vsix
+    # Ex: cursor --install-extension bin/roo-cline-2.0.1.vsix
+    ```
+
+**Note:** The VSIX file is checked into the git repository's `bin/` directory for easy distribution.
 
 After installation, Roo Cline will appear in your Cursor's installed extensions list. You can verify this by opening Cursor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
 
@@ -59,7 +75,7 @@ After installation, Roo Cline will appear in your Cursor's installed extensions 
 
 Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
 
 1. Enter your task and add images to convert mockups into functional apps or fix bugs with screenshots.
 2. Cline starts by analyzing your file structure & source code ASTs, running regex searches, and reading relevant files to get up to speed in existing projects. By carefully managing what information is added to context, Cline can provide valuable assistance even for large, complex projects without overwhelming the context window.
@@ -67,10 +83,10 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.ant
     - Create and edit files + monitor linter/compiler errors along the way, letting him proactively fix issues like missing imports and syntax errors on his own.
     - Execute commands directly in your terminal and monitor their output as he works, letting him e.g., react to dev server issues after editing a file.
     - For web development tasks, Cline can launch the site in a headless browser, click, type, scroll, and capture screenshots + console logs, allowing him to fix runtime errors and visual bugs.
-4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
+4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
 
 > [!TIP]
-> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
+> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
 
 ---
 
@@ -126,10 +142,10 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 ### Add Context
 
--   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
--   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
--   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
--   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
+-   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
+-   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
+-   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
+-   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
 ## Contributing
 

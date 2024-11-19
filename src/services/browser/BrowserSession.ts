@@ -1,18 +1,11 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
-// @ts-ignore
-import PCR from "puppeteer-chromium-resolver"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
-
-interface PCRStats {
-	puppeteer: { launch: typeof launch }
-	executablePath: string
-}
 
 export class BrowserSession {
 	private context: vscode.ExtensionContext
@@ -24,27 +17,6 @@ export class BrowserSession {
 		this.context = context
 	}
 
-	private async ensureChromiumExists(): Promise<PCRStats> {
-		const globalStoragePath = this.context?.globalStorageUri?.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-
-		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fileExistsAtPath(puppeteerDir)
-		if (!dirExists) {
-			await fs.mkdir(puppeteerDir, { recursive: true })
-		}
-
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats: PCRStats = await PCR({
-			downloadPath: puppeteerDir,
-		})
-
-		return stats
-	}
-
 	async launchBrowser() {
 		console.log("launch browser called")
 		if (this.browser) {
@@ -52,12 +24,10 @@ export class BrowserSession {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
-		const stats = await this.ensureChromiumExists()
-		this.browser = await stats.puppeteer.launch({
+		this.browser = await launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
-			executablePath: stats.executablePath,
 			defaultViewport: {
 				width: 900,
 				height: 600,

@@ -1,17 +1,9 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, launch } from "puppeteer-core"
+import { Browser, Page, launch } from "puppeteer"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
-// @ts-ignore
-import PCR from "puppeteer-chromium-resolver"
-import { fileExistsAtPath } from "../../utils/fs"
-
-interface PCRStats {
-	puppeteer: { launch: typeof launch }
-	executablePath: string
-}
 
 export class UrlContentFetcher {
 	private context: vscode.ExtensionContext
@@ -22,34 +14,14 @@ export class UrlContentFetcher {
 		this.context = context
 	}
 
-	private async ensureChromiumExists(): Promise<PCRStats> {
-		const globalStoragePath = this.context?.globalStorageUri?.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fileExistsAtPath(puppeteerDir)
-		if (!dirExists) {
-			await fs.mkdir(puppeteerDir, { recursive: true })
-		}
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats: PCRStats = await PCR({
-			downloadPath: puppeteerDir,
-		})
-		return stats
-	}
-
 	async launchBrowser(): Promise<void> {
 		if (this.browser) {
 			return
 		}
-		const stats = await this.ensureChromiumExists()
-		this.browser = await stats.puppeteer.launch({
+		this.browser = await launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
-			executablePath: stats.executablePath,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
