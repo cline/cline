@@ -40,7 +40,10 @@ jobs:
           if [ "$latest_published_version" == "$current_package_version" ]; then
             echo "Latest version is already published to NPM"
           else
-            npm run install:all
+            npm install
+            cd webview-ui
+            npm install
+            cd ..
             npm run vsix
             npm publish
             echo "Successfully published to NPM"
