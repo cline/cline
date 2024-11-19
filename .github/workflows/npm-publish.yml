@@ -32,7 +32,7 @@ jobs:
           git config user.email github-actions@github.com
       - run: |
           npm run co:login
-          latest_published_version=$(npm show @roo-dev/roo-cline version)
+          latest_published_version=$(npm show roo-cline version)
           current_package_version=$(node -p "require('./package.json').version")
           echo "Latest published version: $latest_published_version"
           echo "Current package version: $current_package_version"
