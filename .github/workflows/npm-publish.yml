@@ -40,6 +40,7 @@ jobs:
             echo "Latest version is already published to NPM"
           else
             npm install
+            npm install -g vsce
             npm run vsix
             npm publish
             echo "Successfully published to NPM"
