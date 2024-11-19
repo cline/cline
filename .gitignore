@@ -4,3 +4,5 @@ node_modules
 .vscode-test/
 
 .DS_Store
+
+.npmrc
