@@ -39,7 +39,7 @@ jobs:
           if [ "$latest_published_version" == "$current_package_version" ]; then
             echo "Latest version is already published to NPM"
           else
-            npm install
+            npm run install:all
             npm install -g vsce
             npm run vsix
             npm publish
