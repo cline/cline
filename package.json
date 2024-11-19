@@ -184,9 +184,6 @@
     "turndown": "^7.2.0",
     "web-tree-sitter": "^0.22.6"
   },
-  "publishConfig": {
-    "registry": "https://www.npmjs.com"
-  },
   "files": [
     "bin/roo-cline-2.0.2.vsix",
     "assets/icons/icon_Roo.png"
