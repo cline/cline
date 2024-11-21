@@ -65,8 +65,8 @@ export class DecorationController {
 			this.ranges.push(
 				new vscode.Range(
 					new vscode.Position(line + 1, 0),
-					new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER)
-				)
+					new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER),
+				),
 			)
 		}
 

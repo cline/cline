@@ -19,7 +19,7 @@ export function convertAnthropicContentToGemini(
 				| Anthropic.Messages.ImageBlockParam
 				| Anthropic.Messages.ToolUseBlockParam
 				| Anthropic.Messages.ToolResultBlockParam
-		  >
+		  >,
 ): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content } as TextPart]
@@ -83,7 +83,7 @@ export function convertAnthropicContentToGemini(
 										data: part.source.data,
 										mimeType: part.source.media_type,
 									},
-								} as InlineDataPart)
+								}) as InlineDataPart,
 						),
 					]
 				}
@@ -113,7 +113,7 @@ export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): Fun
 						type: (value as any).type.toUpperCase(),
 						description: (value as any).description || "",
 					},
-				])
+				]),
 			),
 			required: (tool.input_schema.required as string[]) || [],
 		},
@@ -133,7 +133,7 @@ export function unescapeGeminiContent(content: string) {
 }
 
 export function convertGeminiResponseToAnthropic(
-	response: EnhancedGenerateContentResponse
+	response: EnhancedGenerateContentResponse,
 ): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 

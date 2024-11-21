@@ -57,7 +57,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							config.lmStudioModelId,
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
-					  ].some((key) => key !== undefined)
+						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)

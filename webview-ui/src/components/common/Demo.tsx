@@ -1,24 +1,23 @@
-
 import {
-    VSCodeBadge,
-    VSCodeButton,
-    VSCodeCheckbox,
-    VSCodeDataGrid,
-    VSCodeDataGridCell,
-    VSCodeDataGridRow,
-    VSCodeDivider,
-    VSCodeDropdown,
-    VSCodeLink,
-    VSCodeOption,
-    VSCodePanels,
-    VSCodePanelTab,
-    VSCodePanelView,
-    VSCodeProgressRing,
-    VSCodeRadio,
-    VSCodeRadioGroup,
-    VSCodeTag,
-    VSCodeTextArea,
-    VSCodeTextField,
+	VSCodeBadge,
+	VSCodeButton,
+	VSCodeCheckbox,
+	VSCodeDataGrid,
+	VSCodeDataGridCell,
+	VSCodeDataGridRow,
+	VSCodeDivider,
+	VSCodeDropdown,
+	VSCodeLink,
+	VSCodeOption,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+	VSCodeProgressRing,
+	VSCodeRadio,
+	VSCodeRadioGroup,
+	VSCodeTag,
+	VSCodeTextArea,
+	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 
 function Demo() {
@@ -81,7 +80,7 @@ function Demo() {
 					))}
 				</VSCodeDataGrid>
 
-                <VSCodeTextField>
+				<VSCodeTextField>
 					<section slot="end" style={{ display: "flex", alignItems: "center" }}>
 						<VSCodeButton appearance="icon" aria-label="Match Case">
 							<span className="codicon codicon-case-sensitive"></span>

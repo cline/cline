@@ -167,7 +167,7 @@ I've analyzed the project structure, but I need more information to proceed. Let
 
 export function convertToO1Messages(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
-	systemPrompt: string
+	systemPrompt: string,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const toolsReplaced = openAiMessages.reduce((acc, message) => {
 		if (message.role === "tool") {
@@ -360,7 +360,7 @@ function validateToolInput(toolName: string, tool_input: Record<string, string>)
 
 // Convert OpenAI response to Anthropic format
 export function convertO1ResponseToAnthropicMessage(
-	completion: OpenAI.Chat.Completions.ChatCompletion
+	completion: OpenAI.Chat.Completions.ChatCompletion,
 ): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
 	const { normalText, toolCalls } = parseAIResponse(openAiMessage.content || "")
@@ -405,7 +405,7 @@ export function convertO1ResponseToAnthropicMessage(
 					name: toolCall.tool,
 					input: toolCall.tool_input,
 				}
-			})
+			}),
 		)
 	}
 
