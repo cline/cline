@@ -3,7 +3,7 @@ import { mentionRegex } from "../../../src/shared/context-mentions"
 export function insertMention(
 	text: string,
 	position: number,
-	value: string
+	value: string,
 ): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
@@ -62,7 +62,7 @@ export interface ContextMenuQueryItem {
 export function getContextMenuOptions(
 	query: string,
 	selectedType: ContextMenuOptionType | null = null,
-	queryItems: ContextMenuQueryItem[]
+	queryItems: ContextMenuQueryItem[],
 ): ContextMenuQueryItem[] {
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {

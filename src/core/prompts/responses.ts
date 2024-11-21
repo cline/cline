@@ -30,7 +30,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	toolResult: (
 		text: string,
-		images?: string[]
+		images?: string[],
 	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
 		if (images && images.length > 0) {
 			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
@@ -76,7 +76,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			})
 		if (didHitLimit) {
 			return `${sorted.join(
-				"\n"
+				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
 		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
 			return "No files found."
@@ -105,7 +105,7 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 					type: "image",
 					source: { type: "base64", media_type: mimeType, data: base64 },
 				} as Anthropic.ImageBlockParam
-		  })
+			})
 		: []
 }
 

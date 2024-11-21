@@ -69,8 +69,19 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 	}
 
 	background-color: ${CODE_BLOCK_BG_COLOR};
-	font-family: var(--vscode-font-family), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-		Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+	font-family:
+		var(--vscode-font-family),
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		Roboto,
+		Oxygen,
+		Ubuntu,
+		Cantarell,
+		"Open Sans",
+		"Helvetica Neue",
+		sans-serif;
 	font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
 	color: var(--vscode-editor-foreground, #fff);
 

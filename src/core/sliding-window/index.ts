@@ -9,7 +9,7 @@ Therefore, this function should only be called when absolutely necessary to fit 
 context limits, not as a continuous process.
 */
 export function truncateHalfConversation(
-	messages: Anthropic.Messages.MessageParam[]
+	messages: Anthropic.Messages.MessageParam[],
 ): Anthropic.Messages.MessageParam[] {
 	// API expects messages to be in user-assistant order, and tool use messages must be followed by tool results. We need to maintain this structure while truncating.
 

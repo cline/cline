@@ -84,7 +84,7 @@ declare module "vscode" {
 		onDidStartTerminalShellExecution?: (
 			listener: (e: any) => any,
 			thisArgs?: any,
-			disposables?: vscode.Disposable[]
+			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
 	}
 }
