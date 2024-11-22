@@ -239,12 +239,14 @@ describe('Cline', () => {
                 undefined, // alwaysAllowReadOnly
                 undefined, // alwaysAllowWrite
                 undefined, // alwaysAllowExecute
+                undefined, // alwaysAllowBrowser
                 'test task'
             );
 
             expect(cline.alwaysAllowReadOnly).toBe(false);
             expect(cline.alwaysAllowWrite).toBe(false);
             expect(cline.alwaysAllowExecute).toBe(false);
+            expect(cline.alwaysAllowBrowser).toBe(false);
         });
 
         it('should respect provided settings', () => {
@@ -255,12 +257,14 @@ describe('Cline', () => {
                 true,  // alwaysAllowReadOnly
                 true,  // alwaysAllowWrite
                 true,  // alwaysAllowExecute
+                true,  // alwaysAllowBrowser
                 'test task'
             );
 
             expect(cline.alwaysAllowReadOnly).toBe(true);
             expect(cline.alwaysAllowWrite).toBe(true);
             expect(cline.alwaysAllowExecute).toBe(true);
+            expect(cline.alwaysAllowBrowser).toBe(true);
             expect(cline.customInstructions).toBe('custom instructions');
         });
 
@@ -285,6 +289,7 @@ describe('Cline', () => {
                 false,
                 false,
                 false,
+                false,
                 'test task'
             );
         });
@@ -296,6 +301,7 @@ describe('Cline', () => {
                 undefined,
                 false,
                 true,  // alwaysAllowWrite
+                false,
                 false,
                 'test task'
             );
@@ -311,6 +317,7 @@ describe('Cline', () => {
                 undefined,
                 false,
                 false,  // alwaysAllowWrite
+                false,
                 false,
                 'test task'
             );
@@ -350,6 +357,7 @@ describe('Cline', () => {
                 false,      // alwaysAllowReadOnly
                 false,      // alwaysAllowWrite
                 false,      // alwaysAllowExecute
+                false,      // alwaysAllowBrowser
                 'test task' // task
             )
 

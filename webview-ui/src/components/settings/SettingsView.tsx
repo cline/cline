@@ -23,6 +23,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysAllowWrite,
 		alwaysAllowExecute,
 		setAlwaysAllowExecute,
+		alwaysAllowBrowser,
+		setAlwaysAllowBrowser,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -39,6 +41,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
+			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
 			onDone()
 		}
 	}
@@ -170,6 +173,22 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</p>
 				</div>
 
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowBrowser}
+						onChange={(e: any) => setAlwaysAllowBrowser(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always approve browser actions</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will automatically perform browser actions without requiring
+						you to click the Approve button.
+					</p>
+				</div>
 
 				{IS_DEV && (
 					<>
