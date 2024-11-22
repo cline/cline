@@ -46,6 +46,9 @@ type GlobalStateKey =
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
+	| "enableLargeFileCheck"
+	| "largeFileCheckMaxSize"
+	| "largeFileCheckChunkSize"
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
@@ -191,18 +194,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly, enableLargeFileCheck, largeFileCheckMaxSize, largeFileCheckChunkSize } = await this.getState()
+		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, enableLargeFileCheck, largeFileCheckMaxSize, largeFileCheckChunkSize, task, images)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly, enableLargeFileCheck, largeFileCheckMaxSize, largeFileCheckChunkSize } = await this.getState()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
+			enableLargeFileCheck,
+			largeFileCheckMaxSize,
+			largeFileCheckChunkSize,
 			undefined,
 			undefined,
 			historyItem,
@@ -301,11 +307,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
-	private setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage(
-			async (message: WebviewMessage) => {
-				switch (message.type) {
-					case "webviewDidLaunch":
+private setWebviewMessageListener(webview: vscode.Webview) {
+	webview.onDidReceiveMessage(
+		async (message: WebviewMessage) => {
+			switch (message.type) {
+				case "webviewDidLaunch":
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
@@ -401,8 +407,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
 						}
-						await this.postStateToWebview()
-						break
+					await this.postStateToWebview()
+					break
 					case "customInstructions":
 						await this.updateCustomInstructions(message.text)
 						break
@@ -410,6 +416,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
 						if (this.cline) {
 							this.cline.alwaysAllowReadOnly = message.bool ?? false
+						}
+						await this.postStateToWebview()
+						break
+					
+					case "enableLargeFileCheck":
+						await this.updateGlobalState("enableLargeFileCheck", message.bool ?? undefined)
+						if (this.cline) {
+							this.cline.alwaysAllowReadOnly = message.bool ?? false
+						}
+						await this.postStateToWebview()
+						break
+					case "largeFileCheckMaxSize":
+						await this.updateGlobalState("largeFileCheckMaxSize", message.number ?? undefined)
+						if (this.cline) {
+							this.cline.largeFileCheckMaxSize = message.number ?? 128
+						}
+						await this.postStateToWebview()
+						break
+					case "largeFileCheckChunkSize":
+						await this.updateGlobalState("largeFileCheckChunkSize", message.number ?? undefined)
+						if (this.cline) {
+							this.cline.largeFileCheckChunkSize = message.number ?? 10
 						}
 						await this.postStateToWebview()
 						break
@@ -487,12 +515,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
-				}
-			},
-			null,
-			this.disposables,
-		)
-	}
+			}
+		},
+		null,
+		this.disposables,
+	)
+}
 
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
@@ -784,13 +812,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async getStateToPostToWebview() {
-		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
+		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, enableLargeFileCheck, largeFileCheckMaxSize, largeFileCheckChunkSize, taskHistory } =
 			await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
+			enableLargeFileCheck,
+			largeFileCheckMaxSize,
+			largeFileCheckChunkSize,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
@@ -849,11 +880,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
-	async getState() {
-		const [
-			storedApiProvider,
-			apiModelId,
-			apiKey,
+async getState() {
+	const [
+		storedApiProvider,
+		apiModelId,
+		apiKey,
 			openRouterApiKey,
 			awsAccessKey,
 			awsSecretKey,
@@ -875,14 +906,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			taskHistory,
-		] = await Promise.all([
-			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-			this.getGlobalState("apiModelId") as Promise<string | undefined>,
-			this.getSecret("apiKey") as Promise<string | undefined>,
+		lastShownAnnouncementId,
+		customInstructions,
+		alwaysAllowReadOnly,
+		enableLargeFileCheck,
+		largeFileCheckMaxSize,
+		largeFileCheckChunkSize,
+		taskHistory,
+	] = await Promise.all([
+		this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
+		this.getGlobalState("apiModelId") as Promise<string | undefined>,
+		this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
@@ -904,28 +938,33 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-		])
+		this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
+		this.getGlobalState("customInstructions") as Promise<string | undefined>,
+		this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+		this.getGlobalState("enableLargeFileCheck") as Promise<boolean | undefined>,
+		this.getGlobalState("largeFileCheckMaxSize") as Promise<number | undefined>,
+		this.getGlobalState("largeFileCheckChunkSize") as Promise<number | undefined>,
 
-		let apiProvider: ApiProvider
-		if (storedApiProvider) {
-			apiProvider = storedApiProvider
-		} else {
+
+		this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+	])
+
+	let apiProvider: ApiProvider
+	if (storedApiProvider) {
+		apiProvider = storedApiProvider
+	} else {
 			// Either new user or legacy user that doesn't have the apiProvider stored in state
 			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-			if (apiKey) {
-				apiProvider = "anthropic"
-			} else {
+		if (apiKey) {
+			apiProvider = "anthropic"
+		} else {
 				// New users should default to openrouter
-				apiProvider = "openrouter"
-			}
+			apiProvider = "openrouter"
 		}
+	}
 
-		return {
-			apiConfiguration: {
+	return {
+		apiConfiguration: {
 				apiProvider,
 				apiModelId,
 				apiKey,
@@ -950,13 +989,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
-			},
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-			taskHistory,
-		}
+		},
+		lastShownAnnouncementId,
+		customInstructions,
+		alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+		enableLargeFileCheck: enableLargeFileCheck ?? false,
+		largeFileCheckMaxSize: largeFileCheckMaxSize ?? 128,
+		largeFileCheckChunkSize: largeFileCheckChunkSize ?? 10,
+		taskHistory,
 	}
+}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []

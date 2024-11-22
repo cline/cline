@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -19,6 +19,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		enableLargeFileCheck,
+		setEnableLargeFileCheck,
+		largeFileCheckMaxSize,
+		setLargeFileCheckMaxSize,
+		largeFileCheckChunkSize,
+		setLargeFileCheckChunkSize,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -33,6 +39,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "enableLargeFileCheck", bool: enableLargeFileCheck })
+			vscode.postMessage({ type: "largeFileCheckMaxSize", number: largeFileCheckMaxSize })
+			vscode.postMessage({ type: "largeFileCheckChunkSize", number: largeFileCheckChunkSize })
 			onDone()
 		}
 	}
@@ -128,6 +137,59 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
 					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={enableLargeFileCheck}
+						onChange={(e: any) => setEnableLargeFileCheck(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Enable large file handling</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, files larger than {largeFileCheckMaxSize}KB will be read in chunks of {largeFileCheckChunkSize}KB to prevent memory issues.
+						The LLM can request more content if needed.
+					</p>
+					{enableLargeFileCheck && (
+						<div style={{ marginLeft: "20px", marginTop: "10px" }}>
+							<div style={{ marginBottom: "10px" }}>
+								<VSCodeTextField
+									value={largeFileCheckMaxSize?.toString() ?? "128"}
+									style={{ width: "100%" }}
+									onChange={(e: any) => setLargeFileCheckMaxSize(Number(e.target.value))}>
+									<span style={{ fontWeight: "500" }}>Maximum File Size (KB)</span>
+								</VSCodeTextField>
+								<p
+									style={{
+										fontSize: "12px",
+										marginTop: "5px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Files larger than this size will be read in chunks.
+								</p>
+							</div>
+							<div>
+								<VSCodeTextField
+									value={largeFileCheckChunkSize?.toString() ?? "10"}
+									style={{ width: "100%" }}
+									onChange={(e: any) => setLargeFileCheckChunkSize(Number(e.target.value))}>
+									<span style={{ fontWeight: "500" }}>Chunk Size (KB)</span>
+								</VSCodeTextField>
+								<p
+									style={{
+										fontSize: "12px",
+										marginTop: "5px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									The size of each chunk when reading large files.
+								</p>
+							</div>
+						</div>
+					)}
 				</div>
 
 				{IS_DEV && (

@@ -65,6 +65,9 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	enableLargeFileCheck: boolean
+	largeFileCheckMaxSize: number
+	largeFileCheckChunkSize: number
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -94,6 +97,9 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
+		enableLargeFileCheck?: boolean,
+		largeFileCheckMaxSize?: number,
+		largeFileCheckChunkSize?: number,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -106,6 +112,9 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.enableLargeFileCheck = enableLargeFileCheck ?? false
+		this.largeFileCheckMaxSize = largeFileCheckMaxSize ?? 128
+		this.largeFileCheckChunkSize = largeFileCheckChunkSize ?? 10
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1195,7 +1204,7 @@ export class Cline {
 									}
 								}
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath)
+								const content = await extractTextFromFile(absolutePath, this.enableLargeFileCheck, this.largeFileCheckMaxSize, this.largeFileCheckChunkSize)
 								pushToolResult(content)
 								break
 							}

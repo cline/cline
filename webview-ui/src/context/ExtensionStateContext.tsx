@@ -20,6 +20,9 @@ interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
+	setEnableLargeFileCheck: (value: boolean) => void
+	setLargeFileCheckMaxSize: (value: number) => void
+	setLargeFileCheckChunkSize: (value: number) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -114,6 +117,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
+		setEnableLargeFileCheck: (value) => setState((prevState) => ({ ...prevState, enableLargeFileCheck: value })),
+		setLargeFileCheckMaxSize: (value) => setState((prevState) => ({ ...prevState, largeFileCheckMaxSize: value })),
+		setLargeFileCheckChunkSize: (value) => setState((prevState) => ({ ...prevState, largeFileCheckChunkSize: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
 	}
 

@@ -33,6 +33,9 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
+	enableLargeFileCheck?: boolean
+	largeFileCheckMaxSize?: number
+	largeFileCheckChunkSize?: number
 	uriScheme?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
