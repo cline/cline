@@ -2,7 +2,7 @@
   "name": "roo-cline",
   "displayName": "Roo Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "icon": "assets/icons/icon_Roo.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -111,6 +111,15 @@
           "when": "view == claude-dev.SidebarProvider"
         }
       ]
+    },
+    "configuration": {
+      "properties": {
+        "cline.alwaysAllowBrowser": {
+          "type": "boolean",
+          "default": false,
+          "description": "Always allow browser actions without requiring confirmation"
+        }
+      }
     }
   },
   "scripts": {

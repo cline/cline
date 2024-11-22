@@ -77,6 +77,7 @@ export class Cline {
 	alwaysAllowReadOnly: boolean
 	alwaysAllowWrite: boolean
 	alwaysAllowExecute: boolean
+	alwaysAllowBrowser: boolean
 
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -109,6 +110,7 @@ export class Cline {
 		alwaysAllowReadOnly?: boolean,
 		alwaysAllowWrite?: boolean,
 		alwaysAllowExecute?: boolean,
+		alwaysAllowBrowser?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem
@@ -123,6 +125,7 @@ export class Cline {
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 		this.alwaysAllowWrite = alwaysAllowWrite ?? false
 		this.alwaysAllowExecute = alwaysAllowExecute ?? false		
+		this.alwaysAllowBrowser = alwaysAllowBrowser ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -869,7 +872,7 @@ export class Cline {
 					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
 					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
 					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?$/, "")
+					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?$/, "")
 					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
 					// - Needs to be separate since we dont want to remove the line break before the first tag
 					// - Needs to happen before the xml parsing below
@@ -1418,11 +1421,24 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									await this.ask(
-										"browser_action_launch",
-										removeClosingTag("url", url),
-										block.partial
-									).catch(() => {})
+									if (this.alwaysAllowBrowser) {
+										await this.say(
+											"browser_action",
+											JSON.stringify({
+												action: action as BrowserAction,
+												coordinate: undefined,
+												text: undefined
+											} satisfies ClineSayBrowserAction),
+											undefined,
+											block.partial
+										)
+									} else {
+										await this.ask(
+											"browser_action_launch",
+											removeClosingTag("url", url),
+											block.partial
+										).catch(() => {})
+									}
 								} else {
 									await this.say(
 										"browser_action",
@@ -1448,7 +1464,7 @@ export class Cline {
 										break
 									}
 									this.consecutiveMistakeCount = 0
-									const didApprove = await askApproval("browser_action_launch", url)
+									const didApprove = this.alwaysAllowBrowser || await askApproval("browser_action_launch", url)
 									if (!didApprove) {
 										break
 									}
