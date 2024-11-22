@@ -151,8 +151,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, files larger than {largeFileCheckMaxSize}KB will be read in chunks of {largeFileCheckChunkSize}KB to prevent memory issues.
-						The LLM can request more content if needed.
+						When enabled, files larger than {largeFileCheckMaxSize}KB will be initially read up to the first {largeFileCheckChunkSize}KB. The LLM can request additional chunks if it determines it needs more information.
 					</p>
 					{enableLargeFileCheck && (
 						<div style={{ marginLeft: "20px", marginTop: "10px" }}>

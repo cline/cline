@@ -85,6 +85,7 @@ export interface ClineSayTool {
 		| "editedExistingFile"
 		| "newFileCreated"
 		| "readFile"
+		| "readNextChunk"
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
@@ -94,6 +95,7 @@ export interface ClineSayTool {
 	content?: string
 	regex?: string
 	filePattern?: string
+	offset?: number
 }
 
 // must keep in sync with system prompt

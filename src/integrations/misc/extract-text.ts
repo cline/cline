@@ -4,7 +4,7 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
-import { readFileWithSizeCheck } from "../../utils/large-file"
+import { readFileWithSizeCheck, readNextChunk } from "../../utils/large-file"
 
 export async function extractTextFromFile(filePath: string, enableLargeFileCheck: boolean = false, largeFileCheckMaxSize: number = Number.MAX_VALUE, largeFileCheckChunkSize: number = Number.MAX_VALUE): Promise<string> {
     try {
@@ -26,7 +26,7 @@ export async function extractTextFromFile(filePath: string, enableLargeFileCheck
                 if (enableLargeFileCheck) {
                     const result = await readFileWithSizeCheck(filePath, largeFileCheckMaxSize, largeFileCheckChunkSize)
                     if (result.isPartial) {
-                        return `${result.content}\n\n[Note: This is a partial content (${(result.loadedSize / 1024).toFixed(1)}KB of ${(result.totalSize / 1024).toFixed(1)}KB). The file is large, so only the first part is shown. You can request more content if needed.]`
+                        return `${result.content}\n\n[Note: This is a partial content (${(result.loadedSize / 1024).toFixed(1)}KB of ${(result.totalSize / 1024).toFixed(1)}KB). The file is large, so only the first part is shown. To read more, use the read_next_chunk tool with offset ${result.loadedSize}.]`
                     }
                     return result.content
                 }
@@ -37,10 +37,24 @@ export async function extractTextFromFile(filePath: string, enableLargeFileCheck
     }
 }
 
+export async function extractNextChunk(filePath: string, offset: number, largeFileCheckMaxSize: number, largeFileCheckChunkSize: number): Promise<string> {
+    try {
+        await fs.access(filePath)
+    } catch (error) {
+        throw new Error(`File not found: ${filePath}`)
+    }
+
+    const result = await readNextChunk(filePath, offset, largeFileCheckMaxSize, largeFileCheckChunkSize)
+    if (result.isPartial) {
+        return `${result.content}\n\n[Note: This is a partial content (${(result.loadedSize / 1024).toFixed(1)}KB of ${(result.totalSize / 1024).toFixed(1)}KB). To read more, use the read_next_chunk tool with offset ${result.loadedSize}.]`
+    }
+    return result.content
+}
+
 async function extractTextFromPDF(filePath: string): Promise<string> {
-    const dataBuffer = await fs.readFile(filePath)
-    const data = await pdf(dataBuffer)
-    return data.text
+	const dataBuffer = await fs.readFile(filePath)
+	const data = await pdf(dataBuffer)
+	return data.text
 }
 
 async function extractTextFromDOCX(filePath: string): Promise<string> {

@@ -880,11 +880,11 @@ private setWebviewMessageListener(webview: vscode.Webview) {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
-async getState() {
-	const [
-		storedApiProvider,
-		apiModelId,
-		apiKey,
+	async getState() {
+		const [
+			storedApiProvider,
+			apiModelId,
+			apiKey,
 			openRouterApiKey,
 			awsAccessKey,
 			awsSecretKey,
@@ -906,17 +906,17 @@ async getState() {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
-		lastShownAnnouncementId,
-		customInstructions,
-		alwaysAllowReadOnly,
-		enableLargeFileCheck,
-		largeFileCheckMaxSize,
-		largeFileCheckChunkSize,
-		taskHistory,
-	] = await Promise.all([
-		this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-		this.getGlobalState("apiModelId") as Promise<string | undefined>,
-		this.getSecret("apiKey") as Promise<string | undefined>,
+			lastShownAnnouncementId,
+			customInstructions,
+			alwaysAllowReadOnly,
+			enableLargeFileCheck,
+			largeFileCheckMaxSize,
+			largeFileCheckChunkSize,
+			taskHistory,
+		] = await Promise.all([
+			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
+			this.getGlobalState("apiModelId") as Promise<string | undefined>,
+			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
@@ -938,67 +938,65 @@ async getState() {
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-		this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-		this.getGlobalState("customInstructions") as Promise<string | undefined>,
-		this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-		this.getGlobalState("enableLargeFileCheck") as Promise<boolean | undefined>,
-		this.getGlobalState("largeFileCheckMaxSize") as Promise<number | undefined>,
-		this.getGlobalState("largeFileCheckChunkSize") as Promise<number | undefined>,
+			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
+			this.getGlobalState("customInstructions") as Promise<string | undefined>,
+			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+			this.getGlobalState("enableLargeFileCheck") as Promise<boolean | undefined>,
+			this.getGlobalState("largeFileCheckMaxSize") as Promise<number | undefined>,
+			this.getGlobalState("largeFileCheckChunkSize") as Promise<number | undefined>,
+			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+		])
 
-
-		this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-	])
-
-	let apiProvider: ApiProvider
-	if (storedApiProvider) {
-		apiProvider = storedApiProvider
-	} else {
-			// Either new user or legacy user that doesn't have the apiProvider stored in state
-			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-		if (apiKey) {
-			apiProvider = "anthropic"
+		let apiProvider: ApiProvider
+		if (storedApiProvider) {
+			apiProvider = storedApiProvider
 		} else {
-				// New users should default to openrouter
-			apiProvider = "openrouter"
+				// Either new user or legacy user that doesn't have the apiProvider stored in state
+				// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
+			if (apiKey) {
+				apiProvider = "anthropic"
+			} else {
+					// New users should default to openrouter
+				apiProvider = "openrouter"
+			}
+		}
+
+		return {
+			apiConfiguration: {
+					apiProvider,
+					apiModelId,
+					apiKey,
+					openRouterApiKey,
+					awsAccessKey,
+					awsSecretKey,
+					awsSessionToken,
+					awsRegion,
+					awsUseCrossRegionInference,
+					vertexProjectId,
+					vertexRegion,
+					openAiBaseUrl,
+					openAiApiKey,
+					openAiModelId,
+					ollamaModelId,
+					ollamaBaseUrl,
+					lmStudioModelId,
+					lmStudioBaseUrl,
+					anthropicBaseUrl,
+					geminiApiKey,
+					openAiNativeApiKey,
+					azureApiVersion,
+					openRouterModelId,
+					openRouterModelInfo,
+			},
+			lastShownAnnouncementId,
+			customInstructions,
+			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			enableLargeFileCheck: enableLargeFileCheck ?? false,
+			largeFileCheckMaxSize: largeFileCheckMaxSize ?? 128,
+			largeFileCheckChunkSize: largeFileCheckChunkSize ?? 10,
+			taskHistory,
 		}
 	}
-
-	return {
-		apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				openRouterApiKey,
-				awsAccessKey,
-				awsSecretKey,
-				awsSessionToken,
-				awsRegion,
-				awsUseCrossRegionInference,
-				vertexProjectId,
-				vertexRegion,
-				openAiBaseUrl,
-				openAiApiKey,
-				openAiModelId,
-				ollamaModelId,
-				ollamaBaseUrl,
-				lmStudioModelId,
-				lmStudioBaseUrl,
-				anthropicBaseUrl,
-				geminiApiKey,
-				openAiNativeApiKey,
-				azureApiVersion,
-				openRouterModelId,
-				openRouterModelInfo,
-		},
-		lastShownAnnouncementId,
-		customInstructions,
-		alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-		enableLargeFileCheck: enableLargeFileCheck ?? false,
-		largeFileCheckMaxSize: largeFileCheckMaxSize ?? 128,
-		largeFileCheckChunkSize: largeFileCheckChunkSize ?? 10,
-		taskHistory,
-	}
-}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
