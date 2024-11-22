@@ -2,7 +2,11 @@
   "name": "roo-cline",
   "displayName": "Roo Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.0.3",
+  "version": "2.0.3", 
+  "files": [
+    "bin/roo-cline-2.0.3.vsix", 
+    "assets/icons/icon_Roo.png"
+  ],
   "icon": "assets/icons/icon_Roo.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -192,9 +196,5 @@
     "tree-sitter-wasms": "^0.1.11",
     "turndown": "^7.2.0",
     "web-tree-sitter": "^0.22.6"
-  },
-  "files": [
-    "bin/roo-cline-2.0.2.vsix",
-    "assets/icons/icon_Roo.png"
-  ]
+  }
 }
