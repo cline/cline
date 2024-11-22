@@ -46,7 +46,7 @@ export function formatContentBlockToMarkdown(
 		| Anthropic.TextBlockParam
 		| Anthropic.ImageBlockParam
 		| Anthropic.ToolUseBlockParam
-		| Anthropic.ToolResultBlockParam
+		| Anthropic.ToolResultBlockParam,
 	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {

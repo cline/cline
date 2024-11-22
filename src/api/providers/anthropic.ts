@@ -36,7 +36,7 @@ export class AnthropicHandler implements ApiHandler {
 				*/
 				const userMsgIndices = messages.reduce(
 					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[]
+					[] as number[],
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
@@ -58,12 +58,12 @@ export class AnthropicHandler implements ApiHandler {
 														text: message.content,
 														cache_control: { type: "ephemeral" },
 													},
-											  ]
+												]
 											: message.content.map((content, contentIndex) =>
 													contentIndex === message.content.length - 1
 														? { ...content, cache_control: { type: "ephemeral" } }
-														: content
-											  ),
+														: content,
+												),
 								}
 							}
 							return message
@@ -88,7 +88,7 @@ export class AnthropicHandler implements ApiHandler {
 							default:
 								return undefined
 						}
-					})()
+					})(),
 				)
 				break
 			}

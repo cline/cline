@@ -3,5 +3,5 @@
 	"useTabs": true,
 	"printWidth": 120,
 	"semi": false,
-	"jsxBracketSameLine": true
+	"bracketSameLine": true
 }

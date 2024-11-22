@@ -126,7 +126,7 @@ export async function regexSearchFiles(
 	cwd: string,
 	directoryPath: string,
 	regex: string,
-	filePattern?: string
+	filePattern?: string,
 ): Promise<string> {
 	const vscodeAppRoot = vscode.env.appRoot
 	const rgPath = await getBinPath(vscodeAppRoot)

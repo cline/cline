@@ -2,7 +2,7 @@
   "name": "roo-cline",
   "displayName": "Roo Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.0.3", 
+  "version": "2.1.0", 
   "files": [
     "bin/roo-cline-2.0.3.vsix", 
     "assets/icons/icon_Roo.png"
