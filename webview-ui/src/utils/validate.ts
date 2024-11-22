@@ -59,7 +59,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,
-	openRouterModels?: Record<string, ModelInfo>
+	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {

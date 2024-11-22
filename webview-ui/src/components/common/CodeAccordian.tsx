@@ -35,7 +35,7 @@ const CodeAccordian = ({
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
-		[path, language, code]
+		[path, language, code],
 	)
 
 	return (

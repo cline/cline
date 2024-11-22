@@ -4,7 +4,7 @@ import deepEqual from "fast-deep-equal"
 
 export function getNewDiagnostics(
 	oldDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
-	newDiagnostics: [vscode.Uri, vscode.Diagnostic[]][]
+	newDiagnostics: [vscode.Uri, vscode.Diagnostic[]][],
 ): [vscode.Uri, vscode.Diagnostic[]][] {
 	const newProblems: [vscode.Uri, vscode.Diagnostic[]][] = []
 	const oldMap = new Map(oldDiagnostics)
@@ -73,7 +73,7 @@ export function getNewDiagnostics(
 export function diagnosticsToProblemsString(
 	diagnostics: [vscode.Uri, vscode.Diagnostic[]][],
 	severities: vscode.DiagnosticSeverity[],
-	cwd: string
+	cwd: string,
 ): string {
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {

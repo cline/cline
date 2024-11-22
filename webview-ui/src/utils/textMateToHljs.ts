@@ -100,7 +100,7 @@ function fallbackTheme() {
 				".hljs-string": "#a31515",
 				".hljs-meta .hljs-string": "#a31515",
 				".hljs-params": "#001080",
-		  }
+			}
 		: {
 				".hljs-comment": "#6A9955",
 				".hljs-doctag": "#569cd6",
@@ -128,7 +128,7 @@ function fallbackTheme() {
 				".hljs-string": "#ce9178",
 				".hljs-meta .hljs-string": "#ce9178",
 				".hljs-params": "#9CDCFE",
-		  }
+			}
 }
 
 export function convertTextMateToHljs(fullColorTheme: any) {

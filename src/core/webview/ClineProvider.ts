@@ -77,7 +77,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private workspaceTracker?: WorkspaceTracker
 	private latestAnnouncementId = "oct-28-2024" // update to some unique identifier when we add a new announcement
 
-	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
+	constructor(
+		readonly context: vscode.ExtensionContext,
+		private readonly outputChannel: vscode.OutputChannel,
+	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
@@ -113,7 +116,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	resolveWebviewView(
-		webviewView: vscode.WebviewView | vscode.WebviewPanel
+		webviewView: vscode.WebviewView | vscode.WebviewPanel,
 		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
 		//token: vscode.CancellationToken
 	): void | Thenable<void> {
@@ -146,7 +149,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
@@ -157,7 +160,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		}
 
@@ -168,7 +171,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.dispose()
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// Listen for when color changes
@@ -180,7 +183,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// if the extension is starting a new session, clear previous task state
@@ -234,7 +237,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowBrowser,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
 		)
 	}
 
@@ -338,7 +341,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
-							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
+							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) }),
 						)
 						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
@@ -356,7 +359,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								if (apiConfiguration.openRouterModelId) {
 									await this.updateGlobalState(
 										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId]
+										openRouterModels[apiConfiguration.openRouterModelId],
 									)
 									await this.postStateToWebview()
 								}
@@ -540,7 +543,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 	}
 
@@ -626,7 +629,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.openRouterModels
+			GlobalFileNames.openRouterModels,
 		)
 		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 		if (fileExists) {
@@ -639,7 +642,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.openRouterModels
+			GlobalFileNames.openRouterModels,
 		)
 
 		let models: Record<string, ModelInfo> = {}

@@ -150,7 +150,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 							} catch (error) {
 								return undefined
 							}
-						})()
+						})(),
 					)
 				} else if (entry.isDirectory()) {
 					folderContent += `${linePrefix}${entry.name}/\n`
@@ -174,7 +174,7 @@ function getWorkspaceProblems(cwd: string): string {
 	const result = diagnosticsToProblemsString(
 		diagnostics,
 		[vscode.DiagnosticSeverity.Error, vscode.DiagnosticSeverity.Warning],
-		cwd
+		cwd,
 	)
 	if (!result) {
 		return "No errors or warnings detected."

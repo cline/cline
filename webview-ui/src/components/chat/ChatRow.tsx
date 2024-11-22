@@ -35,7 +35,7 @@ const ChatRow = memo(
 					padding: "10px 6px 10px 15px",
 				}}>
 				<ChatRowContent {...props} />
-			</div>
+			</div>,
 		)
 
 		useEffect(() => {
@@ -55,7 +55,7 @@ const ChatRow = memo(
 		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
-	deepEqual
+	deepEqual,
 )
 
 export default ChatRow
@@ -707,9 +707,7 @@ export const ChatRowContent = ({
 												padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
 											}}>
 											<span
-												className={`codicon codicon-chevron-${
-													isExpanded ? "down" : "right"
-												}`}></span>
+												className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
 											<span style={{ fontSize: "0.8em" }}>Command Output</span>
 										</div>
 										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}

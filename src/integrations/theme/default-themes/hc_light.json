@@ -3,11 +3,7 @@
 	"name": "Light High Contrast",
 	"tokenColors": [
 		{
-			"scope": [
-				"meta.embedded",
-				"source.groovy.embedded",
-				"variable.legacy.builtin.python"
-			],
+			"scope": ["meta.embedded", "source.groovy.embedded", "variable.legacy.builtin.python"],
 			"settings": {
 				"foreground": "#292929"
 			}
@@ -150,10 +146,7 @@
 			}
 		},
 		{
-			"scope": [
-				"punctuation.definition.quote.begin.markdown",
-				"punctuation.definition.list.begin.markdown"
-			],
+			"scope": ["punctuation.definition.quote.begin.markdown", "punctuation.definition.list.begin.markdown"],
 			"settings": {
 				"foreground": "#0451A5"
 			}
@@ -335,10 +328,7 @@
 			}
 		},
 		{
-			"scope": [
-				"punctuation.section.embedded.begin.php",
-				"punctuation.section.embedded.end.php"
-			],
+			"scope": ["punctuation.section.embedded.begin.php", "punctuation.section.embedded.end.php"],
 			"settings": {
 				"foreground": "#0F4A85"
 			}

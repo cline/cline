@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 export function convertToOpenAiMessages(
-	anthropicMessages: Anthropic.Messages.MessageParam[]
+	anthropicMessages: Anthropic.Messages.MessageParam[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
@@ -31,7 +31,7 @@ export function convertToOpenAiMessages(
 						} // user cannot send tool_use messages
 						return acc
 					},
-					{ nonToolMessages: [], toolMessages: [] }
+					{ nonToolMessages: [], toolMessages: [] },
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
@@ -105,7 +105,7 @@ export function convertToOpenAiMessages(
 						} // assistant cannot send tool_result messages
 						return acc
 					},
-					{ nonToolMessages: [], toolMessages: [] }
+					{ nonToolMessages: [], toolMessages: [] },
 				)
 
 				// Process non-tool messages
@@ -147,7 +147,7 @@ export function convertToOpenAiMessages(
 
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(
-	completion: OpenAI.Chat.Completions.ChatCompletion
+	completion: OpenAI.Chat.Completions.ChatCompletion,
 ): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
 	const anthropicMessage: Anthropic.Messages.Message = {
@@ -196,7 +196,7 @@ export function convertToAnthropicMessage(
 					name: toolCall.function.name,
 					input: parsedInput,
 				}
-			})
+			}),
 		)
 	}
 	return anthropicMessage

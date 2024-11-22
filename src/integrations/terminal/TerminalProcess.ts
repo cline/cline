@@ -54,7 +54,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
 					// Gets output between ]633;C (command start) and ]633;D (command end)
 					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
 					).trim()
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
@@ -142,7 +142,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					() => {
 						this.isHot = false
 					},
-					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
+					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
@@ -240,7 +240,7 @@ export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
 export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(
-		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const
+		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const,
 	)
 	for (const [property, descriptor] of descriptors) {
 		if (descriptor) {

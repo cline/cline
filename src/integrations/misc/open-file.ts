@@ -28,12 +28,13 @@ export async function openFile(absolutePath: string) {
 		try {
 			for (const group of vscode.window.tabGroups.all) {
 				const existingTab = group.tabs.find(
-					(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, uri.fsPath)
+					(tab) =>
+						tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, uri.fsPath),
 				)
 				if (existingTab) {
 					const activeColumn = vscode.window.activeTextEditor?.viewColumn
 					const tabColumn = vscode.window.tabGroups.all.find((group) =>
-						group.tabs.includes(existingTab)
+						group.tabs.includes(existingTab),
 					)?.viewColumn
 					if (activeColumn && activeColumn !== tabColumn && !existingTab.isDirty) {
 						await vscode.window.tabGroups.close(existingTab)
