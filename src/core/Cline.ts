@@ -66,7 +66,7 @@ export class Cline {
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
 	alwaysAllowWrite: boolean
-	alwaysAllowExecute: boolean  // Add this line
+	alwaysAllowExecute: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
