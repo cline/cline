@@ -218,7 +218,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
 		)
 	}
 
