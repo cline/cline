@@ -508,7 +508,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					// are created within the webview context (i.e. inside media/main.js)
 				}
 			},
-			undefined,
+			null,
 			this.disposables,
 		)
 	}
