@@ -115,6 +115,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											{" • "}
 										</span>
 									)}
+									<br/>
 									<span>
 										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
 										{formatLargeNumber(item.tokensOut || 0)}

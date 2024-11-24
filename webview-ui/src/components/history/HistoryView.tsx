@@ -319,6 +319,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												)}
 											</div>
 										)}
+										<br/>
 										<div
 											style={{
 												display: "flex",
