@@ -722,6 +722,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							(after you grant permission), I can assist you in ways that go beyond code completion or
 							tech support.
 						</p>
+						<h5 style={{
+							backgroundColor: 'var(--vscode-badge-background)',
+							padding: '2px 6px',
+							borderRadius: '3px',
+							display: 'inline-block',
+							margin: '8px 0'
+						}}>
+							{selectedProvider} {selectedModelId}
+						</h5>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
