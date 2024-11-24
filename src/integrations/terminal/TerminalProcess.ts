@@ -2,6 +2,15 @@ import { EventEmitter } from "events"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
 
+const SPECIAL_KEYS = {
+    ENTER: '\r',
+    UP: '\x1b[A',
+    DOWN: '\x1b[B',
+    RIGHT: '\x1b[C',
+    LEFT: '\x1b[D',
+    SPACE: ' ',
+} as const;
+
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
@@ -9,271 +18,151 @@ export interface TerminalProcessEvents {
 	error: [error: Error]
 	no_shell_integration: []
 	ready: [{ type: string; url?: string }]
+	waiting_for_input: []
+	check_state: [{ timeLeft: number }]
 }
-
-interface ServerPattern {
-    type: string;
-    readyPatterns: RegExp[];
-    urlPattern?: RegExp;
-}
-
-// Patterns to detect when different types of servers/processes are ready
-const SERVER_PATTERNS: ServerPattern[] = [
-    {
-        type: "next.js",
-        readyPatterns: [
-            /ready started server on/i,
-            /ready in \d+/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "vite",
-        readyPatterns: [
-            /ready in \d+/i,
-            /local:\s+(http:\/\/localhost:\d+)/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "react-scripts",
-        readyPatterns: [
-            /You can now view .+ in the browser/i,
-            /Compiled successfully/i
-        ],
-        urlPattern: /Local:\s+(http:\/\/localhost:\d+)/
-    },
-    {
-        type: "webpack",
-        readyPatterns: [
-            /compiled (?:successfully|with warnings)/i,
-            /webpack \d+\.\d+\.\d+ compiled/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "angular",
-        readyPatterns: [
-            /Compiled successfully/i,
-            /Angular Live Development Server is listening/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "vue-cli",
-        readyPatterns: [
-            /App running at:/i,
-            /Local:\s+http/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "flask",
-        readyPatterns: [
-            /Running on http/i,
-            /Debugger PIN/i
-        ],
-        urlPattern: /http:\/\/\d+\.\d+\.\d+\.\d+:\d+/
-    },
-    {
-        type: "django",
-        readyPatterns: [
-            /Starting development server at/i,
-            /Watching for file changes/i
-        ],
-        urlPattern: /http:\/\/\d+\.\d+\.\d+\.\d+:\d+/
-    },
-    {
-        type: "spring-boot",
-        readyPatterns: [
-            /Tomcat started on port/i,
-            /Started .+ in \d+/i
-        ],
-        urlPattern: /:\d+/
-    },
-    {
-        type: "npm-install",
-        readyPatterns: [
-            /added \d+ packages/i,
-            /found \d+ vulnerabilities/i,
-            /packages are looking for funding/i
-        ]
-    },
-    {
-        type: "yarn-install",
-        readyPatterns: [
-            /Done in \d+/i,
-            /success Saved lockfile/i
-        ]
-    },
-    {
-        type: "build",
-        readyPatterns: [
-            /Build complete/i,
-            /Successfully built/i,
-            /Compiled successfully/i,
-            /Build finished/i
-        ]
-    },
-	{
-		type: "go",
-		readyPatterns: [
-			/listening on/i,
-			/Serving/i
-		],
-		urlPattern: /http:\/\/localhost:\d+/
-	}
-]
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
+	private currentCommand: string = ""
+	private currentOutput: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
-	isHot: boolean = true // Always hot by default now
-	private currentCommand: string = ""
-	private readyEmitted: boolean = false
-	private outputAccumulator: string = ""
+	private countdownTimer: NodeJS.Timeout | null = null
+	private timeLeft: number = 10
+	isHot: boolean = true
 
 	async run(terminal: vscode.Terminal, command: string) {
 		this.currentCommand = command
-		this.readyEmitted = false
-		this.outputAccumulator = ""
+		this.currentOutput = ""
+		this.timeLeft = 10
 
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			const execution = terminal.shellIntegration.executeCommand(command)
-			const stream = execution.read()
-			let isFirstChunk = true
-			let didOutputNonCommand = false
-			let didEmitEmptyLine = false
-			for await (let data of stream) {
-				// 1. Process chunk and remove artifacts
-				if (isFirstChunk) {
-					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
-					).trim()
+		// Handle special key inputs
+		if (command === "Enter") {
+			terminal.sendText(SPECIAL_KEYS.ENTER, false);
+			return;
+		} else if (command === "ArrowUp") {
+			terminal.sendText(SPECIAL_KEYS.UP, false);
+			return;
+		} else if (command === "ArrowDown") {
+			terminal.sendText(SPECIAL_KEYS.DOWN, false);
+			return;
+		} else if (command === "ArrowRight") {
+			terminal.sendText(SPECIAL_KEYS.RIGHT, false);
+			return;
+		} else if (command === "ArrowLeft") {
+			terminal.sendText(SPECIAL_KEYS.LEFT, false);
+			return;
+		} else if (command === "Space") {
+			terminal.sendText(SPECIAL_KEYS.SPACE, false);
+			return;
+		}
 
-					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
-					if (lastMatch && lastMatch.index !== undefined) {
-						data = data.slice(lastMatch.index + lastMatch[0].length)
-					}
-					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
-					}
-					data = stripAnsi(data)
-					let lines = data ? data.split("\n") : []
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-						lines[0] = lines[0].slice(1)
-					}
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					data = lines.join("\n")
-					isFirstChunk = false
-				} else {
-					data = stripAnsi(data)
+		// First, ensure the terminal is shown and has a chance to initialize
+		terminal.show(false)
+		
+		// Start countdown immediately
+		this.startCountdown();
+		
+		// Brief wait for terminal initialization
+		await new Promise(resolve => setTimeout(resolve, 100))
+
+		if (!terminal.shellIntegration?.executeCommand) {
+			// Wait for shell integration to become available
+			let attempts = 0
+			const maxAttempts = 5
+			
+			while (attempts < maxAttempts) {
+				if (terminal.shellIntegration?.executeCommand) {
+					break
 				}
-
-				if (!didOutputNonCommand) {
-					const lines = data.split("\n")
-					for (let i = 0; i < lines.length; i++) {
-						if (command.includes(lines[i].trim())) {
-							lines.splice(i, 1)
-							i--
-						} else {
-							didOutputNonCommand = true
-							break
-						}
-					}
-					data = lines.join("\n")
-				}
-
-				data = data.replace(/,/g, "")
-
-				// Accumulate output for ready detection
-				this.outputAccumulator += data
-				this.checkIfReady()
-
-				if (!didEmitEmptyLine && !this.fullOutput && data) {
-					this.emit("line", "")
-					didEmitEmptyLine = true
-				}
-
-				this.fullOutput += data
-				if (this.isListening) {
-					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
-				}
+				await new Promise(resolve => setTimeout(resolve, 100))
+				attempts++
 			}
+		}
 
-			this.emitRemainingBufferIfListening()
-			this.emit("completed")
-			this.emit("continue")
-		} else {
+		// Check again if shell integration is available
+		if (!terminal.shellIntegration?.executeCommand) {
+			// If still no shell integration, proceed without it
 			terminal.sendText(command, true)
-			this.emit("completed")
-			this.emit("continue")
 			this.emit("no_shell_integration")
+			return
+		}
+
+		// Shell integration is available, proceed with command execution
+		try {
+			await this.executeCommand(terminal, command)
+		} catch (error) {
+			console.error("Error executing command:", error)
+			terminal.sendText(command, true)
+			this.emit("error", error)
 		}
 	}
 
-	private checkIfReady() {
-		if (this.readyEmitted) return
+	private async executeCommand(terminal: vscode.Terminal, command: string) {
+		if (!terminal.shellIntegration?.executeCommand) {
+			throw new Error("Shell integration is not available")
+		}
 
-		for (const pattern of SERVER_PATTERNS) {
-			// Check if all ready patterns match
-			const allPatternsMatch = pattern.readyPatterns.every(readyPattern => 
-				readyPattern.test(this.outputAccumulator)
-			)
+		const execution = terminal.shellIntegration.executeCommand(command)
+		const stream = execution.read()
+		let isFirstChunk = true
 
-			if (allPatternsMatch) {
-				let url: string | undefined
-				if (pattern.urlPattern) {
-					const match = this.outputAccumulator.match(pattern.urlPattern)
-					if (match) {
-						url = match[0]
-					}
+		for await (let data of stream) {
+			// Process chunk and remove artifacts
+			if (isFirstChunk) {
+				const outputBetweenSequences = this.removeLastLineArtifacts(
+					data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+				).trim()
+
+				const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
+				const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
+				if (lastMatch && lastMatch.index !== undefined) {
+					data = data.slice(lastMatch.index + lastMatch[0].length)
 				}
-
-				this.readyEmitted = true
-				this.emit("ready", { type: pattern.type, url })
-				break
+				if (outputBetweenSequences) {
+					data = outputBetweenSequences + "\n" + data
+				}
+				data = stripAnsi(data)
+				isFirstChunk = false
+			} else {
+				data = stripAnsi(data)
 			}
+
+			// Update current output
+			this.currentOutput = data;
+			this.fullOutput += data;
 		}
 	}
 
-	private emitIfEol(chunk: string) {
-		this.buffer += chunk
-		let lineEndIndex: number
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd()
-			this.emit("line", line)
-			this.buffer = this.buffer.slice(lineEndIndex + 1)
+	private startCountdown() {
+		// Clear any existing countdown
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer);
 		}
-	}
 
-	private emitRemainingBufferIfListening() {
-		if (this.buffer && this.isListening) {
-			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
-			if (remainingBuffer) {
-				this.emit("line", remainingBuffer)
+		// Start countdown from 10 seconds
+		this.timeLeft = 10;
+		this.countdownTimer = setInterval(() => {
+			this.timeLeft--;
+			this.emit("check_state", { timeLeft: this.timeLeft });
+
+			if (this.timeLeft <= 0) {
+				// Reset countdown and emit current state
+				this.timeLeft = 10;
+				this.emit("line", this.currentOutput);
 			}
-			this.buffer = ""
-			this.lastRetrievedIndex = this.fullOutput.length
-		}
+		}, 1000);
 	}
 
 	continue() {
-		this.emitRemainingBufferIfListening()
 		this.isListening = false
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer);
+			this.countdownTimer = null;
+		}
 		this.removeAllListeners("line")
 		this.emit("continue")
 	}

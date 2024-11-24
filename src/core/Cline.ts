@@ -48,6 +48,7 @@ import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
+import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
@@ -683,8 +684,8 @@ export class Cline {
 
 	// Tools
 
-async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-    const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+async executeCommandTool(command: string, terminalId?: number): Promise<[boolean, ToolResponse]> {
+    const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd, terminalId)
     terminalInfo.terminal.show()
     const process = this.terminalManager.runCommand(terminalInfo, command)
 
@@ -696,10 +697,17 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
         try {
             // If auto-accept is enabled, start a timer to auto-proceed after 1 minute
             if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
-                autoAcceptTimer = setTimeout(() => {
+                // If there's input in the line, wait 1 minute before auto-proceeding
+                if (line.trim()) {
+                    autoAcceptTimer = setTimeout(() => {
+                        didContinue = true;
+                        process.continue();
+                    }, 60000); // 60 seconds = 1 minute
+                } else {
+                    // If it's just a blank line, proceed immediately
                     didContinue = true;
                     process.continue();
-                }, 60000); // 60 seconds = 1 minute
+                }
             }
 
             const { response, text, images } = await this.ask("command_output", line)
@@ -928,6 +936,10 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 							return `[${block.name} for '${block.params.question}']`
 						case "attempt_completion":
 							return `[${block.name}]`
+						case "list_terminals":
+							return `[${block.name}]`
+						case "close_terminal":
+							return `[${block.name} for terminal ${block.params.terminal_id}]`
 					}
 				}
 
@@ -1589,6 +1601,7 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 					}
 					case "execute_command": {
 						const command: string | undefined = block.params.command
+						const terminalId: string | undefined = block.params.terminal_id
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1608,7 +1621,7 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, result] = await this.executeCommandTool(command)
+								const [userRejected, result] = await this.executeCommandTool(command, terminalId ? parseInt(terminalId) : undefined)
 								if (userRejected) {
 									this.didRejectTool = true
 								}
@@ -1620,7 +1633,82 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 							break
 						}
 					}
+					case "list_terminals": {
+                        try {
+                            const busyTerminals = this.terminalManager.getTerminals(true);
+                            const idleTerminals = this.terminalManager.getTerminals(false);
+                            let result = "";
 
+                            if (busyTerminals.length === 0 && idleTerminals.length === 0) {
+                                result = "No active terminal sessions found.";
+                            } else {
+                                if (busyTerminals.length > 0) {
+                                    result += "Running Terminals:\n";
+                                    busyTerminals.forEach(terminal => {
+                                        result += `\nID: ${terminal.id}\n`;
+                                        result += `Command: ${terminal.lastCommand}\n`;
+                                        if (terminal.type) {
+                                            result += `Type: ${terminal.type}\n`;
+                                        }
+                                        const output = this.terminalManager.getUnretrievedOutput(terminal.id);
+                                        if (output) {
+                                            result += `Recent Output:\n${output}\n`;
+                                        }
+                                    });
+                                }
+
+                                if (idleTerminals.length > 0) {
+                                    if (busyTerminals.length > 0) result += "\n";
+                                    result += "Idle Terminals:\n";
+                                    idleTerminals.forEach(terminal => {
+                                        result += `\nID: ${terminal.id}\n`;
+                                        result += `Last Command: ${terminal.lastCommand}\n`;
+                                        if (terminal.type) {
+                                            result += `Type: ${terminal.type}\n`;
+                                        }
+                                    });
+                                }
+                            }
+                            pushToolResult(result);
+                            break;
+                        } catch (error) {
+                            await handleError("listing terminals", error);
+                            break;
+                        }
+                    }
+                    case "close_terminal": {
+                       const terminalId = block.params.terminal_id;
+                        if (!terminalId || isNaN(parseInt(terminalId))) {
+                            this.consecutiveMistakeCount++;
+                            pushToolResult(await this.sayAndCreateMissingParamError("close_terminal", "terminal_id"));
+                            break;
+                        }
+                        try {
+							const terminal = TerminalRegistry.getTerminal(parseInt(terminalId));
+                            if (!terminal) {
+                                pushToolResult(`Terminal with ID ${terminalId} not found.`);
+                                break;
+                            }
+                            
+                            // Check if terminal is running a server or important process
+                            const terminalType = this.terminalManager.getTerminals(true)
+								.find(t => t.id === parseInt(terminalId))?.type;
+                            
+                            if (terminalType && ['next.js', 'vite', 'react-scripts', 'webpack', 'angular', 'vue-cli', 'flask', 'django', 'spring-boot', 'go'].includes(terminalType)) {
+                                pushToolResult(`Cannot close terminal ${terminalId} as it's running a ${terminalType} server. Stop the server first if you want to close this terminal.`);
+                                break;
+                            }
+
+                            terminal.terminal.dispose();
+							TerminalRegistry.removeTerminal(parseInt(terminalId));
+                            this.terminalManager.disposeAll();
+                            pushToolResult(`Terminal ${terminalId} has been closed.`);
+                            break;
+                        } catch (error) {
+                            await handleError(`closing terminal ${terminalId}`, error);
+                            break;
+                        }
+                    }
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
 						try {
@@ -2204,40 +2292,40 @@ async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		*/
 		this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
-		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
-		let terminalDetails = ""
-		if (busyTerminals.length > 0) {
-			// terminals are cool, let's retrieve their output
-			terminalDetails += "\n\n# Actively Running Terminals"
-			for (const busyTerminal of busyTerminals) {
-				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
-				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
-				if (newOutput) {
-					terminalDetails += `\n### New Output\n${newOutput}`
-				} else {
-					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
-				}
-			}
-		}
-		// only show inactive terminals if there's output to show
-		if (inactiveTerminals.length > 0) {
-			const inactiveTerminalOutputs = new Map<number, string>()
-			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
-				if (newOutput) {
-					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
-				}
-			}
-			if (inactiveTerminalOutputs.size > 0) {
-				terminalDetails += "\n\n# Inactive Terminals"
-				for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
-					const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId)
-					if (inactiveTerminal) {
-						terminalDetails += `\n## ${inactiveTerminal.lastCommand}`
-						terminalDetails += `\n### New Output\n${newOutput}`
+		// Add terminal details including all terminals and their status
+		let terminalDetails = "\n\n# Terminal Sessions"
+		if (busyTerminals.length > 0 || inactiveTerminals.length > 0) {
+			if (busyTerminals.length > 0) {
+				terminalDetails += "\n\nRunning Terminals:"
+				busyTerminals.forEach(terminal => {
+					terminalDetails += `\nID: ${terminal.id}\n`
+					terminalDetails += `Command: ${terminal.lastCommand}\n`
+					if (terminal.type) {
+						terminalDetails += `Type: ${terminal.type}\n`
 					}
-				}
+					const output = this.terminalManager.getUnretrievedOutput(terminal.id)
+					if (output) {
+						terminalDetails += `Recent Output:\n${output}\n`
+					}
+				})
 			}
+
+			if (inactiveTerminals.length > 0) {
+				terminalDetails += "\n\nIdle Terminals:"
+				inactiveTerminals.forEach(terminal => {
+					terminalDetails += `\nID: ${terminal.id}\n`
+					terminalDetails += `Last Command: ${terminal.lastCommand}\n`
+					if (terminal.type) {
+						terminalDetails += `Type: ${terminal.type}\n`
+					}
+					const output = this.terminalManager.getUnretrievedOutput(terminal.id)
+					if (output) {
+						terminalDetails += `Recent Output:\n${output}\n`
+					}
+				})
+			}
+		} else {
+			terminalDetails += "\nNo active terminal sessions found."
 		}
 
 		// details += "\n\n# VSCode Workspace Errors"
