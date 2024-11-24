@@ -49,7 +49,7 @@ export interface ModelInfo {
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
-	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsPromptCache: boolean
 	inputPrice?: number
 	outputPrice?: number
 	cacheWritesPrice?: number
@@ -65,7 +65,7 @@ export const deepSeekModels = {
 		maxTokens: 4096,
 		contextWindow: 64_000,
 		supportsImages: false,
-		supportsComputerUse: false, // Updated: DeepSeek does not support computer use
+		supportsComputerUse: false,
 		supportsPromptCache: true,
 		inputPrice: 0.14,
 		outputPrice: 0.28,

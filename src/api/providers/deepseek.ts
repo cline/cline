@@ -65,9 +65,9 @@ export class DeepSeekHandler implements ApiHandler {
 				const usage = chunk.usage as DeepSeekCompletionUsage
 				yield {
 					type: "usage",
-					inputTokens: usage.prompt_tokens || 0, // Only count actual input tokens
+					inputTokens: usage.prompt_tokens || 0,
 					outputTokens: usage.completion_tokens || 0,
-					cacheReadTokens: usage.prompt_cache_hit_tokens || 0, // Keep cache hits separate
+					cacheReadTokens: usage.prompt_cache_hit_tokens || 0,
 					cacheWriteTokens: usage.prompt_cache_miss_tokens || 0,
 				}
 			}
