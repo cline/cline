@@ -107,6 +107,14 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									{item.task}
 								</div>
 								<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
+									{(item.provider || item.model) && (
+										<span>
+											{item.provider && `${item.provider}`}
+											{item.provider && item.model && " • "}
+											{item.model && `${item.model}`}
+											{" • "}
+										</span>
+									)}
 									<span>
 										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
 										{formatLargeNumber(item.tokensOut || 0)}

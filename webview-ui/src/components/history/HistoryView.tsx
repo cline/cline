@@ -272,6 +272,53 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										dangerouslySetInnerHTML={{ __html: item.task }}
 									/>
 									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+										{(item.provider || item.model) && (
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "4px",
+													flexWrap: "wrap",
+												}}>
+												{item.provider && (
+													<>
+														<span
+															style={{
+																fontWeight: 500,
+																color: "var(--vscode-descriptionForeground)",
+															}}>
+															Provider:
+														</span>
+														<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+															{item.provider}
+														</span>
+													</>
+												)}
+												{item.model && (
+													<>
+														{item.provider && (
+															<span
+																style={{
+																	color: "var(--vscode-descriptionForeground)",
+																	margin: "0 4px",
+																}}>
+																•
+															</span>
+														)}
+														<span
+															style={{
+																fontWeight: 500,
+																color: "var(--vscode-descriptionForeground)",
+															}}>
+															Model:
+														</span>
+														<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+															{item.model}
+														</span>
+													</>
+												)}
+											</div>
+										)}
 										<div
 											style={{
 												display: "flex",
