@@ -51,7 +51,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
+		let value = event.target.value
+		if (field === "openAiContextWindow") {
+			const parsedValue = parseInt(value)
+			value = parsedValue ? parsedValue.toString() : undefined
+		}
+		setApiConfiguration({ ...apiConfiguration, [field]: value })
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -435,6 +440,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						onInput={handleInputChange("openAiModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.openAiContextWindow ? apiConfiguration.openAiContextWindow.toString() : ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("openAiContextWindow")}
+						placeholder={"Default: 128000"}>
+						<span style={{ fontWeight: 500 }}>Context Window Size</span>
 					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
