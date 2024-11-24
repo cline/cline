@@ -71,8 +71,8 @@ export class TerminalManager {
 		process.once("completed", () => {
 			terminalInfo.busy = false
 			
-			// If this was not a long-running process and it's completed, we can clean up
-			if (!process.isLongRunning) {
+			// If this was not a hot process and it's completed, we can clean up
+			if (!process.isHot) {
 				// Small delay to ensure any final output is captured
 				setTimeout(() => {
 					terminalInfo.terminal.dispose()
@@ -164,7 +164,7 @@ export class TerminalManager {
 		const terminalsToDispose = Array.from(this.terminalIds)
 			.filter(id => {
 				const process = this.processes.get(id)
-				return !process?.isLongRunning
+				return !process?.isHot
 			})
 		
 		for (const id of terminalsToDispose) {

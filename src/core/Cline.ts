@@ -683,82 +683,104 @@ export class Cline {
 
 	// Tools
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
-		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+    const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+    terminalInfo.terminal.show()
+    const process = this.terminalManager.runCommand(terminalInfo, command)
 
-		let userFeedback: { text?: string; images?: string[] } | undefined
-		let didContinue = false
-		const sendCommandOutput = async (line: string): Promise<void> => {
-			try {
-				const { response, text, images } = await this.ask("command_output", line)
-				if (response === "yesButtonClicked") {
-					// proceed while running
-				} else {
-					userFeedback = { text, images }
-				}
-				didContinue = true
-				process.continue() // continue past the await
-			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
-			}
-		}
+    let userFeedback: { text?: string; images?: string[] } | undefined
+    let didContinue = false
+    let autoAcceptTimer: NodeJS.Timeout | undefined;
 
-		let result = ""
-		process.on("line", (line) => {
-			result += line + "\n"
-			if (!didContinue) {
-				sendCommandOutput(line)
-			} else {
-				this.say("command_output", line)
-			}
-		})
+    const sendCommandOutput = async (line: string): Promise<void> => {
+        try {
+            // If auto-accept is enabled, start a timer to auto-proceed after 1 minute
+            if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
+                autoAcceptTimer = setTimeout(() => {
+                    didContinue = true;
+                    process.continue();
+                }, 60000); // 60 seconds = 1 minute
+            }
 
-		let completed = false
-		process.once("completed", () => {
-			completed = true
-		})
+            const { response, text, images } = await this.ask("command_output", line)
+            
+            // Clear the auto-accept timer if user responds before timeout
+            if (autoAcceptTimer) {
+                clearTimeout(autoAcceptTimer);
+            }
 
-		process.once("no_shell_integration", async () => {
-			await this.say("shell_integration_warning")
-		})
+            if (response === "yesButtonClicked") {
+                // proceed while running
+            } else {
+                userFeedback = { text, images }
+            }
+            didContinue = true
+            process.continue()
+        } catch {
+            // This can only happen if this ask promise was ignored, so ignore this error
+            if (autoAcceptTimer) {
+                clearTimeout(autoAcceptTimer);
+            }
+        }
+    }
 
-		await process
+    let result = ""
+    process.on("line", (line) => {
+        result += line + "\n"
+        if (!didContinue) {
+            sendCommandOutput(line)
+        } else {
+            this.say("command_output", line)
+        }
+    })
+
+    let completed = false
+    process.once("completed", () => {
+        completed = true
+        if (autoAcceptTimer) {
+            clearTimeout(autoAcceptTimer);
+        }
+    })
+
+    process.once("no_shell_integration", async () => {
+        await this.say("shell_integration_warning")
+    })
+
+    await process
 
 		// Wait for a short delay to ensure all messages are sent to the webview
 		// This delay allows time for non-awaited promises to be created and
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
-		await delay(50)
+    await delay(50)
 
-		result = result.trim()
+    result = result.trim()
 
-		if (userFeedback) {
-			await this.say("user_feedback", userFeedback.text, userFeedback.images)
-			return [
-				true,
-				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
-					userFeedback.images
-				),
-			]
-		}
+    if (userFeedback) {
+        await this.say("user_feedback", userFeedback.text, userFeedback.images)
+        return [
+            true,
+            formatResponse.toolResult(
+                `Command is still running in the user's terminal.${
+                    result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+                }\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
+                userFeedback.images
+            ),
+        ]
+    }
 
-		if (completed) {
-			return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
-		} else {
-			return [
-				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-				}\n\nYou will be updated on the terminal status and new output in the future.`,
-			]
-		}
-	}
+    if (completed) {
+        return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
+    } else {
+        return [
+            false,
+            `Command is still running in the user's terminal.${
+                result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+            }\n\nYou will be updated on the terminal status and new output in the future.`,
+        ]
+    }
+}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)

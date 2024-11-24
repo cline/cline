@@ -11,10 +11,6 @@ export interface TerminalProcessEvents {
 	ready: [{ type: string; url?: string }]
 }
 
-// how long to wait after a process outputs anything before we consider it "cool" again
-const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
-const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
-
 interface ServerPattern {
     type: string;
     readyPatterns: RegExp[];
@@ -129,34 +125,13 @@ const SERVER_PATTERNS: ServerPattern[] = [
 	}
 ]
 
-// Commands that indicate a long-running process that shouldn't auto-close
-const LONG_RUNNING_MARKERS = [
-    "npm run dev",
-    "npm start",
-    "yarn dev",
-    "yarn start",
-    "pnpm dev",
-    "pnpm start",
-    "python manage.py runserver",
-    "flask run",
-    "rails server",
-    "ng serve",
-    "gatsby develop",
-    "next dev",
-    "vite",
-    "webpack-dev-server",
-	"go run",
-]
-
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
-	isHot: boolean = false
-	private hotTimer: NodeJS.Timeout | null = null
-	isLongRunning: boolean = false
+	isHot: boolean = true // Always hot by default now
 	private currentCommand: string = ""
 	private readyEmitted: boolean = false
 	private outputAccumulator: string = ""
@@ -165,11 +140,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.currentCommand = command
 		this.readyEmitted = false
 		this.outputAccumulator = ""
-
-		// Check if this is a long-running process
-		this.isLongRunning = LONG_RUNNING_MARKERS.some(marker => 
-			command.toLowerCase().includes(marker.toLowerCase())
-		)
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
@@ -232,41 +202,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.outputAccumulator += data
 				this.checkIfReady()
 
-				// 2. Set isHot depending on the command
-				this.isHot = true
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-				}
-
-				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
-				const markerNullifiers = [
-					"compiled",
-					"success",
-					"finish",
-					"complete",
-					"succeed",
-					"done",
-					"end",
-					"stop",
-					"exit",
-					"terminate",
-					"error",
-					"fail",
-				]
-				const isCompiling =
-					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
-
-				// For long-running processes, we don't want to set a timeout to mark as not hot
-				if (!this.isLongRunning) {
-					this.hotTimer = setTimeout(
-						() => {
-							this.isHot = false
-						},
-						isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
-					)
-				}
-
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "")
 					didEmitEmptyLine = true
@@ -280,15 +215,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 
 			this.emitRemainingBufferIfListening()
-
-			// Only clear hot status for non-long-running processes
-			if (!this.isLongRunning) {
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-				}
-				this.isHot = false
-			}
-
 			this.emit("completed")
 			this.emit("continue")
 		} else {
