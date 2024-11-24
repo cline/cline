@@ -155,7 +155,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-errorForeground)",
 						}}>
 						⚠️ WARNING: When enabled, Cline will automatically create and edit files without requiring approval. This could potentially lead to unwanted file modifications. Enable only if you fully trust the AI and understand the risks.
-						```
 					</p>
 				</div>
 
