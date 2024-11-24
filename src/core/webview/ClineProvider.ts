@@ -36,6 +36,8 @@ type SecretKey =
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
+	| "deepSeekApiKey"  // Add DeepSeek API key to SecretKey type
+
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -57,7 +59,8 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
-
+  | "deepSeekBaseUrl"
+	
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -372,6 +375,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
+								deepSeekApiKey,  // Add DeepSeek API key
+								deepSeekBaseUrl,  // Add DeepSeek base URL
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -397,6 +402,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)  // Store DeepSeek API key
+							await this.updateGlobalState("deepSeekBaseUrl", deepSeekBaseUrl)  // Store DeepSeek base URL
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -879,6 +886,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			alwaysAllowReadOnly,
 			taskHistory,
+			deepSeekApiKey,  // Add DeepSeek API key
+			deepSeekBaseUrl,  // Add DeepSeek base URL
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -908,6 +917,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,  // Get DeepSeek API key
+			this.getGlobalState("deepSeekBaseUrl") as Promise<string | undefined>,  // Get DeepSeek base URL
 		])
 
 		let apiProvider: ApiProvider
@@ -950,6 +961,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				deepSeekApiKey,  // Add DeepSeek API key to configuration
+				deepSeekBaseUrl,  // Add DeepSeek base URL to configuration
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1030,6 +1043,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiApiKey",
 			"geminiApiKey",
 			"openAiNativeApiKey",
+			"deepSeekApiKey",  // Add DeepSeek API key to secrets to clear
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
