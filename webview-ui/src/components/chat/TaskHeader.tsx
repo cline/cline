@@ -10,6 +10,8 @@ import { formatLargeNumber } from "../../utils/format"
 
 interface TaskHeaderProps {
 	task: ClineMessage
+	provider?: string
+	model?: string
 	tokensIn: number
 	tokensOut: number
 	doesModelSupportPromptCache: boolean
@@ -21,6 +23,8 @@ interface TaskHeaderProps {
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
+	provider,
+	model,
 	tokensIn,
 	tokensOut,
 	doesModelSupportPromptCache,
@@ -245,6 +249,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
+
+						<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+							<span style={{ fontWeight: "bold" }}>Model:</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								{provider}:
+							</span>
+							<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+								{model}
+							</span>
+						</div>
 						<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 							<div
 								style={{

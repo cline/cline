@@ -337,7 +337,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		startNewTask()
 	}, [startNewTask])
 
-	const { selectedModelInfo } = useMemo(() => {
+	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
@@ -689,6 +689,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			{task ? (
 				<TaskHeader
 					task={task}
+					provider={selectedProvider}
+					model={selectedModelId}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
 					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
