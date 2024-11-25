@@ -1,6 +1,8 @@
 import { EventEmitter } from "events"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
+import * as path from "path"
+import * as fs from "fs"
 
 const SPECIAL_KEYS = {
     ENTER: '\r',
@@ -11,14 +13,37 @@ const SPECIAL_KEYS = {
     SPACE: ' ',
 } as const;
 
+// Server detection patterns with enhanced URL detection
+const SERVER_PATTERNS = [
+    {
+        regex: [
+            /Local\s+http:\/\/localhost:(\d+)\//i,
+            /http:\/\/localhost:(\d+)/i,
+            /running on (http:\/\/\S+)/i,
+            /┃\s+Local\s+http:\/\/localhost:(\d+)\//i,  // Specific for Astro-like output
+            /┃\s+Network\s+http:\/\/\S+:(\d+)\//i,     // Network URL for Astro
+            /astro\s+v\d+\.\d+\.\d+\s+ready/i          // Astro startup indicator
+        ],
+        type: 'dev-server',
+        frameworks: [
+            { pattern: /astro/i, name: 'Astro' },
+            { pattern: /react/i, name: 'React' },
+            { pattern: /vue/i, name: 'Vue' },
+            { pattern: /angular/i, name: 'Angular' },
+            { pattern: /next/i, name: 'Next.js' },
+            { pattern: /vite/i, name: 'Vite' }
+        ]
+    }
+    // Other server patterns can be added here
+];
+
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
 	completed: []
 	error: [error: Error]
 	no_shell_integration: []
-	ready: [{ type: string; url?: string }]
-	waiting_for_input: []
+	ready: [{ type: string; url?: string; framework?: string }]
 	check_state: [{ timeLeft: number }]
 }
 
@@ -26,18 +51,61 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
-	private currentCommand: string = ""
-	private currentOutput: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
 	private countdownTimer: NodeJS.Timeout | null = null
 	private timeLeft: number = 10
 	isHot: boolean = true
+	private lastOutputTime: number = 0
+	private completionTimer: NodeJS.Timeout | null = null
+	private currentWorkingDirectory: string | undefined = undefined
+	private serverInfoEmitted: boolean = false
+
+	private detectServerInfo(output: string): { type?: string; url?: string; framework?: string } {
+		// If server info has already been emitted, return empty
+		if (this.serverInfoEmitted) return {}
+
+		for (const pattern of SERVER_PATTERNS) {
+			// Try multiple regex patterns
+			for (const regex of (pattern.regex instanceof Array ? pattern.regex : [pattern.regex])) {
+				const urlMatch = output.match(regex);
+				if (urlMatch) {
+					// Extract URL, preferring full URL or constructing from localhost
+					const url = urlMatch[1] 
+						? `http://localhost:${urlMatch[1]}/` 
+						: urlMatch[0];
+					
+					// Detect framework
+					let framework;
+					if (pattern.frameworks) {
+						for (const fw of pattern.frameworks) {
+							if (fw.pattern.test(output)) {
+								framework = fw.name;
+								break;
+							}
+						}
+					}
+
+					// Mark that server info has been emitted
+					this.serverInfoEmitted = true
+
+					return {
+						type: pattern.type,
+						url,
+						framework
+					};
+				}
+			}
+		}
+		return {};
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
-		this.currentCommand = command
-		this.currentOutput = ""
-		this.timeLeft = 10
+		// Emit first line immediately to show "proceed while running"
+		this.emit("line", command);
+		
+		// Start countdown
+		this.startCountdown();
 
 		// Handle special key inputs
 		if (command === "Enter") {
@@ -60,17 +128,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			return;
 		}
 
-		// First, ensure the terminal is shown and has a chance to initialize
+		// Show terminal
 		terminal.show(false)
 		
-		// Start countdown immediately
-		this.startCountdown();
-		
-		// Brief wait for terminal initialization
+		// Brief wait for initialization
 		await new Promise(resolve => setTimeout(resolve, 100))
 
 		if (!terminal.shellIntegration?.executeCommand) {
-			// Wait for shell integration to become available
+			// Wait for shell integration
 			let attempts = 0
 			const maxAttempts = 5
 			
@@ -83,15 +148,13 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 		}
 
-		// Check again if shell integration is available
+		// Execute command with or without shell integration
 		if (!terminal.shellIntegration?.executeCommand) {
-			// If still no shell integration, proceed without it
 			terminal.sendText(command, true)
 			this.emit("no_shell_integration")
 			return
 		}
 
-		// Shell integration is available, proceed with command execution
 		try {
 			await this.executeCommand(terminal, command)
 		} catch (error) {
@@ -108,51 +171,60 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 		const execution = terminal.shellIntegration.executeCommand(command)
 		const stream = execution.read()
-		let isFirstChunk = true
+		this.lastOutputTime = Date.now()
 
-		for await (let data of stream) {
-			// Process chunk and remove artifacts
-			if (isFirstChunk) {
-				const outputBetweenSequences = this.removeLastLineArtifacts(
-					data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
-				).trim()
+		try {
+			for await (let data of stream) {
+				const cleanData = stripAnsi(data)
+				this.fullOutput += cleanData
 
-				const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-				const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
-				if (lastMatch && lastMatch.index !== undefined) {
-					data = data.slice(lastMatch.index + lastMatch[0].length)
+				// Detect server information
+				const serverInfo = this.detectServerInfo(cleanData);
+				if (serverInfo.type || serverInfo.url) {
+					this.emit("ready", {
+						type: serverInfo.type || '',
+						url: serverInfo.url,
+						framework: serverInfo.framework
+					});
 				}
-				if (outputBetweenSequences) {
-					data = outputBetweenSequences + "\n" + data
+
+				this.lastOutputTime = Date.now()
+
+				// Reset completion timer if it exists
+				if (this.completionTimer) {
+					clearTimeout(this.completionTimer)
 				}
-				data = stripAnsi(data)
-				isFirstChunk = false
-			} else {
-				data = stripAnsi(data)
+
+				// Set new completion timer
+				this.completionTimer = setTimeout(() => {
+					const timeSinceLastOutput = Date.now() - this.lastOutputTime
+					if (timeSinceLastOutput >= 2000) {
+						this.emit("completed")
+						this.continue()
+					}
+				}, 2000)
 			}
-
-			// Update current output
-			this.currentOutput = data;
-			this.fullOutput += data;
+		} catch (error) {
+			console.error("Error in command execution:", error)
+			this.emit("error", error instanceof Error ? error : new Error(String(error)))
+			this.continue()
 		}
 	}
 
+	// Existing methods like startCountdown, continue, getUnretrievedOutput remain the same
 	private startCountdown() {
-		// Clear any existing countdown
 		if (this.countdownTimer) {
 			clearInterval(this.countdownTimer);
 		}
 
-		// Start countdown from 10 seconds
 		this.timeLeft = 10;
 		this.countdownTimer = setInterval(() => {
 			this.timeLeft--;
 			this.emit("check_state", { timeLeft: this.timeLeft });
 
 			if (this.timeLeft <= 0) {
-				// Reset countdown and emit current state
 				this.timeLeft = 10;
-				this.emit("line", this.currentOutput);
+				this.emit("line", this.getUnretrievedOutput());
 			}
 		}, 1000);
 	}
@@ -163,6 +235,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			clearInterval(this.countdownTimer);
 			this.countdownTimer = null;
 		}
+		if (this.completionTimer) {
+			clearTimeout(this.completionTimer);
+			this.completionTimer = null;
+		}
 		this.removeAllListeners("line")
 		this.emit("continue")
 	}
@@ -170,16 +246,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	getUnretrievedOutput(): string {
 		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
 		this.lastRetrievedIndex = this.fullOutput.length
-		return this.removeLastLineArtifacts(unretrieved)
-	}
-
-	removeLastLineArtifacts(output: string) {
-		const lines = output.trimEnd().split("\n")
-		if (lines.length > 0) {
-			const lastLine = lines[lines.length - 1]
-			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
-		}
-		return lines.join("\n").trimEnd()
+		return unretrieved.trimEnd()
 	}
 }
 

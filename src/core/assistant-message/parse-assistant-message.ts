@@ -17,6 +17,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 	let currentParamName: ToolParamName | undefined = undefined
 	let currentParamValueStartIndex = 0
 	let accumulator = ""
+	let nestedToolUseCount = 0
 
 	for (let i = 0; i < assistantMessage.length; i++) {
 		const char = assistantMessage[i]
@@ -26,6 +27,27 @@ export function parseAssistantMessage(assistantMessage: string) {
 		if (currentToolUse && currentParamName) {
 			const currentParamValue = accumulator.slice(currentParamValueStartIndex)
 			const paramClosingTag = `</${currentParamName}>`
+
+			// Special handling for write_to_file content parameter
+			if (currentToolUse.name === "write_to_file" && currentParamName === "content") {
+				// Check if we encounter a new write_to_file tag within content
+				if (currentParamValue.endsWith("<write_to_file>")) {
+					nestedToolUseCount++
+				}
+				// Check if we encounter a closing write_to_file tag
+				else if (currentParamValue.endsWith("</write_to_file>")) {
+					nestedToolUseCount--
+				}
+				
+				// Only close the content parameter if we're not in a nested write_to_file
+				if (currentParamValue.endsWith(paramClosingTag) && nestedToolUseCount <= 0) {
+					currentToolUse.params[currentParamName] = currentParamValue.slice(0, -paramClosingTag.length).trim()
+					currentParamName = undefined
+				}
+				continue
+			}
+
+			// Normal parameter handling for non-write_to_file content
 			if (currentParamValue.endsWith(paramClosingTag)) {
 				// end of param value
 				currentToolUse.params[currentParamName] = currentParamValue.slice(0, -paramClosingTag.length).trim()
@@ -60,23 +82,6 @@ export function parseAssistantMessage(assistantMessage: string) {
 				}
 
 				// there's no current param, and not starting a new param
-
-				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
-				const contentParamName: ToolParamName = "content"
-				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
-					const toolContent = accumulator.slice(currentToolUseStartIndex)
-					const contentStartTag = `<${contentParamName}>`
-					const contentEndTag = `</${contentParamName}>`
-					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
-					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
-					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
-						currentToolUse.params[contentParamName] = toolContent
-							.slice(contentStartIndex, contentEndIndex)
-							.trim()
-					}
-				}
-
-				// partial tool value is accumulating
 				continue
 			}
 		}

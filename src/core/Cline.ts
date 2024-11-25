@@ -145,7 +145,8 @@ export class Cline {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
+			return JSON.parse
+(await fs.readFile(filePath, "utf8"))
 		}
 		return []
 	}
@@ -165,7 +166,6 @@ export class Cline {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
-			// in the off chance this fails, we don't want to stop the task
 			console.error("Failed to save API conversation history:", error)
 		}
 	}
@@ -173,12 +173,14 @@ export class Cline {
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
+			return JSON.parse
+(await fs.readFile(filePath, "utf8"))
 		} else {
 			// check old location
 			const oldPath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
 			if (await fileExistsAtPath(oldPath)) {
-				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+				const data = JSON.parse
+(await fs.readFile(oldPath, "utf8"))
 				await fs.unlink(oldPath) // remove old file
 				return data
 			}
@@ -437,7 +439,8 @@ export class Cline {
 		)
 		if (lastApiReqStartedIndex !== -1) {
 			const lastApiReqStarted = modifiedClineMessages[lastApiReqStartedIndex]
-			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse
+(lastApiReqStarted.text || "{}")
 			if (cost === undefined && cancelReason === undefined) {
 				modifiedClineMessages.splice(lastApiReqStartedIndex, 1)
 			}
@@ -691,44 +694,33 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 
     let userFeedback: { text?: string; images?: string[] } | undefined
     let didContinue = false
-    let autoAcceptTimer: NodeJS.Timeout | undefined;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     const sendCommandOutput = async (line: string): Promise<void> => {
         try {
-            // If auto-accept is enabled, start a timer to auto-proceed after 1 minute
             if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
-                // If there's input in the line, wait 1 minute before auto-proceeding
-                if (line.trim()) {
-                    autoAcceptTimer = setTimeout(() => {
-                        didContinue = true;
-                        process.continue();
-                    }, 60000); // 60 seconds = 1 minute
+                // For auto-accept, start a 10 second timer to simulate button click
+                if (!timeoutId) {
+                    timeoutId = setTimeout(() => {
+                        if (!didContinue) {
+                            didContinue = true;
+                            process.continue();
+                        }
+                    }, 10000);
+                }
+                await this.ask("command_output", line).catch(() => {});
+            } else {
+                // If auto-accept is not enabled, handle user interaction
+                const { response, text, images } = await this.ask("command_output", line)
+                if (response === "yesButtonClicked") {
+                    didContinue = true
+                    process.continue()
                 } else {
-                    // If it's just a blank line, proceed immediately
-                    didContinue = true;
-                    process.continue();
+                    userFeedback = { text, images }
                 }
             }
-
-            const { response, text, images } = await this.ask("command_output", line)
-            
-            // Clear the auto-accept timer if user responds before timeout
-            if (autoAcceptTimer) {
-                clearTimeout(autoAcceptTimer);
-            }
-
-            if (response === "yesButtonClicked") {
-                // proceed while running
-            } else {
-                userFeedback = { text, images }
-            }
-            didContinue = true
-            process.continue()
         } catch {
             // This can only happen if this ask promise was ignored, so ignore this error
-            if (autoAcceptTimer) {
-                clearTimeout(autoAcceptTimer);
-            }
         }
     }
 
@@ -742,11 +734,18 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
         }
     })
 
+    // Listen for check_state events to update the countdown display
+    process.on("check_state", async ({ timeLeft }) => {
+        if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
+            await this.say("command_output", `${command}\nProceed While Running(${timeLeft}s)`);
+        }
+    });
+
     let completed = false
     process.once("completed", () => {
         completed = true
-        if (autoAcceptTimer) {
-            clearTimeout(autoAcceptTimer);
+        if (timeoutId) {
+            clearTimeout(timeoutId);
         }
     })
 
@@ -756,11 +755,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 
     await process
 
-		// Wait for a short delay to ensure all messages are sent to the webview
-		// This delay allows time for non-awaited promises to be created and
-		// for their associated messages to be sent to the webview, maintaining
-		// the correct order of messages (although the webview is smart about
-		// grouping command_output messages despite any gaps anyways)
+    // Wait for a short delay to ensure all messages are sent to the webview
     await delay(50)
 
     result = result.trim()
@@ -801,7 +796,8 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = this.clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
+				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse
+(
 					previousRequest.text
 				)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
@@ -825,7 +821,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			const { response } = await this.ask(
 				"api_req_failed",
-				error.message ?? JSON.stringify(serializeError(error), null, 2)
+				error.message ?? JSON.stringify(serializeError(error))
 			)
 			if (response !== "yesButtonClicked") {
 				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
@@ -988,11 +984,12 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 
 				const askApproval = async (type: ClineAsk, partialMessage?: string, relPath?: string): Promise<boolean> => {
 					// If auto-accept is enabled and for the correct thread
-					
+
 					if (this.autoAcceptEnabled)
 					{
 						return true;
 					}
+						
 					if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
 						// For read-only operations, use the alwaysAllowReadOnly setting
 						if (type === 'tool' && ['read_file', 'list_files', 'list_code_definition_names', 'search_files'].includes(block.name)) {
@@ -1002,7 +999,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 							return true;
 						}
 					}
-					
+
 					// If auto-accept isn't enabled, proceed with normal approval flow
 					const { response, text, images } = await this.ask(type, partialMessage, false);
 					if (response !== "yesButtonClicked") {
@@ -1025,7 +1022,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 					await this.say(
 						"error",
-						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error))}`
 					)
 					// this.toolResults.push({
 					// 	type: "tool_result",
@@ -1659,7 +1656,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 
                                 if (idleTerminals.length > 0) {
                                     if (busyTerminals.length > 0) result += "\n";
-                                    result += "Idle Terminals:\n";
+                                    result += "Terminals and Servers. Please use these:\n";
                                     idleTerminals.forEach(terminal => {
                                         result += `\nID: ${terminal.id}\n`;
                                         result += `Last Command: ${terminal.lastCommand}\n`;
@@ -2225,8 +2222,8 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 		])
 	}
 
-	async getEnvironmentDetails(includeFileDetails: boolean = false) {
-		let details = ""
+async getEnvironmentDetails(includeFileDetails: boolean = false) {
+    let details = ""
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
@@ -2254,104 +2251,90 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 			details += "\n(No open tabs)"
 		}
 
-		const busyTerminals = this.terminalManager.getTerminals(true)
-		const inactiveTerminals = this.terminalManager.getTerminals(false)
-		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
+    const busyTerminals = this.terminalManager.getTerminals(true)
+    const inactiveTerminals = this.terminalManager.getTerminals(false)
 
-		if (busyTerminals.length > 0 && this.didEditFile) {
-			//  || this.didEditFile
-			await delay(300) // delay after saving file to let terminals catch up
-		}
+    if (busyTerminals.length > 0 && this.didEditFile) {
+        await delay(300) // delay after saving file to let terminals catch up
+    }
 
-		// let terminalWasBusy = false
-		if (busyTerminals.length > 0) {
-			// wait for terminals to cool down
-			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
-			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
-				interval: 100,
-				timeout: 15_000,
-			}).catch(() => {})
-		}
+    if (busyTerminals.length > 0) {
+        // wait for terminals to cool down
+        await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
+            interval: 100,
+            timeout: 15_000,
+        }).catch(() => {})
+    }
 
-		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
-		/*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		*/
-		this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
+    this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
-		// Add terminal details including all terminals and their status
-		let terminalDetails = "\n\n# Terminal Sessions"
-		if (busyTerminals.length > 0 || inactiveTerminals.length > 0) {
-			if (busyTerminals.length > 0) {
-				terminalDetails += "\n\nRunning Terminals:"
-				busyTerminals.forEach(terminal => {
-					terminalDetails += `\nID: ${terminal.id}\n`
-					terminalDetails += `Command: ${terminal.lastCommand}\n`
-					if (terminal.type) {
-						terminalDetails += `Type: ${terminal.type}\n`
-					}
-					const output = this.terminalManager.getUnretrievedOutput(terminal.id)
-					if (output) {
-						terminalDetails += `Recent Output:\n${output}\n`
-					}
-				})
-			}
+    // Add terminal details including all terminals and their status
+    let terminalDetails = "\n\n# Terminal Sessions"
+    if (busyTerminals.length > 0 || inactiveTerminals.length > 0) {
+        if (busyTerminals.length > 0) {
+            terminalDetails += "\n\nRunning Terminals:"
+            busyTerminals.forEach(terminal => {
+                terminalDetails += `\nID: ${terminal.id}\n`
+                terminalDetails += `Last Command: ${terminal.lastCommand}\n`
+                
+                // Enhanced terminal type and URL tracking
+                if (terminal.type) {
+                    terminalDetails += `Type: ${terminal.type}\n`
+                }
+                if (terminal.framework) {
+                    terminalDetails += `Framework: ${terminal.framework}\n`
+                }
+                if (terminal.url) {
+                    terminalDetails += `URL: ${terminal.url}\n`
+                }
+                
+                const output = this.terminalManager.getUnretrievedOutput(terminal.id)
+                if (output) {
+                    terminalDetails += `Recent Output:\n${output}\n`
+                }
+            })
+        }
 
-			if (inactiveTerminals.length > 0) {
-				terminalDetails += "\n\nIdle Terminals:"
-				inactiveTerminals.forEach(terminal => {
-					terminalDetails += `\nID: ${terminal.id}\n`
-					terminalDetails += `Last Command: ${terminal.lastCommand}\n`
-					if (terminal.type) {
-						terminalDetails += `Type: ${terminal.type}\n`
-					}
-					const output = this.terminalManager.getUnretrievedOutput(terminal.id)
-					if (output) {
-						terminalDetails += `Recent Output:\n${output}\n`
-					}
-				})
-			}
-		} else {
-			terminalDetails += "\nNo active terminal sessions found."
-		}
+        if (inactiveTerminals.length > 0) {
+            terminalDetails += "\n\nTerminals and Servers. Please use these"
+            inactiveTerminals.forEach(terminal => {
+                terminalDetails += `\nID: ${terminal.id}\n`
+                terminalDetails += `Last Command: ${terminal.lastCommand}\n`
+                
+                // Enhanced terminal type and URL tracking for idle terminals
+                if (terminal.type) {
+                    terminalDetails += `Type: ${terminal.type}\n`
+                }
+                if (terminal.framework) {
+                    terminalDetails += `Framework: ${terminal.framework}\n`
+                }
+                if (terminal.url) {
+                    terminalDetails += `URL: ${terminal.url}\n`
+                }
+            })
+        }
+    } else {
+        terminalDetails += "\nNo active terminal sessions found."
+    }
 
-		// details += "\n\n# VSCode Workspace Errors"
-		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
-		// } else {
-		// 	details += "\n(No errors detected)"
-		// }
+    if (terminalDetails) {
+        details += terminalDetails
+    }
 
-		if (terminalDetails) {
-			details += terminalDetails
-		}
+    // Rest of the method remains the same
+    if (includeFileDetails) {
+        details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
+        const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
+        if (isDesktop) {
+            // don't want to immediately access desktop since it would show permission popup
+            details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
+        } else {
+            const [files, didHitLimit] = await listFiles(cwd, true, 200)
+            const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
+            details += result
+        }
+    }
 
-		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
-			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
-			if (isDesktop) {
-				// don't want to immediately access desktop since it would show permission popup
-				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
-			} else {
-				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
-				details += result
-			}
-		}
-
-		return `<environment_details>\n${details.trim()}\n</environment_details>`
+    return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 }

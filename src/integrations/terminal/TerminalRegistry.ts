@@ -5,29 +5,40 @@ export interface TerminalInfo {
 	busy: boolean
 	lastCommand: string
 	id: number
+	serverType?: string
+	serverFramework?: string
+	serverUrl?: string
+	task?: string
 }
 
-// Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
-// Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
 	private static nextTerminalId = 1
 
-	static createTerminal(cwd?: string | vscode.Uri | undefined): TerminalInfo {
+	static createTerminal(cwd?: string | vscode.Uri | undefined, task?: string): TerminalInfo {
 		// Get the default shell profile
 		const defaultProfile = vscode.env.shell;
 		
-		// Create terminal with explicit shell integration
-		const terminal = vscode.window.createTerminal({
-			cwd,
+		// Prepare terminal options
+		const terminalOptions: vscode.TerminalOptions = {
 			name: "Cline",
-			iconPath: new vscode.ThemeIcon("robot"),
 			shellPath: defaultProfile, // Use the default shell
-			// Explicitly enable shell integration
 			env: {
 				TERM_PROGRAM: "vscode",
-			},
-		})
+				// Set task environment variable
+				...(task ? { VSCODE_TASK: task } : {})
+			}
+		}
+
+		// Conditionally add working directory if provided
+		if (cwd) {
+			terminalOptions.cwd = typeof cwd === 'string' 
+				? vscode.Uri.file(cwd) 
+				: cwd
+		}
+
+		// Create terminal with explicit shell integration
+		const terminal = vscode.window.createTerminal(terminalOptions)
 
 		// Show the terminal to ensure it's initialized
 		terminal.show(false) // false means don't focus
@@ -37,11 +48,50 @@ export class TerminalRegistry {
 			busy: false,
 			lastCommand: "",
 			id: this.nextTerminalId++,
+			task: task || "Cline"
 		}
 		this.terminals.push(newInfo)
 		return newInfo
 	}
 
+	static updateTerminalServerInfo(id: number, serverInfo: {
+		type?: string, 
+		framework?: string, 
+		url?: string
+	}) {
+		const terminal = this.getTerminal(id)
+		if (terminal) {
+			terminal.serverType = serverInfo.type
+			terminal.serverFramework = serverInfo.framework
+			terminal.serverUrl = serverInfo.url
+
+			// Update task if server info is available
+			if (serverInfo.framework || serverInfo.type) {
+				const taskName = `${serverInfo.framework || serverInfo.type} Dev Server`
+				terminal.task = taskName
+
+				// Update terminal environment to reflect the task
+				try {
+					// Modify terminal environment to set task
+					terminal.terminal.processId.then(pid => {
+						if (pid) {
+							// Note: This is a best-effort approach as directly modifying 
+							// running terminal environment is challenging
+							vscode.workspace.getConfiguration().update(
+								'terminal.integrated.env.linux', 
+								{ VSCODE_TASK: taskName },
+								vscode.ConfigurationTarget.Global
+							)
+						}
+					})
+				} catch (error) {
+					console.error("Error updating terminal task:", error)
+				}
+			}
+		}
+	}
+
+	// Rest of the implementation remains similar to previous version
 	static getTerminal(id: number): TerminalInfo | undefined {
 		const terminalInfo = this.terminals.find((t) => t.id === id)
 		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
@@ -49,13 +99,6 @@ export class TerminalRegistry {
 			return undefined
 		}
 		return terminalInfo
-	}
-
-	static updateTerminal(id: number, updates: Partial<TerminalInfo>) {
-		const terminal = this.getTerminal(id)
-		if (terminal) {
-			Object.assign(terminal, updates)
-		}
 	}
 
 	static removeTerminal(id: number) {
@@ -80,7 +123,8 @@ export class TerminalRegistry {
 					terminal,
 					busy: false,
 					lastCommand: terminal.name || "",
-					id: this.nextTerminalId++
+					id: this.nextTerminalId++,
+					task: "Cline"
 				})
 			}
 		})
@@ -93,12 +137,11 @@ export class TerminalRegistry {
 		return this.terminals
 	}
 
-	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)
+	// Existing helper methods remain the same
 	private static isTerminalClosed(terminal: vscode.Terminal): boolean {
 		return terminal.exitStatus !== undefined
 	}
 
-	// Helper method to ensure shell integration is ready
 	static async ensureShellIntegration(terminal: vscode.Terminal): Promise<boolean> {
 		// If shell integration is already available, return true
 		if (terminal.shellIntegration?.executeCommand) {
@@ -125,7 +168,6 @@ export class TerminalRegistry {
 		})
 	}
 
-	// Helper method to check if a terminal has shell integration
 	static hasShellIntegration(terminal: vscode.Terminal): boolean {
 		return terminal.shellIntegration?.executeCommand !== undefined
 	}

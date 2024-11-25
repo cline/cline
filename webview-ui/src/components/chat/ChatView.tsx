@@ -65,7 +65,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		let countdownTimer: NodeJS.Timeout | undefined;
 		
 		if (autoAcceptEnabled && clineAsk === "command_output" && enableButtons) {
-			setCountdown(60); // Start at 60 seconds
+			setCountdown(10); // Start at 10 seconds
 			countdownTimer = setInterval(() => {
 				setCountdown(prev => {
 					if (prev === null || prev <= 1) {

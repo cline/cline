@@ -25,6 +25,7 @@ declare module "vscode" {
 export interface ReadyInfo {
     type: string;
     url?: string;
+    framework?: string;
     terminalId: number;
 }
 
@@ -32,6 +33,9 @@ interface TerminalOutput {
     id: number;
     lastCommand: string;
     type?: string;
+    framework?: string;
+    url?: string;
+    displayName?: string;
     recentOutput?: string[];
     commandHistory?: string[];
 }
@@ -51,7 +55,6 @@ export class TerminalManager {
 	private processes: Map<number, TerminalState> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private readyCallback?: (info: ReadyInfo) => void
-	private terminalTypes: Map<number, string> = new Map()
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -123,9 +126,14 @@ export class TerminalManager {
 		// Update command history
 		this.updateTerminalState(terminalInfo.id, '', command)
 
-		// Handle ready event
+		// Handle ready event with server information
 		state.process.on("ready", (info) => {
-			this.terminalTypes.set(terminalInfo.id, info.type)
+			// Update terminal registry with server information
+			TerminalRegistry.updateTerminalServerInfo(terminalInfo.id, {
+				type: info.type,
+				framework: info.framework,
+				url: info.url
+			})
 			
 			if (this.readyCallback) {
 				this.readyCallback({
@@ -142,27 +150,10 @@ export class TerminalManager {
 
 		state.process.once("completed", () => {
 			terminalInfo.busy = false
-			
-			if (!state?.process.isHot) {
-				setTimeout(() => {
-					terminalInfo.terminal.dispose()
-					TerminalRegistry.removeTerminal(terminalInfo.id)
-					this.terminalIds.delete(terminalInfo.id)
-					this.processes.delete(terminalInfo.id)
-					this.terminalTypes.delete(terminalInfo.id)
-				}, 1000)
-			}
 		})
 
 		state.process.once("no_shell_integration", () => {
-			const type = this.terminalTypes.get(terminalInfo.id)
-			if (!state?.process.isHot && !type?.includes('server')) {
-				console.log(`Removing terminal ${terminalInfo.id} due to no shell integration after retries`)
-				TerminalRegistry.removeTerminal(terminalInfo.id)
-				this.terminalIds.delete(terminalInfo.id)
-				this.processes.delete(terminalInfo.id)
-				this.terminalTypes.delete(terminalInfo.id)
-			}
+			console.log(`Shell integration not available for terminal ${terminalInfo.id}`)
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {
@@ -185,6 +176,23 @@ export class TerminalManager {
 	}
 
 	async getOrCreateTerminal(cwd: string, terminalId?: number): Promise<TerminalInfo> {
+		// Find available terminal from our pool first (created for this task)
+		const availableTerminal = TerminalRegistry.getAllTerminals().find((t) => {
+			if (t.busy) {
+				return false
+			}
+			const terminalCwd = t.terminal.shellIntegration?.cwd
+			if (!terminalCwd) {
+				return false
+			}
+			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+		})
+		if (availableTerminal) {
+			this.terminalIds.add(availableTerminal.id)
+			return availableTerminal
+		}
+
+		// If a specific terminal ID is provided, try to reuse it
 		if (terminalId !== undefined) {
 			const existingTerminal = TerminalRegistry.getTerminal(terminalId)
 			if (existingTerminal) {
@@ -194,6 +202,7 @@ export class TerminalManager {
 			}
 		}
 
+		// Create a new terminal if no suitable existing terminal is found
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		await TerminalRegistry.ensureShellIntegration(newTerminalInfo.terminal)
 		this.terminalIds.add(newTerminalInfo.id)
@@ -213,7 +222,10 @@ export class TerminalManager {
                 return {
                     id: terminal.id,
                     lastCommand: terminal.lastCommand,
-                    type: this.terminalTypes.get(id),
+                    type: terminal.serverType,
+                    framework: terminal.serverFramework,
+                    url: terminal.serverUrl,
+                    displayName: terminal.task,
                     recentOutput: state?.outputLines.slice(-MAX_OUTPUT_LINES),
                     commandHistory: state?.commandHistory.slice(-MAX_COMMAND_HISTORY)
                 }
@@ -235,24 +247,7 @@ export class TerminalManager {
 	}
 
 	disposeAll() {
-		const terminalsToDispose = Array.from(this.terminalIds)
-			.filter(id => {
-				const state = this.processes.get(id)
-				const type = this.terminalTypes.get(id)
-				return !state?.process.isHot && !type?.includes('server')
-			})
-		
-		for (const id of terminalsToDispose) {
-			const terminalInfo = TerminalRegistry.getTerminal(id)
-			if (terminalInfo) {
-				terminalInfo.terminal.dispose()
-			}
-			TerminalRegistry.removeTerminal(id)
-			this.terminalIds.delete(id)
-			this.processes.delete(id)
-			this.terminalTypes.delete(id)
-		}
-
+		// Only dispose the disposables, keep terminals alive
 		this.disposables.forEach((disposable) => disposable.dispose())
 		this.disposables = []
 	}
