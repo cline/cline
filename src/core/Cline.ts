@@ -97,7 +97,7 @@ export class Cline {
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
 		alwaysAllowWrite?: boolean,
-		alwaysAllowExecute?: boolean,  // Add this line
+		alwaysAllowExecute?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
