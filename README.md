@@ -2,6 +2,11 @@
 
 ## Roo Packaging and Installation
 
+### Updating Version (for a new release)
+
+1. Bump the version in `package.json`
+2. Update the version number in the `files` list in `package.json`
+
 ### Packaging
 1. Bump the version in `package.json`
 2. Remove the old VSIX file:
