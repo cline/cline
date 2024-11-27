@@ -67,6 +67,8 @@ export class Cline {
 	alwaysAllowReadOnly: boolean
 	alwaysAllowWrite: boolean
 	alwaysAllowExecute: boolean
+	alwaysAllowBrowser: boolean
+
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -98,6 +100,7 @@ export class Cline {
 		alwaysAllowReadOnly?: boolean,
 		alwaysAllowWrite?: boolean,
 		alwaysAllowExecute?: boolean,
+		alwaysAllowBrowser?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -111,7 +114,8 @@ export class Cline {
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 		this.alwaysAllowWrite = alwaysAllowWrite ?? false
-		this.alwaysAllowExecute = alwaysAllowExecute ?? false
+		this.alwaysAllowExecute = alwaysAllowExecute ?? false		
+		this.alwaysAllowBrowser = alwaysAllowBrowser ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1402,11 +1406,24 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									await this.ask(
-										"browser_action_launch",
-										removeClosingTag("url", url),
-										block.partial,
-									).catch(() => {})
+									if (this.alwaysAllowBrowser) {
+										await this.say(
+											"browser_action",
+											JSON.stringify({
+												action: action as BrowserAction,
+												coordinate: undefined,
+												text: undefined
+											} satisfies ClineSayBrowserAction),
+											undefined,
+											block.partial
+										)
+									} else {
+										await this.ask(
+											"browser_action_launch",
+											removeClosingTag("url", url),
+											block.partial
+										).catch(() => {})
+									}
 								} else {
 									await this.say(
 										"browser_action",
@@ -1432,7 +1449,7 @@ export class Cline {
 										break
 									}
 									this.consecutiveMistakeCount = 0
-									const didApprove = await askApproval("browser_action_launch", url)
+									const didApprove = this.alwaysAllowBrowser || await askApproval("browser_action_launch", url)
 									if (!didApprove) {
 										break
 									}
