@@ -24,7 +24,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowExecute: (value: boolean) => void
 	setAlwaysAllowBrowser: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
-	setAlwaysAllowExecute: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
