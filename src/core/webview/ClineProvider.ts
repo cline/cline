@@ -60,6 +60,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "alwaysAllowExecute"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -836,6 +837,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
+			
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
@@ -1099,5 +1101,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+	}
+
+	async updateAlwaysAllowWrite(bool?: boolean) {
+		await this.updateGlobalState("alwaysAllowWrite", bool ?? undefined)
+		if (this.cline) {
+			this.cline.alwaysAllowWrite = bool ?? false
+		}
+		await this.postStateToWebview()
+	}
+
+	async updateAlwaysAllowExecute(bool?: boolean) {
+		await this.updateGlobalState("alwaysAllowExecute", bool ?? undefined)
+		if (this.cline) {
+			this.cline.alwaysAllowExecute = bool ?? false
+		}
+		await this.postStateToWebview()
 	}
 }

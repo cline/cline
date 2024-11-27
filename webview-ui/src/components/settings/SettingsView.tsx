@@ -190,6 +190,50 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</p>
 				</div>
 
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowWrite}
+						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve write operations
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically create and edit files without requiring approval. This could potentially lead to unwanted file modifications. Enable only if you fully trust the AI and understand the risks.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowExecute}
+						onChange={(e: any) => setAlwaysAllowExecute(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve command execution
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically execute terminal commands without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the serious implications.
+					</p>
+				</div>
+
 				{IS_DEV && (
 					<>
 						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>

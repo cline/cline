@@ -1076,7 +1076,11 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowWrite) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1106,7 +1110,11 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									if (this.alwaysAllowWrite) {
+										await this.say("tool", partialMessage, undefined, true)
+									} else {
+										await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									}
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1125,25 +1133,22 @@ export class Cline {
 											)
 										: undefined,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									await this.diffViewProvider.revertChanges()
-									break
-								}
-								const { newProblemsMessage, userEdits, finalContent } =
-									await this.diffViewProvider.saveChanges()
-								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
-								if (userEdits) {
-									await this.say(
-										"user_feedback_diff",
-										JSON.stringify({
-											tool: fileExists ? "editedExistingFile" : "newFileCreated",
-											path: getReadablePath(cwd, relPath),
-											diff: userEdits,
-										} satisfies ClineSayTool),
-									)
-									pushToolResult(
-										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+
+								const saveFileChanges = async (relPath: string, fileExists: boolean, completeMessage: string) => {
+									const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
+									this.didEditFile = true
+									
+									if (userEdits) {
+										await this.say(
+											"user_feedback_diff",
+											JSON.stringify({
+												tool: fileExists ? "editedExistingFile" : "newFileCreated",
+												path: getReadablePath(cwd, relPath),
+												diff: userEdits,
+											} satisfies ClineSayTool),
+										)
+										pushToolResult(
+											`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
 											`Please note:\n` +
@@ -1151,11 +1156,24 @@ export class Cline {
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
 											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
 											`${newProblemsMessage}`,
-									)
+										)
+									} else {
+										pushToolResult(
+											`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`,
+										)
+									}
+								}
+
+								if (this.alwaysAllowWrite) {
+									await this.say("tool", completeMessage, undefined, false)
+									await saveFileChanges(relPath, fileExists, completeMessage)
 								} else {
-									pushToolResult(
-										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`,
-									)
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										await this.diffViewProvider.revertChanges()
+										break
+									}
+									await saveFileChanges(relPath, fileExists, completeMessage)
 								}
 								await this.diffViewProvider.reset()
 								break
@@ -1506,7 +1524,7 @@ export class Cline {
 										pushToolResult(
 											formatResponse.toolResult(
 												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
-													browserActionResult.logs || "(No new logs)"
+														browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
@@ -1532,9 +1550,11 @@ export class Cline {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {},
-								)
+								if (this.alwaysAllowExecute) {
+									await this.say("text", removeClosingTag("command", command), undefined, block.partial)
+								} else {
+									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
+								}
 								break
 							} else {
 								if (!command) {
@@ -1545,15 +1565,25 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = await askApproval("command", command)
-								if (!didApprove) {
-									break
+
+								if (this.alwaysAllowExecute) {
+									await this.say("text", command, undefined, false)
+									const [userRejected, result] = await this.executeCommandTool(command)
+									if (userRejected) {
+										this.didRejectTool = true
+									}
+									pushToolResult(result)
+								} else {
+									const didApprove = await askApproval("command", command)
+									if (!didApprove) {
+										break
+									}
+									const [userRejected, result] = await this.executeCommandTool(command)
+									if (userRejected) {
+										this.didRejectTool = true
+									}
+									pushToolResult(result)
 								}
-								const [userRejected, result] = await this.executeCommandTool(command)
-								if (userRejected) {
-									this.didRejectTool = true
-								}
-								pushToolResult(result)
 								break
 							}
 						} catch (error) {
