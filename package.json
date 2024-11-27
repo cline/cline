@@ -2,9 +2,10 @@
   "name": "roo-cline",
   "displayName": "Roo Cline",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.1.1", 
+  "publisher": "RooVeterinaryInc",
+  "version": "2.1.2", 
   "files": [
-    "bin/roo-cline-2.1.1.vsix", 
+    "bin/roo-cline-2.1.2.vsix", 
     "assets/icons/icon_Roo.png"
   ],
   "icon": "assets/icons/icon_Roo.png",
@@ -145,8 +146,6 @@
     "build:webview": "cd webview-ui && npm run build",
     "test:webview": "cd webview-ui && npm run test",
     "publish:marketplace": "vsce publish && ovsx publish",
-    "co:login": "scripts/codeartifact-login.sh",
-    "install:cline": "scripts/install-cline-latest.sh"
   },
   "devDependencies": {
     "@types/diff": "^5.2.1",

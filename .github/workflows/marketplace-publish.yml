@@ -1,0 +1,32 @@
+name: Publish Extension
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  publish-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+      - name: Install Dependencies
+        run: |
+          npm install -g vsce ovsx
+          npm install
+          cd webview-ui
+          npm install
+          cd ..
+      - name: Package and Publish Extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          current_package_version=$(node -p "require('./package.json').version")
+          npm run vsix
+          npm run publish:marketplace
+          echo "Successfully published version $current_package_version to VS Code Marketplace"

@@ -1,5 +1,9 @@
 # Change Log
 
+## Roo Cline 2.1.2
+
+- Roo Cline now publishes to the VS Code Marketplace!
+
 ## [2.1.6]
 
 - Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
