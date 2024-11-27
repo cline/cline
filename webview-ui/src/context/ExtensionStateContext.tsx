@@ -38,6 +38,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		shouldShowAnnouncement: false,
 		alwaysAllowWrite: false,
 		alwaysAllowExecute: false,
+		setAlwaysAllowBrowser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
