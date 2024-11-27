@@ -179,7 +179,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							borderRadius: "4px",
 							color: "var(--vscode-errorForeground)",
 						}}>
-						⚠️ WARNING: When enabled, Cline will automatically execute terminal commands without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the serious implications.
+						⚠️ WARNING: When enabled, Cline will automatically execute terminal commands without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.
 					</p>
 				</div>
 
@@ -201,7 +201,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							borderRadius: "4px",
 							color: "var(--vscode-errorForeground)",
 						}}>
-						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the serious implications.
+						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.
 					</p>
 				</div>
 
