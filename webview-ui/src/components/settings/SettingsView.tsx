@@ -143,57 +143,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<VSCodeCheckbox
 						checked={alwaysAllowWrite}
 						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always approve write operations</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Cline will automatically write to files and create directories
-						without requiring you to click the Approve button.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowExecute}
-						onChange={(e: any) => setAlwaysAllowExecute(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always approve execute operations</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Cline will automatically CLI commands without requiring
-						you to click the Approve button.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowBrowser}
-						onChange={(e: any) => setAlwaysAllowBrowser(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always approve browser actions</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Cline will automatically perform browser actions without requiring
-						you to click the Approve button.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowWrite}
-						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
 						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
 							Always approve write operations
 						</span>
@@ -231,6 +180,28 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-errorForeground)",
 						}}>
 						⚠️ WARNING: When enabled, Cline will automatically execute terminal commands without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the serious implications.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowBrowser}
+						onChange={(e: any) => setAlwaysAllowBrowser(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve browser actions
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring you to click the Approve button. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the serious implications.
 					</p>
 				</div>
 
