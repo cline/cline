@@ -1136,7 +1136,7 @@ export class Cline {
 
 								const saveFileChanges = async (relPath: string, fileExists: boolean, completeMessage: string) => {
 									const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
-									this.didEditFile = true
+										this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 									
 									if (userEdits) {
 										await this.say(
