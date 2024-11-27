@@ -79,6 +79,7 @@ export type ClineSay =
 	| "shell_integration_warning"
 	| "browser_action"
 	| "browser_action_result"
+	| "command"
 
 export interface ClineSayTool {
 	tool:
