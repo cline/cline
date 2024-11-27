@@ -194,7 +194,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
-		await this.clearTask()
+		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { 
 			apiConfiguration, 
 			customInstructions, 
