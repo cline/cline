@@ -28,5 +28,5 @@ jobs:
         run: |
           current_package_version=$(node -p "require('./package.json').version")
           npm run vsix
-          npm run publish:marketplace -- --pat VSCE_PAT
+          npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
