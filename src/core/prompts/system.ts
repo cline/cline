@@ -37,9 +37,11 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
+- pipein: (optional) Text piped into the command's standard input which can be used for multi-line input in place of \`echo\` and "heredoc" content.
 Usage:
 <execute_command>
 <command>Your command here</command>
+<pipein>Optional standard input to the command</pipein>
 </execute_command>
 
 ## read_file
@@ -160,10 +162,20 @@ Your final result description here
 
 # Tool Use Examples
 
-## Example 1: Requesting to execute a command
+## Example 1a: Requesting to execute a command
 
 <execute_command>
 <command>npm run dev</command>
+</execute_command>
+
+## Example 1b: Using \`execute_command\` with \`pipein\` to write into the standard input of a program
+
+<execute_command>
+<command>cat -n</command>
+<pipein>line1
+line2
+line3
+</pipein>
 </execute_command>
 
 ## Example 2: Requesting to write to a file

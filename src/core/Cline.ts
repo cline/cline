@@ -673,10 +673,10 @@ export class Cline {
 
 	// Tools
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, pipein?: string): Promise<[boolean, ToolResponse]> {
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = this.terminalManager.runCommand(terminalInfo, command, pipein)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -1507,6 +1507,7 @@ export class Cline {
 					}
 					case "execute_command": {
 						const command: string | undefined = block.params.command
+						const pipein: string | undefined = block.params.pipein
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1526,7 +1527,7 @@ export class Cline {
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, result] = await this.executeCommandTool(command)
+								const [userRejected, result] = await this.executeCommandTool(command, pipein)
 								if (userRejected) {
 									this.didRejectTool = true
 								}
@@ -1589,6 +1590,8 @@ export class Cline {
 						*/
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
+						const pipein: string | undefined = block.params.pipein
+
 						try {
 							const lastMessage = this.clineMessages.at(-1)
 							if (block.partial) {
@@ -1651,7 +1654,7 @@ export class Cline {
 									if (!didApprove) {
 										break
 									}
-									const [userRejected, execCommandResult] = await this.executeCommandTool(command!)
+									const [userRejected, execCommandResult] = await this.executeCommandTool(command!, pipein)
 									if (userRejected) {
 										this.didRejectTool = true
 										pushToolResult(execCommandResult)
