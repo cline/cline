@@ -61,18 +61,28 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 				// there's no current param, and not starting a new param
 
-				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
-				const contentParamName: ToolParamName = "content"
-				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
-					const toolContent = accumulator.slice(currentToolUseStartIndex)
-					const contentStartTag = `<${contentParamName}>`
-					const contentEndTag = `</${contentParamName}>`
-					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
-					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
-					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
-						currentToolUse.params[contentParamName] = toolContent
-							.slice(contentStartIndex, contentEndIndex)
-							.trim()
+				// Handle parameters that may contain nested XML:
+				// Where file contents could contain the closing tag, in which case the param 
+				// would have closed and we end up with the rest of the file contents here.
+				// To work around this, we get the string between the starting content tag and
+				// the LAST content tag.
+				const nestedXmlParams = new Set<[ToolUseName, ToolParamName]>([
+					["write_to_file", "content"],
+					["execute_command", "pipein"]
+				])
+				
+				for (const [toolName, paramName] of nestedXmlParams) {
+					if (currentToolUse.name === toolName && accumulator.endsWith(`</${paramName}>`)) {
+						const toolContent = accumulator.slice(currentToolUseStartIndex)
+						const paramStartTag = `<${paramName}>`
+						const paramEndTag = `</${paramName}>`
+						const paramStartIndex = toolContent.indexOf(paramStartTag) + paramStartTag.length
+						const paramEndIndex = toolContent.lastIndexOf(paramEndTag)
+						if (paramStartIndex !== -1 && paramEndIndex !== -1 && paramEndIndex > paramStartIndex) {
+							currentToolUse.params[paramName] = toolContent
+								.slice(paramStartIndex, paramEndIndex)
+								.trim()
+						}
 					}
 				}
 
