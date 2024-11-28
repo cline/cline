@@ -197,20 +197,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const { 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser 
 		} = await this.getState()
 		
 		this.cline = new Cline(
 			this, 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
 			task, 
 			images
 		)
@@ -221,20 +213,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const { 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser 
 		} = await this.getState()
 		
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly,
-			alwaysAllowWrite,
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
 			undefined,
 			undefined,
 			historyItem,
@@ -440,23 +424,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowReadOnly = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowWrite":
 						await this.updateGlobalState("alwaysAllowWrite", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowWrite = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowExecute":
 						await this.updateGlobalState("alwaysAllowExecute", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowExecute = message.bool ?? false
-						}
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowBrowser":
+						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -530,13 +509,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 						}
 
-						break
-					case "alwaysAllowBrowser":
-						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowBrowser = message.bool ?? false
-						}
-						await this.postStateToWebview()
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
@@ -840,12 +812,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const { 
 			apiConfiguration, 
 			lastShownAnnouncementId, 
-			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
+			customInstructions,
+			alwaysAllowReadOnly,
+			alwaysAllowWrite,
 			alwaysAllowExecute,
-			alwaysAllowBrowser, 
-			taskHistory 
+			alwaysAllowBrowser,
+			taskHistory,
 		} = await this.getState()
 		
 		return {
@@ -947,8 +919,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			alwaysAllowWrite,
 			alwaysAllowExecute,
-			taskHistory,
 			alwaysAllowBrowser,
+			taskHistory,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -979,8 +951,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowWrite") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
+			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 		])
 
 		let apiProvider: ApiProvider

@@ -116,15 +116,6 @@
           "when": "view == claude-dev.SidebarProvider"
         }
       ]
-    },
-    "configuration": {
-      "properties": {
-        "cline.alwaysAllowBrowser": {
-          "type": "boolean",
-          "default": false,
-          "description": "Always allow browser actions without requiring confirmation"
-        }
-      }
     }
   },
   "scripts": {

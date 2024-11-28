@@ -231,40 +231,14 @@ describe('Cline', () => {
     });
 
     describe('constructor', () => {
-        it('should initialize with default settings', () => {
-            const cline = new Cline(
-                mockProvider,
-                mockApiConfig,
-                undefined, // customInstructions
-                undefined, // alwaysAllowReadOnly
-                undefined, // alwaysAllowWrite
-                undefined, // alwaysAllowExecute
-                undefined, // alwaysAllowBrowser
-                'test task'
-            );
-
-            expect(cline.alwaysAllowReadOnly).toBe(false);
-            expect(cline.alwaysAllowWrite).toBe(false);
-            expect(cline.alwaysAllowExecute).toBe(false);
-            expect(cline.alwaysAllowBrowser).toBe(false);
-        });
-
         it('should respect provided settings', () => {
             const cline = new Cline(
                 mockProvider,
                 mockApiConfig,
                 'custom instructions',
-                true,  // alwaysAllowReadOnly
-                true,  // alwaysAllowWrite
-                true,  // alwaysAllowExecute
-                true,  // alwaysAllowBrowser
                 'test task'
             );
 
-            expect(cline.alwaysAllowReadOnly).toBe(true);
-            expect(cline.alwaysAllowWrite).toBe(true);
-            expect(cline.alwaysAllowExecute).toBe(true);
-            expect(cline.alwaysAllowBrowser).toBe(true);
             expect(cline.customInstructions).toBe('custom instructions');
         });
 
@@ -277,142 +251,4 @@ describe('Cline', () => {
             }).toThrow('Either historyItem or task/images must be provided');
         });
     });
-
-    describe('file operations', () => {
-        let cline: Cline;
-
-        beforeEach(() => {
-            cline = new Cline(
-                mockProvider,
-                mockApiConfig,
-                undefined,
-                false,
-                false,
-                false,
-                false,
-                'test task'
-            );
-        });
-
-        it('should bypass approval when alwaysAllowWrite is true', async () => {
-            const writeEnabledCline = new Cline(
-                mockProvider,
-                mockApiConfig,
-                undefined,
-                false,
-                true,  // alwaysAllowWrite
-                false,
-                false,
-                'test task'
-            );
-
-            expect(writeEnabledCline.alwaysAllowWrite).toBe(true);
-            // The write operation would bypass approval in actual implementation
-        });
-
-        it('should require approval when alwaysAllowWrite is false', async () => {
-            const writeDisabledCline = new Cline(
-                mockProvider,
-                mockApiConfig,
-                undefined,
-                false,
-                false,  // alwaysAllowWrite
-                false,
-                false,
-                'test task'
-            );
-
-            expect(writeDisabledCline.alwaysAllowWrite).toBe(false);
-            // The write operation would require approval in actual implementation
-        });
-    });
-
-    describe('isAllowedCommand', () => {
-        let cline: any
-
-        beforeEach(() => {
-            // Create a more complete mock provider
-            const mockProvider = {
-                context: {
-                    globalStorageUri: { fsPath: '/mock/path' }
-                },
-                postStateToWebview: jest.fn(),
-                postMessageToWebview: jest.fn(),
-                updateTaskHistory: jest.fn()
-            }
-
-            // Mock the required dependencies
-            const mockApiConfig = {
-                getModel: () => ({
-                    id: 'claude-3-sonnet',
-                    info: { supportsComputerUse: true }
-                })
-            }
-
-            // Create test instance with mocked constructor params
-            cline = new Cline(
-                mockProvider as any,
-                mockApiConfig as any,
-                undefined,  // customInstructions
-                false,      // alwaysAllowReadOnly
-                false,      // alwaysAllowWrite
-                false,      // alwaysAllowExecute
-                false,      // alwaysAllowBrowser
-                'test task' // task
-            )
-
-            // Mock internal methods that are called during initialization
-            cline.initiateTaskLoop = jest.fn()
-            cline.say = jest.fn()
-            cline.addToClineMessages = jest.fn()
-            cline.overwriteClineMessages = jest.fn()
-            cline.addToApiConversationHistory = jest.fn()
-            cline.overwriteApiConversationHistory = jest.fn()
-        })
-
-        test('returns true for allowed commands', () => {
-            expect(cline.isAllowedCommand('npm install')).toBe(true)
-            expect(cline.isAllowedCommand('npx create-react-app')).toBe(true)
-            expect(cline.isAllowedCommand('tsc --watch')).toBe(true)
-            expect(cline.isAllowedCommand('git log --oneline')).toBe(true)
-            expect(cline.isAllowedCommand('git diff main')).toBe(true)
-        })
-
-        test('returns true regardless of case or whitespace', () => {
-            expect(cline.isAllowedCommand('NPM install')).toBe(true)
-            expect(cline.isAllowedCommand('  npm install')).toBe(true)
-            expect(cline.isAllowedCommand('GIT DIFF')).toBe(true)
-        })
-
-        test('returns false for non-allowed commands', () => {
-            expect(cline.isAllowedCommand('rm -rf /')).toBe(false)
-            expect(cline.isAllowedCommand('git push')).toBe(false)
-            expect(cline.isAllowedCommand('git commit')).toBe(false)
-            expect(cline.isAllowedCommand('curl http://example.com')).toBe(false)
-        })
-
-        test('returns false for undefined or empty commands', () => {
-            expect(cline.isAllowedCommand()).toBe(false)
-            expect(cline.isAllowedCommand('')).toBe(false)
-            expect(cline.isAllowedCommand('  ')).toBe(false)
-        })
-
-        test('returns false for commands with chaining operators', () => {
-            const maliciousCommands = [
-                'npm install && rm -rf /',
-                'git status; dangerous-command',
-                'git log || evil-script',
-                'git status | malicious-pipe',
-                'git log $(evil-command)',
-                'git status `rm -rf /`',
-                'npm install && echo "malicious"',
-                'git status; curl http://evil.com',
-                'tsc --watch || wget malware',
-            ];
-
-            maliciousCommands.forEach(cmd => {
-                expect(cline.isAllowedCommand(cmd)).toBe(false);
-            });
-        });
-    })
 });
