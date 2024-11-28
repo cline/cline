@@ -35,7 +35,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -673,6 +673,47 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		},
 		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
+
+	useEffect(() => {
+		// Only proceed if we have an ask and buttons are enabled
+		if (!clineAsk || !enableButtons) return;
+
+		const isReadOnlyToolAction = () => {
+			const lastMessage = messages.at(-1);
+			if (lastMessage?.type === "ask" && lastMessage.text) {
+				const tool = JSON.parse(lastMessage.text);
+				return ["readFile", "listFiles", "searchFiles"].includes(tool.tool);
+			}
+			return false;
+		};
+
+		const isWriteToolAction = () => {
+			const lastMessage = messages.at(-1);
+			if (lastMessage?.type === "ask" && lastMessage.text) {
+				const tool = JSON.parse(lastMessage.text);
+				return ["editedExistingFile", "newFileCreated"].includes(tool.tool);
+			}
+			return false;
+		};
+
+		if (
+			(alwaysAllowBrowser && clineAsk === "browser_action_launch") ||
+			(alwaysAllowReadOnly && clineAsk === "tool" && isReadOnlyToolAction()) ||
+			(alwaysAllowWrite && clineAsk === "tool" && isWriteToolAction()) ||
+			(alwaysAllowExecute && clineAsk === "command")
+		) {
+			handlePrimaryButtonClick();
+		}
+	}, [
+		clineAsk,
+		enableButtons,
+		handlePrimaryButtonClick,
+		alwaysAllowBrowser,
+		alwaysAllowReadOnly,
+		alwaysAllowWrite,
+		alwaysAllowExecute,
+		messages
+	]);
 
 	return (
 		<div

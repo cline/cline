@@ -198,20 +198,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const { 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser 
 		} = await this.getState()
 		
 		this.cline = new Cline(
 			this, 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
 			task, 
 			images
 		)
@@ -222,20 +214,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const { 
 			apiConfiguration, 
 			customInstructions, 
-			alwaysAllowReadOnly, 
-			alwaysAllowWrite, 
-			alwaysAllowExecute,
-			alwaysAllowBrowser 
 		} = await this.getState()
 		
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly,
-			alwaysAllowWrite,
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
 			undefined,
 			undefined,
 			historyItem,
@@ -441,23 +425,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowReadOnly = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowWrite":
 						await this.updateGlobalState("alwaysAllowWrite", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowWrite = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowExecute":
 						await this.updateGlobalState("alwaysAllowExecute", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowExecute = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -534,9 +509,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowBrowser":
 						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowBrowser = message.bool ?? false
-						}
 						await this.postStateToWebview()
 						break
 					// Add more switch case statements here as more webview message commands
@@ -1123,17 +1095,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async updateAlwaysAllowWrite(bool?: boolean) {
 		await this.updateGlobalState("alwaysAllowWrite", bool ?? undefined)
-		if (this.cline) {
-			this.cline.alwaysAllowWrite = bool ?? false
-		}
 		await this.postStateToWebview()
 	}
 
 	async updateAlwaysAllowExecute(bool?: boolean) {
 		await this.updateGlobalState("alwaysAllowExecute", bool ?? undefined)
-		if (this.cline) {
-			this.cline.alwaysAllowExecute = bool ?? false
-		}
 		await this.postStateToWebview()
 	}
 }

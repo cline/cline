@@ -64,10 +64,6 @@ export class Cline {
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	alwaysAllowReadOnly: boolean
-	alwaysAllowWrite: boolean
-	alwaysAllowExecute: boolean
-	alwaysAllowBrowser: boolean
 
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -97,10 +93,6 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
-		alwaysAllowReadOnly?: boolean,
-		alwaysAllowWrite?: boolean,
-		alwaysAllowExecute?: boolean,
-		alwaysAllowBrowser?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -112,10 +104,6 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-		this.alwaysAllowWrite = alwaysAllowWrite ?? false
-		this.alwaysAllowExecute = alwaysAllowExecute ?? false		
-		this.alwaysAllowBrowser = alwaysAllowBrowser ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1076,11 +1064,8 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								if (this.alwaysAllowWrite) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1110,11 +1095,7 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									if (this.alwaysAllowWrite) {
-										await this.say("tool", partialMessage, undefined, true)
-									} else {
-										await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-									}
+									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1163,18 +1144,12 @@ export class Cline {
 										)
 									}
 								}
-
-								if (this.alwaysAllowWrite) {
-									await this.say("tool", completeMessage, undefined, false)
-									await saveFileChanges(relPath, fileExists, completeMessage)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										await this.diffViewProvider.revertChanges()
-										break
-									}
-									await saveFileChanges(relPath, fileExists, completeMessage)
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									await this.diffViewProvider.revertChanges()
+									break
 								}
+								await saveFileChanges(relPath, fileExists, completeMessage)
 								await this.diffViewProvider.reset()
 								break
 							}
@@ -1196,11 +1171,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relPath) {
@@ -1214,13 +1185,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
@@ -1246,11 +1213,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1266,13 +1229,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(result)
 								break
@@ -1294,11 +1253,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1315,13 +1270,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(result)
 								break
@@ -1347,11 +1298,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1371,13 +1318,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(results)
 								break
@@ -1406,24 +1349,11 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									if (this.alwaysAllowBrowser) {
-										await this.say(
-											"browser_action",
-											JSON.stringify({
-												action: action as BrowserAction,
-												coordinate: undefined,
-												text: undefined
-											} satisfies ClineSayBrowserAction),
-											undefined,
-											block.partial
-										)
-									} else {
-										await this.ask(
-											"browser_action_launch",
-											removeClosingTag("url", url),
-											block.partial
-										).catch(() => {})
-									}
+									await this.ask(
+										"browser_action_launch",
+										removeClosingTag("url", url),
+										block.partial
+									).catch(() => {})
 								} else {
 									await this.say(
 										"browser_action",
@@ -1449,7 +1379,7 @@ export class Cline {
 										break
 									}
 									this.consecutiveMistakeCount = 0
-									const didApprove = this.alwaysAllowBrowser || await askApproval("browser_action_launch", url)
+									const didApprove = await askApproval("browser_action_launch", url)
 									if (!didApprove) {
 										break
 									}
@@ -1550,11 +1480,7 @@ export class Cline {
 						const command: string | undefined = block.params.command
 						try {
 							if (block.partial) {
-								if (this.alwaysAllowExecute) {
-									await this.say("text", removeClosingTag("command", command), undefined, block.partial)
-								} else {
-									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
-								}
+								await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
 								break
 							} else {
 								if (!command) {
@@ -1566,24 +1492,15 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 
-								if (this.alwaysAllowExecute) {
-									await this.say("text", command, undefined, false)
-									const [userRejected, result] = await this.executeCommandTool(command)
-									if (userRejected) {
-										this.didRejectTool = true
-									}
-									pushToolResult(result)
-								} else {
-									const didApprove = await askApproval("command", command)
-									if (!didApprove) {
-										break
-									}
-									const [userRejected, result] = await this.executeCommandTool(command)
-									if (userRejected) {
-										this.didRejectTool = true
-									}
-									pushToolResult(result)
+								const didApprove = await askApproval("command", command)
+								if (!didApprove) {
+									break
 								}
+								const [userRejected, result] = await this.executeCommandTool(command)
+								if (userRejected) {
+									this.didRejectTool = true
+								}
+								pushToolResult(result)
 								break
 							}
 						} catch (error) {
