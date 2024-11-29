@@ -307,13 +307,26 @@ export class DiffViewProvider {
 	}
 
 	private scrollEditorToLine(line: number) {
-		if (this.activeDiffEditor) {
+		if (this.activeDiffEditor && this.isScrolledToBottom()) {
 			const scrollLine = line + 4
 			this.activeDiffEditor.revealRange(
 				new vscode.Range(scrollLine, 0, scrollLine, 0),
 				vscode.TextEditorRevealType.InCenter,
 			)
 		}
+	}
+
+	private isScrolledToBottom(): boolean {
+		if (!this.activeDiffEditor) {
+			return false
+		}
+		const visibleRanges = this.activeDiffEditor.visibleRanges
+		if (visibleRanges.length === 0) {
+			return false
+		}
+		const lastVisibleRange = visibleRanges[visibleRanges.length - 1]
+		const lastLine = this.activeDiffEditor.document.lineCount - 1
+		return lastVisibleRange.end.line >= lastLine
 	}
 
 	scrollToFirstDiff() {
