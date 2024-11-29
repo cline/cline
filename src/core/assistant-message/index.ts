@@ -18,6 +18,7 @@ export const toolUseNames = [
 	"browser_action",
 	"ask_followup_question",
 	"attempt_completion",
+	"read_next_chunk",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -36,6 +37,7 @@ export const toolParamNames = [
 	"text",
 	"question",
 	"result",
+	"offset",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -92,4 +94,9 @@ export interface AskFollowupQuestionToolUse extends ToolUse {
 export interface AttemptCompletionToolUse extends ToolUse {
 	name: "attempt_completion"
 	params: Partial<Pick<Record<ToolParamName, string>, "result" | "command">>
+}
+
+export interface ReadNextChunkToolUse extends ToolUse {
+	name: "read_next_chunk"
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "offset">>
 }

@@ -11,7 +11,7 @@ import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
+import { extractTextFromFile, extractNextChunk } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -65,6 +65,9 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	enableLargeFileCheck: boolean
+	largeFileCheckMaxSize: number
+	largeFileCheckChunkSize: number
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -94,6 +97,9 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
+		enableLargeFileCheck?: boolean,
+		largeFileCheckMaxSize?: number,
+		largeFileCheckChunkSize?: number,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -106,6 +112,9 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.enableLargeFileCheck = enableLargeFileCheck ?? false
+		this.largeFileCheckMaxSize = largeFileCheckMaxSize ?? 128
+		this.largeFileCheckChunkSize = largeFileCheckChunkSize ?? 10
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -880,6 +889,10 @@ export class Cline {
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
 							return `[${block.name} for '${block.params.path}']`
+						case "read_next_chunk":
+							return `[${block.name} for '${block.params.path}'${
+								block.params.offset ? ` with offset '${block.params.offset}'` : ""
+							}']`
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
@@ -1195,12 +1208,66 @@ export class Cline {
 									}
 								}
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath)
+								const content = await extractTextFromFile(absolutePath, this.enableLargeFileCheck, this.largeFileCheckMaxSize, this.largeFileCheckChunkSize)
 								pushToolResult(content)
 								break
 							}
 						} catch (error) {
 							await handleError("reading file", error)
+							break
+						}
+					}
+					case "read_next_chunk": {
+						const relPath: string | undefined = block.params.path
+						const offset: string | undefined = block.params.offset
+						const sharedMessageProps: ClineSayTool = {
+							tool: "readNextChunk",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: undefined,
+								} satisfies ClineSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("read_next_chunk", "path"))
+									break
+								}
+								if (!offset) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("read_next_chunk", "offset"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relPath)
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: absolutePath,
+								} satisfies ClineSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+								// now execute the tool like normal
+								const content = await extractNextChunk(absolutePath, parseInt(offset), this.largeFileCheckMaxSize, this.largeFileCheckChunkSize)
+								pushToolResult(content)
+								break
+							}
+						} catch (error) {
+							await handleError("reading next chunk", error)
 							break
 						}
 					}
