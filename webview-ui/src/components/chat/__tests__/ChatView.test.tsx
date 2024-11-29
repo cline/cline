@@ -125,6 +125,31 @@ describe('ChatView', () => {
             })
         })
 
+        it('should auto-approve all file listing tool types when alwaysAllowReadOnly is true', () => {
+            const fileListingTools = [
+                'readFile', 'listFiles', 'listFilesTopLevel',
+                'listFilesRecursive', 'listCodeDefinitionNames', 'searchFiles'
+            ]
+
+            fileListingTools.forEach(tool => {
+                jest.clearAllMocks()
+                mockState.clineMessages = [
+                    { 
+                        type: 'ask',
+                        ask: 'tool',
+                        text: JSON.stringify({ tool }),
+                        ts: Date.now(),
+                    }
+                ]
+                renderChatView()
+
+                expect(vscode.postMessage).toHaveBeenCalledWith({
+                    type: 'askResponse',
+                    askResponse: 'yesButtonClicked'
+                })
+            })
+        })
+
         it('should auto-approve write tool actions when alwaysAllowWrite is true', () => {
             mockState.clineMessages = [
                 { 

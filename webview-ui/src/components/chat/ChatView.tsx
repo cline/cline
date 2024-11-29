@@ -693,7 +693,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			const lastMessage = messages.at(-1)
 			if (lastMessage?.type === "ask" && lastMessage.text) {
 				const tool = JSON.parse(lastMessage.text)
-				return ["readFile", "listFiles", "searchFiles"].includes(tool.tool)
+				return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
 			}
 			return false
 		}
