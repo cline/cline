@@ -337,7 +337,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		startNewTask()
 	}, [startNewTask])
 
-	const { selectedModelInfo } = useMemo(() => {
+	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
@@ -689,6 +689,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			{task ? (
 				<TaskHeader
 					task={task}
+					provider={selectedProvider}
+					model={selectedModelId}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
 					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
@@ -720,6 +722,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							(after you grant permission), I can assist you in ways that go beyond code completion or
 							tech support.
 						</p>
+						<h5 style={{
+							backgroundColor: 'var(--vscode-badge-background)',
+							padding: '2px 6px',
+							borderRadius: '3px',
+							display: 'inline-block',
+							margin: '8px 0'
+						}}>
+							{selectedProvider} {selectedModelId}
+						</h5>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
