@@ -1049,12 +1049,16 @@ export class Cline {
 							if (
 								newContent.includes("&gt;") ||
 								newContent.includes("&lt;") ||
-								newContent.includes("&quot;")
+								newContent.includes("&quot;") ||
+								newContent.includes("&amp;") ||
+								newContent.includes("&apos;")
 							) {
 								newContent = newContent
 									.replace(/&gt;/g, ">")
 									.replace(/&lt;/g, "<")
 									.replace(/&quot;/g, '"')
+									.replace(/&amp;/g, "&")
+									.replace(/&apos;/g, "'")
 							}
 						}
 
@@ -1506,8 +1510,11 @@ export class Cline {
 						}
 					}
 					case "execute_command": {
-						const command: string | undefined = block.params.command
+						let command: string | undefined = block.params.command
+
 						try {
+
+
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
 									() => {},
@@ -1525,6 +1532,20 @@ export class Cline {
 								const didApprove = await askApproval("command", command)
 								if (!didApprove) {
 									break
+								}
+								if (
+									command.includes("&gt;") ||
+									command.includes("&lt;") ||
+									command.includes("&quot;") ||
+									command.includes("&amp;") ||
+									command.includes("&apos;")
+								) {
+									command = command
+										.replace(/&gt;/g, ">")
+										.replace(/&lt;/g, "<")
+										.replace(/&quot;/g, '"')
+										.replace(/&amp;/g, "&")
+										.replace(/&apos;/g, "'")
 								}
 								const [userRejected, result] = await this.executeCommandTool(command)
 								if (userRejected) {
