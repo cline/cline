@@ -1,0 +1,8 @@
+====
+
+SYSTEM INFORMATION
+
+Operating System: ${osName()}
+Default Shell: ${defaultShell}
+Home Directory: ${os.homedir().toPosix()}
+Current Working Directory: ${cwd.toPosix()}
