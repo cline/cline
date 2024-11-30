@@ -1,3 +1,4 @@
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
@@ -51,6 +52,7 @@ type GlobalStateKey =
 	| "openAiModelId"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
+	| "ollamaApiKey"
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
@@ -364,6 +366,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiModelId,
 								ollamaModelId,
 								ollamaBaseUrl,
+								ollamaApiKey,
 								lmStudioModelId,
 								lmStudioBaseUrl,
 								anthropicBaseUrl,
@@ -389,6 +392,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.updateGlobalState("ollamaApiKey", ollamaApiKey)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
 							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
@@ -867,6 +871,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiModelId,
 			ollamaModelId,
 			ollamaBaseUrl,
+			ollamaApiKey,
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
@@ -896,6 +901,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("ollamaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
@@ -942,6 +948,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiModelId,
 				ollamaModelId,
 				ollamaBaseUrl,
+				ollamaApiKey,
 				lmStudioModelId,
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
