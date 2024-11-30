@@ -6,6 +6,7 @@ import path from "path"
 import { globby } from "globby"
 import fs from "fs"
 import * as vscode from "vscode"
+import { ClineProvider } from "../webview/ClineProvider"
 
 /**
  * Helper function to evaluate expressions with named modules
@@ -31,22 +32,15 @@ function getVSCodeUserDir(): string {
  * Generates the system prompt by loading and combining instruction files.
  * Entry point used by Cline to construct its behavior.
  */
-export const SYSTEM_PROMPT = async (
-  cwd: string,
-  supportsComputerUse: boolean,
-  mcpHub: McpHub,
-) => {
-
+export const SYSTEM_PROMPT = async (providerRef: WeakRef<ClineProvider>, variables: Record<string, any>) => {
   const eval_context = {
     // imports
     os,
     osName,
     defaultShell,
 
-    // arrow-function args
-    cwd,
-    supportsComputerUse,
-    mcpHub
+    // All template variables
+    ...variables
   }
   
   /**
@@ -68,12 +62,25 @@ export const SYSTEM_PROMPT = async (
    * Loads and processes instruction files
    */
   async function loadInstructionFiles(): Promise<string> {
-    // Define instruction directories in priority order
-    const projectInstructionsDir = path.join(cwd, ".cline", "system-instructions.d")
-    const globalInstructionsDir = path.join(getVSCodeUserDir(), "cline", "system-instructions.d")
-    const packageInstructionsDir = path.join("assets", "system-instructions.d")
+    // Get extension path for packaged assets
+    const provider = providerRef.deref()
+    if (!provider) {
+      throw new Error("Provider reference is not valid")
+    }
 
-    console.debug(`system-instructions.d/ search order:\n  - ${projectInstructionsDir}\n  - ${globalInstructionsDir}\n  - ${packageInstructionsDir}\n`)
+    // Define instruction directories in priority order
+    const projectInstructionsDir = path.join(variables.cwd, ".cline", "system-instructions.d")
+    const globalInstructionsDir = path.join(getVSCodeUserDir(), "cline", "system-instructions.d")
+    const packageInstructionsDir = path.join(provider.context.extensionUri.fsPath, "assets", "system-instructions.d")
+
+    console.debug('VSCode Current working directory:', process.cwd())
+    console.debug('Extension URI:', provider.context.extensionUri.toString())
+    console.debug('Project directory:', variables.cwd)
+    console.debug(`system-instructions.d/ search order:
+      - ${projectInstructionsDir}
+      - ${globalInstructionsDir}
+      - ${packageInstructionsDir}
+      `)
 
     // Get list of files from all directories
     const projectFiles = fs.existsSync(projectInstructionsDir) ? 
@@ -126,7 +133,7 @@ export const SYSTEM_PROMPT = async (
           return ""
         }
       } catch (error) {
-        console.warn(`Failed to read instruction file: ${sourcePath}`)
+        console.warn(`Failed to read instruction file: ${sourcePath}`, error)
         return ""
       }
 
@@ -143,7 +150,7 @@ export const SYSTEM_PROMPT = async (
             return ""
           }
         } catch (error) {
-          console.warn(`Failed to evaluate condition: ${condition}`)
+          console.warn(`Failed to evaluate condition: ${condition}`, error)
           return ""
         }
         // Remove condition line and process content
@@ -164,19 +171,4 @@ export const SYSTEM_PROMPT = async (
   const prompt = await loadInstructionFiles()
   
   return prompt
-}
-
-/**
- * Adds custom instructions to override or extend Cline's behavior.
- * Instructions are appended after the main system prompt.
- */
-export function addCustomInstructions(customInstructions: string): string {
-  return `
-====
-
-USER'S CUSTOM INSTRUCTIONS
-
-The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
-
-${customInstructions.trim()}`
 }
