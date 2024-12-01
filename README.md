@@ -114,6 +114,34 @@ Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol),
 
 **`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
+
+### System Instructions
+
+Cline's system instructions are organized in a modular way using the `system-instructions.d/` directory structure. This allows for flexible customization of Cline's behavior through multiple override paths in priority order:
+
+1. Project-specific: `.cline/system-instructions.d/` in your project directory
+   - For project-specific customizations (that may be version controlled if you wish)
+2. User-specific: `~/.vscode/cline/system-instructions.d/` 
+   - For personal customizations that apply across all your projects
+3. Default: Cline's built-in `~/.vscode/extensions/*claude-dev*/assets/system-instructions.d/`
+   - The base system instructions packaged with Cline
+(note that `~/.vscode` becomes `~/.vscode-insiders/` for VSCode Insiders)
+
+#### Overriding System Instructions
+If you need to modify an instruction you can copy it into a more specific location above:
+
+- Each file in these directories contains a specific aspect of Cline's capabilities and behavior, with numbered prefixes controlling load order (e.g., `01-identity.txt`, `10-tool-use.txt`). 
+- It is recommended to use large sort values like `99-my-feature.txt` so that your features appear _after_ standard system instructions, but you may hook them anywhere you wish.
+- Files can use template variables like `${cwd}`, which execute Type Script directly.
+- Conditional file inclusion via `// @condition: ${condition}` must appear on the first line.
+- To nullify an instruction, create a empty file with the same filename, or set the first line to `// @condition: ${false}`
+- Notice: Cline may modify official file names and numbers during later releases, so overriding core files are your own responsibility.
+
+Validate your modified system instructions by:
+1. Go to the setting page
+2. Click `Copy System Prompt`
+3. Paste into your favorite text editor and review
+
 ## Contributing
 
 To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
