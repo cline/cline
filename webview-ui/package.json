@@ -52,7 +52,7 @@
 		]
 	},
 	"devDependencies": {
-		"@babel/plugin-transform-private-property-in-object": "^7.25.9",
+		"@babel/plugin-proposal-private-property-in-object": "^7.21.11",
 		"@types/vscode-webview": "^1.57.5"
 	},
 	"jest": {
