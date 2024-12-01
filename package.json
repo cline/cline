@@ -1,14 +1,14 @@
 {
   "name": "roo-cline",
   "displayName": "Roo Cline",
-  "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+  "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "files": [
-    "bin/roo-cline-2.1.6.vsix",
-    "assets/icons/icon_Roo.png"
+    "bin/roo-cline-2.1.7.vsix",
+    "assets/icons/rocket.png"
   ],
-  "icon": "assets/icons/icon_Roo.png",
+  "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
     "theme": "dark"
@@ -23,7 +23,7 @@
     "type": "git",
     "url": "https://github.com/RooVetGit/Roo-Cline"
   },
-  "homepage": "https://cline.bot",
+  "homepage": "https://github.com/RooVetGit/Roo-Cline",
   "categories": [
     "AI",
     "Chat",
@@ -53,7 +53,7 @@
         {
           "id": "roo-cline-ActivityBar",
           "title": "Roo Cline",
-          "icon": "$(robot)"
+          "icon": "$(rocket)"
         }
       ]
     },

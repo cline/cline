@@ -7,33 +7,7 @@
 1. Bump the version in `package.json`
 2. Update the version number in the `files` list in `package.json`
 
-### Packaging
-1. Bump the version in `package.json`
-2. Remove the old VSIX file:
-   ```bash
-   rm bin/roo-cline-*.vsix
-   ```
-3. Build the VSIX file:
-   ```bash
-   npm run vsix
-   ```
-4. The new VSIX file will be created in the `bin/` directory
-5. Commit the new VSIX file to git:
-   ```bash
-   git add bin/*.vsix
-   git commit -m "chore: update VSIX to version <new_version>"
-   ```
-
-### Installation
-Install the plugin using the Cursor CLI:
-
-```bash
-cursor --install-extension bin/roo-cline-<latest_version>.vsix
-```
-
-Note: The VSIX file is checked into the git repository's `bin/` directory for easy distribution.
-
-After installation, Roo Cline will appear in your Cursor's installed extensions list. You can verify this by opening Cursor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
+After installation, Roo Cline will appear in your VSCode-compatible editor's installed extensions list. You can verify this by opening your editor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
 
 ---
 
