@@ -70,6 +70,11 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "cline.mcpButtonClicked",
+				"title": "MCP Servers",
+				"icon": "$(server)"
+			},
+			{
 				"command": "cline.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
@@ -98,18 +103,23 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "cline.mcpButtonClicked",
 					"group": "navigation@2",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.popoutButtonClicked",
 					"group": "navigation@4",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
