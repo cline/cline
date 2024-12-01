@@ -201,7 +201,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							borderRadius: "4px",
 							color: "var(--vscode-errorForeground)",
 						}}>
-						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks. ℹ️ NOTE: The checkbox only applies when the model supports computer use.
+						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.<br/><br/>NOTE: The checkbox only applies when the model supports computer use.
 					</p>
 				</div>
 
