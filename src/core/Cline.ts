@@ -790,7 +790,17 @@ export class Cline {
 		return false
 	}
 
-	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
+	async copySystemPromptToClipboard() {
+		try {
+			const systemPrompt = await this.getSystemPrompt()
+			await vscode.env.clipboard.writeText(systemPrompt)
+			vscode.window.showInformationMessage('System prompt copied to clipboard')
+		} catch (error) {
+			vscode.window.showErrorMessage('Failed to copy system prompt: ' + error.message)
+		}
+	}
+
+	async getSystemPrompt(): Promise<string> {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
@@ -813,7 +823,7 @@ export class Cline {
 		}
 
 		// For system prompt templates, see assets/system-instructions.d/
-		let systemPrompt = await SYSTEM_PROMPT(this.providerRef, {
+		return await SYSTEM_PROMPT(this.providerRef, {
 
 			cwd,
 			supportsComputerUse: this.api.getModel().info.supportsComputerUse ?? false,
@@ -825,6 +835,10 @@ export class Cline {
 			// rendered in assets/system-instructions.d/86-clinerules.txt
 			ruleFileContent,
 		})
+	}
+
+	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
+		let systemPrompt = await this.getSystemPrompt()
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
