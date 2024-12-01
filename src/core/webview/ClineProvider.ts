@@ -60,6 +60,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "allowedCommands"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -510,6 +511,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
+					case "allowedCommands":
+						await this.context.globalState.update('allowedCommands', message.commands);
+						// Also update workspace settings
+						await vscode.workspace
+							.getConfiguration('roo-cline')
+							.update('allowedCommands', message.commands, vscode.ConfigurationTarget.Global);
+						break;
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -820,6 +828,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 		} = await this.getState()
 		
+		const allowedCommands = vscode.workspace
+			.getConfiguration('roo-cline')
+			.get<string[]>('allowedCommands') || []
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -834,6 +846,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			allowedCommands,
 		}
 	}
 
@@ -921,6 +934,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
 			taskHistory,
+			allowedCommands,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -953,6 +967,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1003,6 +1018,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			taskHistory,
+			allowedCommands,
 		}
 	}
 

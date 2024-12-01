@@ -3,11 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.1.7",
-  "files": [
-    "bin/roo-cline-2.1.7.vsix",
-    "assets/icons/rocket.png"
-  ],
+  "version": "2.1.8",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -116,6 +112,26 @@
           "when": "view == roo-cline.SidebarProvider"
         }
       ]
+    },
+    "configuration": {
+      "title": "RooCline",
+      "properties": {
+        "roo-cline.allowedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "npm test",
+            "npm install",
+            "tsc",
+            "git log",
+            "git diff",
+            "git show"
+          ],
+          "description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled"
+        }
+      }
     }
   },
   "scripts": {

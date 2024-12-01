@@ -30,6 +30,9 @@ export interface ExtensionMessage {
 
 export interface ExtensionState {
 	version: string
+	clineMessages: ClineMessage[]
+	taskHistory: HistoryItem[]
+	shouldShowAnnouncement: boolean
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
@@ -37,9 +40,7 @@ export interface ExtensionState {
 	alwaysAllowExecute?: boolean
 	alwaysAllowBrowser?: boolean
 	uriScheme?: string
-	clineMessages: ClineMessage[]
-	taskHistory: HistoryItem[]
-	shouldShowAnnouncement: boolean
+	allowedCommands?: string[]
 }
 
 export interface ClineMessage {

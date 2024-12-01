@@ -4,6 +4,7 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "customInstructions"
+		| "allowedCommands"
 		| "alwaysAllowReadOnly"
 		| "alwaysAllowWrite"
 		| "alwaysAllowExecute"
@@ -31,6 +32,7 @@ export interface WebviewMessage {
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
+	commands?: string[]
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

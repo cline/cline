@@ -34,18 +34,8 @@ interface ChatViewProps {
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-const ALLOWED_AUTO_EXECUTE_COMMANDS = [
-	'npm',
-	'npx',
-	'tsc',
-	'git log',
-	'git diff',
-	'git show',
-	'ls'
-] as const
-
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration,  alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration,  alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, allowedCommands } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -712,19 +702,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (lastMessage?.type === "ask" && lastMessage.text) {
 				const command = lastMessage.text
 
-				// Check for command chaining characters
-				if (command.includes('&&') ||
-					command.includes(';') ||
-					command.includes('||') ||
-					command.includes('|') ||
-					command.includes('$(') ||
-					command.includes('`')) {
-					return false
-				}
-				const trimmedCommand = command.trim().toLowerCase()
-				return ALLOWED_AUTO_EXECUTE_COMMANDS.some(prefix =>
-					trimmedCommand.startsWith(prefix.toLowerCase())
-				)
+				// Split command by chaining operators
+				const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
+
+				// Check if all individual commands are allowed
+				return commands.every((cmd) => {
+					const trimmedCommand = cmd.toLowerCase()
+					return allowedCommands?.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
+				})
 			}
 			return false
 		}
@@ -737,7 +722,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		) {
 			handlePrimaryButtonClick()
 		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages])
+	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages, allowedCommands])
 
 	return (
 		<div

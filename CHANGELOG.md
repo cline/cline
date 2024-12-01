@@ -1,10 +1,10 @@
 # Change Log
 
-## Roo Cline 2.1.4
-
+## Roo Cline 2.1.8
 - Roo Cline now publishes to the VS Code Marketplace!
 - Roo Cline now allows browser actions without approval when `alwaysAllowBrowser` is true
 - Roo Cline now can run side-by-side with Cline
+- Roo Cline now allows configuration of allowed commands without approval
 
 ## [2.1.6]
 
