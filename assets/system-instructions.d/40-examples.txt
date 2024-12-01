@@ -1,0 +1,39 @@
+# Tool Use Examples
+
+## Example 1a: Requesting to execute a command
+
+<execute_command>
+<command>npm run dev</command>
+</execute_command>
+
+## Example 1b: Using `execute_command` with `pipein` to write into the standard input of a program
+
+<execute_command>
+<command>cat -n</command>
+<pipein>line1
+line2
+line3
+</pipein>
+</execute_command>
+
+## Example 2: Requesting to write to a file
+
+<write_to_file>
+<path>frontend-config.json</path>
+<content>
+{
+  "apiEndpoint": "https://api.example.com",
+  "theme": {
+    "primaryColor": "#007bff",
+    "secondaryColor": "#6c757d",
+    "fontFamily": "Arial, sans-serif"
+  },
+  "features": {
+    "darkMode": true,
+    "notifications": true,
+    "analytics": false
+  },
+  "version": "1.0.0"
+}
+</content>
+</write_to_file>

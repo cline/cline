@@ -42,7 +42,7 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
-import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
+import { SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
@@ -316,6 +316,24 @@ export class Cline {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
+	}
+
+	async getSystemPrompt(): Promise<string> {
+		return await SYSTEM_PROMPT(this.providerRef, {
+			cwd,
+			supportsComputerUse: this.api.getModel().info.supportsComputerUse ?? false,
+			customInstructions: this.customInstructions?.trim(),
+		})
+	}
+
+	async copySystemPromptToClipboard() {
+		try {
+			const systemPrompt = await this.getSystemPrompt()
+			await vscode.env.clipboard.writeText(systemPrompt)
+			vscode.window.showInformationMessage('System prompt copied to clipboard')
+		} catch (error) {
+			vscode.window.showErrorMessage('Failed to copy system prompt: ' + error.message)
+		}
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
@@ -673,10 +691,10 @@ export class Cline {
 
 	// Tools
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+	async executeCommandTool(command: string, pipein?: string): Promise<[boolean, ToolResponse]> {
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = this.terminalManager.runCommand(terminalInfo, command, pipein)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -751,11 +769,7 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
-		if (this.customInstructions && this.customInstructions.trim()) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addCustomInstructions(this.customInstructions)
-		}
+		let systemPrompt = await this.getSystemPrompt()
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -1507,6 +1521,7 @@ export class Cline {
 					}
 					case "execute_command": {
 						const command: string | undefined = block.params.command
+						const pipein: string | undefined = block.params.pipein
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1526,7 +1541,7 @@ export class Cline {
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, result] = await this.executeCommandTool(command)
+								const [userRejected, result] = await this.executeCommandTool(command, pipein)
 								if (userRejected) {
 									this.didRejectTool = true
 								}
@@ -1589,6 +1604,8 @@ export class Cline {
 						*/
 						const result: string | undefined = block.params.result
 						const command: string | undefined = block.params.command
+						const pipein: string | undefined = block.params.pipein
+
 						try {
 							const lastMessage = this.clineMessages.at(-1)
 							if (block.partial) {
@@ -1651,7 +1668,7 @@ export class Cline {
 									if (!didApprove) {
 										break
 									}
-									const [userRejected, execCommandResult] = await this.executeCommandTool(command!)
+									const [userRejected, execCommandResult] = await this.executeCommandTool(command!, pipein)
 									if (userRejected) {
 										this.didRejectTool = true
 										pushToolResult(execCommandResult)

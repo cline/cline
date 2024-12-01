@@ -58,6 +58,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		vscode.postMessage({ type: "resetState" })
 	}
 
+	const handleCopySystemPrompt = () => {
+		vscode.postMessage({ type: "copySystemPrompt" })
+	}
+
 	return (
 		<div
 			style={{
@@ -127,6 +131,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeButton onClick={handleCopySystemPrompt}>
+						Copy System Prompt
+					</VSCodeButton>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						Copy the full system prompt that defines Cline's behavior, including your custom instructions.
 					</p>
 				</div>
 
