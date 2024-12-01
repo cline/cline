@@ -5,6 +5,8 @@ export interface WebviewMessage {
 		| "apiConfiguration"
 		| "customInstructions"
 		| "alwaysAllowReadOnly"
+		| "alwaysAllowWrite"
+		| "alwaysAllowExecute"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -23,6 +25,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "alwaysAllowBrowser"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

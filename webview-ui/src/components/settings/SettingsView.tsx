@@ -19,6 +19,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		alwaysAllowWrite,
+		setAlwaysAllowWrite,
+		alwaysAllowExecute,
+		setAlwaysAllowExecute,
+		alwaysAllowBrowser,
+		setAlwaysAllowBrowser,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -33,6 +39,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
+			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
+			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
 			onDone()
 		}
 	}
@@ -127,6 +136,72 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowWrite}
+						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve write operations
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically create and edit files without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowExecute}
+						onChange={(e: any) => setAlwaysAllowExecute(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve command execution
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically execute terminal commands without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowBrowser}
+						onChange={(e: any) => setAlwaysAllowBrowser(e.target.checked)}>
+						<span style={{ fontWeight: "500", color: "var(--vscode-errorForeground)" }}>
+							Always approve browser actions
+						</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.<br/><br/>NOTE: The checkbox only applies when the model supports computer use.
 					</p>
 				</div>
 
