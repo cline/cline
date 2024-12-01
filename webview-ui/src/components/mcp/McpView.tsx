@@ -125,8 +125,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 				bottom: 0,
 				display: "flex",
 				flexDirection: "column",
-				overflow: "hidden",
 			}}>
+			{/* Fixed Header */}
 			<div
 				style={{
 					display: "flex",
@@ -137,44 +137,66 @@ const McpView = ({ onDone }: McpViewProps) => {
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<p style={{ padding: "0 20px", color: "var(--vscode-foreground)", fontSize: "13px" }}>
-				MCP (Model Context Protocol) enables AI models to access external tools and data through standardized
-				interfaces. Add MCP servers to extend Claude's capabilities with custom functionality and real-time data
-				access.
-			</p>
 
-			{/* Server List */}
+			{/* Scrollable Content */}
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				{servers.map((server) => (
-					<ServerRow key={server.name} server={server} />
-				))}
-			</div>
+				<p style={{ color: "var(--vscode-foreground)", fontSize: "13px" }}>
+					MCP (Model Context Protocol) enables AI models to access external tools and data through
+					standardized interfaces. Add MCP servers to extend Claude's capabilities with custom functionality
+					and real-time data access.
+				</p>
 
-			{/* Add Server UI */}
-			<div style={{ padding: "20px" }}>
-				{isAdding ? (
-					<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-						<VSCodeTextArea
-							rows={4}
-							placeholder='{"mcpServers": {"server-name": {"command": "...", "args": [...]}}}'
-							value={configInput}
-							onChange={(e) => setConfigInput((e.target as HTMLTextAreaElement).value)}
-						/>
-						<div style={{ display: "flex", gap: "10px" }}>
-							<VSCodeButton style={{ flex: 1 }} onClick={handleAddServer}>
-								Add Server
-							</VSCodeButton>
-							<VSCodeButton style={{ flex: 1 }} appearance="secondary" onClick={() => setIsAdding(false)}>
-								Cancel
-							</VSCodeButton>
+				{/* Server List */}
+				<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+					{servers.map((server) => (
+						<ServerRow key={server.name} server={server} />
+					))}
+
+					{/* Add Server UI as a row */}
+					{isAdding ? (
+						<div
+							style={{
+								padding: "12px",
+								background: "var(--vscode-list-hoverBackground)",
+								borderRadius: "4px",
+								display: "flex",
+								flexDirection: "column",
+								gap: "10px",
+							}}>
+							<b style={{ color: "var(--vscode-foreground)" }}>New MCP Server</b>
+							<p style={{ color: "var(--vscode-descriptionForeground)", fontSize: "13px", margin: "0" }}>
+								Enter the MCP server configuration in JSON format. You can find this configuration in
+								the setup instructions for your MCP server. The config defines how to start and connect
+								to the server, typically specifying a command and arguments.
+							</p>
+							<VSCodeTextArea
+								rows={4}
+								placeholder='{"mcpServers": {"server-name": {"command": "...", "args": [...]}}}'
+								value={configInput}
+								onChange={(e) => setConfigInput((e.target as HTMLTextAreaElement).value)}
+							/>
+							<div style={{ display: "flex", gap: "10px" }}>
+								<VSCodeButton style={{ flex: 1 }} onClick={handleAddServer}>
+									Save
+								</VSCodeButton>
+								<VSCodeButton
+									style={{ flex: 1 }}
+									appearance="secondary"
+									onClick={() => setIsAdding(false)}>
+									Cancel
+								</VSCodeButton>
+							</div>
 						</div>
-					</div>
-				) : (
-					<VSCodeButton style={{ width: "100%" }} onClick={() => setIsAdding(true)}>
-						<span className="codicon codicon-add" style={{ marginRight: "6px" }}></span>
-						Add MCP Server
-					</VSCodeButton>
-				)}
+					) : (
+						<VSCodeButton style={{ width: "100%" }} onClick={() => setIsAdding(true)}>
+							<span className="codicon codicon-add" style={{ marginRight: "6px" }}></span>
+							Add MCP Server
+						</VSCodeButton>
+					)}
+				</div>
+
+				{/* Add bottom padding for scrolling */}
+				<div style={{ height: "20px" }} />
 			</div>
 		</div>
 	)
@@ -345,6 +367,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							{isEditing ? (
 								<>
 									<VSCodeTextArea
+										rows={4}
 										value={editConfig}
 										onChange={(e) => setEditConfig((e.target as HTMLTextAreaElement).value)}
 										style={{ width: "100%" }}
