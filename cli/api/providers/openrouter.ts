@@ -32,8 +32,8 @@ export class OpenRouterHandler {
         headers: {
           "Authorization": `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/mattvr/roo-cline",
-          "X-Title": "Cline CLI"
+          "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+          "X-Title": "Roo Cline"
         },
         body: JSON.stringify({
           model: this.model,
