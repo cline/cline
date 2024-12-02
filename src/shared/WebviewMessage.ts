@@ -1,5 +1,7 @@
 import { ApiConfiguration, ApiProvider } from "./api"
 
+export type AudioType = "notification" | "celebration" | "progress_loop"
+
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
@@ -27,12 +29,15 @@ export interface WebviewMessage {
 		| "cancelTask"
 		| "refreshOpenRouterModels"
 		| "alwaysAllowBrowser"
+		| "playSound"
+		| "soundEnabled"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
 	commands?: string[]
+	audioType?: AudioType
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

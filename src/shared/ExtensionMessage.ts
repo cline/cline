@@ -41,6 +41,7 @@ export interface ExtensionState {
 	alwaysAllowBrowser?: boolean
 	uriScheme?: string
 	allowedCommands?: string[]
+	soundEnabled?: boolean
 }
 
 export interface ClineMessage {

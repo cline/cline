@@ -4,10 +4,11 @@ import { ExtensionStateContextProvider, useExtensionState } from '../ExtensionSt
 
 // Test component that consumes the context
 const TestComponent = () => {
-  const { allowedCommands, setAllowedCommands } = useExtensionState()
+  const { allowedCommands, setAllowedCommands, soundEnabled } = useExtensionState()
   return (
     <div>
       <div data-testid="allowed-commands">{JSON.stringify(allowedCommands)}</div>
+      <div data-testid="sound-enabled">{JSON.stringify(soundEnabled)}</div>
       <button
         data-testid="update-button"
         onClick={() => setAllowedCommands(['npm install', 'git status'])}
@@ -27,6 +28,16 @@ describe('ExtensionStateContext', () => {
     )
 
     expect(JSON.parse(screen.getByTestId('allowed-commands').textContent!)).toEqual([])
+  })
+
+  it('initializes with soundEnabled set to false', () => {
+    render(
+      <ExtensionStateContextProvider>
+        <TestComponent />
+      </ExtensionStateContextProvider>
+    )
+
+    expect(JSON.parse(screen.getByTestId('sound-enabled').textContent!)).toBe(false)
   })
 
   it('updates allowedCommands through setAllowedCommands', () => {

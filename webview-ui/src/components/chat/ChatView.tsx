@@ -24,6 +24,7 @@ import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
+import { AudioType } from "../../../../src/shared/WebviewMessage"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -61,10 +62,24 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 
+	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
+	const [hasStarted, setHasStarted] = useState(false)
+
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+
+	function playSound(audioType: AudioType) {
+		vscode.postMessage({ type: "playSound", audioType })
+	}
+
+	function playSoundOnMessage(audioType: AudioType) {
+		if (hasStarted && !isStreaming) {
+			playSound(audioType)
+		}
+	}
+
 	useDeepCompareEffect(() => {
 		// if last message is an ask, show user ask UI
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
@@ -75,6 +90,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
+							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(true)
 							setClineAsk("api_req_failed")
 							setEnableButtons(true)
@@ -82,6 +98,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "mistake_limit_reached":
+							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(false)
 							setClineAsk("mistake_limit_reached")
 							setEnableButtons(true)
@@ -89,6 +106,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
 							setEnableButtons(isPartial)
@@ -96,6 +114,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
 							setEnableButtons(!isPartial)
@@ -113,6 +132,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}
 							break
 						case "browser_action_launch":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("browser_action_launch")
 							setEnableButtons(!isPartial)
@@ -120,6 +140,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
 							setEnableButtons(!isPartial)
@@ -127,6 +148,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command_output":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("command_output")
 							setEnableButtons(true)
@@ -135,6 +157,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
+							playSoundOnMessage("celebration")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
@@ -142,6 +165,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
@@ -150,6 +174,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setDidClickCancel(false) // special case where we reset the cancel button state							
 							break
 						case "resume_completed_task":
+							playSoundOnMessage("celebration")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
@@ -441,6 +466,36 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		})
 	}, [modifiedMessages])
+	useEffect(() => {
+		if (isStreaming) {
+			// Set to true once any request has started
+			setHasStarted(true)
+		}
+		// Only execute when isStreaming changes from true to false
+		if (wasStreaming && !isStreaming && lastMessage) {
+			// Play appropriate sound based on lastMessage content
+			if (lastMessage.type === "ask") {
+				switch (lastMessage.ask) {
+					case "api_req_failed":
+					case "mistake_limit_reached":
+						playSound("progress_loop")
+						break
+					case "tool":
+					case "followup":
+					case "browser_action_launch":
+					case "resume_task":
+						playSound("notification")
+						break
+					case "completion_result":
+					case "resume_completed_task":
+						playSound("celebration")
+						break
+				}
+			}
+		}
+		// Update previous value
+		setWasStreaming(isStreaming)
+	}, [isStreaming, lastMessage])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above

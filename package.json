@@ -195,6 +195,7 @@
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
+    "play-sound": "^1.1.6",
     "puppeteer-chromium-resolver": "^23.0.0",
     "puppeteer-core": "^23.4.0",
     "serialize-error": "^11.0.3",

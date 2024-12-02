@@ -25,6 +25,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysAllowExecute,
 		alwaysAllowBrowser,
 		setAlwaysAllowBrowser,
+		soundEnabled,
+		setSoundEnabled,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -47,6 +49,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
 			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
+			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			onDone()
 		}
 	}
@@ -284,6 +287,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</div>
 					</div>
 				)}
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Enable sound effects</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will play sound effects for notifications and events.
+					</p>
+				</div>
 
 				{IS_DEV && (
 					<>

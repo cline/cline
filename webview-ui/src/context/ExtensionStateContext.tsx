@@ -25,6 +25,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysAllowBrowser: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
 	setAllowedCommands: (value: string[]) => void
+	setSoundEnabled: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -36,6 +37,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		allowedCommands: [],
+		soundEnabled: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -124,6 +126,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAlwaysAllowBrowser: (value) => setState((prevState) => ({ ...prevState, alwaysAllowBrowser: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
 		setAllowedCommands: (value) => setState((prevState) => ({ ...prevState, allowedCommands: value })),
+		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

@@ -92,6 +92,44 @@ const renderSettingsView = () => {
   return { onDone }
 }
 
+describe('SettingsView - Sound Settings', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('initializes with sound disabled by default', () => {
+    renderSettingsView()
+    
+    const soundCheckbox = screen.getByRole('checkbox', {
+      name: /Enable sound effects/i
+    })
+    expect(soundCheckbox).not.toBeChecked()
+  })
+
+  it('toggles sound setting and sends message to VSCode', () => {
+    renderSettingsView()
+    
+    const soundCheckbox = screen.getByRole('checkbox', {
+      name: /Enable sound effects/i
+    })
+    
+    // Enable sound
+    fireEvent.click(soundCheckbox)
+    expect(soundCheckbox).toBeChecked()
+    
+    // Click Done to save settings
+    const doneButton = screen.getByText('Done')
+    fireEvent.click(doneButton)
+    
+    expect(vscode.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'soundEnabled',
+        bool: true
+      })
+    )
+  })
+})
+
 describe('SettingsView - Allowed Commands', () => {
   beforeEach(() => {
     jest.clearAllMocks()
