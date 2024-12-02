@@ -237,17 +237,36 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								</VSCodeButton>
 							</div>
 
-							<div style={{ marginTop: '10px' }}>
+							<div style={{ 
+								marginTop: '10px',
+								display: 'flex',
+								flexWrap: 'wrap',
+								gap: '5px'
+							}}>
 								{(allowedCommands ?? []).map((cmd, index) => (
 									<div key={index} style={{
 										display: 'flex',
 										alignItems: 'center',
 										gap: '5px',
-										marginBottom: '5px'
+										backgroundColor: 'var(--vscode-button-secondaryBackground)',
+										padding: '2px 6px',
+										borderRadius: '4px',
+										border: '1px solid var(--vscode-button-secondaryBorder)',
+										height: '24px'
 									}}>
 										<span>{cmd}</span>
 										<VSCodeButton
 											appearance="icon"
+											style={{
+												padding: 0,
+												margin: 0,
+												height: '20px',
+												width: '20px',
+												minWidth: '20px',
+												display: 'flex',
+												alignItems: 'center',
+												justifyContent: 'center'
+											}}
 											onClick={() => {
 												const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
 												setAllowedCommands(newCommands)
