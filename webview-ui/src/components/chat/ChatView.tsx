@@ -495,7 +495,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 		// Update previous value
 		setWasStreaming(isStreaming)
-	}, [isStreaming, lastMessage])
+	}, [isStreaming, lastMessage, wasStreaming])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
