@@ -44,6 +44,9 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		gitignore: recursive, // globby ignores any files that are gitignored
 		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
 		onlyFiles: false, // true by default, false means it will list directories on their own too
+		braceExpansion: false, // disable brace expansion to properly handle Next.js route groups
+		extglob: false, // disable extended glob patterns
+		expandDirectories: false // disable directory expansion to handle special characters in paths
 	}
 	// * globs all files in one dir, ** globs files in nested directories
 	const files = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
