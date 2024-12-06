@@ -106,6 +106,9 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 		// https://openrouter.ai/docs/transforms
+		const transforms: string[] = this.options.openRouterUseMiddleOutTransform
+			? ["middle-out"]
+			: [];
 		let fullResponseText = "";
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
@@ -113,8 +116,7 @@ export class OpenRouterHandler implements ApiHandler {
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
-			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
-			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] })
+			transforms,
 		} as OpenRouterChatCompletionParams);
 
 		let genId: string | undefined
