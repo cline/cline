@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.11]
+
+- Incorporate lloydchang's [PR](https://github.com/RooVetGit/Roo-Cline/pull/42) to add support for OpenRouter compression
+
 ## [2.1.10]
 
 - Incorporate HeavenOSK's [PR](https://github.com/cline/cline/pull/818) to add sound effects to Cline
