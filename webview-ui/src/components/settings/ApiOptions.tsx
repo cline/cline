@@ -49,6 +49,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [openRouterUseMiddleOutTransform, setOpenRouterUseMiddleOutTransform] = useState(!!apiConfiguration?.openRouterUseMiddleOutTransform)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -249,6 +250,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							</span>
 						)} */}
 					</p>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({ ...apiConfiguration, openRouterUseMiddleOutTransform: isChecked })
+						}}>
+						Use transforms: ["middle-out"]
+					</VSCodeCheckbox>
+						<br/>
+						• Compress prompts &gt; context size.
+						<br/>
+					    • <a href="https://openrouter.ai/docs/transforms">OpenRouter Docs: Transforms</a>
+					    <br/><br/>
 				</div>
 			)}
 
