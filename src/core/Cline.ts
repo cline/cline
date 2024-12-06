@@ -64,7 +64,7 @@ export class Cline {
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-
+	alwaysAllowReadOnly: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -93,6 +93,7 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
+		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -104,6 +105,7 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
+		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -547,8 +549,8 @@ export class Cline {
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
-							? previousAssistantMessage.content
-							: [{ type: "text", text: previousAssistantMessage.content }]
+						? previousAssistantMessage.content
+						: [{ type: "text", text: previousAssistantMessage.content }]
 
 					const toolUseBlocks = assistantContent.filter(
 						(block) => block.type === "tool_use",
@@ -749,7 +751,11 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false) + await addCustomInstructions(this.customInstructions ?? '', cwd)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
+		if (this.customInstructions && this.customInstructions.trim()) {
+			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
+			systemPrompt += addCustomInstructions(this.customInstructions)
+		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -831,7 +837,7 @@ export class Cline {
 					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
 					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
 					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?$/, "")
+					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
 					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
 					// - Needs to be separate since we dont want to remove the line break before the first tag
 					// - Needs to happen before the xml parsing below
@@ -1162,7 +1168,11 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								break
 							} else {
 								if (!relPath) {
@@ -1176,9 +1186,13 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
@@ -1204,7 +1218,11 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								break
 							} else {
 								if (!relDirPath) {
@@ -1220,9 +1238,13 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
 								pushToolResult(result)
 								break
@@ -1244,7 +1266,11 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								break
 							} else {
 								if (!relDirPath) {
@@ -1261,9 +1287,13 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
 								pushToolResult(result)
 								break
@@ -1289,7 +1319,11 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								break
 							} else {
 								if (!relDirPath) {
@@ -1309,9 +1343,13 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
 								pushToolResult(results)
 								break
@@ -1343,7 +1381,7 @@ export class Cline {
 									await this.ask(
 										"browser_action_launch",
 										removeClosingTag("url", url),
-										block.partial
+										block.partial,
 									).catch(() => {})
 								} else {
 									await this.say(
@@ -1472,7 +1510,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {}
+									() => {},
 								)
 								break
 							} else {
@@ -1484,7 +1522,6 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-
 								const didApprove = await askApproval("command", command)
 								if (!didApprove) {
 									break

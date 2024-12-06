@@ -24,7 +24,6 @@ import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
-import { AudioType } from "../../../../src/shared/WebviewMessage"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -36,7 +35,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration,  alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, allowedCommands } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -62,24 +61,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 
-	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
-	const [hasStarted, setHasStarted] = useState(false)
-
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
-
-	function playSound(audioType: AudioType) {
-		vscode.postMessage({ type: "playSound", audioType })
-	}
-
-	function playSoundOnMessage(audioType: AudioType) {
-		if (hasStarted && !isStreaming) {
-			playSound(audioType)
-		}
-	}
-
 	useDeepCompareEffect(() => {
 		// if last message is an ask, show user ask UI
 		// if user finished a task, then start a new task with a new conversation history since in this moment that the extension is waiting for user response, the user could close the extension and the conversation history would be lost.
@@ -90,7 +75,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
-							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(true)
 							setClineAsk("api_req_failed")
 							setEnableButtons(true)
@@ -98,7 +82,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "mistake_limit_reached":
-							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(false)
 							setClineAsk("mistake_limit_reached")
 							setEnableButtons(true)
@@ -106,7 +89,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
 							setEnableButtons(isPartial)
@@ -114,7 +96,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
 							setEnableButtons(!isPartial)
@@ -132,7 +113,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}
 							break
 						case "browser_action_launch":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("browser_action_launch")
 							setEnableButtons(!isPartial)
@@ -140,7 +120,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
 							setEnableButtons(!isPartial)
@@ -148,7 +127,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command_output":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("command_output")
 							setEnableButtons(true)
@@ -157,7 +135,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
-							playSoundOnMessage("celebration")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
@@ -165,16 +142,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
-							setSecondaryButtonText("Terminate")
-							setDidClickCancel(false) // special case where we reset the cancel button state							
+							setSecondaryButtonText(undefined)
+							setDidClickCancel(false) // special case where we reset the cancel button state
 							break
 						case "resume_completed_task":
-							playSoundOnMessage("celebration")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
@@ -341,7 +316,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		switch (clineAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
-			case "resume_task":
 				startNewTask()
 				break
 			case "command":
@@ -466,36 +440,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		})
 	}, [modifiedMessages])
-	useEffect(() => {
-		if (isStreaming) {
-			// Set to true once any request has started
-			setHasStarted(true)
-		}
-		// Only execute when isStreaming changes from true to false
-		if (wasStreaming && !isStreaming && lastMessage) {
-			// Play appropriate sound based on lastMessage content
-			if (lastMessage.type === "ask") {
-				switch (lastMessage.ask) {
-					case "api_req_failed":
-					case "mistake_limit_reached":
-						playSound("progress_loop")
-						break
-					case "tool":
-					case "followup":
-					case "browser_action_launch":
-					case "resume_task":
-						playSound("notification")
-						break
-					case "completion_result":
-					case "resume_completed_task":
-						playSound("celebration")
-						break
-				}
-			}
-		}
-		// Update previous value
-		setWasStreaming(isStreaming)
-	}, [isStreaming, lastMessage, wasStreaming])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
@@ -729,55 +673,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		},
 		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
-
-	useEffect(() => {
-		// Only proceed if we have an ask and buttons are enabled
-		if (!clineAsk || !enableButtons) return
-
-		const isReadOnlyToolAction = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const tool = JSON.parse(lastMessage.text)
-				return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
-			}
-			return false
-		}
-
-		const isWriteToolAction = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const tool = JSON.parse(lastMessage.text)
-				return ["editedExistingFile", "newFileCreated"].includes(tool.tool)
-			}
-			return false
-		}
-
-		const isAllowedCommand = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const command = lastMessage.text
-
-				// Split command by chaining operators
-				const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
-
-				// Check if all individual commands are allowed
-				return commands.every((cmd) => {
-					const trimmedCommand = cmd.toLowerCase()
-					return allowedCommands?.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
-				})
-			}
-			return false
-		}
-
-		if (
-			(alwaysAllowBrowser && clineAsk === "browser_action_launch") ||
-			(alwaysAllowReadOnly && clineAsk === "tool" && isReadOnlyToolAction()) ||
-			(alwaysAllowWrite && clineAsk === "tool" && isWriteToolAction()) ||
-			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand())
-		) {
-			handlePrimaryButtonClick()
-		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages, allowedCommands])
 
 	return (
 		<div

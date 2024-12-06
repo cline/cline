@@ -11,7 +11,7 @@ import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 
-export interface ExtensionStateContextType extends ExtensionState {
+interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	theme: any
@@ -20,12 +20,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
-	setAlwaysAllowWrite: (value: boolean) => void
-	setAlwaysAllowExecute: (value: boolean) => void
-	setAlwaysAllowBrowser: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
-	setAllowedCommands: (value: string[]) => void
-	setSoundEnabled: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -36,8 +31,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,
-		allowedCommands: [],
-		soundEnabled: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -121,12 +114,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
-		setAlwaysAllowWrite: (value) => setState((prevState) => ({ ...prevState, alwaysAllowWrite: value })),
-		setAlwaysAllowExecute: (value) => setState((prevState) => ({ ...prevState, alwaysAllowExecute: value })),
-		setAlwaysAllowBrowser: (value) => setState((prevState) => ({ ...prevState, alwaysAllowBrowser: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
-		setAllowedCommands: (value) => setState((prevState) => ({ ...prevState, allowedCommands: value })),
-		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

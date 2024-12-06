@@ -1,16 +1,3 @@
-# Roo-Cline
-
-## Roo Packaging and Installation
-
-### Updating Version (for a new release)
-
-1. Bump the version in `package.json`
-2. Update the version number in the `files` list in `package.json`
-
-After installation, Roo Cline will appear in your VSCode-compatible editor's installed extensions list. You can verify this by opening your editor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
-
----
-
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
 
 <p align="center">
@@ -21,7 +8,7 @@ After installation, Roo Cline will appear in your VSCode-compatible editor's ins
 <table>
 <tbody>
 <td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><strong>Download on VS Marketplace</strong></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" target="_blank"><strong>Download on VS Marketplace</strong></a>
 </td>
 <td align="center">
 <a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>

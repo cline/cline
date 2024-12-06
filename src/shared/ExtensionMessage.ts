@@ -30,18 +30,13 @@ export interface ExtensionMessage {
 
 export interface ExtensionState {
 	version: string
-	clineMessages: ClineMessage[]
-	taskHistory: HistoryItem[]
-	shouldShowAnnouncement: boolean
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
-	alwaysAllowWrite?: boolean
-	alwaysAllowExecute?: boolean
-	alwaysAllowBrowser?: boolean
 	uriScheme?: string
-	allowedCommands?: string[]
-	soundEnabled?: boolean
+	clineMessages: ClineMessage[]
+	taskHistory: HistoryItem[]
+	shouldShowAnnouncement: boolean
 }
 
 export interface ClineMessage {
@@ -81,7 +76,6 @@ export type ClineSay =
 	| "shell_integration_warning"
 	| "browser_action"
 	| "browser_action_result"
-	| "command"
 
 export interface ClineSayTool {
 	tool:
