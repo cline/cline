@@ -4,7 +4,7 @@ import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiStreamChunk } from "../transform/stream"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
@@ -13,7 +13,11 @@ interface OpenRouterChatCompletionParams extends OpenAI.Chat.ChatCompletionCreat
 }
 
 // Add custom interface for OpenRouter usage chunk
-interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
+interface OpenRouterApiStreamUsageChunk {
+    type: "usage";
+    inputTokens: number;
+    outputTokens: number;
+    totalCost: number;
     fullResponseText: string;
 }
 
