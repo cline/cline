@@ -1,13 +1,17 @@
 # Roo-Cline
 
-## Roo Packaging and Installation
+A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.
+- Auto-approval capabilities for commands, write, and browser operations
+- Support for .clinerules per-project custom instructions
+- Ability to run side-by-side with Cline
+- Support for playing sound effects
+- Support for OpenRouter compression
+- Support for editing through diffs
 
-### Updating Version (for a new release)
+Creating a snake game with "Always approve write operations" and "Always approve browser actions":
 
-1. Bump the version in `package.json`
-2. Update the version number in the `files` list in `package.json`
+https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
-After installation, Roo Cline will appear in your VSCode-compatible editor's installed extensions list. You can verify this by opening your editor's Extensions panel (Cmd/Ctrl+Shift+X) and checking under the "Installed" section.
 
 ---
 
