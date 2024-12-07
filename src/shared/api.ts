@@ -1,58 +1,101 @@
 export type ApiProvider =
-	| "anthropic"
-	| "openrouter"
-	| "bedrock"
-	| "vertex"
-	| "openai"
-	| "ollama"
-	| "lmstudio"
-	| "gemini"
-	| "openai-native"
+    | "anthropic"
+    | "openrouter"
+    | "bedrock"
+    | "vertex"
+    | "openai"
+    | "ollama"
+    | "lmstudio"
+    | "gemini"
+    | "openai-native"
+    | "xai"; // Added xai as a provider
 
 export interface ApiHandlerOptions {
-	apiModelId?: string
-	apiKey?: string // anthropic
-	anthropicBaseUrl?: string
-	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
-	awsAccessKey?: string
-	awsSecretKey?: string
-	awsSessionToken?: string
-	awsRegion?: string
-	awsUseCrossRegionInference?: boolean
-	vertexProjectId?: string
-	vertexRegion?: string
-	openAiBaseUrl?: string
-	openAiApiKey?: string
-	openAiModelId?: string
-	ollamaModelId?: string
-	ollamaBaseUrl?: string
-	lmStudioModelId?: string
-	lmStudioBaseUrl?: string
-	geminiApiKey?: string
-	openAiNativeApiKey?: string
-	azureApiVersion?: string
+    apiModelId?: string;
+    apiKey?: string; // anthropic
+    anthropicBaseUrl?: string;
+    openRouterApiKey?: string;
+    openRouterModelId?: string;
+    openRouterModelInfo?: ModelInfo;
+    awsAccessKey?: string;
+    awsSecretKey?: string;
+    awsSessionToken?: string;
+    awsRegion?: string;
+    awsUseCrossRegionInference?: boolean;
+    vertexProjectId?: string;
+    vertexRegion?: string;
+    openAiBaseUrl?: string;
+    openAiApiKey?: string;
+    openAiModelId?: string;
+    ollamaModelId?: string;
+    ollamaBaseUrl?: string;
+    lmStudioModelId?: string;
+    lmStudioBaseUrl?: string;
+    geminiApiKey?: string;
+    openAiNativeApiKey?: string;
+    azureApiVersion?: string;
+    xaiApiKey?: string; // New key for xai
+    xaiModelId?: string; // New model ID for xai
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+    apiProvider?: ApiProvider;
 }
 
 // Models
-
 export interface ModelInfo {
-	maxTokens?: number
-	contextWindow?: number
-	supportsImages?: boolean
-	supportsComputerUse?: boolean
-	supportsPromptCache: boolean // this value is hardcoded for now
-	inputPrice?: number
-	outputPrice?: number
-	cacheWritesPrice?: number
-	cacheReadsPrice?: number
-	description?: string
+    maxTokens?: number;
+    contextWindow?: number;
+    supportsImages?: boolean;
+    supportsComputerUse?: boolean;
+    supportsPromptCache: boolean; // this value is hardcoded for now
+    inputPrice?: number;
+    outputPrice?: number;
+    cacheWritesPrice?: number;
+    cacheReadsPrice?: number;
+    description?: string;
 }
+
+// Adding support for xai
+export type XaiModelId = keyof typeof xaiModels;
+export const xaiDefaultModelId: XaiModelId = "xai-model-1";
+export const xaiModels = {
+    "xai-model-1": {
+        maxTokens: 8192,
+        contextWindow: 1_000_000,
+        supportsImages: true,
+        supportsComputerUse: true,
+        supportsPromptCache: true,
+        inputPrice: 5.0,
+        outputPrice: 20.0,
+        cacheWritesPrice: 5.0,
+        cacheReadsPrice: 0.5,
+        description: "XAI Model 1 is optimized for advanced AI tasks, including data analysis and multimodal processing.",
+    },
+    "xai-model-2": {
+        maxTokens: 4096,
+        contextWindow: 500_000,
+        supportsImages: false,
+        supportsPromptCache: true,
+        inputPrice: 2.5,
+        outputPrice: 10.0,
+        cacheWritesPrice: 2.5,
+        cacheReadsPrice: 0.25,
+        description: "XAI Model 2 is designed for faster responses, suitable for real-time applications.",
+    },
+    "xai-model-3": {
+        maxTokens: 16_384,
+        contextWindow: 2_000_000,
+        supportsImages: true,
+        supportsComputerUse: true,
+        supportsPromptCache: false,
+        inputPrice: 8.0,
+        outputPrice: 30.0,
+        cacheWritesPrice: 8.0,
+        cacheReadsPrice: 0.8,
+        description: "XAI Model 3 offers extensive processing power and supports complex computational tasks.",
+    },
+} as const satisfies Record<string, ModelInfo>;
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
