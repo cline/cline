@@ -31,6 +31,7 @@ export interface WebviewMessage {
 		| "alwaysAllowBrowser"
 		| "playSound"
 		| "soundEnabled"
+		| "diffEnabled"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

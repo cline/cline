@@ -181,7 +181,8 @@ describe('ClineProvider', () => {
             alwaysAllowExecute: false,
             alwaysAllowBrowser: false,
             uriScheme: 'vscode',
-            soundEnabled: true
+            soundEnabled: false,
+            diffEnabled: false
         }
         
         const message: ExtensionMessage = { 
@@ -230,5 +231,6 @@ describe('ClineProvider', () => {
         expect(state).toHaveProperty('alwaysAllowBrowser')
         expect(state).toHaveProperty('taskHistory')
         expect(state).toHaveProperty('soundEnabled')
+        expect(state).toHaveProperty('diffEnabled')
     })
 })

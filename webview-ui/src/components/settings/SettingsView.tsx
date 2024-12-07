@@ -27,6 +27,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysAllowBrowser,
 		soundEnabled,
 		setSoundEnabled,
+		diffEnabled,
+		setDiffEnabled,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -50,6 +52,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
+			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			onDone()
 		}
 	}
@@ -287,6 +290,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</div>
 					</div>
 				)}
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox checked={diffEnabled} onChange={(e: any) => setDiffEnabled(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Enable editing through diffs</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						When enabled, Cline will be able to apply diffs to make changes to files.
+					</p>
+				</div>
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>

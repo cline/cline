@@ -121,6 +121,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
 							switch (tool.tool) {
 								case "editedExistingFile":
+								case "appliedDiff":
 								case "newFileCreated":
 									setPrimaryButtonText("Save")
 									setSecondaryButtonText("Reject")
@@ -747,7 +748,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			const lastMessage = messages.at(-1)
 			if (lastMessage?.type === "ask" && lastMessage.text) {
 				const tool = JSON.parse(lastMessage.text)
-				return ["editedExistingFile", "newFileCreated"].includes(tool.tool)
+				return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
 			}
 			return false
 		}

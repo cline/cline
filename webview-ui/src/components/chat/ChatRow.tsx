@@ -213,10 +213,11 @@ export const ChatRowContent = ({
 
 		switch (tool.tool) {
 			case "editedExistingFile":
+			case "appliedDiff":
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("edit")}
+							{toolIcon(tool.tool === "appliedDiff" ? "diff" : "edit")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian

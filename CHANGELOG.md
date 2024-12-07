@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.12]
+
+- Incorporate JoziGila's [PR](https://github.com/cline/cline/pull/158) to add support for editing through diffs
+
 ## [2.1.11]
 
 - Incorporate lloydchang's [PR](https://github.com/RooVetGit/Roo-Cline/pull/42) to add support for OpenRouter compression

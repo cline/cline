@@ -42,6 +42,7 @@ export interface ExtensionState {
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
+	diffEnabled?: boolean
 }
 
 export interface ClineMessage {
@@ -86,6 +87,7 @@ export type ClineSay =
 export interface ClineSayTool {
 	tool:
 		| "editedExistingFile"
+		| "appliedDiff"
 		| "newFileCreated"
 		| "readFile"
 		| "listFilesTopLevel"
