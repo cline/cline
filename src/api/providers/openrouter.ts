@@ -4,8 +4,18 @@ import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
+
+// Add custom interface for OpenRouter params
+interface OpenRouterChatCompletionParams extends OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+    transforms?: string[];
+}
+
+// Add custom interface for OpenRouter usage chunk
+interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
+    fullResponseText: string;
+}
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -23,7 +33,7 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): AsyncGenerator<ApiStreamChunk> {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -95,17 +105,21 @@ export class OpenRouterHandler implements ApiHandler {
 				maxTokens = 8_192
 				break
 		}
+		// https://openrouter.ai/docs/transforms
+		let fullResponseText = "";
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
-		})
+			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
+			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] })
+		} as OpenRouterChatCompletionParams);
 
 		let genId: string | undefined
 
-		for await (const chunk of stream) {
+		for await (const chunk of stream as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			if ("error" in chunk) {
 				const error = chunk.error as { message?: string; code?: number }
@@ -119,10 +133,11 @@ export class OpenRouterHandler implements ApiHandler {
 
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
+				fullResponseText += delta.content;
 				yield {
 					type: "text",
 					text: delta.content,
-				}
+				} as ApiStreamChunk;
 			}
 			// if (chunk.usage) {
 			// 	yield {
@@ -153,13 +168,14 @@ export class OpenRouterHandler implements ApiHandler {
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
-			}
+				fullResponseText
+			} as OpenRouterApiStreamUsageChunk;
 		} catch (error) {
 			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
 		}
-	}
 
+	}
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo

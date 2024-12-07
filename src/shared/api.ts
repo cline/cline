@@ -33,6 +33,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
+	openRouterUseMiddleOutTransform?: boolean
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

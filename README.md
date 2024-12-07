@@ -27,10 +27,10 @@ After installation, Roo Cline will appear in your VSCode-compatible editor's ins
 <a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>
 </td>
 <td align="center">
-<a href="https://github.com/cline/cline/wiki" target="_blank"><strong>Docs</strong></a>
+<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
 </td>
 <td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
+<a href="https://cline.bot/join-us" target="_blank"><strong>We're Hiring!</strong></a>
 </td>
 </tbody>
 </table>
@@ -112,7 +112,7 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 ## Contributing
 
-To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
+To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
 
 <details>
 <summary>Local Development Instructions</summary>
