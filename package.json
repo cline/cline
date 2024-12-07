@@ -113,6 +113,43 @@
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
+		},
+		"configuration": {
+			"title": "Cline",
+			"properties": {
+				"cline.contextExclude": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"**/node_modules/**",
+						"**/__pycache__/**",
+						"**/env/**",
+						"**/venv/**",
+						"**/target/dependency/**",
+						"**/build/dependencies/**",
+						"**/dist/**",
+						"**/out/**",
+						"**/bundle/**",
+						"**/vendor/**",
+						"**/tmp/**",
+						"**/temp/**",
+						"**/deps/**",
+						"**/pkg/**",
+						"**/Pods/**",
+						"**/.*"
+					],
+					"description": "Configure paths or glob patterns to exclude in addition to the root .gitignore.  Patterns excluded by file.watcherExclude are also ignored."
+				},
+				"cline.maximumContextFiles": {
+					"type": "integer",
+					"minimum": 1000,
+					"maximum": 100000,
+					"default": 1000,
+					"description": "Maximum number of context files tracked. Adjust to control memory and performance."
+				}
+			}
 		}
 	},
 	"scripts": {
@@ -138,6 +175,7 @@
 	},
 	"devDependencies": {
 		"@types/diff": "^5.2.1",
+		"@types/micromatch": "^4.0.9",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/vscode": "^1.84.0",
@@ -170,6 +208,7 @@
 		"globby": "^14.0.2",
 		"isbinaryfile": "^5.0.2",
 		"mammoth": "^1.8.0",
+		"micromatch": "^4.0.8",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"openai": "^4.61.0",
 		"os-name": "^6.0.0",

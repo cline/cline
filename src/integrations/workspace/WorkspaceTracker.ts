@@ -1,96 +1,192 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { listFiles } from "../../services/glob/list-files"
+import { listFiles, getDirsToIgnore } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
+import ignore from "ignore"
+import { readFileSync } from "fs"
+import micromatch from "micromatch"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
+namespace WorkspaceTracker {
+	export type QueueFunction = () => Promise<void> | void
+}
+
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
+	private static readonly DEBOUNCE_DELAY = 1000 // debounce period in milliseconds for messages to the WebView-UI
+	private static readonly EVENT_FLOOD_SZ = 100 // number of events - the underlying watcher can be overwhelmed by fast bulk changes like rm -rf
+
 	private providerRef: WeakRef<ClineProvider>
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 
+	// queue to ensure in order handling of filesystem notifications (stat in 'addFilePath' is async)
+	private notify_queue: Promise<void> = Promise.resolve()
+
+	private workspaceDidUpdateTimeout: NodeJS.Timeout | null = null // event debounce timer
+	private gitignoreContentCache: string | null = null
+	private eventCount: number = 0
+
+	// needReInit triggers a call to initializeFilePaths to reanalyze the workspace
+	// Several things trigger needReInit:
+	//   - Directory ‘move’ operations. They do not send notifications for each child.
+	//   - Changes to .gitignore
+	//   - Event floods that overwhelm the inotify system, like rm -rf on a large dir
+	//   - TODO: changes to the contextExclude config globs ( getDirsToIgnore() )
+	private needReInit: boolean = false // triggers a call to initializeFilePaths
+
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
-		this.registerListeners()
+		this.registerFileSystemWatcher()
 	}
 
 	async initializeFilePaths() {
+		let paths = new Set<string>()
 		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
 		if (!cwd) {
 			return
 		}
-		const [files, _] = await listFiles(cwd, true, 1_000)
-		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
+
+		const configuration = vscode.workspace.getConfiguration("cline")
+		const maxContextFiles = configuration.get<number>("maximumContextFiles") || 1_000
+
+		this.filePaths.clear()
+		const [files, _] = await listFiles(cwd, true, maxContextFiles)
+		files.forEach((file) => paths.add(this.normalizeFilePath(file)))
+		this.filePaths = paths
+
+		this.needReInit = false
+
 		this.workspaceDidUpdate()
 	}
 
-	private registerListeners() {
-		// Listen for file creation
-		// .bind(this) ensures the callback refers to class instance when using this, not necessary when using arrow function
-		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
-
-		// Listen for file deletion
-		this.disposables.push(vscode.workspace.onDidDeleteFiles(this.onFilesDeleted.bind(this)))
-
-		// Listen for file renaming
-		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
-
-		/*
-		 An event that is emitted when a workspace folder is added or removed.
-		 **Note:** this event will not fire if the first workspace folder is added, removed or changed,
-		 because in that case the currently executing extensions (including the one that listens to this
-		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
-		 to point to the first workspace folder.
-		 */
-		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since cline will only be working within the root folder cwd)
-		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
-	}
-
-	private async onFilesCreated(event: vscode.FileCreateEvent) {
-		await Promise.all(
-			event.files.map(async (file) => {
-				await this.addFilePath(file.fsPath)
-			}),
-		)
-		this.workspaceDidUpdate()
-	}
-
-	private async onFilesDeleted(event: vscode.FileDeleteEvent) {
-		let updated = false
-		await Promise.all(
-			event.files.map(async (file) => {
-				if (await this.removeFilePath(file.fsPath)) {
-					updated = true
-				}
-			}),
-		)
-		if (updated) {
-			this.workspaceDidUpdate()
+	private registerFileSystemWatcher() {
+		if (!cwd) {
+			return
 		}
+
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(cwd, "**/*"))
+		const configGlobsToIgnore = getDirsToIgnore()
+
+		// Watch for file creation
+		watcher.onDidCreate((uri) => {
+			this.add_event_to_notify_queue(async () => {
+				// Perform flood detection first, as even unmonitored file events can cause state loss during a flood.
+				this.incrementEventAndDetectFlood()
+				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
+					return // Ignore this event
+				}
+				await this.addFilePath(uri.fsPath)
+				this.triggerWorkspaceDidUpdate()
+			})
+		})
+
+		// Watch for file deletion
+		watcher.onDidDelete((uri) => {
+			this.add_event_to_notify_queue(async () => {
+				// Perform flood detection first, as even unmonitored file events can cause state loss during a flood.
+				this.incrementEventAndDetectFlood()
+				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
+					return
+				}
+				if (this.removeFilePath(uri.fsPath)) {
+					this.triggerWorkspaceDidUpdate()
+				}
+			})
+		})
+
+		// Watch for file changes
+		watcher.onDidChange((uri) => {
+			this.add_event_to_notify_queue(async () => {
+				this.incrementEventAndDetectFlood()
+				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
+					return
+				}
+				this.removeFilePath(uri.fsPath)
+				await this.addFilePath(uri.fsPath)
+				this.triggerWorkspaceDidUpdate()
+			})
+		})
+
+		this.disposables.push(watcher)
 	}
 
-	private async onFilesRenamed(event: vscode.FileRenameEvent) {
-		await Promise.all(
-			event.files.map(async (file) => {
-				await this.removeFilePath(file.oldUri.fsPath)
-				await this.addFilePath(file.newUri.fsPath)
-			}),
-		)
-		this.workspaceDidUpdate()
+	add_event_to_notify_queue(task: () => Promise<void>): void {
+		// Chain events received in order and trigger updates to the webview if successful
+		this.notify_queue = this.notify_queue
+			.then(() => task()) // Execute the task
+			.catch((err) => {})
+	}
+
+	private shouldIgnoreGlob(filePath: string, exclusionGlobs: string[]): boolean {
+		// Initialize .gitignore processing
+		const gitignore = ignore()
+		const gitignorePath = `${process.cwd()}/.gitignore`
+
+		try {
+			// Load .gitignore content
+			if (!this.gitignoreContentCache) {
+				this.gitignoreContentCache = readFileSync(gitignorePath, "utf8")
+			}
+			gitignore.add(this.gitignoreContentCache)
+
+			// Check against .gitignore rules
+			if (gitignore.ignores(filePath)) {
+				return true // File is ignored by .gitignore
+			}
+		} catch (err) {
+			// no.gitignore is different than a falsy set by cache expiration
+			this.gitignoreContentCache = ""
+			// If .gitignore is not found or there's an error, proceed with exclusionGlobs
+		}
+
+		// Use micromatch to check against exclusion globs
+		const isMatch = micromatch.isMatch(filePath, exclusionGlobs, { dot: true })
+
+		return isMatch // Return true if filePath matches exclusion globs
+	}
+
+	private triggerWorkspaceDidUpdate() {
+		// Debounced trigger for workspaceDidUpdate, in case a lot of stuff is happening on the fs
+		// e.g. rm -rf of a large directory
+		if (this.workspaceDidUpdateTimeout) {
+			clearTimeout(this.workspaceDidUpdateTimeout)
+		}
+
+		// Set timeout to delay execution of workspaceDidUpdate
+		this.workspaceDidUpdateTimeout = setTimeout(() => {
+			// a directory move or a flood occurred, e.g. rm -rf of a big directory and likely some notifications
+			// have been lost, reinit our file state
+			if (this.needReInit) {
+				console.log("Event flood or move detected")
+				this.add_event_to_notify_queue(async () => {
+					this.initializeFilePaths()
+				})
+			} else {
+				this.workspaceDidUpdate()
+			}
+			this.eventCount = 0
+		}, WorkspaceTracker.DEBOUNCE_DELAY) // 1 second debounce
 	}
 
 	private workspaceDidUpdate() {
 		if (!cwd) {
 			return
 		}
+
+		// Fetch the maximum context files limit from configuration
+		const configuration = vscode.workspace.getConfiguration("cline")
+		const maxContextFiles = configuration.get<number>("maximumContextFiles") || 1_000
+
 		this.providerRef.deref()?.postMessageToWebview({
 			type: "workspaceUpdated",
-			filePaths: Array.from(this.filePaths).map((file) => {
-				const relativePath = path.relative(cwd, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			}),
+			filePaths: Array.from(this.filePaths)
+				.slice(0, maxContextFiles)
+				.map((file) => {
+					const relativePath = path.relative(cwd, file).toPosix()
+					return file.endsWith("/") ? relativePath + "/" : relativePath
+				}),
 		})
 	}
 
@@ -105,6 +201,13 @@ class WorkspaceTracker {
 			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
 			const isDirectory = (stat.type & vscode.FileType.Directory) !== 0
 			const pathWithSlash = isDirectory && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
+
+			if (isDirectory) {
+				this.needReInit = true
+			}
+
+			this.detectGitignoreChanges(filePath)
+
 			this.filePaths.add(pathWithSlash)
 			return pathWithSlash
 		} catch {
@@ -114,9 +217,33 @@ class WorkspaceTracker {
 		}
 	}
 
-	private async removeFilePath(filePath: string): Promise<boolean> {
+	private removeFilePath(filePath: string): boolean {
 		const normalizedPath = this.normalizeFilePath(filePath)
-		return this.filePaths.delete(normalizedPath) || this.filePaths.delete(normalizedPath + "/")
+		let isFile = this.filePaths.delete(normalizedPath)
+
+		if (!isFile) {
+			this.needReInit = true
+		}
+
+		this.detectGitignoreChanges(filePath)
+
+		// if the file delete did not succeed, try the dir delete
+		return isFile || this.filePaths.delete(normalizedPath + "/")
+	}
+
+	private incrementEventAndDetectFlood(): void {
+		if (this.eventCount++ > WorkspaceTracker.EVENT_FLOOD_SZ) {
+			this.needReInit = true
+		}
+	}
+
+	private detectGitignoreChanges(filePath: string): void {
+		if (filePath.includes(".gitignore")) {
+			// detect changes to .gitignore and reset the cache
+			console.log("gitignore change detected")
+			this.gitignoreContentCache = null
+			this.needReInit = true
+		}
 	}
 
 	public dispose() {
