@@ -277,7 +277,7 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"google/gemini-exp-1206": {
+	"gemini-exp-1206": {
 		maxTokens: 8192,
 		contextWindow: 2_097_152,
 		supportsImages: true,
