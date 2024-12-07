@@ -249,6 +249,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							</span>
 						)} */}
 					</p>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({ ...apiConfiguration, openRouterUseMiddleOutTransform: isChecked })
+						}}>
+						Compress prompts and message chains to the context size (<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
+					</VSCodeCheckbox>
+					<br/>
 				</div>
 			)}
 
