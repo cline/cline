@@ -286,7 +286,6 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
         },
-	
 } as const satisfies Record<string, ModelInfo>
 
 // OpenAI Native
