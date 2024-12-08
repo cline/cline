@@ -12,7 +12,7 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 		<div
 			key={uri}
 			style={{
-				padding: "3px 0 8px 0",
+				padding: "3px 0",
 			}}>
 			<div
 				style={{

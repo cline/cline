@@ -23,6 +23,7 @@ import {
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
+import delay from "delay"
 
 export type McpConnection = {
 	server: McpServer
@@ -121,7 +122,7 @@ export class McpHub {
 	}
 
 	private async connectToServer(name: string, config: StdioServerParameters): Promise<void> {
-		// Remove existing connection if it exists
+		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
 		try {
@@ -176,7 +177,6 @@ export class McpHub {
 					transport,
 				}
 				this.connections.push(connection)
-				await this.notifyWebviewOfServerChanges()
 				return
 			}
 
@@ -219,8 +219,6 @@ export class McpHub {
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
-
-			await this.notifyWebviewOfServerChanges()
 		} catch (error) {
 			// Update status with error
 			const connection = this.connections.find((conn) => conn.server.name === name)
@@ -228,7 +226,6 @@ export class McpHub {
 				connection.server.status = "disconnected"
 				connection.server.error = error instanceof Error ? error.message : String(error)
 			}
-			await this.notifyWebviewOfServerChanges()
 			throw error
 		}
 	}
@@ -281,7 +278,6 @@ export class McpHub {
 				console.error(`Failed to close transport for ${name}:`, error)
 			}
 			this.connections = this.connections.filter((conn) => conn.server.name !== name)
-			await this.notifyWebviewOfServerChanges()
 		}
 	}
 
@@ -321,10 +317,11 @@ export class McpHub {
 			}
 			// If server exists with same config, do nothing
 		}
+		await this.notifyWebviewOfServerChanges()
 		this.isConnecting = false
 	}
 
-	async retryConnection(serverName: string): Promise<void> {
+	async restartConnection(serverName: string): Promise<void> {
 		this.isConnecting = true
 		const provider = this.providerRef.deref()
 		if (!provider) {
@@ -335,6 +332,10 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
+			connection.server.status = "connecting"
+			await this.notifyWebviewOfServerChanges()
+			await delay(500) // artificial delay to show user that server is restarting
+			await this.deleteConnection(serverName)
 			// Try to connect again using existing config
 			await this.connectToServer(serverName, JSON.parse(config))
 		}
@@ -344,9 +345,20 @@ export class McpHub {
 	}
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
+		// servers should always be sorted in the order they are defined in the settings file
+		const settingsPath = await this.getMcpSettingsFilePath()
+		const content = await fs.readFile(settingsPath, "utf-8")
+		const config = JSON.parse(content)
+		const serverOrder = Object.keys(config.mcpServers || {})
 		await this.providerRef.deref()?.postMessageToWebview({
 			type: "mcpServers",
-			mcpServers: this.connections.map((connection) => connection.server),
+			mcpServers: [...this.connections]
+				.sort((a, b) => {
+					const indexA = serverOrder.indexOf(a.server.name)
+					const indexB = serverOrder.indexOf(b.server.name)
+					return indexA - indexB
+				})
+				.map((connection) => connection.server),
 		})
 	}
 

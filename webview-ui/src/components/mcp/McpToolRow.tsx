@@ -9,7 +9,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 		<div
 			key={tool.name}
 			style={{
-				padding: "3px 0 8px 0",
+				padding: "3px 0",
 			}}>
 			<div style={{ display: "flex" }}>
 				<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>

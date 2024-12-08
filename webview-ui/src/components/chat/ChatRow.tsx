@@ -820,12 +820,12 @@ export const ChatRowContent = ({
 											}}
 										/>
 										{useMcpServer.arguments && (
-											<div style={{ marginTop: "6px" }}>
+											<div style={{ marginTop: "8px" }}>
 												<div
 													style={{
 														marginBottom: "4px",
 														opacity: 0.8,
-														fontSize: "11px",
+														fontSize: "12px",
 														textTransform: "uppercase",
 													}}>
 													Arguments

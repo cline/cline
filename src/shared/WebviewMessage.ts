@@ -24,7 +24,7 @@ export interface WebviewMessage {
 		| "cancelTask"
 		| "refreshOpenRouterModels"
 		| "openMcpSettings"
-		| "retryMcpServer"
+		| "restartMcpServer"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
