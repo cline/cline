@@ -1,5 +1,4 @@
 import { McpTool } from "../../../../src/shared/mcp"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -10,7 +9,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 		<div
 			key={tool.name}
 			style={{
-				padding: "8px 0",
+				padding: "3px 0 8px 0",
 			}}>
 			<div style={{ display: "flex" }}>
 				<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
@@ -32,7 +31,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 					style={{
 						marginTop: "8px",
 						fontSize: "12px",
-						background: CODE_BLOCK_BG_COLOR,
+						border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent)",
 						borderRadius: "3px",
 						padding: "8px",
 					}}>

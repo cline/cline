@@ -217,7 +217,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
 									<div
-										style={{ display: "flex", flexDirection: "column", gap: "3px", width: "100%" }}>
+										style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} tool={tool} />
 										))}

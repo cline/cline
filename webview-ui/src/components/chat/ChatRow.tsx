@@ -665,7 +665,12 @@ export const ChatRowContent = ({
 									}}>
 									Response
 								</div>
-								<CodeBlock source={`${"```"}json\n${message.text}\n${"```"}`} />
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
 							</div>
 						</>
 					)
@@ -825,8 +830,11 @@ export const ChatRowContent = ({
 													}}>
 													Arguments
 												</div>
-												<CodeBlock
-													source={`${"```"}json\n${useMcpServer.arguments}\n${"```"}`}
+												<CodeAccordian
+													code={useMcpServer.arguments}
+													language="json"
+													isExpanded={true}
+													onToggleExpand={onToggleExpand}
 												/>
 											</div>
 										)}
