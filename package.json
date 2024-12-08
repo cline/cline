@@ -136,7 +136,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "vsix": "vsce package --out bin",
+    "vsix": "vsce package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
