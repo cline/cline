@@ -539,6 +539,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "soundEnabled":
 						const soundEnabled = message.bool ?? true
 						await this.updateGlobalState("soundEnabled", soundEnabled)
+						setSoundEnabled(soundEnabled)  // Add this line to update the sound utility
 						await this.postStateToWebview()
 						break
 					case "diffEnabled":

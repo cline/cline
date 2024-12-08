@@ -8,7 +8,7 @@ A fork of Cline, an autonomous coding agent, with some added experimental config
 - Support for OpenRouter compression
 - Support for editing through diffs
 
-Creating a snake game with "Always approve write operations" and "Always approve browser actions":
+Here's an example of Roo-Cline autonomously creating a snake game with "Always approve write operations" and "Always approve browser actions" turned on:
 
 https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 

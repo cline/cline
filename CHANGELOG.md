@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.13]
+
+- Fix https://github.com/RooVetGit/Roo-Cline/issues/50 where sound effects were not respecting settings
+
 ## [2.1.12]
 
 - Incorporate JoziGila's [PR](https://github.com/cline/cline/pull/158) to add support for editing through diffs
