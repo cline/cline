@@ -46,7 +46,7 @@ Usage:
 </execute_command>
 
 ## read_file
-Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
+Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. The output includes line numbers prefixed to each line (e.g. "1 | const x = 1"), making it easier to reference specific lines when creating diffs or discussing code. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory ${cwd.toPosix()})
 Usage:
@@ -69,10 +69,66 @@ Your file content here
 
 ${diffEnabled ? `
 ## apply_diff
-Description: Apply a diff to a file at the specified path. The diff should be in unified format (diff -u) and can be used to apply changes to a file. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in a diff.
+Description: Apply a diff to a file at the specified path. The diff should be in unified format ('diff -U0') and can be used to apply changes to a file. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in a diff.
+
+Diff Format Requirements:
+
+1. Header (REQUIRED):
+   \`\`\`
+   --- path/to/original/file
+   +++ path/to/modified/file
+   \`\`\`
+   - Must include both lines exactly as shown
+   - Use actual file paths
+   - NO timestamps after paths
+
+2. Hunks:
+   \`\`\`
+   @@ -lineStart,lineCount +lineStart,lineCount @@
+   -removed line
+   +added line
+   \`\`\`
+   - Each hunk starts with @@ showing line numbers for changes
+   - Format: @@ -originalStart,originalCount +newStart,newCount @@
+   - Use - for removed/changed lines
+   - Use + for new/modified lines
+   - Indentation must match exactly
+
+Complete Example:
+\`\`\`
+--- src/utils/helper.ts
++++ src/utils/helper.ts
+@@ -10,3 +10,4 @@
+-function oldFunction(x: number): number {
+-  return x + 1;
+-}
++function newFunction(x: number): number {
++  const result = x + 2;
++  return result;
++}
+\`\`\`
+
+Common Pitfalls:
+1. Missing or incorrect header lines
+2. Incorrect line numbers in @@ lines
+3. Wrong indentation in changed lines
+4. Incomplete context (missing lines that need changing)
+5. Not marking all modified lines with - and +
+
+Best Practices:
+1. Replace entire code blocks:
+   - Remove complete old version with - lines
+   - Add complete new version with + lines
+   - Include correct line numbers
+2. Moving code requires two hunks:
+   - First hunk: Remove from old location
+   - Second hunk: Add to new location
+3. One hunk per logical change
+4. Verify line numbers match the file
+
 Parameters:
 - path: (required) The path of the file to apply the diff to (relative to the current working directory ${cwd.toPosix()})
-- diff: (required) The diff in unified format (diff -u) to apply to the file.
+- diff: (required) The diff in unified format (diff -U0) to apply to the file.
 Usage:
 <apply_diff>
 <path>File path here</path>
@@ -342,3 +398,4 @@ The following additional instructions are provided by the user, and should be fo
 ${joinedInstructions}`
 		: ""
 }
+

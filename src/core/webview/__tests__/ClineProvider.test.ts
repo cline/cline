@@ -76,6 +76,15 @@ jest.mock('../../Cline', () => {
     }
 })
 
+// Mock extract-text
+jest.mock('../../../integrations/misc/extract-text', () => ({
+    extractTextFromFile: jest.fn().mockImplementation(async (filePath: string) => {
+        const content = 'const x = 1;\nconst y = 2;\nconst z = 3;'
+        const lines = content.split('\n')
+        return lines.map((line, index) => `${index + 1} | ${line}`).join('\n')
+    })
+}))
+
 // Spy on console.error and console.log to suppress expected messages
 beforeAll(() => {
     jest.spyOn(console, 'error').mockImplementation(() => {})
@@ -257,5 +266,11 @@ describe('ClineProvider', () => {
         expect(setSoundEnabled).toHaveBeenCalledWith(false)
         expect(mockContext.globalState.update).toHaveBeenCalledWith('soundEnabled', false)
         expect(mockPostMessage).toHaveBeenCalled()
+    })
+
+    test('file content includes line numbers', async () => {
+        const { extractTextFromFile } = require('../../../integrations/misc/extract-text')
+        const result = await extractTextFromFile('test.js')
+        expect(result).toBe('1 | const x = 1;\n2 | const y = 2;\n3 | const z = 3;')
     })
 })

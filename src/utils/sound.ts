@@ -20,7 +20,7 @@ export const isWAV = (filepath: string): boolean => {
 	return path.extname(filepath).toLowerCase() === ".wav"
 }
 
-let isSoundEnabled = true
+let isSoundEnabled = false
 
 /**
  * Set sound configuration

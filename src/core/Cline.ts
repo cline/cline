@@ -12,7 +12,7 @@ import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -46,7 +46,7 @@ import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { showOmissionWarning } from "../integrations/editor/detect-omission"
+import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 
 const cwd =
@@ -1101,7 +1101,32 @@ export class Cline {
 								await this.diffViewProvider.update(newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
-								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+
+								// Check for code omissions before proceeding
+								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent)) {
+									if (this.diffEnabled) {
+										await this.diffViewProvider.revertChanges()
+										pushToolResult(formatResponse.toolError(
+											"Content appears to be truncated. Found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file."
+										))
+										break
+									} else {
+										vscode.window
+											.showWarningMessage(
+												"Potential code truncation detected. This happens when the AI reaches its max output limit.",
+												"Follow this guide to fix the issue",
+											)
+											.then((selection) => {
+												if (selection === "Follow this guide to fix the issue") {
+													vscode.env.openExternal(
+														vscode.Uri.parse(
+															"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
+														),
+													)
+												}
+											})
+									}
+								}
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -1133,8 +1158,8 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1231,11 +1256,32 @@ export class Cline {
 									break
 								}
 
-								await fs.writeFile(absolutePath, newContent)
-								await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+								const { newProblemsMessage, userEdits, finalContent } =
+									await this.diffViewProvider.saveChanges()
+								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+								if (userEdits) {
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: fileExists ? "editedExistingFile" : "newFileCreated",
+											path: getReadablePath(cwd, relPath),
+											diff: userEdits,
+										} satisfies ClineSayTool),
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+											`Please note:\n` +
+											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+											`2. Proceed with the task using this updated file content as the new baseline.\n` +
+											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+											`${newProblemsMessage}`,
+									)
+								} else {
+									pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
+								}
 								await this.diffViewProvider.reset()
-
-								pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${diffRepresentation}`)
 								break
 							}
 						} catch (error) {
@@ -2242,3 +2288,4 @@ export class Cline {
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 }
+

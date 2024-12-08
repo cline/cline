@@ -301,7 +301,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Cline will be able to apply diffs to make changes to files.
+						When enabled, Cline will be able to apply diffs to make changes to files and will automatically reject truncated full-file edits.
 					</p>
 				</div>
 

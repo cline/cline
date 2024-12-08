@@ -1,5 +1,10 @@
 # Roo Cline Changelog
 
+## [2.1.14]
+
+- Fix bug where diffs were not being applied correctly and try Aider's [unified diff prompt](https://github.com/Aider-AI/aider/blob/3995accd0ca71cea90ef76d516837f8c2731b9fe/aider/coders/udiff_prompts.py#L75-L105)
+- If diffs are enabled, automatically reject write_to_file commands that lead to truncated output
+
 ## [2.1.13]
 
 - Fix https://github.com/RooVetGit/Roo-Cline/issues/50 where sound effects were not respecting settings
