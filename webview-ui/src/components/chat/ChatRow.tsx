@@ -2,13 +2,22 @@ import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/reac
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef } from "react"
 import { useSize } from "react-use"
-import { ClineApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
+import {
+	ClineApiReqInfo,
+	ClineAskUseMcpServer,
+	ClineMessage,
+	ClineSayTool,
+} from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
+import McpResourceRow from "../mcp/McpResourceRow"
+import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
 
 interface ChatRowProps {
@@ -67,6 +76,7 @@ export const ChatRowContent = ({
 	lastModifiedMessage,
 	isLast,
 }: ChatRowContentProps) => {
+	const { mcpServers } = useExtensionState()
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -81,6 +91,9 @@ export const ChatRowContent = ({
 			: undefined
 	const isCommandExecuting =
 		isLast && lastModifiedMessage?.ask === "command" && lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
+
+	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
+
 	const type = message.type === "ask" ? message.ask : message.say
 
 	const normalColor = "var(--vscode-foreground)"
@@ -115,6 +128,20 @@ export const ChatRowContent = ({
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
 						Cline wants to execute this command:
+					</span>,
+				]
+			case "use_mcp_server":
+				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+				return [
+					isMcpServerResponding ? (
+						<ProgressIndicator />
+					) : (
+						<span
+							className="codicon codicon-server"
+							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+					),
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						Cline wants to use the <code>{mcpServerUse.serverName}</code> MCP server:
 					</span>,
 				]
 			case "completion_result":
@@ -181,7 +208,15 @@ export const ChatRowContent = ({
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason])
+	}, [
+		type,
+		cost,
+		apiRequestFailedMessage,
+		isCommandExecuting,
+		apiReqCancelReason,
+		isMcpServerResponding,
+		message.text,
+	])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -617,6 +652,23 @@ export const ChatRowContent = ({
 							</div>
 						</>
 					)
+				case "mcp_server_response":
+					return (
+						<>
+							<div style={{ paddingTop: 0 }}>
+								<div
+									style={{
+										marginBottom: "4px",
+										opacity: 0.8,
+										fontSize: "12px",
+										textTransform: "uppercase",
+									}}>
+									Response
+								</div>
+								<CodeBlock source={`${"```"}json\n${message.text}\n${"```"}`} />
+							</div>
+						</>
+					)
 				default:
 					return (
 						<>
@@ -712,6 +764,73 @@ export const ChatRowContent = ({
 										</div>
 										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
 									</div>
+								)}
+							</div>
+						</>
+					)
+				case "use_mcp_server":
+					const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+					const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
+					return (
+						<>
+							<div style={headerStyle}>
+								{icon}
+								{title}
+							</div>
+
+							<div
+								style={{
+									background: "var(--vscode-textCodeBlock-background)",
+									borderRadius: "3px",
+									padding: "8px 10px",
+									marginTop: "8px",
+								}}>
+								{useMcpServer.type === "access_mcp_resource" && (
+									<McpResourceRow
+										item={{
+											// Always use the actual URI from the request
+											uri: useMcpServer.uri || "",
+											// Use the matched resource/template details, with fallbacks
+											...(findMatchingResourceOrTemplate(
+												useMcpServer.uri || "",
+												server?.resources,
+												server?.resourceTemplates,
+											) || {
+												name: "",
+												mimeType: "",
+												description: "",
+											}),
+										}}
+									/>
+								)}
+
+								{useMcpServer.type === "use_mcp_tool" && (
+									<>
+										<McpToolRow
+											tool={{
+												name: useMcpServer.toolName || "",
+												description:
+													server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
+														?.description || "",
+											}}
+										/>
+										{useMcpServer.arguments && (
+											<div style={{ marginTop: "6px" }}>
+												<div
+													style={{
+														marginBottom: "4px",
+														opacity: 0.8,
+														fontSize: "11px",
+														textTransform: "uppercase",
+													}}>
+													Arguments
+												</div>
+												<CodeBlock
+													source={`${"```"}json\n${useMcpServer.arguments}\n${"```"}`}
+												/>
+											</div>
+										)}
+									</>
 								)}
 							</div>
 						</>

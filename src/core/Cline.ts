@@ -28,6 +28,7 @@ import {
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
 	ClineAsk,
+	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSay,
 	ClineSayBrowserAction,
@@ -757,7 +758,7 @@ export class Cline {
 		})
 		const mcpServers = this.providerRef.deref()?.mcpHub?.connections.map((conn) => conn.server)
 		console.log("mcpServers for system prompt:", JSON.stringify(mcpServers, null, 2))
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpServers)
 		if (this.customInstructions && this.customInstructions.trim()) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addCustomInstructions(this.customInstructions)
@@ -898,6 +899,10 @@ export class Cline {
 							return `[${block.name} for '${block.params.path}']`
 						case "browser_action":
 							return `[${block.name} for '${block.params.action}']`
+						case "use_mcp_tool":
+							return `[${block.name} for '${block.params.server_name}']`
+						case "access_mcp_resource":
+							return `[${block.name} for '${block.params.server_name}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
 						case "attempt_completion":
@@ -1544,7 +1549,163 @@ export class Cline {
 							break
 						}
 					}
+					case "use_mcp_tool": {
+						const server_name: string | undefined = block.params.server_name
+						const tool_name: string | undefined = block.params.tool_name
+						const mcp_arguments: string | undefined = block.params.arguments
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									type: "use_mcp_tool",
+									serverName: removeClosingTag("server_name", server_name),
+									toolName: removeClosingTag("tool_name", tool_name),
+									arguments: removeClosingTag("arguments", mcp_arguments),
+								} satisfies ClineAskUseMcpServer)
+								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								break
+							} else {
+								if (!server_name) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("use_mcp_tool", "server_name"),
+									)
+									break
+								}
+								if (!tool_name) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("use_mcp_tool", "tool_name"),
+									)
+									break
+								}
+								// arguments are optional, but if they are provided they must be valid JSON
+								// if (!mcp_arguments) {
+								// 	this.consecutiveMistakeCount++
+								// 	pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "arguments"))
+								// 	break
+								// }
+								let parsedArguments: Record<string, unknown> | undefined
+								if (mcp_arguments) {
+									try {
+										parsedArguments = JSON.parse(mcp_arguments)
+									} catch (error) {
+										this.consecutiveMistakeCount++
+										await this.say(
+											"error",
+											`Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`,
+										)
+										pushToolResult(
+											formatResponse.toolError(
+												formatResponse.invalidMcpToolArgumentError(server_name, tool_name),
+											),
+										)
+										break
+									}
+								}
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify({
+									type: "use_mcp_tool",
+									serverName: server_name,
+									toolName: tool_name,
+									arguments: mcp_arguments,
+								} satisfies ClineAskUseMcpServer)
+								const didApprove = await askApproval("use_mcp_server", completeMessage)
+								if (!didApprove) {
+									break
+								}
+								// now execute the tool
+								await this.say("mcp_server_request_started") // same as browser_action_result
+								const toolResult = await this.providerRef
+									.deref()
+									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
+								// TODO: add progress indicator and ability to parse images and non-text responses
+								const toolResultPretty =
+									(toolResult?.isError
+										? "Error: The tool call failed"
+										: toolResult?.content
+												.map((item) => {
+													if (item.type === "text") {
+														return item.text
+													}
+													if (item.type === "resource") {
+														const { blob, ...rest } = item.resource
+														return JSON.stringify(rest, null, 2)
+													}
+													return ""
+												})
+												.filter(Boolean)
+												.join("\n\n")) || "(Empty response)"
+								await this.say("mcp_server_response", toolResultPretty)
+								pushToolResult(formatResponse.toolResult(toolResultPretty))
+								break
+							}
+						} catch (error) {
+							await handleError("executing MCP tool", error)
+							break
+						}
+					}
+					case "access_mcp_resource": {
+						const server_name: string | undefined = block.params.server_name
+						const uri: string | undefined = block.params.uri
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									type: "access_mcp_resource",
+									serverName: removeClosingTag("server_name", server_name),
+									uri: removeClosingTag("uri", uri),
+								} satisfies ClineAskUseMcpServer)
+								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								break
+							} else {
+								if (!server_name) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("access_mcp_resource", "server_name"),
+									)
+									break
+								}
+								if (!uri) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("access_mcp_resource", "uri"),
+									)
+									break
+								}
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify({
+									type: "access_mcp_resource",
+									serverName: server_name,
+									uri,
+								} satisfies ClineAskUseMcpServer)
+								const didApprove = await askApproval("use_mcp_server", completeMessage)
+								if (!didApprove) {
+									break
+								}
+								// now execute the tool
+								await this.say("mcp_server_request_started")
+								const resourceResult = await this.providerRef
+									.deref()
+									?.mcpHub?.readResource(server_name, uri)
+								const resourceResultPretty =
+									resourceResult?.contents
+										.map((item) => {
+											if (item.text) {
+												return item.text
+											}
+											return ""
+										})
+										.filter(Boolean)
+										.join("\n\n") || "(Empty response)"
+								await this.say("mcp_server_response", resourceResultPretty)
+								pushToolResult(formatResponse.toolResult(resourceResultPretty))
+								break
+							}
+						} catch (error) {
+							await handleError("accessing MCP resource", error)
+							break
+						}
+					}
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
 						try {

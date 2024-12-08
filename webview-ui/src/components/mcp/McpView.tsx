@@ -3,6 +3,8 @@ import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
+import McpToolRow from "./McpToolRow"
+import McpResourceRow from "./McpResourceRow"
 
 type McpViewProps = {
 	onDone: () => void
@@ -162,7 +164,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					display: "flex",
 					alignItems: "center",
 					padding: "8px",
-					background: "var(--vscode-list-hoverBackground)",
+					background: "var(--vscode-textCodeBlock-background)",
 					cursor: server.error ? "default" : "pointer",
 					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
 				}}
@@ -190,7 +192,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					style={{
 						padding: "8px",
 						fontSize: "13px",
-						background: "var(--vscode-list-hoverBackground)",
+						background: "var(--vscode-textCodeBlock-background)",
 						borderRadius: "0 0 4px 4px",
 					}}>
 					<div style={{ color: "var(--vscode-testing-iconFailed)", marginBottom: "8px" }}>{server.error}</div>
@@ -203,7 +205,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 				isExpanded && (
 					<div
 						style={{
-							background: "var(--vscode-list-hoverBackground)",
+							background: "var(--vscode-textCodeBlock-background)",
 							padding: "0 12px 0 12px",
 							fontSize: "13px",
 							borderRadius: "0 0 4px 4px",
@@ -214,29 +216,10 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
-									<div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+									<div
+										style={{ display: "flex", flexDirection: "column", gap: "3px", width: "100%" }}>
 										{server.tools.map((tool) => (
-											<div
-												key={tool.name}
-												style={{
-													padding: "8px 0",
-												}}>
-												<div style={{ display: "flex" }}>
-													<span
-														className="codicon codicon-symbol-method"
-														style={{ marginRight: "6px" }}></span>
-													<span style={{ fontWeight: 500 }}>{tool.name}</span>
-												</div>
-												<div
-													style={{
-														marginLeft: "0px",
-														marginTop: "4px",
-														opacity: 0.8,
-														fontSize: "12px",
-													}}>
-													{tool.description}
-												</div>
-											</div>
+											<McpToolRow key={tool.name} tool={tool} />
 										))}
 									</div>
 								) : (
@@ -246,35 +229,19 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								)}
 							</VSCodePanelView>
 
-							{/* Resources Panel View */}
 							<VSCodePanelView id="resources-view">
-								{server.resources && server.resources.length > 0 ? (
-									<div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-										{server.resources.map((resource) => (
-											<div
-												key={resource.uri}
-												style={{
-													padding: "8px 0",
-												}}>
-												<div style={{ display: "flex" }}>
-													<span
-														className="codicon codicon-symbol-file"
-														style={{ marginRight: "6px" }}></span>
-													<span style={{ fontWeight: 500 }}>{resource.name}</span>
-												</div>
-												<div style={{ marginTop: "6px", fontSize: "12px" }}>
-													<code
-														style={{
-															color: "var(--vscode-textPreformat-foreground)",
-															background: "var(--vscode-textPreformat-background)",
-															padding: "2px 4px",
-															borderRadius: "3px",
-														}}>
-														{resource.uri}
-													</code>
-												</div>
-											</div>
-										))}
+								{(server.resources && server.resources.length > 0) ||
+								(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
+									<div
+										style={{ display: "flex", flexDirection: "column", gap: "3px", width: "100%" }}>
+										{[...(server.resourceTemplates || []), ...(server.resources || [])].map(
+											(item) => (
+												<McpResourceRow
+													key={"uriTemplate" in item ? item.uriTemplate : item.uri}
+													item={item}
+												/>
+											),
+										)}
 									</div>
 								) : (
 									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>

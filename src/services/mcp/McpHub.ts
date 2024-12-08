@@ -1,13 +1,26 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
-import { ListResourcesResultSchema, ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js"
+import {
+	ListResourcesResultSchema,
+	ListToolsResultSchema,
+	ListResourceTemplatesResultSchema,
+	ReadResourceResultSchema,
+	CallToolResultSchema,
+} from "@modelcontextprotocol/sdk/types.js"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
-import { McpResource, McpServer, McpTool } from "../../shared/mcp"
+import {
+	McpResource,
+	McpResourceResponse,
+	McpResourceTemplate,
+	McpServer,
+	McpTool,
+	McpToolCallResponse,
+} from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 
@@ -46,7 +59,10 @@ export class McpHub {
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
-		const mcpSettingsFilePath = path.join(await provider.ensureCacheDirectoryExists(), GlobalFileNames.mcpSettings)
+		const mcpSettingsFilePath = path.join(
+			await provider.ensureSettingsDirectoryExists(),
+			GlobalFileNames.mcpSettings,
+		)
 		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
 		if (!fileExists) {
 			await fs.writeFile(
@@ -177,9 +193,32 @@ export class McpHub {
 			this.connections.push(connection)
 			connection.server.status = "connected"
 
-			// After successful connection, fetch tools and resources
-			connection.server.tools = await this.fetchTools(name)
-			connection.server.resources = await this.fetchResources(name)
+			// // Set up notification handlers
+			// client.setNotificationHandler(
+			// 	// @ts-ignore-next-line
+			// 	{ method: "notifications/tools/list_changed" },
+			// 	async () => {
+			// 		console.log(`Tools changed for server: ${name}`)
+			// 		connection.server.tools = await this.fetchTools(name)
+			// 		await this.notifyWebviewOfServerChanges()
+			// 	},
+			// )
+
+			// client.setNotificationHandler(
+			// 	// @ts-ignore-next-line
+			// 	{ method: "notifications/resources/list_changed" },
+			// 	async () => {
+			// 		console.log(`Resources changed for server: ${name}`)
+			// 		connection.server.resources = await this.fetchResources(name)
+			// 		connection.server.resourceTemplates = await this.fetchResourceTemplates(name)
+			// 		await this.notifyWebviewOfServerChanges()
+			// 	},
+			// )
+
+			// Initial fetch of tools and resources
+			connection.server.tools = await this.fetchToolsList(name)
+			connection.server.resources = await this.fetchResourcesList(name)
+			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
 
 			await this.notifyWebviewOfServerChanges()
 		} catch (error) {
@@ -194,7 +233,7 @@ export class McpHub {
 		}
 	}
 
-	private async fetchTools(serverName: string): Promise<McpTool[]> {
+	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
@@ -206,7 +245,7 @@ export class McpHub {
 		}
 	}
 
-	private async fetchResources(serverName: string): Promise<McpResource[]> {
+	private async fetchResourcesList(serverName: string): Promise<McpResource[]> {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
@@ -218,10 +257,24 @@ export class McpHub {
 		}
 	}
 
+	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[]> {
+		try {
+			const response = await this.connections
+				.find((conn) => conn.server.name === serverName)
+				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
+			return response?.resourceTemplates || []
+		} catch (error) {
+			console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return []
+		}
+	}
+
 	async deleteConnection(name: string): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
+				// connection.client.removeNotificationHandler("notifications/tools/list_changed")
+				// connection.client.removeNotificationHandler("notifications/resources/list_changed")
 				await connection.transport.close()
 				await connection.client.close()
 			} catch (error) {
@@ -295,6 +348,45 @@ export class McpHub {
 			type: "mcpServers",
 			mcpServers: this.connections.map((connection) => connection.server),
 		})
+	}
+
+	// Using server
+
+	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		return await connection.client.request(
+			{
+				method: "resources/read",
+				params: {
+					uri,
+				},
+			},
+			ReadResourceResultSchema,
+		)
+	}
+
+	async callTool(
+		serverName: string,
+		toolName: string,
+		toolArguments?: Record<string, unknown>,
+	): Promise<McpToolCallResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		return await connection.client.request(
+			{
+				method: "tools/call",
+				params: {
+					name: toolName,
+					arguments: toolArguments,
+				},
+			},
+			CallToolResultSchema,
+		)
 	}
 
 	async dispose(): Promise<void> {
