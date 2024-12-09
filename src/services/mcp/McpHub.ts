@@ -147,20 +147,22 @@ export class McpHub {
 				},
 			})
 
-			transport.onerror = (error) => {
+			transport.onerror = async (error) => {
 				console.error(`Transport error for "${name}":`, error)
 				const connection = this.connections.find((conn) => conn.server.name === name)
 				if (connection) {
 					connection.server.status = "disconnected"
 					connection.server.error = error.message
 				}
+				await this.notifyWebviewOfServerChanges()
 			}
 
-			transport.onclose = () => {
+			transport.onclose = async () => {
 				const connection = this.connections.find((conn) => conn.server.name === name)
 				if (connection) {
 					connection.server.status = "disconnected"
 				}
+				await this.notifyWebviewOfServerChanges()
 			}
 
 			// If the config is invalid, show an error
@@ -180,7 +182,7 @@ export class McpHub {
 				return
 			}
 
-			await client.connect(transport)
+			// valid schema
 			const connection: McpConnection = {
 				server: {
 					name,
@@ -191,6 +193,8 @@ export class McpHub {
 				transport,
 			}
 			this.connections.push(connection)
+
+			await client.connect(transport)
 			connection.server.status = "connected"
 
 			// // Set up notification handlers
@@ -335,9 +339,13 @@ export class McpHub {
 			connection.server.status = "connecting"
 			await this.notifyWebviewOfServerChanges()
 			await delay(500) // artificial delay to show user that server is restarting
-			await this.deleteConnection(serverName)
-			// Try to connect again using existing config
-			await this.connectToServer(serverName, JSON.parse(config))
+			try {
+				await this.deleteConnection(serverName)
+				// Try to connect again using existing config
+				await this.connectToServer(serverName, JSON.parse(config))
+			} catch (error) {
+				console.error(`Failed to restart connection for ${serverName}:`, error)
+			}
 		}
 
 		await this.notifyWebviewOfServerChanges()

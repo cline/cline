@@ -141,7 +141,8 @@ export const ChatRowContent = ({
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Cline wants to use the <code>{mcpServerUse.serverName}</code> MCP server:
+						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on
+						the <code>{mcpServerUse.serverName}</code> MCP server:
 					</span>,
 				]
 			case "completion_result":

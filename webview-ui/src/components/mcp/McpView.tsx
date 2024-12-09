@@ -190,16 +190,19 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 			{server.error ? (
 				<div
 					style={{
-						padding: "8px",
 						fontSize: "13px",
 						background: "var(--vscode-textCodeBlock-background)",
 						borderRadius: "0 0 4px 4px",
+						width: "100%",
 					}}>
-					<div style={{ color: "var(--vscode-testing-iconFailed)", marginBottom: "8px" }}>{server.error}</div>
+					<div style={{ color: "var(--vscode-testing-iconFailed)", marginBottom: "8px", padding: "0 10px" }}>
+						{server.error}
+					</div>
 					<VSCodeButton
 						appearance="secondary"
 						onClick={handleRestart}
-						disabled={server.status === "connecting"}>
+						disabled={server.status === "connecting"}
+						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
 						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
 					</VSCodeButton>
 				</div>
@@ -208,7 +211,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					<div
 						style={{
 							background: "var(--vscode-textCodeBlock-background)",
-							padding: "0 12px 12px 12px",
+							padding: "0 10px 10px 10px",
 							fontSize: "13px",
 							borderRadius: "0 0 4px 4px",
 						}}>
