@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
@@ -60,6 +60,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [approveAll, setApproveAll] = useState(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -674,6 +675,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
 
+	useEffect(() => {
+		if (approveAll && enableButtons && primaryButtonText) {
+			const autoApproveTexts = ["Run Command", "Proceed While Running", "Approve", "Save"]
+			if (autoApproveTexts.includes(primaryButtonText)) {
+				handlePrimaryButtonClick()
+			}
+		}
+	}, [approveAll, enableButtons, primaryButtonText, handlePrimaryButtonClick])
+
 	return (
 		<div
 			style={{
@@ -778,6 +788,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										: 0,
 								display: "flex",
 								padding: "10px 15px 0px 15px",
+								alignItems: "center",
 							}}>
 							{primaryButtonText && !isStreaming && (
 								<VSCodeButton
@@ -803,6 +814,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
 							)}
+							<VSCodeCheckbox
+								style={{ marginLeft: "10px" }}
+								checked={approveAll}
+								onChange={(e) => setApproveAll((e.target as HTMLInputElement).checked)}>
+								Auto-approve
+							</VSCodeCheckbox>
 						</div>
 					)}
 				</>
