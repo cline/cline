@@ -22,7 +22,7 @@ class WorkspaceTracker {
 	private filePaths: Set<string> = new Set()
 
 	// queue to ensure in order handling of filesystem notifications (stat in 'addFilePath' is async)
-	private notify_queue: Promise<void> = Promise.resolve()
+	private notifyQueue: Promise<void> = Promise.resolve()
 
 	private workspaceDidUpdateTimeout: NodeJS.Timeout | null = null // event debounce timer
 	private gitignoreContentCache: string | null = null
@@ -71,7 +71,7 @@ class WorkspaceTracker {
 
 		// Watch for file creation
 		watcher.onDidCreate((uri) => {
-			this.add_event_to_notify_queue(async () => {
+			this.addEventToNotifyQueue(async () => {
 				// Perform flood detection first, as even unmonitored file events can cause state loss during a flood.
 				this.incrementEventAndDetectFlood()
 				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
@@ -84,7 +84,7 @@ class WorkspaceTracker {
 
 		// Watch for file deletion
 		watcher.onDidDelete((uri) => {
-			this.add_event_to_notify_queue(async () => {
+			this.addEventToNotifyQueue(async () => {
 				// Perform flood detection first, as even unmonitored file events can cause state loss during a flood.
 				this.incrementEventAndDetectFlood()
 				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
@@ -98,7 +98,7 @@ class WorkspaceTracker {
 
 		// Watch for file changes
 		watcher.onDidChange((uri) => {
-			this.add_event_to_notify_queue(async () => {
+			this.addEventToNotifyQueue(async () => {
 				this.incrementEventAndDetectFlood()
 				if (this.shouldIgnoreGlob(uri.fsPath, configGlobsToIgnore)) {
 					return
@@ -112,9 +112,9 @@ class WorkspaceTracker {
 		this.disposables.push(watcher)
 	}
 
-	add_event_to_notify_queue(task: () => Promise<void>): void {
+	addEventToNotifyQueue(task: () => Promise<void>): void {
 		// Chain events received in order and trigger updates to the webview if successful
-		this.notify_queue = this.notify_queue
+		this.notifyQueue = this.notifyQueue
 			.then(() => task()) // Execute the task
 			.catch((err) => {})
 	}
@@ -159,8 +159,7 @@ class WorkspaceTracker {
 			// a directory move or a flood occurred, e.g. rm -rf of a big directory and likely some notifications
 			// have been lost, reinit our file state
 			if (this.needReInit) {
-				console.log("Event flood or move detected")
-				this.add_event_to_notify_queue(async () => {
+				this.addEventToNotifyQueue(async () => {
 					this.initializeFilePaths()
 				})
 			} else {
@@ -240,7 +239,6 @@ class WorkspaceTracker {
 	private detectGitignoreChanges(filePath: string): void {
 		if (filePath.includes(".gitignore")) {
 			// detect changes to .gitignore and reset the cache
-			console.log("gitignore change detected")
 			this.gitignoreContentCache = null
 			this.needReInit = true
 		}
