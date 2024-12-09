@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as diff from "diff"
 import cloneDeep from "clone-deep"
+import { DiffStrategy, getDiffStrategy, UnifiedDiffStrategy } from "./diff/DiffStrategy"
 import delay from "delay"
 import fs from "fs/promises"
 import os from "os"
@@ -65,7 +65,7 @@ export class Cline {
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	diffEnabled?: boolean
+	diffStrategy?: DiffStrategy
 
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -107,7 +107,9 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.diffEnabled = diffEnabled
+		if (diffEnabled && this.api.getModel().id) {
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
+		}
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.resumeTaskFromHistory()
@@ -752,7 +754,7 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, !!this.diffEnabled) + await addCustomInstructions(this.customInstructions ?? '', cwd)
+		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, this.diffStrategy) + await addCustomInstructions(this.customInstructions ?? '', cwd)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -1104,7 +1106,7 @@ export class Cline {
 
 								// Check for code omissions before proceeding
 								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent)) {
-									if (this.diffEnabled) {
+									if (this.diffStrategy) {
 										await this.diffViewProvider.revertChanges()
 										pushToolResult(formatResponse.toolError(
 											"Content appears to be truncated. Found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file."
@@ -1220,24 +1222,12 @@ export class Cline {
 								const originalContent = await fs.readFile(absolutePath, "utf-8")
 
 								// Apply the diff to the original content
-								let newContent = diff.applyPatch(originalContent, diffContent) as string | false
+								let newContent = this.diffStrategy?.applyDiff(originalContent, diffContent) ?? false
 								if (newContent === false) {
 									await this.say("error", `Error applying diff to file: ${absolutePath}`)
 									pushToolResult(`Error applying diff to file: ${absolutePath}`)
 									break
 								}
-
-								// Create a diff for display purposes
-								const diffRepresentation = diff
-									.diffLines(originalContent, newContent)
-									.map((part) => {
-										const prefix = part.added ? "+" : part.removed ? "-" : " "
-										return (part.value || "")
-											.split("\n")
-											.map((line) => (line ? prefix + line : ""))
-											.join("\n")
-									})
-									.join("")
 
 								// Show diff view before asking for approval
 								this.diffViewProvider.editType = "modify"
@@ -1247,7 +1237,7 @@ export class Cline {
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
-									diff: diffRepresentation,
+									diff: diffContent,
 								} satisfies ClineSayTool)
 
 								const didApprove = await askApproval("tool", completeMessage)
@@ -2288,4 +2278,3 @@ export class Cline {
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 }
-

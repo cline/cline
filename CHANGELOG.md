@@ -1,5 +1,10 @@
 # Roo Cline Changelog
 
+## [2.1.15]
+
+- Incorporate dbasclpy's [PR](https://github.com/RooVetGit/Roo-Cline/pull/54) to add support for gemini-exp-1206
+- Make it clear that diff editing is very experimental
+
 ## [2.1.14]
 
 - Fix bug where diffs were not being applied correctly and try Aider's [unified diff prompt](https://github.com/Aider-AI/aider/blob/3995accd0ca71cea90ef76d516837f8c2731b9fe/aider/coders/udiff_prompts.py#L75-L105)

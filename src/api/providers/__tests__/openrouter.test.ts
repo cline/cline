@@ -35,8 +35,8 @@ describe('OpenRouterHandler', () => {
             baseURL: 'https://openrouter.ai/api/v1',
             apiKey: mockOptions.openRouterApiKey,
             defaultHeaders: {
-                'HTTP-Referer': 'https://cline.bot',
-                'X-Title': 'Cline',
+                'HTTP-Referer': 'https://github.com/RooVetGit/Roo-Cline',
+                'X-Title': 'Roo-Cline',
             },
         })
     })
