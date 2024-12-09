@@ -758,7 +758,12 @@ export class Cline {
 		})
 		const mcpServers = this.providerRef.deref()?.mcpHub?.connections.map((conn) => conn.server)
 		console.log("mcpServers for system prompt:", JSON.stringify(mcpServers, null, 2))
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpServers)
+		let systemPrompt = await SYSTEM_PROMPT(
+			cwd,
+			this.api.getModel().info.supportsComputerUse ?? false,
+			(await this.providerRef.deref()?.mcpHub?.getMcpSettingsFilePath()) || "(Unknown)",
+			mcpServers,
+		)
 		if (this.customInstructions && this.customInstructions.trim()) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addCustomInstructions(this.customInstructions)
@@ -1621,21 +1626,20 @@ export class Cline {
 
 								// TODO: add progress indicator and ability to parse images and non-text responses
 								const toolResultPretty =
-									(toolResult?.isError
-										? "Error: The tool call failed"
-										: toolResult?.content
-												.map((item) => {
-													if (item.type === "text") {
-														return item.text
-													}
-													if (item.type === "resource") {
-														const { blob, ...rest } = item.resource
-														return JSON.stringify(rest, null, 2)
-													}
-													return ""
-												})
-												.filter(Boolean)
-												.join("\n\n")) || "(Empty response)"
+									(toolResult?.isError ? "Error:\n" : "") +
+										toolResult?.content
+											.map((item) => {
+												if (item.type === "text") {
+													return item.text
+												}
+												if (item.type === "resource") {
+													const { blob, ...rest } = item.resource
+													return JSON.stringify(rest, null, 2)
+												}
+												return ""
+											})
+											.filter(Boolean)
+											.join("\n\n") || "(No response)"
 								await this.say("mcp_server_response", toolResultPretty)
 								pushToolResult(formatResponse.toolResult(toolResultPretty))
 								break

@@ -820,7 +820,7 @@ export const ChatRowContent = ({
 														?.description || "",
 											}}
 										/>
-										{useMcpServer.arguments && (
+										{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
 											<div style={{ marginTop: "8px" }}>
 												<div
 													style={{
