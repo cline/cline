@@ -756,14 +756,22 @@ export class Cline {
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
-		const mcpServers = this.providerRef.deref()?.mcpHub?.connections.map((conn) => conn.server)
-		console.log("mcpServers for system prompt:", JSON.stringify(mcpServers, null, 2))
-		let systemPrompt = await SYSTEM_PROMPT(
-			cwd,
-			this.api.getModel().info.supportsComputerUse ?? false,
-			(await this.providerRef.deref()?.mcpHub?.getMcpSettingsFilePath()) || "(Unknown)",
-			mcpServers,
+
+		const mcpHub = this.providerRef.deref()?.mcpHub
+		if (!mcpHub) {
+			throw new Error("MCP hub not available")
+		}
+
+		console.log(
+			"mcpServers for system prompt:",
+			JSON.stringify(
+				mcpHub.connections.map((conn) => conn.server),
+				null,
+				2,
+			),
 		)
+
+		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub)
 		if (this.customInstructions && this.customInstructions.trim()) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addCustomInstructions(this.customInstructions)

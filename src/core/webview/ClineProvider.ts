@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -10,6 +11,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
@@ -20,7 +22,6 @@ import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { McpHub } from "../../services/mcp/McpHub"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -64,6 +65,12 @@ export const GlobalFileNames = {
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
+}
+
+export const GlobalDirNames = {
+	cache: "cache",
+	settings: "settings",
+	mcpServers: "mcp-servers",
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
@@ -524,6 +531,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postStateToWebview()
 	}
 
+	// MCP
+
+	async ensureMcpServersDirectoryExists(): Promise<string> {
+		const mcpServersDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.mcpServers)
+		await fs.mkdir(mcpServersDir, { recursive: true })
+		return mcpServersDir
+	}
+
+	async ensureSettingsDirectoryExists(): Promise<string> {
+		const settingsDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.settings)
+		await fs.mkdir(settingsDir, { recursive: true })
+		return settingsDir
+	}
+
 	// Ollama
 
 	async getOllamaModels(baseUrl?: string) {
@@ -589,15 +610,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async ensureCacheDirectoryExists(): Promise<string> {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		const cacheDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.cache)
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
-	}
-
-	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
-		await fs.mkdir(settingsDir, { recursive: true })
-		return settingsDir
 	}
 
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {

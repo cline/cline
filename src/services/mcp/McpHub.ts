@@ -55,6 +55,19 @@ export class McpHub {
 		this.initializeMcpServers()
 	}
 
+	getServers(): McpServer[] {
+		return this.connections.map((conn) => conn.server)
+	}
+
+	async getMcpServersPath(): Promise<string> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			throw new Error("Provider not available")
+		}
+		const mcpServersPath = await provider.ensureMcpServersDirectoryExists()
+		return mcpServersPath
+	}
+
 	async getMcpSettingsFilePath(): Promise<string> {
 		const provider = this.providerRef.deref()
 		if (!provider) {
