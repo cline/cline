@@ -17,6 +17,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+	const [showCopyModal, setShowCopyModal] = useState(false)
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -34,6 +35,17 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const handleDeleteHistoryItem = (id: string) => {
 		vscode.postMessage({ type: "deleteTaskWithId", text: id })
+	}
+
+	const handleCopyTask = async (e: React.MouseEvent, task: string) => {
+		e.stopPropagation()
+		try {
+			await navigator.clipboard.writeText(task)
+			setShowCopyModal(true)
+			setTimeout(() => setShowCopyModal(false), 2000)
+		} catch (error) {
+			console.error('Failed to copy to clipboard:', error)
+		}
 	}
 
 	const formatDate = (timestamp: number) => {
@@ -103,12 +115,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.history-item:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
-					.delete-button, .export-button {
+					.delete-button, .export-button, .copy-button {
 						opacity: 0;
 						pointer-events: none;
 					}
 					.history-item:hover .delete-button,
-					.history-item:hover .export-button {
+					.history-item:hover .export-button,
+					.history-item:hover .copy-button {
 						opacity: 1;
 						pointer-events: auto;
 					}
@@ -116,8 +129,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						background-color: var(--vscode-editor-findMatchHighlightBackground);
 						color: inherit;
 					}
+					.copy-modal {
+						position: fixed;
+						top: 50%;
+						left: 50%;
+						transform: translate(-50%, -50%);
+						background-color: var(--vscode-notifications-background);
+						color: var(--vscode-notifications-foreground);
+						padding: 12px 20px;
+						border-radius: 4px;
+						box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+						z-index: 1000;
+						transition: opacity 0.2s ease-in-out;
+					}
 				`}
 			</style>
+			{showCopyModal && (
+				<div className="copy-modal">
+					Prompt Copied to Clipboard
+				</div>
+			)}
 			<div
 				style={{
 					position: "fixed",
@@ -190,22 +221,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					{/* {presentableTasks.length === 0 && (
-						<div
-							style={{
-								
-								alignItems: "center",
-								fontStyle: "italic",
-								color: "var(--vscode-descriptionForeground)",
-								textAlign: "center",
-								padding: "0px 10px",
-							}}>
-							<span
-								className="codicon codicon-robot"
-								style={{ fontSize: "60px", marginBottom: "10px" }}></span>
-							<div>Start a task to see it here</div>
-						</div>
-					)} */}
 					<Virtuoso
 						style={{
 							flexGrow: 1,
@@ -247,15 +262,25 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											}}>
 											{formatDate(item.ts)}
 										</span>
-										<VSCodeButton
-											appearance="icon"
-											onClick={(e) => {
-												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
-											}}
-											className="delete-button">
-											<span className="codicon codicon-trash"></span>
-										</VSCodeButton>
+										<div style={{ display: "flex", gap: "4px" }}>
+											<VSCodeButton
+												appearance="icon"
+												title="Copy Prompt"
+												className="copy-button"
+												onClick={(e) => handleCopyTask(e, item.task)}>
+												<span className="codicon codicon-copy"></span>
+											</VSCodeButton>
+											<VSCodeButton
+												appearance="icon"
+												title="Delete Task"
+												onClick={(e) => {
+													e.stopPropagation()
+													handleDeleteHistoryItem(item.id)
+												}}
+												className="delete-button">
+												<span className="codicon codicon-trash"></span>
+											</VSCodeButton>
+										</div>
 									</div>
 									<div
 										style={{
