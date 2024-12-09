@@ -17,6 +17,7 @@ import { combineCommandSequences } from "../../../../src/shared/combineCommandSe
 import { getApiMetrics } from "../../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import { insertMention } from "../../utils/context-mentions";
 import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import Announcement from "./Announcement"
@@ -35,7 +36,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, cwd } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -359,6 +360,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								textAreaRef.current?.focus()
 							}
 							break
+						case "addFilesToContext":
+							if (message.filePaths && message.filePaths.length > 0) {
+								appendFilesToContext(message.filePaths);
+							}
+							break
 					}
 					break
 				case "selectedImages":
@@ -391,8 +397,38 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleSendMessage,
 			handlePrimaryButtonClick,
 			handleSecondaryButtonClick,
-		],
-	)
+			cwd
+		])
+
+	const appendFilesToContext = useCallback((files: string[]) => {
+		let newCursorPos = 0;
+		setInputValue((prev) => {
+			let newValue = prev;
+			let cursorPos = textAreaRef.current?.selectionStart || prev.length;
+			files.forEach(file => {
+				// First, insert the @ character at the cursor position
+				newValue = newValue.slice(0, cursorPos) + "@" + newValue.slice(cursorPos);
+				cursorPos += 1; // Move cursor after the @ symbol
+				
+				// Construct a relative path by:
+				// 1. Removing the current working directory (cwd) from the file path
+				// 2. Ensuring the path starts with a forward slash
+				// 3. Removing any leading slashes or backslashes
+				const relativePath = file.replace(cwd, '');
+				const result = insertMention(newValue, cursorPos, relativePath);
+				newValue = result.newValue;
+				cursorPos = result.mentionIndex + relativePath.length + 2; // +2 for '@' and space
+			});
+			newCursorPos = cursorPos;
+			return newValue;
+		});
+		setTimeout(() => {
+			if (textAreaRef.current) {
+				textAreaRef.current.focus();
+				textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+			}
+		}, 0);
+	}, [textAreaRef, setInputValue, cwd]);
 
 	useEvent("message", handleMessage)
 

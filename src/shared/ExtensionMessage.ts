@@ -17,7 +17,7 @@ export interface ExtensionMessage {
 		| "partialMessage"
 		| "openRouterModels"
 	text?: string
-	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
+	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible" | "addFilesToContext"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -26,6 +26,7 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	cwd?: string
 }
 
 export interface ExtensionState {

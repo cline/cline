@@ -88,6 +88,23 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.addToContext",
+				"title": "Cline: Add to Context",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.addAllOpenToContext",
+				"title": "Add All Open Files to Context",
+				"category": "Cline",
+				"icon": "$(files)"
+			},
+			{
+				"command": "cline.addActiveToContext",
+				"title": "Add Active File to Context",
+				"category": "Cline",
+				"icon": "$(file)"
 			}
 		],
 		"menus": {
@@ -111,6 +128,35 @@
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@4",
 					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.addAllOpenToContext",
+					"group": "navigation@5",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.addActiveToContext",
+					"group": "navigation@6",
+					"when": "view == claude-dev.SidebarProvider"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline@1",
+					"when": "resourceLangId"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline@1"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline@1"
 				}
 			]
 		}

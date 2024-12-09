@@ -1,3 +1,16 @@
+### 🚀 Minor Enhancements
+
+This repository contains a fork of the original Cline VS Code plugin with minor enhancements aimed at improving user experience. The following functionalities have been added:
+
+| Feature | Description |
+|---------|-------------|
+| 📂 **Add All Opened Files to Context Button** | Allows users to quickly add all currently opened files to the context. |
+| 📄 **Add Active File to Context Button** | Enables users to add the currently active file to the context with a single click. |
+| 🖱️ **Context Menu on File/Directory** | Users can now add files or directories to the context directly from the context menu. |
+| 📑 **Context Menu on File Tab** | A new option to add the file to context is available in the file tab's context menu. |
+
+> 💡 These changes are intended to complement the existing features of the plugin without altering its primary functionality.
+
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
 
 <p align="center">

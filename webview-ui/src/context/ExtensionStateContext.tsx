@@ -21,6 +21,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
+	cwd: string
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -39,6 +40,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [cwd, setCwd] = useState<string>("")
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -71,6 +73,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			}
 			case "workspaceUpdated": {
 				setFilePaths(message.filePaths ?? [])
+				setCwd(message.cwd ?? "")
 				break
 			}
 			case "partialMessage": {
@@ -115,6 +118,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		cwd,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
