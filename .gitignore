@@ -5,8 +5,8 @@ node_modules
 
 .DS_Store
 
-.npmrc
-
+# Builds
 roo-cline-*.vsix
 
+# Local prompts
 prompts
