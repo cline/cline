@@ -1,3 +1,9 @@
+"""
+This script generates a base prompt for OpenAI to create release notes.
+"""
+
+#!/usr/bin/env python3
+
 import os
 from datetime import datetime;
 from pytz import timezone

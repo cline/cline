@@ -1,6 +1,12 @@
 name: Changeset AI Release
 run-name: Changeset AI Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Approve & Release' }}
 
+# This workflow automates the release process by:
+# 1. Creating a version bump PR when changesets are merged to main
+# 2. Using AI to generate release notes for the version bump PR
+# 3. Auto-approving and merging the version bump PR
+# 4. Creating a GitHub release with the AI-generated notes
+
 on:
   pull_request:
     types: [closed, opened, synchronize, labeled]
@@ -10,6 +16,7 @@ env:
   GIT_REF: ${{ github.head_ref }}
 
 jobs:
+  # Job 1: Create version bump PR when changesets are merged to main
   changeset-pr-version-bump:
     if: >
       github.event_name == 'pull_request' &&
@@ -36,6 +43,7 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      # Check if there are any new changesets to process
       - name: Check for changesets
         id: check-changesets
         run: |
@@ -43,6 +51,7 @@ jobs:
           echo "Changesets diff with previous version: $NEW_CHANGESETS"
           echo "new_changesets=$NEW_CHANGESETS" >> $GITHUB_OUTPUT
 
+      # Create version bump PR using changesets/action if there are new changesets
       - name: Changeset Pull Request
         if: steps.check-changesets.outputs.new_changesets != '0'
         id: changesets
@@ -54,6 +63,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
 
+  # Job 2: Process version bump PR created by R00-B0T
   changeset-pr-approve-merge:
     name: Auto approve and merge Bump version PRs
     runs-on: ubuntu-latest
@@ -74,6 +84,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.GIT_REF }}
 
+      # Get current and previous versions for changelog processing
       - name: Get version
         id: get_version
         run: |
@@ -85,24 +96,12 @@ jobs:
           echo "version=$VERSION"
           echo "prev_version=$PREV_VERSION"
 
+      # Generate base prompt for OpenAI, GITHUB_OUTPUT: 'BASE_PROMPT'
       - name: Release Notes Prompt
         id: ai_prompt
-        run: |
-          # Get today's date in YYYY-MM-DD format
-          TODAY=$(date +'%Y-%m-%d %H:%M')
+        run: python .github/scripts/release-notes-prompt.py
 
-          echo "BASE_PROMPT<<EOF" >> $GITHUB_OUTPUT
-          echo "Based on the following 'PR Information', please generate concise and informative release notes to be read by developers.
-
-          Format the release notes with markdown, and always use this structure: a descriptive and very short title (no more than 8 words) with heading level 2, a paragraph with a summary of changes (no header), and sections for '🚀 New Features & Improvements', '🐛 Bugs Fixed' and '🔧 Other Updates', with heading level 3, skip respectively the sections if not applicable, 
-          finally include the following markdown comment with the PR merged date: <!-- PR_DATE: $TODAY -->.
-
-          Avoid being repetitive and focus on the most important changes and their impact, don't mention version bumps, nor changeset files, nor environment variables, nor syntax updates.
-
-          PR Information:" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      # Github outputs: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
+      # Generate release notes using OpenAI if not already edited, GITHUB_OUTPUT: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
       - name: AI Release Notes
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
         uses: RooVetGit/Roo-GHA/.github/actions/ai-release-notes@main
@@ -115,6 +114,7 @@ jobs:
           git_ref: ${{ env.GIT_REF }}
           custom_prompt: ${{ steps.ai_prompt.outputs.BASE_PROMPT }}
 
+      # Update CHANGELOG.md with AI-generated notes
       - name: Update Changeset Changelog
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
         env:
@@ -123,6 +123,7 @@ jobs:
           NEW_CONTENT: ${{ steps.ai_release_notes.outputs.RELEASE_NOTES }}
         run: python .github/scripts/overwrite_changeset_changelog.py
 
+      # Commit and push changelog updates
       - name: Push Changelog updates
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
         run: |
@@ -139,6 +140,7 @@ jobs:
           echo "--------------------------------------------------------------------------------"
           git push
 
+      # Add label to indicate OpenAI has processed this PR
       - name: Add openai-edited label
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
         uses: actions/github-script@v7
@@ -152,18 +154,21 @@ jobs:
               labels: ['openai-edited']
             });
 
+      # Auto-approve PR once OpenAI has processed it
       - name: Auto approve PR
         if: contains(github.event.pull_request.labels.*.name, 'openai-edited')
         uses: hmarr/auto-approve-action@v4
         with:
           review-message: "I'm approving since it's a bump version PR"
 
+      # Enable auto-merge for the PR
       - name: Enable automerge on PR
         if: contains(github.event.pull_request.labels.*.name, 'openai-edited')
         run: gh pr merge --squash --auto ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
   
+  # Job 3: Create GitHub release after version bump PR is merged
   github-release:
     runs-on: ubuntu-latest
     if: >
@@ -187,7 +192,7 @@ jobs:
           VERSION=$(git show HEAD:package.json | jq -r '.version')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # Outputs: 'release-notes'
+      # Extract release notes from CHANGELOG.md, GITHUB_OUTPUT: 'release-notes'
       - name: Parse CHANGELOG.md
         id: changelog
         env:
@@ -195,6 +200,7 @@ jobs:
           VERSION: ${{ steps.get_version.outputs.version }}
         run: python .github/scripts/parse_changeset_changelog.py
 
+      # Create GitHub release with extracted notes
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         env:
