@@ -5,7 +5,7 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-# TO DO: npx tsc-silent -p tsconfig.json --suppressConfig tsc-silent.config.js
+npm run compile
 
 # Check for new changesets
 NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')

@@ -5,4 +5,5 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-# TO DO: npx lint-staged
+npx lint-staged
+npm run compile
