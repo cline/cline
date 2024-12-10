@@ -152,9 +152,11 @@
     "start:webview": "cd webview-ui && npm run start",
     "build:webview": "cd webview-ui && npm run build",
     "test:webview": "cd webview-ui && npm run test",
-    "publish:marketplace": "vsce publish"
+    "publish:marketplace": "vsce publish",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.1",
     "@types/diff": "^5.2.1",
     "@types/jest": "^29.5.14",
     "@types/mocha": "^10.0.7",
@@ -165,6 +167,7 @@
     "@vscode/test-electron": "^2.4.0",
     "esbuild": "^0.24.0",
     "eslint": "^8.57.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
     "npm-run-all": "^4.1.5",
     "ts-jest": "^29.2.5",

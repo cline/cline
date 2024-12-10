@@ -8,3 +8,5 @@ node_modules
 .npmrc
 
 roo-cline-*.vsix
+
+prompts
