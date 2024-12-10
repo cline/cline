@@ -2,6 +2,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { MessageContent } from "../../shared/api"
 import { ConversationRole, Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
+// Import StreamEvent type from bedrock.ts
+import { StreamEvent } from "../providers/bedrock"
+
 /**
  * Convert Anthropic messages to Bedrock Converse format
  */
@@ -23,7 +26,12 @@ export function convertToBedrockConverseMessages(
 
         // Process complex content types
         const content = anthropicMessage.content.map(block => {
-            const messageBlock = block as MessageContent
+            const messageBlock = block as MessageContent & { 
+                id?: string, 
+                tool_use_id?: string,
+                content?: Array<{ type: string, text: string }>,
+                output?: string | Array<{ type: string, text: string }>
+            }
 
             if (messageBlock.type === "text") {
                 return {
@@ -68,7 +76,7 @@ export function convertToBedrockConverseMessages(
 
                 return {
                     toolUse: {
-                        toolUseId: messageBlock.toolUseId || '',
+                        toolUseId: messageBlock.id || '',
                         name: messageBlock.name || '',
                         input: `<${messageBlock.name}>\n${toolParams}\n</${messageBlock.name}>`
                     }
@@ -76,11 +84,24 @@ export function convertToBedrockConverseMessages(
             }
 
             if (messageBlock.type === "tool_result") {
-                // Convert tool result to text
+                // First try to use content if available
+                if (messageBlock.content && Array.isArray(messageBlock.content)) {
+                    return {
+                        toolResult: {
+                            toolUseId: messageBlock.tool_use_id || '',
+                            content: messageBlock.content.map(item => ({
+                                text: item.text
+                            })),
+                            status: "success"
+                        }
+                    } as ContentBlock
+                }
+
+                // Fall back to output handling if content is not available
                 if (messageBlock.output && typeof messageBlock.output === "string") {
                     return {
                         toolResult: {
-                            toolUseId: messageBlock.toolUseId || '',
+                            toolUseId: messageBlock.tool_use_id || '',
                             content: [{
                                 text: messageBlock.output
                             }],
@@ -92,7 +113,7 @@ export function convertToBedrockConverseMessages(
                 if (Array.isArray(messageBlock.output)) {
                     return {
                         toolResult: {
-                            toolUseId: messageBlock.toolUseId || '',
+                            toolUseId: messageBlock.tool_use_id || '',
                             content: messageBlock.output.map(part => {
                                 if (typeof part === "object" && "text" in part) {
                                     return { text: part.text }
@@ -107,9 +128,11 @@ export function convertToBedrockConverseMessages(
                         }
                     } as ContentBlock
                 }
+
+                // Default case
                 return {
                     toolResult: {
-                        toolUseId: messageBlock.toolUseId || '',
+                        toolUseId: messageBlock.tool_use_id || '',
                         content: [{
                             text: String(messageBlock.output || '')
                         }],
@@ -151,7 +174,7 @@ export function convertToBedrockConverseMessages(
  * Convert Bedrock Converse stream events to Anthropic message format
  */
 export function convertToAnthropicMessage(
-    streamEvent: any,
+    streamEvent: StreamEvent,
     modelId: string
 ): Partial<Anthropic.Messages.Message> {
     // Handle metadata events
@@ -169,12 +192,12 @@ export function convertToAnthropicMessage(
     }
 
     // Handle content blocks
-    if (streamEvent.contentBlockStart?.start?.text || streamEvent.contentBlockDelta?.delta?.text) {
-        const text = streamEvent.contentBlockStart?.start?.text || streamEvent.contentBlockDelta?.delta?.text
+    const text = streamEvent.contentBlockStart?.start?.text || streamEvent.contentBlockDelta?.delta?.text
+    if (text !== undefined) {
         return {
             type: "message",
             role: "assistant",
-            content: [{ type: "text", text }],
+            content: [{ type: "text", text: text }],
             model: modelId
         }
     }

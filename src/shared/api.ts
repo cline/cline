@@ -22,7 +22,7 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
-	awsusePromptCache?: boolean
+	awsUsePromptCache?: boolean
 	awspromptCacheId?: string
 	vertexProjectId?: string
 	vertexRegion?: string
