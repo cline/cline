@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 jobs:
-  code-qa:
+  compile:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

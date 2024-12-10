@@ -1,0 +1,191 @@
+name: Changeset AI Release
+run-name: Changeset AI Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Approve & Release' }}
+
+on:
+  pull_request:
+    types: [closed, opened, synchronize, labeled]
+
+env:
+  REPO_PATH: ${{ github.repository }}
+  GIT_REF: ${{ github.head_ref }}
+
+jobs:
+  changeset-pr-version-bump:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.actor != 'R00-B0T'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.GIT_REF }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+            
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Check for changesets
+        id: check-changesets
+        run: |
+          NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
+          echo "Changesets diff with previous version: $NEW_CHANGESETS"
+          echo "new_changesets=$NEW_CHANGESETS" >> $GITHUB_OUTPUT
+
+      - name: Changeset Pull Request
+        if: steps.check-changesets.outputs.new_changesets != '0'
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          commit: "changeset version bump"
+          title: "Changeset version bump"
+          version: npm run version-packages # This performs the changeset version bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
+
+  changeset-pr-approve-merge:
+    name: Auto approve and merge Bump version PRs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    if: >
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.base.ref == 'main' &&
+        github.actor == 'R00-B0T' &&
+        contains(github.event.pull_request.title, 'Changeset version bump')
+    
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ROO_GITHUB_TOKEN }}
+          fetch-depth: 0
+          ref: ${{ env.GIT_REF }}
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(git show HEAD:package.json | jq -r '.version')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          PREV_VERSION=$(git show origin/main:package.json | jq -r '.version')
+          echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+
+          echo "version=$VERSION"
+          echo "prev_version=$PREV_VERSION"
+
+      # Github outputs: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
+      - name: AI Release Notes
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
+        uses: RooVetGit/Roo-GHA/.github/actions/ai-release-notes@main
+        id: ai_release_notes
+        with:
+          GHA_PAT: ${{ secrets.ROO_GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          model_name: gpt-4o-mini
+          repo_path: ${{ env.REPO_PATH }}
+          git_ref: ${{ env.GIT_REF }}
+
+      - name: Update Changeset Changelog
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          PREV_VERSION: ${{ steps.get_version.outputs.prev_version }}
+          NEW_CONTENT: ${{ steps.ai_release_notes.outputs.RELEASE_NOTES }}
+        run: python .github/scripts/overwrite_changeset_changelog.py
+
+      - name: Push Changelog updates
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
+        run: |
+          git config user.name "R00-B0T"
+          git config user.email github-actions@github.com
+          git status
+
+          echo "Updating changelog.md..."
+          git add CHANGELOG.md
+          git commit -m "Updating changeset changelog"
+
+          echo "--------------------------------------------------------------------------------"
+          echo "Pushing to remote..."
+          echo "--------------------------------------------------------------------------------"
+          git push
+
+      - name: Add openai-edited label
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['openai-edited']
+            });
+
+      - name: Auto approve PR
+        if: contains(github.event.pull_request.labels.*.name, 'openai-edited')
+        uses: hmarr/auto-approve-action@v4
+        with:
+          review-message: "I'm approving since it's a bump version PR"
+
+      - name: Enable automerge on PR
+        if: contains(github.event.pull_request.labels.*.name, 'openai-edited')
+        run: gh pr merge --squash --auto ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
+  
+  github-release:
+    runs-on: ubuntu-latest
+    if: >
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'main' &&
+        github.actor == 'R00-B0T' &&
+        contains(github.event.pull_request.title, 'Changeset version bump')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(git show HEAD:package.json | jq -r '.version')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # Outputs: 'release-notes'
+      - name: Parse CHANGELOG.md
+        id: changelog
+        env:
+          CHANGELOG_PATH: CHANGELOG.md
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: python .github/scripts/parse_changeset_changelog.py
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          append_body: false
+          make_latest: true
+          body: ${{ steps.changelog.outputs.release-notes }}
