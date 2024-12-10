@@ -1,12 +1,14 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
-	ListResourcesResultSchema,
-	ListToolsResultSchema,
-	ListResourceTemplatesResultSchema,
-	ReadResourceResultSchema,
 	CallToolResultSchema,
+	ListResourcesResultSchema,
+	ListResourceTemplatesResultSchema,
+	ListToolsResultSchema,
+	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
+import chokidar, { FSWatcher } from "chokidar"
+import delay from "delay"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
@@ -23,7 +25,6 @@ import {
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
-import delay from "delay"
 
 export type McpConnection = {
 	server: McpServer
@@ -44,8 +45,9 @@ const McpSettingsSchema = z.object({
 
 export class McpHub {
 	private providerRef: WeakRef<ClineProvider>
-	private settingsWatcher?: vscode.FileSystemWatcher
 	private disposables: vscode.Disposable[] = []
+	private settingsWatcher?: vscode.FileSystemWatcher
+	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
@@ -158,6 +160,7 @@ export class McpHub {
 					...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 					// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 				},
+				stderr: "pipe", // necessary for stderr to be available
 			})
 
 			transport.onerror = async (error) => {
@@ -165,7 +168,7 @@ export class McpHub {
 				const connection = this.connections.find((conn) => conn.server.name === name)
 				if (connection) {
 					connection.server.status = "disconnected"
-					connection.server.error = error.message
+					this.appendErrorMessage(connection, error.message)
 				}
 				await this.notifyWebviewOfServerChanges()
 			}
@@ -207,8 +210,24 @@ export class McpHub {
 			}
 			this.connections.push(connection)
 
-			await client.connect(transport)
-			connection.server.status = "connected"
+			// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
+			// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
+			await transport.start()
+			const stderrStream = transport.stderr
+			if (stderrStream) {
+				stderrStream.on("data", async (data: Buffer) => {
+					const errorOutput = data.toString()
+					console.error(`Server "${name}" stderr:`, errorOutput)
+					const connection = this.connections.find((conn) => conn.server.name === name)
+					if (connection) {
+						this.appendErrorMessage(connection, errorOutput)
+						await this.notifyWebviewOfServerChanges()
+					}
+				})
+			} else {
+				console.error(`No stderr stream for ${name}`)
+			}
+			transport.start = async () => {} // No-op now, .connect() won't fail
 
 			// // Set up notification handlers
 			// client.setNotificationHandler(
@@ -232,6 +251,11 @@ export class McpHub {
 			// 	},
 			// )
 
+			// Connect
+			await client.connect(transport)
+			connection.server.status = "connected"
+			connection.server.error = ""
+
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
@@ -241,10 +265,15 @@ export class McpHub {
 			const connection = this.connections.find((conn) => conn.server.name === name)
 			if (connection) {
 				connection.server.status = "disconnected"
-				connection.server.error = error instanceof Error ? error.message : String(error)
+				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
 			}
 			throw error
 		}
+	}
+
+	private appendErrorMessage(connection: McpConnection, error: string) {
+		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
+		connection.server.error = newError //.slice(0, 800)
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
@@ -254,7 +283,7 @@ export class McpHub {
 				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
 			return response?.tools || []
 		} catch (error) {
-			console.error(`Failed to fetch tools for ${serverName}:`, error)
+			// console.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -266,7 +295,7 @@ export class McpHub {
 				?.client.request({ method: "resources/list" }, ListResourcesResultSchema)
 			return response?.resources || []
 		} catch (error) {
-			console.error(`Failed to fetch resources for ${serverName}:`, error)
+			// console.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -278,7 +307,7 @@ export class McpHub {
 				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
 			return response?.resourceTemplates || []
 		} catch (error) {
-			console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -289,6 +318,8 @@ export class McpHub {
 			try {
 				// connection.client.removeNotificationHandler("notifications/tools/list_changed")
 				// connection.client.removeNotificationHandler("notifications/resources/list_changed")
+				// connection.client.removeNotificationHandler("notifications/stderr")
+				// connection.client.removeNotificationHandler("notifications/stderr")
 				await connection.transport.close()
 				await connection.client.close()
 			} catch (error) {
@@ -300,6 +331,7 @@ export class McpHub {
 
 	async updateServerConnections(newServers: Record<string, any>): Promise<void> {
 		this.isConnecting = true
+		this.removeAllFileWatchers()
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
@@ -316,15 +348,17 @@ export class McpHub {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
 
 			if (!currentConnection) {
-				// New server - connect
+				// New server
 				try {
+					this.setupFileWatcher(name, config)
 					await this.connectToServer(name, config)
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config - reconnect
+				// Existing server with changed config
 				try {
+					this.setupFileWatcher(name, config)
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config)
 					console.log(`Reconnected MCP server with updated config: ${name}`)
@@ -338,6 +372,30 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
+	private setupFileWatcher(name: string, config: any) {
+		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
+		if (filePath) {
+			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
+			const watcher = chokidar.watch(filePath, {
+				// persistent: true,
+				// ignoreInitial: true,
+				// awaitWriteFinish: true, // This helps with atomic writes
+			})
+
+			watcher.on("change", () => {
+				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+				this.restartConnection(name)
+			})
+
+			this.fileWatchers.set(name, watcher)
+		}
+	}
+
+	private removeAllFileWatchers() {
+		this.fileWatchers.forEach((watcher) => watcher.close())
+		this.fileWatchers.clear()
+	}
+
 	async restartConnection(serverName: string): Promise<void> {
 		this.isConnecting = true
 		const provider = this.providerRef.deref()
@@ -349,13 +407,16 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
+			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
 			connection.server.status = "connecting"
+			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
 			await delay(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config))
+				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
 			}
@@ -423,6 +484,7 @@ export class McpHub {
 	}
 
 	async dispose(): Promise<void> {
+		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
 			try {
 				await this.deleteConnection(connection.server.name)

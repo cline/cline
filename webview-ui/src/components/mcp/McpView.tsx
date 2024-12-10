@@ -195,7 +195,14 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						borderRadius: "0 0 4px 4px",
 						width: "100%",
 					}}>
-					<div style={{ color: "var(--vscode-testing-iconFailed)", marginBottom: "8px", padding: "0 10px" }}>
+					<div
+						style={{
+							color: "var(--vscode-testing-iconFailed)",
+							marginBottom: "8px",
+							padding: "0 10px",
+							overflowWrap: "break-word",
+							wordBreak: "break-word",
+						}}>
 						{server.error}
 					</div>
 					<VSCodeButton

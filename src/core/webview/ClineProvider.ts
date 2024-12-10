@@ -67,12 +67,6 @@ export const GlobalFileNames = {
 	mcpSettings: "cline_mcp_settings.json",
 }
 
-export const GlobalDirNames = {
-	cache: "cache",
-	settings: "settings",
-	mcpServers: "mcp-servers",
-}
-
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -534,13 +528,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// MCP
 
 	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const mcpServersDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.mcpServers)
+		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
 		await fs.mkdir(mcpServersDir, { recursive: true })
 		return mcpServersDir
 	}
 
 	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.settings)
+		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
 		await fs.mkdir(settingsDir, { recursive: true })
 		return settingsDir
 	}
@@ -610,7 +604,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async ensureCacheDirectoryExists(): Promise<string> {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, GlobalDirNames.cache)
+		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
 	}
