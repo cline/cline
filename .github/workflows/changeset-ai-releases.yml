@@ -85,6 +85,23 @@ jobs:
           echo "version=$VERSION"
           echo "prev_version=$PREV_VERSION"
 
+      - name: Release Notes Prompt
+        id: ai_prompt
+        run: |
+          # Get today's date in YYYY-MM-DD format
+          TODAY=$(date +'%Y-%m-%d %H:%M')
+
+          echo "BASE_PROMPT<<EOF" >> $GITHUB_OUTPUT
+          echo "Based on the following 'PR Information', please generate concise and informative release notes to be read by developers.
+
+          Format the release notes with markdown, and always use this structure: a descriptive and very short title (no more than 8 words) with heading level 2, a paragraph with a summary of changes (no header), and sections for '🚀 New Features & Improvements', '🐛 Bugs Fixed' and '🔧 Other Updates', with heading level 3, skip respectively the sections if not applicable, 
+          finally include the following markdown comment with the PR merged date: <!-- PR_DATE: $TODAY -->.
+
+          Avoid being repetitive and focus on the most important changes and their impact, don't mention version bumps, nor changeset files, nor environment variables, nor syntax updates.
+
+          PR Information:" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       # Github outputs: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
       - name: AI Release Notes
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
@@ -96,6 +113,7 @@ jobs:
           model_name: gpt-4o-mini
           repo_path: ${{ env.REPO_PATH }}
           git_ref: ${{ env.GIT_REF }}
+          custom_prompt: ${{ steps.ai_prompt.outputs.BASE_PROMPT }}
 
       - name: Update Changeset Changelog
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
