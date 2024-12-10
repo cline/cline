@@ -4,11 +4,12 @@ A fork of Cline, an autonomous coding agent, with some added experimental config
 - Auto-approval capabilities for commands, write, and browser operations
 - Support for .clinerules per-project custom instructions
 - Ability to run side-by-side with Cline
-- Code is unit-tested
+- Unit test coverage (written almost entirely by Roo Cline!)
 - Support for playing sound effects
 - Support for OpenRouter compression
 - Support for editing through diffs (very experimental)
 - Support for gemini-exp-1206
+- Support for copying prompts from the history screen
 
 Here's an example of Roo-Cline autonomously creating a snake game with "Always approve write operations" and "Always approve browser actions" turned on:
 

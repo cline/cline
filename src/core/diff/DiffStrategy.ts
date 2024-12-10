@@ -1,16 +1,16 @@
 import type { DiffStrategy } from './types'
 import { UnifiedDiffStrategy } from './strategies/unified'
-
+import { SearchReplaceDiffStrategy } from './strategies/search-replace'
 /**
  * Get the appropriate diff strategy for the given model
  * @param model The name of the model being used (e.g., 'gpt-4', 'claude-3-opus')
  * @returns The appropriate diff strategy for the model
  */
 export function getDiffStrategy(model: string): DiffStrategy {
-    // For now, return UnifiedDiffStrategy for all models
+    // For now, return SearchReplaceDiffStrategy for all models
     // This architecture allows for future optimizations based on model capabilities
-    return new UnifiedDiffStrategy()
+    return new SearchReplaceDiffStrategy()
 }
 
 export type { DiffStrategy }
-export { UnifiedDiffStrategy }
+export { UnifiedDiffStrategy, SearchReplaceDiffStrategy }

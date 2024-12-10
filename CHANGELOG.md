@@ -1,5 +1,13 @@
 # Roo Cline Changelog
 
+## [2.1.17]
+
+- Switch to search/replace diffs in experimental diff editing mode
+
+## [2.1.16]
+
+- Allow copying prompts from the history screen
+
 ## [2.1.15]
 
 - Incorporate dbasclpy's [PR](https://github.com/RooVetGit/Roo-Cline/pull/54) to add support for gemini-exp-1206
