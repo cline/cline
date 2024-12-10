@@ -180,6 +180,7 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
+    "@aws-sdk/client-bedrock-runtime": "^3.706.0",
     "@anthropic-ai/sdk": "^0.26.0",
     "@anthropic-ai/vertex-sdk": "^0.4.1",
     "@google/generative-ai": "^0.18.0",
