@@ -265,7 +265,7 @@ By waiting for and carefully considering the user's response after each tool use
 
 MCP SERVERS
 
-The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional capabilities through a standardized protocol. Each server can offer tools and resources that extend your capabilities.
+The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
 
 # Connected MCP Servers
 
@@ -319,9 +319,9 @@ Unless the user specifies otherwise, new MCP servers should be created in: ${awa
 
 ### Example MCP Server
 
-For example, if the user wanted to give you the ability to retrieve weather information, you could create an MCP server that uses the OpenWeather API to get weather information, add it to the MCP settings configuration file, and then notice that you now have access to new tools and resources in the system prompt that you might use to show the user your new abilities.
+For example, if the user wanted to give you the ability to retrieve weather information, you could create an MCP server that uses the OpenWeather API to get weather information, add it to the MCP settings configuration file, and then notice that you now have access to new tools and resources in the system prompt that you might use to show the user your new capabilities.
 
-The following examples demonstrate how to build an MCP server that provides weather data functionality. While this example shows how to implement resources, resource templates, and tools, in practice you should prefer using tools since they are more flexible and can handle dynamic parameters. The resource and resource template implementations are included here mainly for demonstration purposes of the different MCP capabilities, but a real weather server would likely just expose tools for fetching weather data. (The following steps are for macOS)
+The following example demonstrates how to build an MCP server that provides weather data functionality. While this example shows how to implement resources, resource templates, and tools, in practice you should prefer using tools since they are more flexible and can handle dynamic parameters. The resource and resource template implementations are included here mainly for demonstration purposes of the different MCP capabilities, but a real weather server would likely just expose tools for fetching weather data. (The following steps are for macOS)
 
 1. Use the \`create-typescript-server\` tool to bootstrap a new project in the default MCP servers directory:
 
@@ -337,13 +337,13 @@ This will create a new project with the following structure:
 
 \`\`\`
 weather-server/
-  ├── package.json         # Contains typescript and @modelcontextprotocol/sdk dependencies + build script with chmod and inspector script
+  ├── package.json
       {
         ...
         "type": "module", // added by default, uses ES module syntax (import/export) rather than CommonJS (require/module.exports) (Important to know if you create additional scripts in this server repository like a get-refresh-token.js script)
         "scripts": {
           "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-          "inspector": "npx @modelcontextprotocol/inspector build/index.js" // The MCP Inspector is an interactive developer tool for testing and debugging MCP servers. It launches a web server that allows the user to interact with the server and test its capabilities. (You could also pass arguments or use with \`uv\` e.g., \`npx @modelcontextprotocol/inspector uvx <package-name> <args>\`)
+          ...
         }
         ...
       }
@@ -638,9 +638,9 @@ npm run build
 
 (Note: the user may also ask you to install the MCP server to the Claude desktop app, in which case you would modify \`~/Library/Application\ Support/Claude/claude_desktop_config.json\` on macOS for example. It follows the same format of a top level \`mcpServers\` object.)
 
-6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the system prompt.
+6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the 'Connected MCP Servers' section.
 
-8. Now that you have access to these new tools and resources, you may suggest ways the user can command you to invoke them - for example, with this new weather tool now available, you can invite the user to ask "what's the weather in San Francisco?"
+7. Now that you have access to these new tools and resources, you may suggest ways the user can command you to invoke them - for example, with this new weather tool now available, you can invite the user to ask "what's the weather in San Francisco?"
 
 ## Editing MCP Servers
 
@@ -649,7 +649,7 @@ The user may ask to add tools or resources to an existing MCP server (listed und
 		.getServers()
 		.map((server) => server.name)
 		.join(", ") || "(None running currently)"
-}), or may more generally ask to add functionality that may make sense to add to an existing local MCP server rather than creating a new one. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath.
+}), or may more generally ask to add functionality that may make sense to add to an existing local MCP server rather than creating a new one. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file to make changes to the files.
 
 However some MCP servers may be running from installed packages rather than a local repository, in which case it may make more sense to create a new MCP server.
 
@@ -657,7 +657,7 @@ However some MCP servers may be running from installed packages rather than a lo
 
 The user may not always request the use or creation of MCP servers. Instead, they might provide tasks that can be completed with existing tools. While using the MCP SDK to extend your capabilities can be useful, it's important to understand that this is just one specialized type of task you can accomplish. You should only implement MCP servers when the user explicitly requests it (e.g., "add a tool that...").
 
-Remember: The MCP documentation provided above is to help you understand and work with existing MCP servers or create new ones when requested by the user. You already have access to tools and capabilities that can be used to accomplish a wide range of tasks.
+Remember: The MCP documentation and example provided above are to help you understand and work with existing MCP servers or create new ones when requested by the user. You already have access to tools and capabilities that can be used to accomplish a wide range of tasks.
 
 ====
  
