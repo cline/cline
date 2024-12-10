@@ -15,7 +15,24 @@ Here's an example of Roo-Cline autonomously creating a snake game with "Always a
 
 https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
+### Publishing
+We use [changesets](https://github.com/changesets/changesets) for versioning and publishing this package. To make changes:
 
+1. Create a PR with your changes
+2. Create a new changeset by running `npm run changeset`
+   - Select the appropriate kind of change - `patch` for bug fixes, `minor` for new features, or `major` for breaking changes
+   - Write a clear description of your changes that will be included in the changelog
+3. Get the PR approved and pass all checks
+4. Merge it
+
+Once your merge is successful:
+- The release workflow will automatically create a new "Changeset version bump" PR
+- This PR will:
+  - Update the version based on your changeset
+  - Update the CHANGELOG.md file
+  - Create a git tag
+- The PR will be automatically approved and merged
+- A new version and git release will be published
 ---
 
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
@@ -45,7 +62,7 @@ https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
 Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
 
 1. Enter your task and add images to convert mockups into functional apps or fix bugs with screenshots.
 2. Cline starts by analyzing your file structure & source code ASTs, running regex searches, and reading relevant files to get up to speed in existing projects. By carefully managing what information is added to context, Cline can provide valuable assistance even for large, complex projects without overwhelming the context window.
@@ -53,10 +70,10 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.ant
     - Create and edit files + monitor linter/compiler errors along the way, letting him proactively fix issues like missing imports and syntax errors on his own.
     - Execute commands directly in your terminal and monitor their output as he works, letting him e.g., react to dev server issues after editing a file.
     - For web development tasks, Cline can launch the site in a headless browser, click, type, scroll, and capture screenshots + console logs, allowing him to fix runtime errors and visual bugs.
-4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
+4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
 
 > [!TIP]
-> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
+> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
 
 ---
 
@@ -112,10 +129,10 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 ### Add Context
 
--   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
--   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
--   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
--   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
+-   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
+-   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
+-   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
+-   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
 ## Contributing
 
