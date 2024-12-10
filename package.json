@@ -156,7 +156,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.1",
+    "@changesets/cli": "^2.27.10",
     "@types/diff": "^5.2.1",
     "@types/jest": "^29.5.14",
     "@types/mocha": "^10.0.7",
