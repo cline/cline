@@ -119,15 +119,17 @@ const McpView = ({ onDone }: McpViewProps) => {
 						community-made servers
 					</VSCodeLink>{" "}
 					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that pulls GitHub
-					issues")
+					issues").
 				</div>
 
 				{/* Server List */}
-				<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-					{servers.map((server) => (
-						<ServerRow key={server.name} server={server} />
-					))}
-				</div>
+				{servers.length > 0 && (
+					<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+						{servers.map((server) => (
+							<ServerRow key={server.name} server={server} />
+						))}
+					</div>
+				)}
 
 				{/* Edit Settings Button */}
 				<div style={{ marginTop: "10px", width: "100%" }}>
