@@ -246,7 +246,10 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						}}>
 						<VSCodePanels>
 							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
-							<VSCodePanelTab id="resources">Resources ({server.resources?.length || 0})</VSCodePanelTab>
+							<VSCodePanelTab id="resources">
+								Resources (
+								{[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
+							</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
