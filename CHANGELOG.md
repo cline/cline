@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.19]
+
+- Better error handling for diff editing
+
 ## [2.1.18]
 
 - Diff editing bugfix to handle Windows line endings

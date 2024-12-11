@@ -1208,12 +1208,12 @@ export class Cline {
 									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "diff"))
 									break
 								}
-								this.consecutiveMistakeCount = 0
 
 								const absolutePath = path.resolve(cwd, relPath)
 								const fileExists = await fileExistsAtPath(absolutePath)
 
 								if (!fileExists) {
+									this.consecutiveMistakeCount++
 									await this.say("error", `File does not exist at path: ${absolutePath}`)
 									pushToolResult(`Error: File does not exist at path: ${absolutePath}`)
 									break
@@ -1224,10 +1224,13 @@ export class Cline {
 								// Apply the diff to the original content
 								let newContent = this.diffStrategy?.applyDiff(originalContent, diffContent) ?? false
 								if (newContent === false) {
-									await this.say("error", `Error applying diff to file: ${absolutePath}`)
-									pushToolResult(`Error applying diff to file: ${absolutePath}`)
+									this.consecutiveMistakeCount++
+									await this.say("error", `Unable to apply diff to file - contents are out of sync: ${absolutePath}`)
+									pushToolResult(`Error applying diff to file: ${absolutePath} - contents are out of sync. Try re-reading the relevant lines of the file and applying the diff again.`)
 									break
 								}
+
+								this.consecutiveMistakeCount = 0
 
 								// Show diff view before asking for approval
 								this.diffViewProvider.editType = "modify"
