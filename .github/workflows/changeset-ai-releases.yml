@@ -61,7 +61,7 @@ jobs:
           title: "Changeset version bump"
           version: npm run version-packages # This performs the changeset version bump
         env:
-          GITHUB_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
 
   # Job 2: Process version bump PR created by R00-B0T
   changeset-pr-approve-merge:
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ROO_GITHUB_TOKEN }}
+          token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
           fetch-depth: 0
           ref: ${{ env.GIT_REF }}
 
@@ -107,7 +107,7 @@ jobs:
         uses: RooVetGit/Roo-GHA/.github/actions/ai-release-notes@main
         id: ai_release_notes
         with:
-          GHA_PAT: ${{ secrets.ROO_GITHUB_TOKEN }}
+          GHA_PAT: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           model_name: gpt-4o-mini
           repo_path: ${{ env.REPO_PATH }}
@@ -166,7 +166,7 @@ jobs:
         if: contains(github.event.pull_request.labels.*.name, 'openai-edited')
         run: gh pr merge --squash --auto ${{ github.event.pull_request.number }}
         env:
-          GH_TOKEN: ${{ secrets.ROO_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
   
   # Job 3: Create GitHub release after version bump PR is merged
   github-release:
