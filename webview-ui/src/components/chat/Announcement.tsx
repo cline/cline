@@ -40,7 +40,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</VSCodeLink>
 			</p>
 			<p style={{ margin: "5px 0px" }}>
-				You can add and configure MCP servers by clicking the{" "}
+				You can add and configure MCP servers by clicking the new{" "}
 				<span className="codicon codicon-server" style={{ fontSize: "10px" }}></span> icon in the menu bar.
 			</p>
 			<p style={{ margin: "5px 0px" }}>
@@ -57,8 +57,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				with others too.{" "}
 			</p>
 			<p style={{ margin: "5px 0px" }}>
+				Try it yourself by asking Cline to "add a tool that pulls the latest npm docs", or
 				<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
-					See a demo of MCP in action here!
+					see a demo of MCP in action here.
 				</VSCodeLink>
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>

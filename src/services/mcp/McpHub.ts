@@ -470,7 +470,9 @@ export class McpHub {
 	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
+			throw new Error(
+				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
+			)
 		}
 		return await connection.client.request(
 			{

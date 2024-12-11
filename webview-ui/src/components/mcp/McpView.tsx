@@ -118,8 +118,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
 						community-made servers
 					</VSCodeLink>{" "}
-					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that pulls GitHub
-					issues").
+					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that pulls the latest
+					npm docs").
 				</div>
 
 				{/* Server List */}
