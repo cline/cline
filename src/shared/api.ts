@@ -157,6 +157,87 @@ export const bedrockModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
+	"meta.llama3-2-90b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.72,
+		outputPrice: 0.72,
+	},
+	"meta.llama3-2-11b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.16,
+		outputPrice: 0.16,
+	},
+	"meta.llama3-2-3b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"meta.llama3-2-1b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"meta.llama3-1-405b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 2.4,
+	},
+	"meta.llama3-1-70b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.72,
+		outputPrice: 0.72,
+	},
+	"meta.llama3-1-8b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.22,
+	},
+	"meta.llama3-70b-instruct-v1:0" : {
+		maxTokens: 2048 ,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 2.65,
+		outputPrice: 3.5,
+	},
+	"meta.llama3-8b-instruct-v1:0" : {
+		maxTokens: 2048 ,
+		contextWindow: 4_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
@@ -340,3 +421,4 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
+
