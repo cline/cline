@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.20]
+
+- Add Gemini 2.0
+
 ## [2.1.19]
 
 - Better error handling for diff editing
