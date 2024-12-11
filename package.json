@@ -176,7 +176,6 @@
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"clone-deep": "^4.0.1",
-		"debounce": "^2.2.0",
 		"default-shell": "^2.2.0",
 		"delay": "^6.0.0",
 		"diff": "^5.2.0",
