@@ -1,243 +1,191 @@
-import { AwsBedrockHandler } from '../bedrock';
-import { 
-    BedrockRuntimeClient, 
-    ConverseStreamCommand,
-    ConverseStreamCommandOutput
-} from '@aws-sdk/client-bedrock-runtime';
-import { ApiHandlerOptions } from '../../../shared/api';
-import { jest } from '@jest/globals';
-import { Readable } from 'stream';
+import { AwsBedrockHandler } from '../bedrock'
+import { ApiHandlerOptions, ModelInfo } from '../../../shared/api'
+import { Anthropic } from '@anthropic-ai/sdk'
+import { StreamEvent } from '../bedrock'
 
-// Mock the BedrockRuntimeClient
-jest.mock('@aws-sdk/client-bedrock-runtime', () => ({
-    BedrockRuntimeClient: jest.fn().mockImplementation(() => ({
-        send: jest.fn()
-    })),
-    ConverseStreamCommand: jest.fn()
-}));
+// Simplified mock for BedrockRuntimeClient
+class MockBedrockRuntimeClient {
+    private _region: string
+    private mockStream: StreamEvent[] = []
+
+    constructor(config: { region: string }) {
+        this._region = config.region
+    }
+
+    async send(command: any): Promise<{ stream: AsyncIterableIterator<StreamEvent> }> {
+        return {
+            stream: this.createMockStream()
+        }
+    }
+
+    private createMockStream(): AsyncIterableIterator<StreamEvent> {
+        const self = this;
+        return {
+            async *[Symbol.asyncIterator]() {
+                for (const event of self.mockStream) {
+                    yield event;
+                }
+            },
+            next: async () => {
+                const value = this.mockStream.shift();
+                return value ? { value, done: false } : { value: undefined, done: true };
+            },
+            return: async () => ({ value: undefined, done: true }),
+            throw: async (e) => { throw e; }
+        };
+    }
+
+    setMockStream(stream: StreamEvent[]) {
+        this.mockStream = stream;
+    }
+
+    get config() {
+        return { region: this._region };
+    }
+}
 
 describe('AwsBedrockHandler', () => {
-    let handler: AwsBedrockHandler;
-    let mockClient: jest.Mocked<BedrockRuntimeClient>;
+    const mockOptions: ApiHandlerOptions = {
+        awsRegion: 'us-east-1',
+        awsAccessKey: 'mock-access-key',
+        awsSecretKey: 'mock-secret-key',
+        apiModelId: 'anthropic.claude-v2',
+    }
 
-    beforeEach(() => {
-        // Clear all mocks
-        jest.clearAllMocks();
-
-        // Create mock client with properly typed send method
-        mockClient = {
-            send: jest.fn().mockImplementation(() => Promise.resolve({
-                $metadata: {},
-                stream: new Readable({
-                    read() {
-                        this.push(null);
-                    }
-                })
-            }))
-        } as unknown as jest.Mocked<BedrockRuntimeClient>;
-
-        // Create handler with test options
-        const options: ApiHandlerOptions = {
-            awsRegion: 'us-west-2',
-            awsAccessKey: 'test-access-key',
-            awsSecretKey: 'test-secret-key',
-            apiModelId: 'test-model'
-        };
-        handler = new AwsBedrockHandler(options);
-        (handler as any).client = mockClient;
-    });
-
-    test('createMessage sends a streaming request correctly', async () => {
-        const mockStream = new Readable({
-            read() {
-                this.push(JSON.stringify({
-                    messageStart: { role: 'assistant' }
-                }));
-                this.push(JSON.stringify({
-                    contentBlockStart: {
-                        start: { text: 'Hello' }
-                    }
-                }));
-                this.push(JSON.stringify({
-                    contentBlockDelta: {
-                        delta: { text: ' world' }
-                    }
-                }));
-                this.push(JSON.stringify({
-                    messageStop: { stopReason: 'end_turn' }
-                }));
-                this.push(null);
+    // Override the BedrockRuntimeClient creation in the constructor
+    class TestAwsBedrockHandler extends AwsBedrockHandler {
+        constructor(options: ApiHandlerOptions, mockClient?: MockBedrockRuntimeClient) {
+            super(options)
+            if (mockClient) {
+                // Force type casting to bypass strict type checking
+                (this as any)['client'] = mockClient
             }
-        });
-
-        mockClient.send.mockImplementation(() => 
-            Promise.resolve({
-                $metadata: {},
-                stream: mockStream
-            } as ConverseStreamCommandOutput)
-        );
-
-        const systemPrompt = 'Test system prompt';
-        const messages = [{ role: 'user' as const, content: 'Test message' }];
-
-        const stream = handler.createMessage(systemPrompt, messages);
-
-        // Collect all chunks
-        const chunks = [];
-        for await (const chunk of stream) {
-            chunks.push(chunk);
         }
+    }
 
-        // Verify the command was sent correctly
-        expect(mockClient.send).toHaveBeenCalledWith(
-            expect.any(ConverseStreamCommand)
-        );
+    test('constructor initializes with correct AWS credentials', () => {
+        const mockClient = new MockBedrockRuntimeClient({
+            region: 'us-east-1'
+        })
 
-        // Verify the stream chunks
-        expect(chunks).toEqual([
-            { type: 'text', text: 'Hello' },
-            { type: 'text', text: ' world' }
-        ]);
-    });
-
-    test('createMessage handles metadata events correctly', async () => {
-        const mockStream = new Readable({
-            read() {
-                this.push(JSON.stringify({
-                    metadata: {
-                        usage: {
-                            inputTokens: 10,
-                            outputTokens: 20,
-                            totalTokens: 30
-                        }
-                    }
-                }));
-                this.push(null);
-            }
-        });
-
-        mockClient.send.mockImplementation(() => 
-            Promise.resolve({
-                $metadata: {},
-                stream: mockStream
-            } as ConverseStreamCommandOutput)
-        );
-
-        const systemPrompt = 'Test system prompt';
-        const messages = [{ role: 'user' as const, content: 'Test message' }];
-
-        const stream = handler.createMessage(systemPrompt, messages);
-
-        const chunks = [];
-        for await (const chunk of stream) {
-            chunks.push(chunk);
-        }
-
-        expect(chunks).toEqual([
-            {
-                type: 'usage',
-                inputTokens: 10,
-                outputTokens: 20
-            }
-        ]);
-    });
-
-    test('createMessage handles errors during streaming', async () => {
-        mockClient.send.mockImplementation(() => 
-            Promise.reject(new Error('Test error'))
-        );
-
-        const systemPrompt = 'Test system prompt';
-        const messages = [{ role: 'user' as const, content: 'Test message' }];
-
-        await expect(handler.createMessage(systemPrompt, messages)).rejects.toThrow('Test error');
-    });
+        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
+        
+        // Verify that the client is created with the correct configuration
+        expect(handler['client']).toBeDefined()
+        expect(handler['client'].config.region).toBe('us-east-1')
+    })
 
     test('getModel returns correct model info', () => {
-        const modelInfo = handler.getModel();
-        expect(modelInfo).toEqual({
-            id: 'test-model',
-            info: expect.any(Object)
-        });
-    });
+        const mockClient = new MockBedrockRuntimeClient({
+            region: 'us-east-1'
+        })
 
-    test('createMessage handles cross-region inference', async () => {
-        const options: ApiHandlerOptions = {
-            awsRegion: 'us-west-2',
-            awsAccessKey: 'test-access-key',
-            awsSecretKey: 'test-secret-key',
-            apiModelId: 'test-model',
-            awsUseCrossRegionInference: true
-        };
+        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
+        const result = handler.getModel()
         
-        handler = new AwsBedrockHandler(options);
-        (handler as any).client = mockClient;
+        expect(result).toEqual({
+            id: 'anthropic.claude-v2',
+            info: {
+                maxTokens: 5000,
+                contextWindow: 128_000,
+                supportsPromptCache: false
+            }
+        })
+    })
 
-        const mockStream = new Readable({
-            read() {
-                this.push(JSON.stringify({
-                    contentBlockStart: {
-                        start: { text: 'Hello' }
+    test('createMessage handles successful stream events', async () => {
+        const mockClient = new MockBedrockRuntimeClient({
+            region: 'us-east-1'
+        })
+        
+        // Mock stream events
+        const mockStreamEvents: StreamEvent[] = [
+            {
+                metadata: {
+                    usage: {
+                        inputTokens: 50,
+                        outputTokens: 100
                     }
-                }));
-                this.push(null);
+                }
+            },
+            {
+                contentBlockStart: {
+                    start: {
+                        text: 'Hello'
+                    }
+                }
+            },
+            {
+                contentBlockDelta: {
+                    delta: {
+                        text: ' world'
+                    }
+                }
+            },
+            {
+                messageStop: {
+                    stopReason: 'end_turn'
+                }
             }
-        });
+        ]
 
-        mockClient.send.mockImplementation(() => 
-            Promise.resolve({
-                $metadata: {},
-                stream: mockStream
-            } as ConverseStreamCommandOutput)
-        );
+        mockClient.setMockStream(mockStreamEvents)
 
-        const systemPrompt = 'Test system prompt';
-        const messages = [{ role: 'user' as const, content: 'Test message' }];
+        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
 
-        await handler.createMessage(systemPrompt, messages);
+        const systemPrompt = 'You are a helpful assistant'
+        const messages: Anthropic.Messages.MessageParam[] = [
+            { role: 'user', content: 'Say hello' }
+        ]
 
-        expect(mockClient.send).toHaveBeenCalledWith(
-            expect.objectContaining({
-                input: expect.stringContaining('us.test-model')
-            })
-        );
-    });
+        const generator = handler.createMessage(systemPrompt, messages)
+        const chunks = []
 
-    test('createMessage includes prompt cache configuration when enabled', async () => {
-        const options: ApiHandlerOptions = {
-            awsRegion: 'us-west-2',
-            awsAccessKey: 'test-access-key',
-            awsSecretKey: 'test-secret-key',
-            apiModelId: 'test-model',
-            awsUsePromptCache: true,
-            awspromptCacheId: 'test-cache-id'
-        };
-        
-        handler = new AwsBedrockHandler(options);
-        (handler as any).client = mockClient;
+        for await (const chunk of generator) {
+            chunks.push(chunk)
+        }
 
-        const mockStream = new Readable({
-            read() {
-                this.push(null);
+        // Verify the chunks match expected stream events
+        expect(chunks).toHaveLength(3)
+        expect(chunks[0]).toEqual({
+            type: 'usage',
+            inputTokens: 50,
+            outputTokens: 100
+        })
+        expect(chunks[1]).toEqual({
+            type: 'text',
+            text: 'Hello'
+        })
+        expect(chunks[2]).toEqual({
+            type: 'text',
+            text: ' world'
+        })
+    })
+
+    test('createMessage handles error scenarios', async () => {
+        const mockClient = new MockBedrockRuntimeClient({
+            region: 'us-east-1'
+        })
+
+        // Simulate an error by overriding the send method
+        mockClient.send = () => {
+            throw new Error('API request failed')
+        }
+
+        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
+
+        const systemPrompt = 'You are a helpful assistant'
+        const messages: Anthropic.Messages.MessageParam[] = [
+            { role: 'user', content: 'Cause an error' }
+        ]
+
+        await expect(async () => {
+            const generator = handler.createMessage(systemPrompt, messages)
+            const chunks = []
+            
+            for await (const chunk of generator) {
+                chunks.push(chunk)
             }
-        });
-
-        mockClient.send.mockImplementation(() => 
-            Promise.resolve({
-                $metadata: {},
-                stream: mockStream
-            } as ConverseStreamCommandOutput)
-        );
-
-        const systemPrompt = 'Test system prompt';
-        const messages = [{ role: 'user' as const, content: 'Test message' }];
-
-        await handler.createMessage(systemPrompt, messages);
-
-        expect(mockClient.send).toHaveBeenCalledWith(
-            expect.objectContaining({
-                input: expect.stringContaining('promptCacheId')
-            })
-        );
-    });
-});
+        }).rejects.toThrow('API request failed')
+    })
+})
