@@ -288,7 +288,7 @@ export const geminiModels = {
 	},
 	"gemini-2.0-flash-exp": {
 		maxTokens: 8192,
-		contextWindow: 2_097_152,
+		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
