@@ -3,15 +3,10 @@ import re
 import subprocess
 
 def run_git_command(command):
-    try:
-        result = subprocess.getoutput(command)
-        print(f"Git Command: {command}")
-        print(f"Git Output: {result}")
-        return result
-    except subprocess.CalledProcessError as e:
-        print(f"Error running command: {e}")
-        print(f"stderr: {e.stderr}")
-        return None
+    result = subprocess.getoutput(command)
+    print(f"Git Command: {command}")
+    print(f"Git Output: {result}")
+    return result
 
 def parse_merge_commit(line):
     # Parse merge commit messages like:
