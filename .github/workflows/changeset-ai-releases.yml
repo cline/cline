@@ -13,7 +13,7 @@ on:
 
 env:
   REPO_PATH: ${{ github.repository }}
-  GIT_REF: ${{ github.head_ref }}
+  GIT_REF: ${{ github.event.pull_request.head.sha }}
 
 jobs:
   # Job 1: Create version bump PR when changesets are merged to main
@@ -101,6 +101,11 @@ jobs:
         id: ai_prompt
         run: python .github/scripts/release-notes-prompt.py
 
+      # Get previous version refs, GITHUB_OUTPUT: 'BASE_REF' and 'HEAD_REF'
+      - name: Get Previous Version Refs
+        id: version_refs
+        run: python .github/scripts/get_prev_version_refs.py
+
       # Generate release notes using OpenAI if not already edited, GITHUB_OUTPUT: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
       - name: AI Release Notes
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
@@ -111,7 +116,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           model_name: gpt-4o-mini
           repo_path: ${{ env.REPO_PATH }}
-          git_ref: ${{ env.GIT_REF }}
+          base_ref: ${{ steps.version_refs.outputs.base_ref }}
+          head_ref: ${{ steps.version_refs.outputs.head_ref }}
           custom_prompt: ${{ steps.ai_prompt.outputs.BASE_PROMPT }}
 
       # Update CHANGELOG.md with AI-generated notes
