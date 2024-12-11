@@ -768,9 +768,16 @@ export class Cline {
 				const contextWindow = this.api.getModel().info.contextWindow || 128_000
 				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
 				if (totalTokens >= maxAllowedSize) {
-					this.lastContextSummary = await preserveContext(this.apiConversationHistory)
-					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-					await this.overwriteApiConversationHistory(truncatedMessages)
+					try {
+						this.lastContextSummary = await preserveContext(this.apiConversationHistory, this.api)
+						const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+						await this.overwriteApiConversationHistory(truncatedMessages)
+					} catch (error) {
+						console.error('Context preservation failed:', error)
+						// Continue with truncation even if context preservation fails
+						const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+						await this.overwriteApiConversationHistory(truncatedMessages)
+					}
 				}
 			}
 		}
