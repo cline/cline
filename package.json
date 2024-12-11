@@ -135,26 +135,32 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "vsix": "vsce package",
+    "build": "npm run build:webview && npm run vsix",
+    "build:webview": "cd webview-ui && npm run build",
+    "changeset": "changeset",
+    "check-types": "tsc --noEmit",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "compile-tests": "tsc -p . --outDir out",
+    "install:all": "npm install && cd webview-ui && npm install",
+    "lint": "eslint src --ext ts",
+    "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "start:webview": "cd webview-ui && npm run start",
+    "test": "vscode-test",
+    "test:webview": "cd webview-ui && npm run test",
+    "prepare": "husky",
+    "publish:marketplace": "vsce publish",
+    "publish": "npm run build && changeset publish && npm install --package-lock-only",
+    "version-packages": "changeset version && npm install --package-lock-only",
+    "vscode:prepublish": "npm run package",
+    "vsix": "npx vsce package --out bin",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "check-types": "tsc --noEmit",
-    "lint": "eslint src --ext ts",
-    "test": "jest",
-    "install:all": "npm install && cd webview-ui && npm install",
-    "start:webview": "cd webview-ui && npm run start",
-    "build:webview": "cd webview-ui && npm run build",
-    "test:webview": "cd webview-ui && npm run test",
-    "publish:marketplace": "vsce publish"
+    "watch-tests": "tsc -p . -w --outDir out"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.10",
     "@types/diff": "^5.2.1",
     "@types/jest": "^29.5.14",
     "@types/mocha": "^10.0.7",
@@ -165,7 +171,9 @@
     "@vscode/test-electron": "^2.4.0",
     "esbuild": "^0.24.0",
     "eslint": "^8.57.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^15.2.11",
     "npm-run-all": "^4.1.5",
     "ts-jest": "^29.2.5",
     "typescript": "^5.4.5"
@@ -203,5 +211,10 @@
     "tree-sitter-wasms": "^0.1.11",
     "turndown": "^7.2.0",
     "web-tree-sitter": "^0.22.6"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+        "npx eslint -c .eslintrc.json"
+    ]
   }
 }

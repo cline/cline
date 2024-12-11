@@ -7,7 +7,7 @@ pr_review:
   
   # If quiet mode is enabled, Ellipsis will only leave reviews when it has comments, so “Looks good to me” reviews 
   # will be skipped. This can reduce clutter.
-  quiet: false
+  quiet: true
   
   # You can disable automatic code review using auto_review_enabled. This will override any global settings you 
   # have configured via the web UI.
