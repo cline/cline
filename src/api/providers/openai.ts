@@ -18,7 +18,7 @@ export class OpenAiHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		const url = new URL(this.options.openAiBaseUrl);
+		const url = new URL(this.options.openAiBaseUrl ?? "");
 		const allowedHosts = ["azure.com", "subdomain.azure.com"];
 		if (allowedHosts.includes(url.host)) {
 			this.client = new AzureOpenAI({
