@@ -360,12 +360,13 @@ weather-server/
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListToolsRequestSchema,
   CallToolRequestSchema,
   ErrorCode,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ListToolsRequestSchema,
   McpError,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 
@@ -418,7 +419,6 @@ class WeatherServer {
       },
     });
 
-    // Setup handlers
     this.setupResourceHandlers();
     this.setupToolHandlers();
     
@@ -432,10 +432,10 @@ class WeatherServer {
 
   // MCP Resources represent any kind of UTF-8 encoded data that an MCP server wants to make available to clients, such as database records, API responses, log files, and more. Servers define direct resources with a static URI or dynamic resources with a URI template that follows the format \`[protocol]://[host]/[path]\`.
   private setupResourceHandlers() {
+    // For static resources, servers can expose a list of resources:
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      // For static resources, servers can expose a list of resources:
       resources: [
-        // This is a poor example since you could use the resource template to get the same information but demonstrates how to define a static resource
+        // This is a poor example since you could use the resource template to get the same information but this demonstrates how to define a static resource
         {
           uri: \`weather://San Francisco/current\`, // Unique identifier for San Francisco weather resource
           name: \`Current weather in San Francisco\`, // Human-readable name
@@ -445,17 +445,24 @@ class WeatherServer {
             'Real-time weather data for San Francisco including temperature, conditions, humidity, and wind speed',
         },
       ],
-      // For dynamic resources, servers can expose URI templates:
-      resourceTemplates: [
-        {
-          uriTemplate: 'weather://{city}/current', // URI template (RFC 6570)
-          name: 'Current weather for a given city', // Human-readable name
-          mimeType: 'application/json', // Optional MIME type
-          description: 'Real-time weather data for a specified city', // Optional description
-        },
-      ],
     }));
 
+    // For dynamic resources, servers can expose resource templates:
+    this.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      async () => ({
+        resourceTemplates: [
+          {
+            uriTemplate: 'weather://{city}/current', // URI template (RFC 6570)
+            name: 'Current weather for a given city', // Human-readable name
+            mimeType: 'application/json', // Optional MIME type
+            description: 'Real-time weather data for a specified city', // Optional description
+          },
+        ],
+      })
+    );
+
+    // ReadResourceRequestSchema is used for both static resources and dynamic resource templates
     this.server.setRequestHandler(
       ReadResourceRequestSchema,
       async (request) => {
@@ -644,12 +651,12 @@ npm run build
 
 ## Editing MCP Servers
 
-The user may ask to add tools or resources to an existing MCP server (listed under 'Connected MCP Servers' above: ${
+The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${
 	mcpHub
 		.getServers()
 		.map((server) => server.name)
 		.join(", ") || "(None running currently)"
-}), or may more generally ask to add functionality that may make sense to add to an existing local MCP server rather than creating a new one. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file to make changes to the files.
+}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file to make changes to the files.
 
 However some MCP servers may be running from installed packages rather than a local repository, in which case it may make more sense to create a new MCP server.
 
