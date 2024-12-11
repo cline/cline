@@ -153,7 +153,7 @@
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
     "version-packages": "changeset version && npm install --package-lock-only",
     "vscode:prepublish": "npm run package",
-    "vsix": "npx vsce package --out bin",
+    "vsix": "mkdir -p bin && npx vsce package --out bin",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
