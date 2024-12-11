@@ -70,10 +70,13 @@ Your search/replace content here
 
         const [_, searchContent, replaceContent] = match;
         
-        // Split content into lines
-        const searchLines = searchContent.trim().split('\n');
-        const replaceLines = replaceContent.trim().split('\n');
-        const originalLines = originalContent.split('\n');
+        // Detect line ending from original content
+        const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
+        
+        // Split content into lines, handling both \n and \r\n
+        const searchLines = searchContent.trim().split(/\r?\n/);
+        const replaceLines = replaceContent.trim().split(/\r?\n/);
+        const originalLines = originalContent.split(/\r?\n/);
         
         // Find the search content in the original
         let matchIndex = -1;
@@ -166,6 +169,6 @@ Your search/replace content here
         const beforeMatch = originalLines.slice(0, matchIndex);
         const afterMatch = originalLines.slice(matchIndex + searchLines.length);
         
-        return [...beforeMatch, ...indentedReplace, ...afterMatch].join('\n');
+        return [...beforeMatch, ...indentedReplace, ...afterMatch].join(lineEnding);
     }
 }

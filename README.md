@@ -7,9 +7,9 @@ A fork of Cline, an autonomous coding agent, with some added experimental config
 - Unit test coverage (written almost entirely by Roo Cline!)
 - Support for playing sound effects
 - Support for OpenRouter compression
-- Support for editing through diffs (very experimental)
 - Support for gemini-exp-1206
 - Support for copying prompts from the history screen
+- Support for editing through diffs / handling truncated full-file edits
 
 Here's an example of Roo-Cline autonomously creating a snake game with "Always approve write operations" and "Always approve browser actions" turned on:
 

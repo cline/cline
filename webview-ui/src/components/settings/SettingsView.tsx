@@ -296,7 +296,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 					<div style={{ marginBottom: 5 }}>
 						<VSCodeCheckbox checked={diffEnabled} onChange={(e: any) => setDiffEnabled(e.target.checked)}>
-							<span style={{ fontWeight: "500" }}>Enable editing through diffs (very experimental!)</span>
+							<span style={{ fontWeight: "500" }}>Enable editing through diffs</span>
 						</VSCodeCheckbox>
 						<p
 							style={{

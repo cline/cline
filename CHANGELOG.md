@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.1.18]
+
+- Diff editing bugfix to handle Windows line endings
+
 ## [2.1.17]
 
 - Switch to search/replace diffs in experimental diff editing mode

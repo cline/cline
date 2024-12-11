@@ -181,6 +181,23 @@ function test() {
             expect(result).toBe("\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}")
         })
 
+        it('should handle Windows-style CRLF line endings', () => {
+            const originalContent = "function test() {\r\n    return true;\r\n}\r\n"
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function test() {
+    return true;
+}
+=======
+function test() {
+    return false;
+}
+>>>>>>> REPLACE`
+
+            const result = strategy.applyDiff(originalContent, diffContent)
+            expect(result).toBe("function test() {\r\n    return false;\r\n}\r\n")
+        })
+
         it('should return false if search content does not match', () => {
             const originalContent = `function hello() {
     console.log("hello")
