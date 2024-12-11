@@ -74,8 +74,8 @@ Your search/replace content here
         const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
         
         // Split content into lines, handling both \n and \r\n
-        const searchLines = searchContent.trim().split(/\r?\n/);
-        const replaceLines = replaceContent.trim().split(/\r?\n/);
+        const searchLines = searchContent.split(/\r?\n/);
+        const replaceLines = replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
         
         // Find the search content in the original
@@ -130,39 +130,32 @@ Your search/replace content here
             const currentIndentMatch = line.match(/^[\t ]*/);
             const currentIndent = currentIndentMatch ? currentIndentMatch[0] : '';
             
-            // If this line has the same indentation level as the search block,
-            // use the original indentation. Otherwise, calculate the difference
-            // and preserve the exact type of whitespace characters
-            if (currentIndent.length === searchIndent.length) {
-                return originalIndent + line.trim();
-            } else {
-                // Get the corresponding search line's indentation
-                const searchLineIndex = Math.min(i, searchLines.length - 1);
-                const searchLineIndent = searchIndents[searchLineIndex];
+            // Get the corresponding search line's indentation
+            const searchLineIndex = Math.min(i, searchLines.length - 1);
+            const searchLineIndent = searchIndents[searchLineIndex];
 
-                // Get the corresponding original line's indentation
-                const originalLineIndex = Math.min(i, originalIndents.length - 1);
-                const originalLineIndent = originalIndents[originalLineIndex];
+            // Get the corresponding original line's indentation
+            const originalLineIndex = Math.min(i, originalIndents.length - 1);
+            const originalLineIndent = originalIndents[originalLineIndex];
 
-                // If this line has the same indentation as its corresponding search line,
-                // use the original indentation
-                if (currentIndent === searchLineIndent) {
-                    return originalLineIndent + line.trim();
-                }
-
-                // Otherwise, preserve the original indentation structure
-                const indentChar = originalLineIndent.charAt(0) || '\t';
-                const indentLevel = Math.floor(originalLineIndent.length / indentChar.length);
-
-                // Calculate the relative indentation from the search line
-                const searchLevel = Math.floor(searchLineIndent.length / indentChar.length);
-                const currentLevel = Math.floor(currentIndent.length / indentChar.length);
-                const relativeLevel = currentLevel - searchLevel;
-
-                // Apply the relative indentation to the original level
-                const targetLevel = Math.max(0, indentLevel + relativeLevel);
-                return indentChar.repeat(targetLevel) + line.trim();
+            // If this line has the same indentation as its corresponding search line,
+            // use the original indentation
+            if (currentIndent === searchLineIndent) {
+                return originalLineIndent + line.trim();
             }
+
+            // Otherwise, preserve the original indentation structure
+            const indentChar = originalLineIndent.charAt(0) || '\t';
+            const indentLevel = Math.floor(originalLineIndent.length / indentChar.length);
+
+            // Calculate the relative indentation from the search line
+            const searchLevel = Math.floor(searchLineIndent.length / indentChar.length);
+            const currentLevel = Math.floor(currentIndent.length / indentChar.length);
+            const relativeLevel = currentLevel - searchLevel;
+
+            // Apply the relative indentation to the original level
+            const targetLevel = Math.max(0, indentLevel + relativeLevel);
+            return indentChar.repeat(targetLevel) + line.trim();
         });
         
         // Construct the final content

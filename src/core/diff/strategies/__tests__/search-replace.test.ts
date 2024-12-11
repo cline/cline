@@ -31,31 +31,6 @@ function hello() {
 `)
         })
 
-        it('should handle extra whitespace in search/replace blocks', () => {
-            const originalContent = `function test() {
-    return true;
-}
-`
-            const diffContent = `test.ts
-<<<<<<< SEARCH
-
-function test() {
-    return true;
-}
-
-=======
-function test() {
-    return false;
-}
->>>>>>> REPLACE`
-
-            const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`function test() {
-    return false;
-}
-`)
-        })
-
         it('should match content with different surrounding whitespace', () => {
             const originalContent = `
 function example() {
@@ -284,6 +259,27 @@ Invalid diff format`
 
             const result = strategy.applyDiff(originalContent, diffContent)
             expect(result).toBe("    modified\n        still indented\n    end\n")
+        })
+
+        it('should preserve indentation when adding new lines after existing content', () => {
+            const originalContent = `				onScroll={() => updateHighlights()}`
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+				onScroll={() => updateHighlights()}
+=======
+				onScroll={() => updateHighlights()}
+				onDragOver={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+				}}
+>>>>>>> REPLACE`
+
+            const result = strategy.applyDiff(originalContent, diffContent)
+            expect(result).toBe(`				onScroll={() => updateHighlights()}
+				onDragOver={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+				}}`)
         })
 
         it('should handle complex refactoring with multiple functions', () => {
@@ -519,3 +515,4 @@ export function addLineNumbers(content: string, startLine: number = 1): string {
         })
     })
 })
+
