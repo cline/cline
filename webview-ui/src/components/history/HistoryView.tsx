@@ -462,10 +462,13 @@ export const highlight = (
 		let i: number
 
 		for (i = 0; i < pathValue.length - 1; i++) {
+			if (pathValue[i] === "__proto__" || pathValue[i] === "constructor") return
 			obj = obj[pathValue[i]] as Record<string, any>
 		}
 
-		obj[pathValue[i]] = value
+		if (pathValue[i] !== "__proto__" && pathValue[i] !== "constructor") {
+			obj[pathValue[i]] = value
+		}
 	}
 
 	// Function to merge overlapping regions
