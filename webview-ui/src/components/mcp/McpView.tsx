@@ -1,4 +1,10 @@
-import { VSCodeButton, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+} from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -96,11 +102,25 @@ const McpView = ({ onDone }: McpViewProps) => {
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<p style={{ color: "var(--vscode-foreground)", fontSize: "13px" }}>
-					MCP (Model Context Protocol) enables AI models to access external tools and data through
-					standardized interfaces. These MCP servers extend Claude's capabilities with custom functionality
-					and real-time data access.
-				</p>
+				<div
+					style={{
+						color: "var(--vscode-foreground)",
+						fontSize: "13px",
+						marginBottom: "20px",
+						marginTop: "5px",
+					}}>
+					The{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
+						Model Context Protocol
+					</VSCodeLink>{" "}
+					enables communication with locally running MCP servers that provide additional tools and resources
+					to extend Cline's capabilities. You can use{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+						community-made servers
+					</VSCodeLink>{" "}
+					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that pulls GitHub
+					issues")
+				</div>
 
 				{/* Server List */}
 				<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

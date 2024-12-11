@@ -732,7 +732,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							I can handle complex software development tasks step-by-step. With tools that let me create
 							& edit files, explore complex projects, use the browser, and execute terminal commands
 							(after you grant permission), I can assist you in ways that go beyond code completion or
-							tech support.
+							tech support. I can even use MCP to create new tools and extend my own capabilities.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}

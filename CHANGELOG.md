@@ -1,5 +1,11 @@
 # Change Log
 
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that fetches Jira tickets")
+
 ## [2.1.6]
 
 - Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
