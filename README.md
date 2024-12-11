@@ -15,7 +15,39 @@ Here's an example of Roo-Cline autonomously creating a snake game with "Always a
 
 https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
-### Publishing
+## Contributing
+To contribute to the project, start by exploring [open issues](https://github.com/RooVetGit/Roo-Cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
+
+<details>
+<summary>Local Setup</summary>
+
+1. Install dependencies:
+   ```bash
+   npm run install:all
+   ```
+
+2. Build the VSIX file:
+   ```bash
+   npm run build
+   ```
+3. The new VSIX file will be created in the `bin/` directory
+4. Install the extension from the VSIX file as described below:
+
+   - **Option 1:** Drag and drop the `.vsix` file into your VSCode-compatible editor's Extensions panel (Cmd/Ctrl+Shift+X).
+
+   - **Option 2:** Install the plugin using the CLI, make sure you have your VSCode-compatible CLI installed and in your `PATH` variable. Cursor example: `export PATH="$PATH:/Applications/Cursor.app/Contents/MacOS"`
+
+    ```bash
+    # Ex: cursor --install-extension bin/roo-cline-2.0.1.vsix
+    # Ex: code --install-extension bin/roo-cline-2.0.1.vsix
+    ```
+
+5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+
+</details>
+
+<details>
+<summary>Publishing</summary>
 We use [changesets](https://github.com/changesets/changesets) for versioning and publishing this package. To make changes:
 
 1. Create a PR with your changes
@@ -29,10 +61,16 @@ Once your merge is successful:
 - The release workflow will automatically create a new "Changeset version bump" PR
 - This PR will:
   - Update the version based on your changeset
-  - Update the CHANGELOG.md file
+  - Update the `CHANGELOG.md` file
   - Create a git tag
 - The PR will be automatically approved and merged
 - A new version and git release will be published
+
+</details>
+
+## Stay Updated!
+Subscribe to our [Github releases](https://github.com/RooVetGit/Roo-Cline/releases) to keep up with the latest updates! You can also view our [CHANGELOG.md](Roo-Cline/CHANGELOG.md) for more details.
+
 ---
 
 # Cline (prev. Claude Dev) – \#1 on OpenRouter
@@ -133,30 +171,3 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 -   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
 -   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
 -   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
-
-## Contributing
-
-To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
-
-<details>
-<summary>Local Development Instructions</summary>
-
-1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
-    ```bash
-    git clone https://github.com/cline/cline.git
-    ```
-2. Open the project in VSCode:
-    ```bash
-    code cline
-    ```
-3. Install the necessary dependencies for the extension and webview-gui:
-    ```bash
-    npm run install:all
-    ```
-4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
-
-</details>
-
-## License
-
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
