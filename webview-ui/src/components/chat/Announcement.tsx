@@ -57,7 +57,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				with others too.{" "}
 			</p>
 			<p style={{ margin: "5px 0px" }}>
-				Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
+				Try it yourself by asking Cline to "add a tool that pulls the latest npm docs", or
 				<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
 					see a demo of MCP in action here.
 				</VSCodeLink>
