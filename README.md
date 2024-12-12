@@ -88,7 +88,7 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="350" src="https://github.com/user-attachments/assets/6127f93a-c2df-4a90-a2ee-11ed768915c1">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
 
 ### "add a tool that..."
 
