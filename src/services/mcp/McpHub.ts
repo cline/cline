@@ -423,6 +423,7 @@ export class McpHub {
 				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
+				vscode.window.showErrorMessage(`Failed to connect to ${serverName} MCP server`)
 			}
 		}
 

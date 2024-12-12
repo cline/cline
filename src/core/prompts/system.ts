@@ -1,7 +1,6 @@
-import osName from "os-name"
 import defaultShell from "default-shell"
 import os from "os"
-import { McpServer } from "../../shared/mcp"
+import osName from "os-name"
 import { McpHub } from "../../services/mcp/McpHub"
 
 export const SYSTEM_PROMPT = async (
