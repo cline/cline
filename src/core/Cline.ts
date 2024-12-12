@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
+import { DiffStrategy, getDiffStrategy, UnifiedDiffStrategy } from "./diff/DiffStrategy"
 import delay from "delay"
 import fs from "fs/promises"
 import os from "os"
@@ -11,7 +12,7 @@ import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -45,7 +46,7 @@ import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { showOmissionWarning } from "../integrations/editor/detect-omission"
+import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 
 const cwd =
@@ -64,7 +65,8 @@ export class Cline {
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	alwaysAllowReadOnly: boolean
+	diffStrategy?: DiffStrategy
+
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -93,7 +95,7 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
-		alwaysAllowReadOnly?: boolean,
+		diffEnabled?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -105,8 +107,9 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-
+		if (diffEnabled && this.api.getModel().id) {
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
+		}
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.resumeTaskFromHistory()
@@ -549,8 +552,8 @@ export class Cline {
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
-						? previousAssistantMessage.content
-						: [{ type: "text", text: previousAssistantMessage.content }]
+							? previousAssistantMessage.content
+							: [{ type: "text", text: previousAssistantMessage.content }]
 
 					const toolUseBlocks = assistantContent.filter(
 						(block) => block.type === "tool_use",
@@ -751,11 +754,7 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
-		if (this.customInstructions && this.customInstructions.trim()) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addCustomInstructions(this.customInstructions)
-		}
+		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, this.diffStrategy) + await addCustomInstructions(this.customInstructions ?? '', cwd)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -837,7 +836,7 @@ export class Cline {
 					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
 					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
 					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
+					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?$/, "")
 					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
 					// - Needs to be separate since we dont want to remove the line break before the first tag
 					// - Needs to happen before the xml parsing below
@@ -881,6 +880,8 @@ export class Cline {
 						case "read_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "write_to_file":
+							return `[${block.name} for '${block.params.path}']`
+						case "apply_diff":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
 							return `[${block.name} for '${block.params.regex}'${
@@ -1102,7 +1103,32 @@ export class Cline {
 								await this.diffViewProvider.update(newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
-								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+
+								// Check for code omissions before proceeding
+								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent)) {
+									if (this.diffStrategy) {
+										await this.diffViewProvider.revertChanges()
+										pushToolResult(formatResponse.toolError(
+											"Content appears to be truncated. Found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file."
+										))
+										break
+									} else {
+										vscode.window
+											.showWarningMessage(
+												"Potential code truncation detected. This happens when the AI reaches its max output limit.",
+												"Follow this guide to fix the issue",
+											)
+											.then((selection) => {
+												if (selection === "Follow this guide to fix the issue") {
+													vscode.env.openExternal(
+														vscode.Uri.parse(
+															"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
+														),
+													)
+												}
+											})
+									}
+								}
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -1134,8 +1160,8 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1156,6 +1182,107 @@ export class Cline {
 							break
 						}
 					}
+					case "apply_diff": {
+						const relPath: string | undefined = block.params.path
+						const diffContent: string | undefined = block.params.diff
+
+						const sharedMessageProps: ClineSayTool = {
+							tool: "appliedDiff",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+						}
+
+						try {
+							if (block.partial) {
+								// update gui message
+								const partialMessage = JSON.stringify(sharedMessageProps)
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								break
+							} else {
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "path"))
+									break
+								}
+								if (!diffContent) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "diff"))
+									break
+								}
+
+								const absolutePath = path.resolve(cwd, relPath)
+								const fileExists = await fileExistsAtPath(absolutePath)
+
+								if (!fileExists) {
+									this.consecutiveMistakeCount++
+									await this.say("error", `File does not exist at path: ${absolutePath}`)
+									pushToolResult(`Error: File does not exist at path: ${absolutePath}`)
+									break
+								}
+
+								const originalContent = await fs.readFile(absolutePath, "utf-8")
+
+								// Apply the diff to the original content
+								let newContent = this.diffStrategy?.applyDiff(originalContent, diffContent) ?? false
+								if (newContent === false) {
+									this.consecutiveMistakeCount++
+									await this.say("error", `Unable to apply diff to file - contents are out of sync: ${absolutePath}`)
+									pushToolResult(`Error applying diff to file: ${absolutePath} - contents are out of sync. Try re-reading the relevant lines of the file and applying the diff again.`)
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								// Show diff view before asking for approval
+								this.diffViewProvider.editType = "modify"
+								await this.diffViewProvider.open(relPath);
+								await this.diffViewProvider.update(newContent, true);
+								await this.diffViewProvider.scrollToFirstDiff();
+
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									diff: diffContent,
+								} satisfies ClineSayTool)
+
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									await this.diffViewProvider.revertChanges() // This likely handles closing the diff view
+									break
+								}
+
+								const { newProblemsMessage, userEdits, finalContent } =
+									await this.diffViewProvider.saveChanges()
+								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+								if (userEdits) {
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: fileExists ? "editedExistingFile" : "newFileCreated",
+											path: getReadablePath(cwd, relPath),
+											diff: userEdits,
+										} satisfies ClineSayTool),
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+											`Please note:\n` +
+											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+											`2. Proceed with the task using this updated file content as the new baseline.\n` +
+											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+											`${newProblemsMessage}`,
+									)
+								} else {
+									pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
+								}
+								await this.diffViewProvider.reset()
+								break
+							}
+						} catch (error) {
+							await handleError("applying diff", error)
+							await this.diffViewProvider.reset()
+							break
+						}
+					}
 					case "read_file": {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClineSayTool = {
@@ -1168,11 +1295,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relPath) {
@@ -1186,13 +1309,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
@@ -1218,11 +1337,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1238,13 +1353,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(result)
 								break
@@ -1266,11 +1377,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1287,13 +1394,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(result)
 								break
@@ -1319,11 +1422,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!relDirPath) {
@@ -1343,13 +1442,9 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
 								}
 								pushToolResult(results)
 								break
@@ -1381,7 +1476,7 @@ export class Cline {
 									await this.ask(
 										"browser_action_launch",
 										removeClosingTag("url", url),
-										block.partial,
+										block.partial
 									).catch(() => {})
 								} else {
 									await this.say(
@@ -1510,7 +1605,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {},
+									() => {}
 								)
 								break
 							} else {
@@ -1522,6 +1617,7 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
 								const didApprove = await askApproval("command", command)
 								if (!didApprove) {
 									break

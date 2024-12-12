@@ -2,6 +2,13 @@ out
 dist
 node_modules
 .vscode-test/
-*.vsix
 
 .DS_Store
+
+# Builds
+bin
+roo-cline-*.vsix
+
+# Local prompts
+prompts
+.clinerules

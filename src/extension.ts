@@ -27,6 +27,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 	outputChannel.appendLine("Cline extension activated")
 
+	// Get default commands from configuration
+	const defaultCommands = vscode.workspace
+		.getConfiguration('roo-cline')
+		.get<string[]>('allowedCommands') || [];
+
+	// Initialize global state if not already set
+	if (!context.globalState.get('allowedCommands')) {
+		context.globalState.update('allowedCommands', defaultCommands);
+	}
+
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
@@ -36,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
+		vscode.commands.registerCommand("roo-cline.plusButtonClicked", async () => {
 			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
@@ -67,8 +77,8 @@ export function activate(context: vscode.ExtensionContext) {
 		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 
 		panel.iconPath = {
-			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
-			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
+			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "rocket.png"),
+			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "rocket.png"),
 		}
 		tabProvider.resolveWebviewView(panel)
 
@@ -77,24 +87,24 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("roo-cline.popoutButtonClicked", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("roo-cline.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
+		vscode.commands.registerCommand("roo-cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
 			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
+		vscode.commands.registerCommand("roo-cline.historyButtonClicked", () => {
 			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addToContext", async (uri: vscode.Uri) => {
+		vscode.commands.registerCommand("roo-cline.addToContext", async (uri: vscode.Uri) => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				return
@@ -118,7 +128,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addAllOpenToContext", async () => {
+		vscode.commands.registerCommand("roo-cline.addAllOpenToContext", async () => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				return
@@ -148,7 +158,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addActiveToContext", async () => {
+		vscode.commands.registerCommand("roo-cline.addActiveToContext", async () => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				return

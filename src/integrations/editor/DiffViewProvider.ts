@@ -124,17 +124,18 @@ export class DiffViewProvider {
 				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
 				await vscode.workspace.applyEdit(edit)
 			}
-			// Add empty last line if original content had one
+			// Preserve empty last line if original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
+			if (hasEmptyLastLine && !accumulatedContent.endsWith("\n")) {
+				accumulatedContent += "\n"
 			}
-			// Clear all decorations at the end (before applying final edit)
-			this.fadedOverlayController.clear()
-			this.activeLineController.clear()
+			// Apply the final content
+			const finalEdit = new vscode.WorkspaceEdit()
+			finalEdit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), accumulatedContent)
+						await vscode.workspace.applyEdit(finalEdit)
+						// Clear all decorations at the end (after applying final edit)
+						this.fadedOverlayController.clear()
+						this.activeLineController.clear()
 		}
 	}
 

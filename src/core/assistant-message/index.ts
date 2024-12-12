@@ -12,6 +12,7 @@ export const toolUseNames = [
 	"execute_command",
 	"read_file",
 	"write_to_file",
+	"apply_diff",
 	"search_files",
 	"list_files",
 	"list_code_definition_names",
@@ -36,6 +37,7 @@ export const toolParamNames = [
 	"text",
 	"question",
 	"result",
+	"diff",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

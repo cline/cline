@@ -20,6 +20,7 @@ import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
+import { playSound, setSoundEnabled } from "../../utils/sound"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -46,6 +47,9 @@ type GlobalStateKey =
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
+	| "alwaysAllowWrite"
+	| "alwaysAllowExecute"
+	| "alwaysAllowBrowser"
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
@@ -57,6 +61,10 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "openRouterUseMiddleOutTransform"
+	| "allowedCommands"
+	| "soundEnabled"
+	| "diffEnabled"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -65,8 +73,8 @@ export const GlobalFileNames = {
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	public static readonly sideBarId = "roo-cline.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
+	public static readonly tabPanelId = "roo-cline.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
@@ -190,19 +198,36 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
-		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
+		await this.clearTask()
+		const { 
+			apiConfiguration, 
+			customInstructions, 
+			diffEnabled,
+		} = await this.getState()
+		
+		this.cline = new Cline(
+			this, 
+			apiConfiguration, 
+			customInstructions, 
+			diffEnabled,
+			task, 
+			images
+		)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { 
+			apiConfiguration, 
+			customInstructions, 
+			diffEnabled,
+		} = await this.getState()
+		
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly,
+			diffEnabled,
 			undefined,
 			undefined,
 			historyItem,
@@ -372,6 +397,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
+								openRouterUseMiddleOutTransform,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -397,6 +423,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -408,9 +435,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowReadOnly":
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowReadOnly = message.bool ?? false
-						}
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowWrite":
+						await this.updateGlobalState("alwaysAllowWrite", message.bool ?? undefined)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowExecute":
+						await this.updateGlobalState("alwaysAllowExecute", message.bool ?? undefined)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowBrowser":
+						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -485,8 +521,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
+					case "allowedCommands":
+						await this.context.globalState.update('allowedCommands', message.commands);
+						// Also update workspace settings
+						await vscode.workspace
+							.getConfiguration('roo-cline')
+							.update('allowedCommands', message.commands, vscode.ConfigurationTarget.Global);
+						break;
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
+					case "playSound":
+						if (message.audioType) {
+							const soundPath = path.join(this.context.extensionPath, "audio", `${message.audioType}.wav`)
+							playSound(soundPath)
+						}
+						break
+					case "soundEnabled":
+						const soundEnabled = message.bool ?? true
+						await this.updateGlobalState("soundEnabled", soundEnabled)
+						setSoundEnabled(soundEnabled)  // Add this line to update the sound utility
+						await this.postStateToWebview()
+						break
+					case "diffEnabled":
+						const diffEnabled = message.bool ?? true
+						await this.updateGlobalState("diffEnabled", diffEnabled)
+						await this.postStateToWebview()
+						break
 				}
 			},
 			null,
@@ -770,7 +830,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		await this.updateGlobalState("taskHistory", updatedTaskHistory)
 
@@ -784,17 +844,40 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async getStateToPostToWebview() {
-		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
-			await this.getState()
+		const { 
+			apiConfiguration, 
+			lastShownAnnouncementId, 
+			customInstructions,
+			alwaysAllowReadOnly,
+			alwaysAllowWrite,
+			alwaysAllowExecute,
+			alwaysAllowBrowser,
+			soundEnabled,
+			diffEnabled,
+			taskHistory,
+		} = await this.getState()
+		
+		const allowedCommands = vscode.workspace
+			.getConfiguration('roo-cline')
+			.get<string[]>('allowedCommands') || []
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
-			alwaysAllowReadOnly,
+			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			alwaysAllowWrite: alwaysAllowWrite ?? false,
+			alwaysAllowExecute: alwaysAllowExecute ?? false,
+			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
-			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+			taskHistory: (taskHistory || [])
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts),
+			soundEnabled: soundEnabled ?? false,
+			diffEnabled: diffEnabled ?? false,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			allowedCommands,
 		}
 	}
 
@@ -875,10 +958,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterUseMiddleOutTransform,
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
+			alwaysAllowWrite,
+			alwaysAllowExecute,
+			alwaysAllowBrowser,
 			taskHistory,
+			allowedCommands,
+			soundEnabled,
+			diffEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -904,10 +994,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterUseMiddleOutTransform") as Promise<boolean | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowWrite") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
+			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -950,11 +1047,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterUseMiddleOutTransform,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			alwaysAllowWrite: alwaysAllowWrite ?? false,
+			alwaysAllowExecute: alwaysAllowExecute ?? false,
+			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			taskHistory,
+			allowedCommands,
+			soundEnabled,
+			diffEnabled,
 		}
 	}
 

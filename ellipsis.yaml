@@ -1,0 +1,22 @@
+version: 1.3
+pr_review:
+  
+  # Modify confidence_threshold to show fewer/more comments. Increase this to show fewer, but higher quality comments. 
+  # If there’s too much noise, we suggest 0.9. The default value is 0.7.
+  confidence_threshold: 0.7
+  
+  # If quiet mode is enabled, Ellipsis will only leave reviews when it has comments, so “Looks good to me” reviews 
+  # will be skipped. This can reduce clutter.
+  quiet: true
+  
+  # You can disable automatic code review using auto_review_enabled. This will override any global settings you 
+  # have configured via the web UI.
+  auto_review_enabled: true
+
+  # You can enable auto-review on draft PRs using auto_review_draft. This will override any global settings you 
+  # have configured via the web UI.
+  auto_review_draft: false
+  
+  # You can allow Ellipsis to approve PRs using enable_approve_prs. Note: in common branch GitHub protection configurations,
+  # the Ellipsis approval will count towards the approval total and allow the PR to be merged when it otherwise may not be.
+  enable_approve_prs: false
