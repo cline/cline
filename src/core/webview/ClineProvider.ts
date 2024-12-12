@@ -529,7 +529,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async ensureMcpServersDirectoryExists(): Promise<string> {
 		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
-		await fs.mkdir(mcpServersDir, { recursive: true })
+		try {
+			await fs.mkdir(mcpServersDir, { recursive: true })
+		} catch (error) {
+			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+		}
 		return mcpServersDir
 	}
 
