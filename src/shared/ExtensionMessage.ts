@@ -2,6 +2,7 @@
 
 import { ApiConfiguration, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
+import { McpServer } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -10,20 +11,29 @@ export interface ExtensionMessage {
 		| "state"
 		| "selectedImages"
 		| "ollamaModels"
+		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "mcpServers"
 	text?: string
-	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
+	lmStudioModels?: string[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	mcpServers?: McpServer[]
 }
 
 export interface ExtensionState {
@@ -59,6 +69,7 @@ export type ClineAsk =
 	| "resume_completed_task"
 	| "mistake_limit_reached"
 	| "browser_action_launch"
+	| "use_mcp_server"
 
 export type ClineSay =
 	| "task"
@@ -75,6 +86,8 @@ export type ClineSay =
 	| "shell_integration_warning"
 	| "browser_action"
 	| "browser_action_result"
+	| "mcp_server_request_started"
+	| "mcp_server_response"
 
 export interface ClineSayTool {
 	tool:
@@ -107,6 +120,14 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
+}
+
+export interface ClineAskUseMcpServer {
+	serverName: string
+	type: "use_mcp_tool" | "access_mcp_resource"
+	toolName?: string
+	arguments?: string
+	uri?: string
 }
 
 export interface ClineApiReqInfo {

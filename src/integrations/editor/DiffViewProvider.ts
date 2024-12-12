@@ -36,7 +36,7 @@ export class DiffViewProvider {
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
 			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, absolutePath)
+				arePathsEqual(doc.uri.fsPath, absolutePath),
 			)
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
@@ -64,7 +64,7 @@ export class DiffViewProvider {
 			.map((tg) => tg.tabs)
 			.flat()
 			.filter(
-				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath)
+				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath),
 			)
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
@@ -321,7 +321,7 @@ export class DiffViewProvider {
 			[
 				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
 			],
-			this.cwd
+			this.cwd,
 		) // will be empty string if no errors
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
@@ -336,7 +336,7 @@ export class DiffViewProvider {
 			const userEdits = formatResponse.createPrettyPatch(
 				this.relPath.toPosix(),
 				normalizedNewContent,
-				normalizedEditedContent
+				normalizedEditedContent,
 			)
 			return { newProblemsMessage, userEdits, finalContent: normalizedEditedContent }
 		} else {
@@ -369,7 +369,7 @@ export class DiffViewProvider {
 			const edit = new vscode.WorkspaceEdit()
 			const fullRange = new vscode.Range(
 				updatedDocument.positionAt(0),
-				updatedDocument.positionAt(updatedDocument.getText().length)
+				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
 			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
 			// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
@@ -393,7 +393,8 @@ export class DiffViewProvider {
 			.flatMap((tg) => tg.tabs)
 			.filter(
 				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME
+					tab.input instanceof vscode.TabInputTextDiff &&
+					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME,
 			)
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
@@ -415,7 +416,7 @@ export class DiffViewProvider {
 				(tab) =>
 					tab.input instanceof vscode.TabInputTextDiff &&
 					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME &&
-					arePathsEqual(tab.input.modified.fsPath, uri.fsPath)
+					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
 			const editor = await vscode.window.showTextDocument(diffTab.input.modified)
@@ -467,7 +468,7 @@ export class DiffViewProvider {
 			const scrollLine = line + 4
 			this.activeDiffEditor.revealRange(
 				new vscode.Range(scrollLine, 0, scrollLine, 0),
-				vscode.TextEditorRevealType.InCenter
+				vscode.TextEditorRevealType.InCenter,
 			)
 		}
 	}
@@ -484,7 +485,7 @@ export class DiffViewProvider {
 				// Found the first diff, scroll to it
 				this.activeDiffEditor.revealRange(
 					new vscode.Range(lineCount, 0, lineCount, 0),
-					vscode.TextEditorRevealType.InCenter
+					vscode.TextEditorRevealType.InCenter,
 				)
 				return
 			}

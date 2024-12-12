@@ -25,7 +25,7 @@ export async function selectImages(): Promise<string[]> {
 			const mimeType = getMimeType(imagePath)
 			const dataUrl = `data:${mimeType};base64,${base64}`
 			return dataUrl
-		})
+		}),
 	)
 }
 

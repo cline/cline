@@ -15,6 +15,7 @@ body:
               - AWS Bedrock
               - OpenAI
               - OpenAI Compatible
+              - LM Studio
               - Ollama
       validations:
           required: true

@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -10,6 +11,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
@@ -41,6 +43,7 @@ type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "awsUseCrossRegionInference"
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
@@ -51,6 +54,8 @@ type GlobalStateKey =
 	| "openAiModelId"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
+	| "lmStudioModelId"
+	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
 	| "openRouterModelId"
@@ -61,6 +66,7 @@ export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
+	mcpSettings: "cline_mcp_settings.json",
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
@@ -71,12 +77,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	private latestAnnouncementId = "oct-28-2024"
+	mcpHub?: McpHub
+	private latestAnnouncementId = "dec-10-2024"
 
-	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
+	constructor(
+		readonly context: vscode.ExtensionContext,
+		private readonly outputChannel: vscode.OutputChannel,
+	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
+		this.mcpHub = new McpHub(this)
 	}
 
 	/*
@@ -100,6 +111,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
+		this.mcpHub?.dispose()
+		this.mcpHub = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -109,7 +122,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	resolveWebviewView(
-		webviewView: vscode.WebviewView | vscode.WebviewPanel
+		webviewView: vscode.WebviewView | vscode.WebviewPanel,
 		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
 		//token: vscode.CancellationToken
 	): void | Thenable<void> {
@@ -142,7 +155,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
@@ -153,7 +166,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		}
 
@@ -164,7 +177,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.dispose()
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// Listen for when color changes
@@ -176,7 +189,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// if the extension is starting a new session, clear previous task state
@@ -201,7 +214,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowReadOnly,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
 		)
 	}
 
@@ -305,7 +318,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths()
 						getTheme().then((theme) =>
-							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
+							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) }),
 						)
 						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
@@ -323,7 +336,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								if (apiConfiguration.openRouterModelId) {
 									await this.updateGlobalState(
 										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId]
+										openRouterModels[apiConfiguration.openRouterModelId],
 									)
 									await this.postStateToWebview()
 								}
@@ -352,6 +365,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								awsSecretKey,
 								awsSessionToken,
 								awsRegion,
+								awsUseCrossRegionInference,
 								vertexProjectId,
 								vertexRegion,
 								openAiBaseUrl,
@@ -359,6 +373,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiModelId,
 								ollamaModelId,
 								ollamaBaseUrl,
+								lmStudioModelId,
+								lmStudioBaseUrl,
 								anthropicBaseUrl,
 								geminiApiKey,
 								openAiNativeApiKey,
@@ -374,6 +390,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
+							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
@@ -381,6 +398,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
+							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
@@ -441,6 +460,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const ollamaModels = await this.getOllamaModels(message.text)
 						this.postMessageToWebview({ type: "ollamaModels", ollamaModels })
 						break
+					case "requestLmStudioModels":
+						const lmStudioModels = await this.getLmStudioModels(message.text)
+						this.postMessageToWebview({ type: "lmStudioModels", lmStudioModels })
+						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
 						break
@@ -485,12 +508,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						setSoundEnabled(enabled)
 						await this.postStateToWebview()
 						break
+					case "openMcpSettings": {
+						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+						if (mcpSettingsFilePath) {
+							openFile(mcpSettingsFilePath)
+						}
+						break
+					}
+					case "restartMcpServer": {
+						try {
+							await this.mcpHub?.restartConnection(message.text!)
+						} catch (error) {
+							console.error(`Failed to retry connection for ${message.text}:`, error)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 	}
 
@@ -501,6 +539,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.cline.customInstructions = instructions || undefined
 		}
 		await this.postStateToWebview()
+	}
+
+	// MCP
+
+	async ensureMcpServersDirectoryExists(): Promise<string> {
+		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		try {
+			await fs.mkdir(mcpServersDir, { recursive: true })
+		} catch (error) {
+			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+		}
+		return mcpServersDir
+	}
+
+	async ensureSettingsDirectoryExists(): Promise<string> {
+		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
+		await fs.mkdir(settingsDir, { recursive: true })
+		return settingsDir
 	}
 
 	// Ollama
@@ -515,6 +571,25 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 			const response = await axios.get(`${baseUrl}/api/tags`)
 			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+			const models = [...new Set<string>(modelsArray)]
+			return models
+		} catch (error) {
+			return []
+		}
+	}
+
+	// LM Studio
+
+	async getLmStudioModels(baseUrl?: string) {
+		try {
+			if (!baseUrl) {
+				baseUrl = "http://localhost:1234"
+			}
+			if (!URL.canParse(baseUrl)) {
+				return []
+			}
+			const response = await axios.get(`${baseUrl}/v1/models`)
+			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
 		} catch (error) {
@@ -557,7 +632,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.openRouterModels
+			GlobalFileNames.openRouterModels,
 		)
 		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 		if (fileExists) {
@@ -570,7 +645,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.openRouterModels
+			GlobalFileNames.openRouterModels,
 		)
 
 		let models: Record<string, ModelInfo> = {}
@@ -764,27 +839,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.postMessageToWebview({ type: "state", state })
 	}
 
-async getStateToPostToWebview() {
-    const {
-        apiConfiguration,
-        lastShownAnnouncementId,
-        customInstructions,
-        alwaysAllowReadOnly,
-        taskHistory,
-        soundEnabled,
-    } = await this.getState()
-    return {
-        version: this.context.extension?.packageJSON?.version ?? "",
-        apiConfiguration,
-        customInstructions,
-        alwaysAllowReadOnly,
-        uriScheme: vscode.env.uriScheme,
-        clineMessages: this.cline?.clineMessages || [],
-        soundEnabled: soundEnabled ?? true,
-        taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
-        shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
-    }
-}
+	async getStateToPostToWebview() {
+		const {
+			apiConfiguration,
+			lastShownAnnouncementId,
+			customInstructions,
+			alwaysAllowReadOnly,
+			taskHistory,
+			soundEnabled,
+		} = await this.getState()
+		return {
+			version: this.context.extension?.packageJSON?.version ?? "",
+			apiConfiguration,
+			customInstructions,
+			alwaysAllowReadOnly,
+			uriScheme: vscode.env.uriScheme,
+			clineMessages: this.cline?.clineMessages || [],
+			soundEnabled: soundEnabled ?? true,
+			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+		}
+	}
 
 async clearTask() {
 	this.cline?.abortTask()
@@ -837,80 +912,9 @@ https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
 https://www.eliostruyf.com/devhack-code-extension-storage-options/
 */
 
-async getState() {
-	const [
-		storedApiProvider,
-		apiModelId,
-		apiKey,
-		openRouterApiKey,
-		awsAccessKey,
-		awsSecretKey,
-		awsSessionToken,
-		awsRegion,
-		vertexProjectId,
-		vertexRegion,
-		openAiBaseUrl,
-		openAiApiKey,
-		openAiModelId,
-		ollamaModelId,
-		ollamaBaseUrl,
-		anthropicBaseUrl,
-		geminiApiKey,
-		openAiNativeApiKey,
-		azureApiVersion,
-		openRouterModelId,
-		openRouterModelInfo,
-		lastShownAnnouncementId,
-		customInstructions,
-		alwaysAllowReadOnly,
-		taskHistory,
-		soundEnabled,
-	] = await Promise.all([
-		this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-		this.getGlobalState("apiModelId") as Promise<string | undefined>,
-		this.getSecret("apiKey") as Promise<string | undefined>,
-		this.getSecret("openRouterApiKey") as Promise<string | undefined>,
-		this.getSecret("awsAccessKey") as Promise<string | undefined>,
-		this.getSecret("awsSecretKey") as Promise<string | undefined>,
-		this.getSecret("awsSessionToken") as Promise<string | undefined>,
-		this.getGlobalState("awsRegion") as Promise<string | undefined>,
-		this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
-		this.getGlobalState("vertexRegion") as Promise<string | undefined>,
-		this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
-		this.getSecret("openAiApiKey") as Promise<string | undefined>,
-		this.getGlobalState("openAiModelId") as Promise<string | undefined>,
-		this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
-		this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
-		this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
-		this.getSecret("geminiApiKey") as Promise<string | undefined>,
-		this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
-		this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
-		this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
-		this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-		this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-		this.getGlobalState("customInstructions") as Promise<string | undefined>,
-		this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-		this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-		this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
-	])
-
-	let apiProvider: ApiProvider
-	if (storedApiProvider) {
-		apiProvider = storedApiProvider
-	} else {
-		// Either new user or legacy user that doesn't have the apiProvider stored in state
-		// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-		if (apiKey) {
-			apiProvider = "anthropic"
-		} else {
-			// New users should default to openrouter
-			apiProvider = "openrouter"
-		}
-	}
-
-	return {
-		apiConfiguration: {
-			apiProvider,
+	async getState() {
+		const [
+			storedApiProvider,
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
@@ -918,6 +922,7 @@ async getState() {
 			awsSecretKey,
 			awsSessionToken,
 			awsRegion,
+			awsUseCrossRegionInference,
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -925,32 +930,112 @@ async getState() {
 			openAiModelId,
 			ollamaModelId,
 			ollamaBaseUrl,
+			lmStudioModelId,
+			lmStudioBaseUrl,
 			anthropicBaseUrl,
 			geminiApiKey,
 			openAiNativeApiKey,
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
-		},
-		lastShownAnnouncementId,
-		customInstructions,
-		alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-		taskHistory,
-	soundEnabled: soundEnabled ?? true,
-}
-}
+			lastShownAnnouncementId,
+			customInstructions,
+			alwaysAllowReadOnly,
+			taskHistory,
+			soundEnabled,
+		] = await Promise.all([
+			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
+			this.getGlobalState("apiModelId") as Promise<string | undefined>,
+			this.getSecret("apiKey") as Promise<string | undefined>,
+			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+			this.getSecret("awsAccessKey") as Promise<string | undefined>,
+			this.getSecret("awsSecretKey") as Promise<string | undefined>,
+			this.getSecret("awsSessionToken") as Promise<string | undefined>,
+			this.getGlobalState("awsRegion") as Promise<string | undefined>,
+			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
+			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
+			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
+			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
+			this.getSecret("openAiApiKey") as Promise<string | undefined>,
+			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
+			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
+			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+			this.getSecret("geminiApiKey") as Promise<string | undefined>,
+			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
+			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
+			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
+			this.getGlobalState("customInstructions") as Promise<string | undefined>,
+			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
+		])
 
-async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-	const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
-	const existingItemIndex = history.findIndex((h) => h.id === item.id)
-	if (existingItemIndex !== -1) {
-		history[existingItemIndex] = item
-	} else {
-		history.push(item)
+		let apiProvider: ApiProvider
+		if (storedApiProvider) {
+			apiProvider = storedApiProvider
+		} else {
+			// Either new user or legacy user that doesn't have the apiProvider stored in state
+			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
+			if (apiKey) {
+				apiProvider = "anthropic"
+			} else {
+				// New users should default to openrouter
+				apiProvider = "openrouter"
+			}
+		}
+
+		return {
+			apiConfiguration: {
+				apiProvider,
+				apiModelId,
+				apiKey,
+				openRouterApiKey,
+				awsAccessKey,
+				awsSecretKey,
+				awsSessionToken,
+				awsRegion,
+				awsUseCrossRegionInference,
+				vertexProjectId,
+				vertexRegion,
+				openAiBaseUrl,
+				openAiApiKey,
+				openAiModelId,
+				ollamaModelId,
+				ollamaBaseUrl,
+				lmStudioModelId,
+				lmStudioBaseUrl,
+				anthropicBaseUrl,
+				geminiApiKey,
+				openAiNativeApiKey,
+				azureApiVersion,
+				openRouterModelId,
+				openRouterModelInfo,
+			},
+			lastShownAnnouncementId,
+			customInstructions,
+			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			taskHistory,
+			soundEnabled: soundEnabled ?? true,
+		}
 	}
-	await this.updateGlobalState("taskHistory", history)
-	return history
-}
+
+	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+		const existingItemIndex = history.findIndex((h) => h.id === item.id)
+		if (existingItemIndex !== -1) {
+			history[existingItemIndex] = item
+		} else {
+			history.push(item)
+		}
+		await this.updateGlobalState("taskHistory", history)
+		return history
+	}
+
 
 // global
 

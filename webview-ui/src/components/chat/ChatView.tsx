@@ -181,6 +181,13 @@ useEffect(() => {
 							setPrimaryButtonText(`Proceed While Running${countdown !== null ? ` (${countdown})` : ''}`)
 							setSecondaryButtonText(undefined)
 							break
+						case "use_mcp_server":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("use_mcp_server")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
+							break
 						case "completion_result":
 							playSoundOnMessage("celebration")
 							setTextAreaDisabled(isPartial)
@@ -227,6 +234,8 @@ useEffect(() => {
 						case "browser_action":
 						case "browser_action_result":
 						case "command_output":
+						case "mcp_server_request_started":
+						case "mcp_server_response":
 						case "completion_result":
 						case "tool":
 							break
@@ -301,6 +310,7 @@ useEffect(() => {
 						case "browser_action_launch":
 						case "command": // user can provide feedback to a tool or command use
 						case "command_output": // user can send input to command stdin
+						case "use_mcp_server":
 						case "completion_result": // if this happens then the user has feedback for the completion result
 						case "resume_task":
 						case "resume_completed_task":
@@ -325,7 +335,7 @@ useEffect(() => {
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk]
+		[messages.length, clineAsk],
 	)
 
 	const startNewTask = useCallback(() => {
@@ -342,6 +352,7 @@ useEffect(() => {
 			case "command_output":
 			case "tool":
 			case "browser_action_launch":
+			case "use_mcp_server":
 			case "resume_task":
 			case "mistake_limit_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
@@ -375,6 +386,7 @@ useEffect(() => {
 			case "command":
 			case "tool":
 			case "browser_action_launch":
+			case "use_mcp_server":
 				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
@@ -451,7 +463,7 @@ useEffect(() => {
 					const newImages = message.images ?? []
 					if (newImages.length > 0) {
 						setSelectedImages((prevImages) =>
-							[...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE)
+							[...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE),
 						)
 					}
 					break
@@ -477,7 +489,7 @@ useEffect(() => {
 			handleSendMessage,
 			handlePrimaryButtonClick,
 			handleSecondaryButtonClick,
-		]
+		],
 	)
 
 	useEvent("message", handleMessage)
@@ -522,6 +534,8 @@ useEffect(() => {
 						return false
 					}
 					break
+				case "mcp_server_request_started":
+					return false
 			}
 			return true
 		})
@@ -615,9 +629,9 @@ useEffect(() => {
 					})
 				},
 				10,
-				{ immediate: true }
+				{ immediate: true },
 			),
-		[]
+		[],
 	)
 
 	const scrollToBottomAuto = useCallback(() => {
@@ -679,7 +693,7 @@ useEffect(() => {
 				}
 			}
 		},
-		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom]
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -694,7 +708,7 @@ useEffect(() => {
 				}
 			}
 		},
-		[scrollToBottomSmooth, scrollToBottomAuto]
+		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
 	useEffect(() => {
@@ -757,7 +771,7 @@ useEffect(() => {
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange]
+		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
 
 	return (
@@ -806,7 +820,7 @@ useEffect(() => {
                             I can handle complex software development tasks step-by-step. With tools that let me create
                             & edit files, explore complex projects, use the browser, and execute terminal commands
                             (after you grant permission), I can assist you in ways that go beyond code completion or
-                            tech support.
+							tech support. I can even use MCP to create new tools and extend my own capabilities.
                         </p>
                     </div>
                     {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
@@ -911,6 +925,7 @@ useEffect(() => {
                     }
                 }}
             />
+			
 		</div>
 	)
 }

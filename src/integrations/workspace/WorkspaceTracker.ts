@@ -52,7 +52,7 @@ class WorkspaceTracker {
 		await Promise.all(
 			event.files.map(async (file) => {
 				await this.addFilePath(file.fsPath)
-			})
+			}),
 		)
 		this.workspaceDidUpdate()
 	}
@@ -64,7 +64,7 @@ class WorkspaceTracker {
 				if (await this.removeFilePath(file.fsPath)) {
 					updated = true
 				}
-			})
+			}),
 		)
 		if (updated) {
 			this.workspaceDidUpdate()
@@ -76,7 +76,7 @@ class WorkspaceTracker {
 			event.files.map(async (file) => {
 				await this.removeFilePath(file.oldUri.fsPath)
 				await this.addFilePath(file.newUri.fsPath)
-			})
+			}),
 		)
 		this.workspaceDidUpdate()
 	}

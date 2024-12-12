@@ -19,6 +19,7 @@ export interface WebviewMessage {
 		| "exportTaskWithId"
 		| "resetState"
 		| "requestOllamaModels"
+		| "requestLmStudioModels"
 		| "openImage"
 		| "openFile"
 		| "openMention"
@@ -27,6 +28,8 @@ export interface WebviewMessage {
 		| "setAutoAccept"
 		| "playSound"
 		| "soundEnabled"
+		| "openMcpSettings"
+		| "restartMcpServer"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

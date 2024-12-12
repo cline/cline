@@ -1,5 +1,23 @@
 # Change Log
 
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that gets the latest npm docs")
+
+## [2.1.6]
+
+- Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
+
+## [2.1.5]
+
+- Add support for prompt caching for new Claude model IDs on OpenRouter (e.g. `anthropic/claude-3.5-sonnet-20240620`)
+
+## [2.1.4]
+
+- AWS Bedrock fixes (add missing regions, support for cross-region inference, and older Sonnet model for regions where new model is not available)
+
 ## [2.1.3]
 
 - Add support for Claude 3.5 Haiku, 66% cheaper than Sonnet with similar intelligence

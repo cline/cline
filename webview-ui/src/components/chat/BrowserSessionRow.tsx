@@ -91,7 +91,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						nextActionMessages.length > 0
 							? {
 									messages: [...nextActionMessages],
-							  }
+								}
 							: undefined,
 				})
 
@@ -121,7 +121,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					nextActionMessages.length > 0
 						? {
 								messages: [...nextActionMessages],
-						  }
+							}
 						: undefined,
 			})
 		}
@@ -167,13 +167,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || "700,400",
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
-		  }
+			}
 		: {
 				url: currentPage?.currentState.url || initialUrl,
 				mousePosition: currentPage?.currentState.mousePosition || "700,400",
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot,
-		  }
+			}
 
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
@@ -188,7 +188,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
 			)}
-		</div>
+		</div>,
 	)
 
 	useEffect(() => {
@@ -381,7 +381,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					</div>
 				</div>
 			)}
-		</div>
+		</div>,
 	)
 
 	// Height change effect

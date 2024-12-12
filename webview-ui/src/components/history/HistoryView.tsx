@@ -430,7 +430,7 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
 export const highlight = (
 	fuseSearchResult: FuseResult<any>[],
-	highlightClassName: string = "history-item-highlight"
+	highlightClassName: string = "history-item-highlight",
 ) => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")

@@ -25,13 +25,13 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 				images: images,
 			})
 			outputChannel.appendLine(
-				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`
+				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
 			)
 		},
 
 		sendMessage: async (message?: string, images?: string[]) => {
 			outputChannel.appendLine(
-				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`
+				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",

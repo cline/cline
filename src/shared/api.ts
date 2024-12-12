@@ -5,6 +5,7 @@ export type ApiProvider =
 	| "vertex"
 	| "openai"
 	| "ollama"
+	| "lmstudio"
 	| "gemini"
 	| "openai-native"
 
@@ -19,6 +20,7 @@ export interface ApiHandlerOptions {
 	awsSecretKey?: string
 	awsSessionToken?: string
 	awsRegion?: string
+	awsUseCrossRegionInference?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -26,6 +28,8 @@ export interface ApiHandlerOptions {
 	openAiModelId?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
@@ -136,6 +140,14 @@ export const bedrockModels = {
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 	},
+	"anthropic.claude-3-sonnet-20240229-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	"anthropic.claude-3-haiku-20240307-v1:0": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
@@ -223,7 +235,7 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-flash-002"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-exp"
 export const geminiModels = {
 	"gemini-2.0-flash-exp": {
 		maxTokens: 8192,

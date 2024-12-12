@@ -5,7 +5,7 @@ export function calculateApiCost(
 	inputTokens: number,
 	outputTokens: number,
 	cacheCreationInputTokens?: number,
-	cacheReadInputTokens?: number
+	cacheReadInputTokens?: number,
 ): number {
 	const modelCacheWritesPrice = modelInfo.cacheWritesPrice
 	let cacheWritesCost = 0

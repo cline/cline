@@ -47,6 +47,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model ID."
 				}
 				break
+			case "lmstudio":
+				if (!apiConfiguration.lmStudioModelId) {
+					return "You must provide a valid model ID."
+				}
+				break
 		}
 	}
 	return undefined
@@ -54,7 +59,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,
-	openRouterModels?: Record<string, ModelInfo>
+	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
