@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.1.20",
+  "version": "2.1.21",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -153,7 +153,7 @@
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
     "version-packages": "changeset version && npm install --package-lock-only",
     "vscode:prepublish": "npm run package",
-    "vsix": "npx vsce package --out bin",
+    "vsix": "mkdir -p bin && npx vsce package --out bin",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -215,7 +215,7 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
-        "npx eslint -c .eslintrc.json"
+      "npx eslint -c .eslintrc.json"
     ]
   }
 }

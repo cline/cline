@@ -96,11 +96,6 @@ jobs:
           echo "version=$VERSION"
           echo "prev_version=$PREV_VERSION"
 
-      # Generate base prompt for OpenAI, GITHUB_OUTPUT: 'BASE_PROMPT'
-      - name: Release Notes Prompt
-        id: ai_prompt
-        run: python .github/scripts/release-notes-prompt.py
-
       # Get previous version refs, GITHUB_OUTPUT: 'BASE_REF' and 'HEAD_REF'
       - name: Get Previous Version Refs
         id: version_refs
@@ -109,7 +104,7 @@ jobs:
       # Generate release notes using OpenAI if not already edited, GITHUB_OUTPUT: 'RELEASE_NOTES' and 'OPENAI_PROMPT'
       - name: AI Release Notes
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'openai-edited') }}
-        uses: RooVetGit/Roo-GHA/.github/actions/ai-release-notes@main
+        uses: ./.github/actions/ai-release-notes
         id: ai_release_notes
         with:
           GHA_PAT: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
@@ -118,7 +113,6 @@ jobs:
           repo_path: ${{ env.REPO_PATH }}
           base_ref: ${{ steps.version_refs.outputs.base_ref }}
           head_ref: ${{ steps.version_refs.outputs.head_ref }}
-          custom_prompt: ${{ steps.ai_prompt.outputs.BASE_PROMPT }}
 
       # Update CHANGELOG.md with AI-generated notes
       - name: Update Changeset Changelog
