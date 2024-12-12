@@ -445,6 +445,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<div style={{ display: 'flex', alignItems: 'center' }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.includeStreamOptions ?? true}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked
+								setApiConfiguration({
+									...apiConfiguration,
+									includeStreamOptions: isChecked
+								})
+							}}>
+							Include stream options
+						</VSCodeCheckbox>
+						<span
+							className="codicon codicon-info"
+							title="Stream options are for { include_usage: true }. Some providers may not support this option."
+							style={{ marginLeft: '5px', cursor: 'help' }}
+						></span>
+					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {

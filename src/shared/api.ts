@@ -35,6 +35,7 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
 	includeStreamOptions?: boolean
+	setAzureApiVersion?: boolean
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

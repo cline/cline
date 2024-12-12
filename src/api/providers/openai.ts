@@ -45,7 +45,7 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 		}
 
-		if (this.options.includeStreamOptions) {
+		if (this.options.includeStreamOptions ?? true) {
 			requestOptions.stream_options = { include_usage: true }
 		}
 
