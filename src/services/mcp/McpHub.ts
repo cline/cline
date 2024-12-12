@@ -222,7 +222,10 @@ export class McpHub {
 					if (connection) {
 						// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
 						this.appendErrorMessage(connection, errorOutput)
-						await this.notifyWebviewOfServerChanges()
+						// Only need to update webview right away if it's already disconnected
+						if (connection.server.status === "disconnected") {
+							await this.notifyWebviewOfServerChanges()
+						}
 					}
 				})
 			} else {
