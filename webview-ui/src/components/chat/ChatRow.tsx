@@ -794,8 +794,6 @@ export const ChatRowContent = ({
 								{useMcpServer.type === "access_mcp_resource" && (
 									<McpResourceRow
 										item={{
-											// Always use the actual URI from the request
-											uri: useMcpServer.uri || "",
 											// Use the matched resource/template details, with fallbacks
 											...(findMatchingResourceOrTemplate(
 												useMcpServer.uri || "",
@@ -806,6 +804,8 @@ export const ChatRowContent = ({
 												mimeType: "",
 												description: "",
 											}),
+											// Always use the actual URI from the request
+											uri: useMcpServer.uri || "",
 										}}
 									/>
 								)}

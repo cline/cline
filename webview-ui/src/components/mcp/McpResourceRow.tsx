@@ -5,8 +5,8 @@ type McpResourceRowProps = {
 }
 
 const McpResourceRow = ({ item }: McpResourceRowProps) => {
-	const isTemplate = "uriTemplate" in item
-	const uri = isTemplate ? item.uriTemplate : item.uri
+	const hasUri = "uri" in item
+	const uri = hasUri ? item.uri : item.uriTemplate
 
 	return (
 		<div

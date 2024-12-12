@@ -12,14 +12,12 @@ export function findMatchingTemplate(
 ): McpResourceTemplate | undefined {
 	return templates.find((template) => {
 		// Convert template to regex pattern
-		const pattern = template.uriTemplate
-			// Replace {param} with ([^/]+) to match any non-slash characters
-			.replace(/\{([^}]+)\}/g, "([^/]+)")
-			// Escape special regex characters except the ones we just added
+		const pattern = String(template.uriTemplate)
+			// First escape special regex characters
 			.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-			// Un-escape the capturing groups we added
-			.replace(/\\\(/g, "(")
-			.replace(/\\\)/g, ")")
+			// Then replace {param} with ([^/]+) to match any non-slash characters
+			// We need to use \{ and \} because we just escaped them
+			.replace(/\\\{([^}]+)\\\}/g, "([^/]+)")
 
 		const regex = new RegExp(`^${pattern}$`)
 		return regex.test(uri)
