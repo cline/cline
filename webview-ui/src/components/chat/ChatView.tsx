@@ -15,6 +15,7 @@ import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
 import { getApiMetrics } from "../../../../src/shared/getApiMetrics"
+import { AudioType } from "../../../../src/shared/WebviewMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import HistoryPreview from "../history/HistoryPreview"
@@ -32,11 +33,11 @@ interface ChatViewProps {
 	showHistoryView: () => void
 }
 
-export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
+export const MAX_IMAGES_PER_MESSAGE = 20
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
-	const [countdown, setCountdown] = useState<number | null>(null);
+	const [countdown, setCountdown] = useState<number | null>(null)
 
 	const task = useMemo(() => messages.at(0), [messages])
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -58,37 +59,58 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
-	const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
+	const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false)
+	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
+	const [hasStarted, setHasStarted] = useState(false)
+
 
 	// Add effect for countdown timer
-	useEffect(() => {
-		let countdownTimer: NodeJS.Timeout | undefined;
-		
-		if (autoAcceptEnabled && clineAsk === "command_output" && enableButtons) {
-			setCountdown(10); // Start at 10 seconds
-			countdownTimer = setInterval(() => {
-				setCountdown(prev => {
-					if (prev === null || prev <= 1) {
-						clearInterval(countdownTimer);
-						return null;
-					}
-					return prev - 1;
-				});
-			}, 1000);
-		} else {
-			setCountdown(null);
-		}
+useEffect(() => {
+    let countdownTimer: NodeJS.Timeout | undefined;
+    
+    if (autoAcceptEnabled && clineAsk === "command_output" && enableButtons) {
+        setCountdown(10); // Start at 10 seconds
+        countdownTimer = setInterval(() => {
+            setCountdown(prev => {
+                if (prev === null || prev <= 1) {
+                    clearInterval(countdownTimer);
+					//TODO: CHECK IF THIS IS THE RIGHT FUNCTION
 
-		return () => {
-			if (countdownTimer) {
-				clearInterval(countdownTimer);
-			}
-		};
-	}, [autoAcceptEnabled, clineAsk, enableButtons]);
+                    vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" }); // Direct message instead of using handlePrimaryButtonClick
+                    setTextAreaDisabled(true);
+                    setClineAsk(undefined);
+                    setEnableButtons(false);
+                    return null;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    } else {
+        setCountdown(null);
+    }
+
+    return () => {
+        if (countdownTimer) {
+            clearInterval(countdownTimer);
+        }
+    };
+}, [autoAcceptEnabled, clineAsk, enableButtons]);
+
 
 	// UI layout depends on the last 2 messages
 	const lastMessage = useMemo(() => messages.at(-1), [messages])
 	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+
+	function playSound(audioType: AudioType) {
+		vscode.postMessage({ type: "playSound", audioType })
+	}
+
+	function playSoundOnMessage(audioType: AudioType) {
+		if (hasStarted && !isStreaming) {
+			playSound(audioType)
+		}
+	}
+
 	useDeepCompareEffect(() => {
 		if (lastMessage) {
 			switch (lastMessage.type) {
@@ -96,6 +118,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
+							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(true)
 							setClineAsk("api_req_failed")
 							setEnableButtons(true)
@@ -103,6 +126,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "mistake_limit_reached":
+							playSoundOnMessage("progress_loop")
 							setTextAreaDisabled(false)
 							setClineAsk("mistake_limit_reached")
 							setEnableButtons(true)
@@ -110,11 +134,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
 							setEnableButtons(isPartial)
 							break
 						case "tool":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
 							setEnableButtons(!isPartial)
@@ -132,6 +158,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}
 							break
 						case "browser_action_launch":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("browser_action_launch")
 							setEnableButtons(!isPartial)
@@ -139,6 +166,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
 							setEnableButtons(!isPartial)
@@ -146,6 +174,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command_output":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("command_output")
 							setEnableButtons(true)
@@ -153,6 +182,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "completion_result":
+							playSoundOnMessage("celebration")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
@@ -160,6 +190,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
+							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
@@ -168,6 +199,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setDidClickCancel(false)
 							break
 						case "resume_completed_task":
+							playSoundOnMessage("celebration")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
@@ -354,6 +386,38 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// setSecondaryButtonText(undefined)
 		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask, isStreaming])
+
+	// Add effect for countdown timer
+	useEffect(() => {
+		if (isStreaming) {
+			// Set hasStarted to true once a request has started
+			setHasStarted(true)
+		}
+		// Only execute when isStreaming changes from true to false
+		if (wasStreaming && !isStreaming && lastMessage) {
+			// Play appropriate sound based on lastMessage content
+			if (lastMessage.type === "ask") {
+				switch (lastMessage.ask) {
+					case "api_req_failed":
+					case "mistake_limit_reached":
+						playSound("progress_loop")
+						break
+					case "tool":
+					case "followup":
+					case "browser_action_launch":
+					case "resume_task":
+						playSound("notification")
+						break
+					case "completion_result":
+					case "resume_completed_task":
+						playSound("celebration")
+						break
+				}
+			}
+		}
+		// Update previous streaming state
+		setWasStreaming(isStreaming)
+	}, [isStreaming, lastMessage])
 
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -696,18 +760,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange]
 	)
 
-    return (
-        <div
-            style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                display: isHidden ? "none" : "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-            }}>
+	return (
+		<div
+			style={{
+				position: "fixed",
+				top: 0,
+				left: 0,
+				right: 0,
+				bottom: 0,
+				display: isHidden ? "none" : "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+			}}>
             {task ? (
                 <TaskHeader
                     task={task}
@@ -847,8 +911,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
                     }
                 }}
             />
-        </div>
-    )
+		</div>
+	)
 }
 
 const ScrollToBottomButton = styled.div`

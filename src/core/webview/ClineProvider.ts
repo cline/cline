@@ -16,6 +16,7 @@ import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { playSound, setSoundEnabled } from "../../utils/sound"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
@@ -54,6 +55,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "soundEnabled"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -62,14 +64,14 @@ export const GlobalFileNames = {
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
+	public static readonly sideBarId = "claude-dev.SidebarProvider"
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	private latestAnnouncementId = "oct-28-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "oct-28-2024"
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
@@ -295,13 +297,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
-private setWebviewMessageListener(webview: vscode.Webview) {
-    webview.onDidReceiveMessage(
-        async (message: WebviewMessage) => {
-            switch (message.type) {
+	private setWebviewMessageListener(webview: vscode.Webview) {
+		webview.onDidReceiveMessage(
+			async (message: WebviewMessage) => {
+				switch (message.type) {
 					case "webviewDidLaunch":
 						this.postStateToWebview()
-						this.workspaceTracker?.initializeFilePaths() // don't await
+						this.workspaceTracker?.initializeFilePaths()
 						getTheme().then((theme) =>
 							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) })
 						)
@@ -451,11 +453,11 @@ private setWebviewMessageListener(webview: vscode.Webview) {
 					case "openMention":
 						openMention(message.text)
 						break
-                	case "setAutoAccept":
+					case "setAutoAccept":
 						if (this.cline) {
-							this.cline.setAutoAccept(message.value ?? false, message.threadId);
+							this.cline.setAutoAccept(message.value ?? false, message.threadId)
 						}
-                    	break;
+						break
 					case "cancelTask":
 						if (this.cline) {
 							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
@@ -466,20 +468,29 @@ private setWebviewMessageListener(webview: vscode.Webview) {
 								console.error("Failed to abort task")
 							})
 							if (this.cline) {
-								// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 								this.cline.abandoned = true
 							}
-							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
-							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+							await this.initClineWithHistoryItem(historyItem)
 						}
-
+						break
+					case "playSound":
+						if (message.audioType) {
+							const soundPath = path.join(this.context.extensionPath, "audio", `${message.audioType}.wav`)
+							playSound(soundPath)
+						}
+						break
+					case "soundEnabled":
+						const enabled = message.bool ?? true
+						await this.updateGlobalState("soundEnabled", enabled)
+						setSoundEnabled(enabled)
+						await this.postStateToWebview()
 						break
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
-            }
-        },
-        null,
-        this.disposables
+				}
+			},
+			null,
+			this.disposables
 		)
 	}
 
@@ -753,75 +764,153 @@ private setWebviewMessageListener(webview: vscode.Webview) {
 		this.postMessageToWebview({ type: "state", state })
 	}
 
-	async getStateToPostToWebview() {
-		const { apiConfiguration, lastShownAnnouncementId, customInstructions, alwaysAllowReadOnly, taskHistory } =
-			await this.getState()
-		return {
-			version: this.context.extension?.packageJSON?.version ?? "",
-			apiConfiguration,
-			customInstructions,
-			alwaysAllowReadOnly,
-			uriScheme: vscode.env.uriScheme,
-			clineMessages: this.cline?.clineMessages || [],
-			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
-			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+async getStateToPostToWebview() {
+    const {
+        apiConfiguration,
+        lastShownAnnouncementId,
+        customInstructions,
+        alwaysAllowReadOnly,
+        taskHistory,
+        soundEnabled,
+    } = await this.getState()
+    return {
+        version: this.context.extension?.packageJSON?.version ?? "",
+        apiConfiguration,
+        customInstructions,
+        alwaysAllowReadOnly,
+        uriScheme: vscode.env.uriScheme,
+        clineMessages: this.cline?.clineMessages || [],
+        soundEnabled: soundEnabled ?? true,
+        taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+        shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+    }
+}
+
+async clearTask() {
+	this.cline?.abortTask()
+	this.cline = undefined // removes reference to it, so once promises end it will be garbage collected
+}
+
+// Caching mechanism to keep track of webview messages + API conversation history per provider instance
+
+/*
+Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
+
+- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
+
+We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+
+// conversation history to send in API requests
+
+/*
+It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
+VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
+*/
+
+// getApiConversationHistory(): Anthropic.MessageParam[] {
+// 	// const history = (await this.getGlobalState(
+// 	// 	this.getApiConversationHistoryStateKey()
+// 	// )) as Anthropic.MessageParam[]
+// 	// return history || []
+// 	return this.apiConversationHistory
+// }
+
+// setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
+// 	// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
+// 	this.apiConversationHistory = history || []
+// }
+
+// addMessageToApiConversationHistory(message: Anthropic.MessageParam): Anthropic.MessageParam[] {
+// 	// const history = await this.getApiConversationHistory()
+// 	// history.push(message)
+// 	// await this.setApiConversationHistory(history)
+// 	// return history
+// 	this.apiConversationHistory.push(message)
+// 	return this.apiConversationHistory
+// }
+
+/*
+Storage
+https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
+https://www.eliostruyf.com/devhack-code-extension-storage-options/
+*/
+
+async getState() {
+	const [
+		storedApiProvider,
+		apiModelId,
+		apiKey,
+		openRouterApiKey,
+		awsAccessKey,
+		awsSecretKey,
+		awsSessionToken,
+		awsRegion,
+		vertexProjectId,
+		vertexRegion,
+		openAiBaseUrl,
+		openAiApiKey,
+		openAiModelId,
+		ollamaModelId,
+		ollamaBaseUrl,
+		anthropicBaseUrl,
+		geminiApiKey,
+		openAiNativeApiKey,
+		azureApiVersion,
+		openRouterModelId,
+		openRouterModelInfo,
+		lastShownAnnouncementId,
+		customInstructions,
+		alwaysAllowReadOnly,
+		taskHistory,
+		soundEnabled,
+	] = await Promise.all([
+		this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
+		this.getGlobalState("apiModelId") as Promise<string | undefined>,
+		this.getSecret("apiKey") as Promise<string | undefined>,
+		this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+		this.getSecret("awsAccessKey") as Promise<string | undefined>,
+		this.getSecret("awsSecretKey") as Promise<string | undefined>,
+		this.getSecret("awsSessionToken") as Promise<string | undefined>,
+		this.getGlobalState("awsRegion") as Promise<string | undefined>,
+		this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
+		this.getGlobalState("vertexRegion") as Promise<string | undefined>,
+		this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
+		this.getSecret("openAiApiKey") as Promise<string | undefined>,
+		this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+		this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
+		this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+		this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+		this.getSecret("geminiApiKey") as Promise<string | undefined>,
+		this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
+		this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+		this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
+		this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+		this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
+		this.getGlobalState("customInstructions") as Promise<string | undefined>,
+		this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+		this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
+		this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
+	])
+
+	let apiProvider: ApiProvider
+	if (storedApiProvider) {
+		apiProvider = storedApiProvider
+	} else {
+		// Either new user or legacy user that doesn't have the apiProvider stored in state
+		// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
+		if (apiKey) {
+			apiProvider = "anthropic"
+		} else {
+			// New users should default to openrouter
+			apiProvider = "openrouter"
 		}
 	}
 
-	async clearTask() {
-		this.cline?.abortTask()
-		this.cline = undefined // removes reference to it, so once promises end it will be garbage collected
-	}
-
-	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
-
-	/*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
-
-	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
-	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
-
-	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
-
-	// conversation history to send in API requests
-
-	/*
-	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
-	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
-	*/
-
-	// getApiConversationHistory(): Anthropic.MessageParam[] {
-	// 	// const history = (await this.getGlobalState(
-	// 	// 	this.getApiConversationHistoryStateKey()
-	// 	// )) as Anthropic.MessageParam[]
-	// 	// return history || []
-	// 	return this.apiConversationHistory
-	// }
-
-	// setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
-	// 	// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
-	// 	this.apiConversationHistory = history || []
-	// }
-
-	// addMessageToApiConversationHistory(message: Anthropic.MessageParam): Anthropic.MessageParam[] {
-	// 	// const history = await this.getApiConversationHistory()
-	// 	// history.push(message)
-	// 	// await this.setApiConversationHistory(history)
-	// 	// return history
-	// 	this.apiConversationHistory.push(message)
-	// 	return this.apiConversationHistory
-	// }
-
-	/*
-	Storage
-	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
-	https://www.eliostruyf.com/devhack-code-extension-storage-options/
-	*/
-
-	async getState() {
-		const [
-			storedApiProvider,
+	return {
+		apiConfiguration: {
+			apiProvider,
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
@@ -842,165 +931,97 @@ private setWebviewMessageListener(webview: vscode.Webview) {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			taskHistory,
-		] = await Promise.all([
-			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-			this.getGlobalState("apiModelId") as Promise<string | undefined>,
-			this.getSecret("apiKey") as Promise<string | undefined>,
-			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
-			this.getSecret("awsAccessKey") as Promise<string | undefined>,
-			this.getSecret("awsSecretKey") as Promise<string | undefined>,
-			this.getSecret("awsSessionToken") as Promise<string | undefined>,
-			this.getGlobalState("awsRegion") as Promise<string | undefined>,
-			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
-			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
-			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
-			this.getSecret("openAiApiKey") as Promise<string | undefined>,
-			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
-			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
-			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
-			this.getSecret("geminiApiKey") as Promise<string | undefined>,
-			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
-			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
-			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
-			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-		])
+		},
+		lastShownAnnouncementId,
+		customInstructions,
+		alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+		taskHistory,
+	soundEnabled: soundEnabled ?? true,
+}
+}
 
-		let apiProvider: ApiProvider
-		if (storedApiProvider) {
-			apiProvider = storedApiProvider
-		} else {
-			// Either new user or legacy user that doesn't have the apiProvider stored in state
-			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-			if (apiKey) {
-				apiProvider = "anthropic"
-			} else {
-				// New users should default to openrouter
-				apiProvider = "openrouter"
-			}
-		}
-
-		return {
-			apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				openRouterApiKey,
-				awsAccessKey,
-				awsSecretKey,
-				awsSessionToken,
-				awsRegion,
-				vertexProjectId,
-				vertexRegion,
-				openAiBaseUrl,
-				openAiApiKey,
-				openAiModelId,
-				ollamaModelId,
-				ollamaBaseUrl,
-				anthropicBaseUrl,
-				geminiApiKey,
-				openAiNativeApiKey,
-				azureApiVersion,
-				openRouterModelId,
-				openRouterModelInfo,
-			},
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-			taskHistory,
-		}
+async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
+	const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+	const existingItemIndex = history.findIndex((h) => h.id === item.id)
+	if (existingItemIndex !== -1) {
+		history[existingItemIndex] = item
+	} else {
+		history.push(item)
 	}
+	await this.updateGlobalState("taskHistory", history)
+	return history
+}
 
-	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
-		const existingItemIndex = history.findIndex((h) => h.id === item.id)
-		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
-		} else {
-			history.push(item)
-		}
-		await this.updateGlobalState("taskHistory", history)
-		return history
+// global
+
+async updateGlobalState(key: GlobalStateKey, value: any) {
+	await this.context.globalState.update(key, value)
+}
+
+async getGlobalState(key: GlobalStateKey) {
+	return await this.context.globalState.get(key)
+}
+
+// workspace
+
+private async updateWorkspaceState(key: string, value: any) {
+	await this.context.workspaceState.update(key, value)
+}
+
+private async getWorkspaceState(key: string) {
+	return await this.context.workspaceState.get(key)
+}
+
+// private async clearState() {
+// 	this.context.workspaceState.keys().forEach((key) => {
+// 		this.context.workspaceState.update(key, undefined)
+// 	})
+// 	this.context.globalState.keys().forEach((key) => {
+// 		this.context.globalState.update(key, undefined)
+// 	})
+// 	this.context.secrets.delete("apiKey")
+// }
+
+// secrets
+
+private async storeSecret(key: SecretKey, value?: string) {
+	if (value) {
+		await this.context.secrets.store(key, value)
+	} else {
+		await this.context.secrets.delete(key)
 	}
+}
 
-	// global
+private async getSecret(key: SecretKey) {
+	return await this.context.secrets.get(key)
+}
 
-	async updateGlobalState(key: GlobalStateKey, value: any) {
-		await this.context.globalState.update(key, value)
+// dev
+
+async resetState() {
+	vscode.window.showInformationMessage("Resetting state...")
+	for (const key of this.context.globalState.keys()) {
+		await this.context.globalState.update(key, undefined)
 	}
-
-	async getGlobalState(key: GlobalStateKey) {
-		return await this.context.globalState.get(key)
+	const secretKeys: SecretKey[] = [
+		"apiKey",
+		"openRouterApiKey",
+		"awsAccessKey",
+		"awsSecretKey",
+		"awsSessionToken",
+		"openAiApiKey",
+		"geminiApiKey",
+		"openAiNativeApiKey",
+	]
+	for (const key of secretKeys) {
+		await this.storeSecret(key, undefined)
 	}
-
-	// workspace
-
-	private async updateWorkspaceState(key: string, value: any) {
-		await this.context.workspaceState.update(key, value)
+	if (this.cline) {
+		this.cline.abortTask()
+		this.cline = undefined
 	}
-
-	private async getWorkspaceState(key: string) {
-		return await this.context.workspaceState.get(key)
-	}
-
-	// private async clearState() {
-	// 	this.context.workspaceState.keys().forEach((key) => {
-	// 		this.context.workspaceState.update(key, undefined)
-	// 	})
-	// 	this.context.globalState.keys().forEach((key) => {
-	// 		this.context.globalState.update(key, undefined)
-	// 	})
-	// 	this.context.secrets.delete("apiKey")
-	// }
-
-	// secrets
-
-	private async storeSecret(key: SecretKey, value?: string) {
-		if (value) {
-			await this.context.secrets.store(key, value)
-		} else {
-			await this.context.secrets.delete(key)
-		}
-	}
-
-	private async getSecret(key: SecretKey) {
-		return await this.context.secrets.get(key)
-	}
-
-	// dev
-
-	async resetState() {
-		vscode.window.showInformationMessage("Resetting state...")
-		for (const key of this.context.globalState.keys()) {
-			await this.context.globalState.update(key, undefined)
-		}
-		const secretKeys: SecretKey[] = [
-			"apiKey",
-			"openRouterApiKey",
-			"awsAccessKey",
-			"awsSecretKey",
-			"awsSessionToken",
-			"openAiApiKey",
-			"geminiApiKey",
-			"openAiNativeApiKey",
-		]
-		for (const key of secretKeys) {
-			await this.storeSecret(key, undefined)
-		}
-		if (this.cline) {
-			this.cline.abortTask()
-			this.cline = undefined
-		}
-		vscode.window.showInformationMessage("State reset")
-		await this.postStateToWebview()
-		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+	vscode.window.showInformationMessage("State reset")
+	await this.postStateToWebview()
+	await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
 }

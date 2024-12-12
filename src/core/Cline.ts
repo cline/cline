@@ -49,6 +49,55 @@ import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
+import { DebugConsoleManager } from "../integrations/debug/DebugConsoleManager"
+
+
+// Add this constant at the top level
+const MAX_TERMINAL_OUTPUT_LENGTH = 3000;
+const MAX_ENVIRONMENT_OUTPUT_LENGTH = 1000; // Shorter limit for environment details
+
+/**
+ * Truncates terminal output while preserving context
+ * @param output The terminal output to truncate
+ * @param maxLength Maximum length for the output
+ * @returns Truncated output with context preservation
+ */
+function truncateTerminalOutput(output: string, maxLength: number = MAX_TERMINAL_OUTPUT_LENGTH): string {
+    if (!output || output.length <= maxLength) {
+        return output;
+    }
+
+    const lines = output.split('\n');
+    
+    // Always keep the first few lines as they often contain important context
+    const firstLines = lines.slice(0, 3).join('\n');
+    let result = firstLines + '\n';
+    
+    // Calculate remaining space
+    const remainingSpace = maxLength - result.length - 50; // 50 chars for truncation message
+    
+    // Get last few lines that will fit in remaining space
+    let lastLines = [];
+    let currentLength = 0;
+    
+    for (let i = lines.length - 1; i > 3; i--) {
+        const line = lines[i];
+        if (currentLength + line.length + 1 <= remainingSpace) {
+            lastLines.unshift(line);
+            currentLength += line.length + 1;
+        } else {
+            break;
+        }
+    }
+
+    if (lastLines.length > 0) {
+        result += '... [output truncated] ...\n' + lastLines.join('\n');
+    } else {
+        result += '... [output truncated] ...';
+    }
+
+    return result;
+}
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop")
@@ -61,12 +110,13 @@ type UserContent = Array<
 export class Cline {
     readonly taskId: string
     api: ApiHandler
-	private autoAcceptEnabled: boolean = false
-	private autoAcceptThreadId?: number
+    private autoAcceptEnabled: boolean = false
+    private autoAcceptThreadId?: number
     private terminalManager: TerminalManager
     private urlContentFetcher: UrlContentFetcher
     private browserSession: BrowserSession
     private codeMerger: CodeMerger
+    private debugConsoleManager: DebugConsoleManager
     private didEditFile: boolean = false
     customInstructions?: string
     alwaysAllowReadOnly: boolean
@@ -107,8 +157,9 @@ export class Cline {
         this.api = buildApiHandler(apiConfiguration)
         this.terminalManager = new TerminalManager()
         this.urlContentFetcher = new UrlContentFetcher(provider.context)
-       this.browserSession = new BrowserSession(provider.context)
+        this.browserSession = new BrowserSession(provider.context)
         this.codeMerger = new CodeMerger()
+        this.debugConsoleManager = new DebugConsoleManager()
         this.diffViewProvider = new DiffViewProvider(cwd)
         this.customInstructions = customInstructions
         this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
@@ -686,31 +737,15 @@ export class Cline {
 	}
 
 	// Tools
+    async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+        const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+        terminalInfo.terminal.show()
+        const process = this.terminalManager.runCommand(terminalInfo, command)
 
-async executeCommandTool(command: string, terminalId?: number): Promise<[boolean, ToolResponse]> {
-    const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd, terminalId)
-    terminalInfo.terminal.show()
-    const process = this.terminalManager.runCommand(terminalInfo, command)
-
-    let userFeedback: { text?: string; images?: string[] } | undefined
-    let didContinue = false
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    const sendCommandOutput = async (line: string): Promise<void> => {
-        try {
-            if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
-                // For auto-accept, start a 10 second timer to simulate button click
-                if (!timeoutId) {
-                    timeoutId = setTimeout(() => {
-                        if (!didContinue) {
-                            didContinue = true;
-                            process.continue();
-                        }
-                    }, 10000);
-                }
-                await this.ask("command_output", line).catch(() => {});
-            } else {
-                // If auto-accept is not enabled, handle user interaction
+        let userFeedback: { text?: string; images?: string[] } | undefined
+        let didContinue = false
+        const sendCommandOutput = async (line: string): Promise<void> => {
+            try {
                 const { response, text, images } = await this.ask("command_output", line)
                 if (response === "yesButtonClicked") {
                     didContinue = true
@@ -718,72 +753,64 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
                 } else {
                     userFeedback = { text, images }
                 }
+            } catch {
+                // This can only happen if this ask promise was ignored, so ignore this error
             }
-        } catch {
-            // This can only happen if this ask promise was ignored, so ignore this error
         }
-    }
 
-    let result = ""
-    process.on("line", (line) => {
-        result += line + "\n"
-        if (!didContinue) {
-            sendCommandOutput(line)
+        let result = ""
+        process.on("line", (line) => {
+            result += line + "\n"
+            if (!didContinue) {
+                sendCommandOutput(line)
+            } else {
+                this.say("command_output", line)
+            }
+        })
+
+        let completed = false
+        process.once("completed", () => {
+            completed = true
+        })
+
+        process.once("no_shell_integration", async () => {
+            await this.say("shell_integration_warning")
+        })
+
+        await process
+
+        // Wait for a short delay to ensure all messages are sent to the webview
+        await delay(50)
+
+        result = result.trim()
+
+        // Truncate the result before sending it back
+        const truncatedResult = truncateTerminalOutput(result);
+
+        if (userFeedback) {
+            await this.say("user_feedback", userFeedback.text, userFeedback.images)
+            return [
+                true,
+                formatResponse.toolResult(
+                    `Command is still running in the user's terminal.${
+                        truncatedResult ? `\nHere's the output so far:\n${truncatedResult}` : ""
+                    }\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
+                    userFeedback.images,
+                ),
+            ]
+        }
+
+        if (completed) {
+            return [false, `Command executed.${truncatedResult ? `\nOutput:\n${truncatedResult}` : ""}`]
         } else {
-            this.say("command_output", line)
-        }
-    })
-
-    // Listen for check_state events to update the countdown display
-    process.on("check_state", async ({ timeLeft }) => {
-        if (this.autoAcceptEnabled && (!this.autoAcceptThreadId || this.lastMessageTs === this.autoAcceptThreadId)) {
-            await this.say("command_output", `${command}\nProceed While Running(${timeLeft}s)`);
-        }
-    });
-
-    let completed = false
-    process.once("completed", () => {
-        completed = true
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-        }
-    })
-
-    process.once("no_shell_integration", async () => {
-        await this.say("shell_integration_warning")
-    })
-
-    await process
-
-    // Wait for a short delay to ensure all messages are sent to the webview
-    await delay(50)
-
-    result = result.trim()
-
-    if (userFeedback) {
-        await this.say("user_feedback", userFeedback.text, userFeedback.images)
-        return [
-            true,
-            formatResponse.toolResult(
+            return [
+                false,
                 `Command is still running in the user's terminal.${
-                    result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-                }\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
-                userFeedback.images
-            ),
-        ]
+                    truncatedResult ? `\nHere's the output so far:\n${truncatedResult}` : ""
+                }\n\nYou will be updated on the terminal status and new output in the future.`,
+            ]
+        }
     }
-
-    if (completed) {
-        return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
-    } else {
-        return [
-            false,
-            `Command is still running in the user's terminal.${
-                result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-            }\n\nYou will be updated on the terminal status and new output in the future.`,
-        ]
-    }
-}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
@@ -1618,7 +1645,7 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, result] = await this.executeCommandTool(command, terminalId ? parseInt(terminalId) : undefined)
+								const [userRejected, result] = await this.executeCommandTool(command)
 								if (userRejected) {
 									this.didRejectTool = true
 								}
@@ -1631,28 +1658,30 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 						}
 					}
 					case "list_terminals": {
-                        try {
-                            const busyTerminals = this.terminalManager.getTerminals(true);
-                            const idleTerminals = this.terminalManager.getTerminals(false);
-                            let result = "";
+						try {
+							const busyTerminals = this.terminalManager.getTerminals(true);
+							const idleTerminals = this.terminalManager.getTerminals(false);
+							let result = "";
 
-                            if (busyTerminals.length === 0 && idleTerminals.length === 0) {
-                                result = "No active terminal sessions found.";
-                            } else {
-                                if (busyTerminals.length > 0) {
-                                    result += "Running Terminals:\n";
-                                    busyTerminals.forEach(terminal => {
-                                        result += `\nID: ${terminal.id}\n`;
-                                        result += `Command: ${terminal.lastCommand}\n`;
-                                        if (terminal.type) {
-                                            result += `Type: ${terminal.type}\n`;
-                                        }
-                                        const output = this.terminalManager.getUnretrievedOutput(terminal.id);
-                                        if (output) {
-                                            result += `Recent Output:\n${output}\n`;
-                                        }
-                                    });
-                                }
+							if (busyTerminals.length === 0 && idleTerminals.length === 0) {
+								result = "No active terminal sessions found.";
+							} else {
+								if (busyTerminals.length > 0) {
+									result += "Running Terminals:\n";
+									busyTerminals.forEach(terminal => {
+										result += `\nID: ${terminal.id}\n`;
+										result += `Command: ${terminal.lastCommand}\n`;
+										if (terminal.type) {
+											result += `Type: ${terminal.type}\n`;
+										}
+										const output = this.terminalManager.getUnretrievedOutput(terminal.id);
+										if (output) {
+											// Use standard length limit for tool output
+											const truncatedOutput = truncateTerminalOutput(output)
+											result += `Recent Output:\n${truncatedOutput}\n`;
+										}
+									});
+								}
 
                                 if (idleTerminals.length > 0) {
                                     if (busyTerminals.length > 0) result += "\n";
@@ -2225,31 +2254,38 @@ async executeCommandTool(command: string, terminalId?: number): Promise<[boolean
 async getEnvironmentDetails(includeFileDetails: boolean = false) {
     let details = ""
 
-		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
-		details += "\n\n# VSCode Visible Files"
-		const visibleFiles = vscode.window.visibleTextEditors
-			?.map((editor) => editor.document?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
-			.join("\n")
-		if (visibleFiles) {
-			details += `\n${visibleFiles}`
-		} else {
-			details += "\n(No visible files)"
-		}
+    // Previous environment details code remains the same...
+    details += "\n\n# VSCode Visible Files"
+    const visibleFiles = vscode.window.visibleTextEditors
+        ?.map((editor) => editor.document?.uri?.fsPath)
+        .filter(Boolean)
+        .map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+        .join("\n")
+    if (visibleFiles) {
+        details += `\n${visibleFiles}`
+    } else {
+        details += "\n(No visible files)"
+    }
 
-		details += "\n\n# VSCode Open Tabs"
-		const openTabs = vscode.window.tabGroups.all
-			.flatMap((group) => group.tabs)
-			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
-			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
-			.join("\n")
-		if (openTabs) {
-			details += `\n${openTabs}`
-		} else {
-			details += "\n(No open tabs)"
-		}
+    details += "\n\n# VSCode Open Tabs"
+    const openTabs = vscode.window.tabGroups.all
+        .flatMap((group) => group.tabs)
+        .map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
+        .filter(Boolean)
+        .map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+        .join("\n")
+    if (openTabs) {
+        details += `\n${openTabs}`
+    } else {
+        details += "\n(No open tabs)"
+    }
+
+    // Add debug console output before terminal output
+    const debugOutput = this.debugConsoleManager.getLatestOutput()
+    if (debugOutput) {
+        details += "\n\n# Debug Console Output"
+        details += `\n${debugOutput}`
+    }
 
     const busyTerminals = this.terminalManager.getTerminals(true)
     const inactiveTerminals = this.terminalManager.getTerminals(false)
@@ -2277,7 +2313,6 @@ async getEnvironmentDetails(includeFileDetails: boolean = false) {
                 terminalDetails += `\nID: ${terminal.id}\n`
                 terminalDetails += `Last Command: ${terminal.lastCommand}\n`
                 
-                // Enhanced terminal type and URL tracking
                 if (terminal.type) {
                     terminalDetails += `Type: ${terminal.type}\n`
                 }
@@ -2290,18 +2325,19 @@ async getEnvironmentDetails(includeFileDetails: boolean = false) {
                 
                 const output = this.terminalManager.getUnretrievedOutput(terminal.id)
                 if (output) {
-                    terminalDetails += `Recent Output:\n${output}\n`
+                    // Use shorter length limit for environment details
+                    const truncatedOutput = truncateTerminalOutput(output, MAX_ENVIRONMENT_OUTPUT_LENGTH)
+                    terminalDetails += `Recent Output:\n${truncatedOutput}\n`
                 }
             })
         }
 
         if (inactiveTerminals.length > 0) {
-            terminalDetails += "\n\nTerminals and Servers. Please use these"
+            terminalDetails += "\n\nInactive Terminals:"
             inactiveTerminals.forEach(terminal => {
                 terminalDetails += `\nID: ${terminal.id}\n`
                 terminalDetails += `Last Command: ${terminal.lastCommand}\n`
                 
-                // Enhanced terminal type and URL tracking for idle terminals
                 if (terminal.type) {
                     terminalDetails += `Type: ${terminal.type}\n`
                 }
@@ -2321,12 +2357,11 @@ async getEnvironmentDetails(includeFileDetails: boolean = false) {
         details += terminalDetails
     }
 
-    // Rest of the method remains the same
+    // Rest of the method remains the same...
     if (includeFileDetails) {
         details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
         const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
         if (isDesktop) {
-            // don't want to immediately access desktop since it would show permission popup
             details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
         } else {
             const [files, didHitLimit] = await listFiles(cwd, true, 200)
@@ -2335,6 +2370,22 @@ async getEnvironmentDetails(includeFileDetails: boolean = false) {
         }
     }
 
+    details += `\n\n# Editing Reminders\n\n
+When editing files, use the following commands to make changes:
+<<<<<<< SEARCH
+  "theme": "light",
+=======
+  "theme": "dark",
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+  "fontSize": 12,
+=======
+  "fontSize": 14,
+>>>>>>> REPLACE
+`
+
     return `<environment_details>\n${details.trim()}\n</environment_details>`
-	}
+}
+
 }

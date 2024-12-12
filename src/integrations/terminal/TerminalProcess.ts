@@ -1,41 +1,6 @@
 import { EventEmitter } from "events"
 import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
-import * as path from "path"
-import * as fs from "fs"
-
-const SPECIAL_KEYS = {
-    ENTER: '\r',
-    UP: '\x1b[A',
-    DOWN: '\x1b[B',
-    RIGHT: '\x1b[C',
-    LEFT: '\x1b[D',
-    SPACE: ' ',
-} as const;
-
-// Server detection patterns with enhanced URL detection
-const SERVER_PATTERNS = [
-    {
-        regex: [
-            /Local\s+http:\/\/localhost:(\d+)\//i,
-            /http:\/\/localhost:(\d+)/i,
-            /running on (http:\/\/\S+)/i,
-            /┃\s+Local\s+http:\/\/localhost:(\d+)\//i,  // Specific for Astro-like output
-            /┃\s+Network\s+http:\/\/\S+:(\d+)\//i,     // Network URL for Astro
-            /astro\s+v\d+\.\d+\.\d+\s+ready/i          // Astro startup indicator
-        ],
-        type: 'dev-server',
-        frameworks: [
-            { pattern: /astro/i, name: 'Astro' },
-            { pattern: /react/i, name: 'React' },
-            { pattern: /vue/i, name: 'Vue' },
-            { pattern: /angular/i, name: 'Angular' },
-            { pattern: /next/i, name: 'Next.js' },
-            { pattern: /vite/i, name: 'Vite' }
-        ]
-    }
-    // Other server patterns can be added here
-];
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -43,9 +8,12 @@ export interface TerminalProcessEvents {
 	completed: []
 	error: [error: Error]
 	no_shell_integration: []
-	ready: [{ type: string; url?: string; framework?: string }]
 	check_state: [{ timeLeft: number }]
 }
+
+// how long to wait after a process outputs anything before we consider it "cool" again
+const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
+const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
@@ -53,192 +21,200 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private buffer: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
+	isHot: boolean = false
+	private hotTimer: NodeJS.Timeout | null = null
 	private countdownTimer: NodeJS.Timeout | null = null
 	private timeLeft: number = 10
-	isHot: boolean = true
-	private lastOutputTime: number = 0
-	private completionTimer: NodeJS.Timeout | null = null
-	private currentWorkingDirectory: string | undefined = undefined
-	private serverInfoEmitted: boolean = false
+	private autoAcceptEnabled: boolean = false
 
-	private detectServerInfo(output: string): { type?: string; url?: string; framework?: string } {
-		// If server info has already been emitted, return empty
-		if (this.serverInfoEmitted) return {}
+	setAutoAccept(enabled: boolean) {
+		this.autoAcceptEnabled = enabled;
+	}
 
-		for (const pattern of SERVER_PATTERNS) {
-			// Try multiple regex patterns
-			for (const regex of (pattern.regex instanceof Array ? pattern.regex : [pattern.regex])) {
-				const urlMatch = output.match(regex);
-				if (urlMatch) {
-					// Extract URL, preferring full URL or constructing from localhost
-					const url = urlMatch[1] 
-						? `http://localhost:${urlMatch[1]}/` 
-						: urlMatch[0];
-					
-					// Detect framework
-					let framework;
-					if (pattern.frameworks) {
-						for (const fw of pattern.frameworks) {
-							if (fw.pattern.test(output)) {
-								framework = fw.name;
-								break;
-							}
-						}
-					}
+	private startCountdown() {
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer)
+		}
 
-					// Mark that server info has been emitted
-					this.serverInfoEmitted = true
+		this.timeLeft = 10
+		this.countdownTimer = setInterval(() => {
+			this.timeLeft--
+			this.emit("check_state", { timeLeft: this.timeLeft })
 
-					return {
-						type: pattern.type,
-						url,
-						framework
-					};
+			if (this.timeLeft <= 0 && this.autoAcceptEnabled) {
+				this.continue()
+				if (this.countdownTimer) {
+					clearInterval(this.countdownTimer)
+					this.countdownTimer = null
 				}
 			}
-		}
-		return {};
+		}, 1000)
 	}
 
 	async run(terminal: vscode.Terminal, command: string) {
-		// Emit first line immediately to show "proceed while running"
-		this.emit("line", command);
-		
-		// Start countdown
-		this.startCountdown();
+		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
+			const execution = terminal.shellIntegration.executeCommand(command)
+			const stream = execution.read()
+			let isFirstChunk = true
+			let didOutputNonCommand = false
+			let didEmitEmptyLine = false
 
-		// Handle special key inputs
-		if (command === "Enter") {
-			terminal.sendText(SPECIAL_KEYS.ENTER, false);
-			return;
-		} else if (command === "ArrowUp") {
-			terminal.sendText(SPECIAL_KEYS.UP, false);
-			return;
-		} else if (command === "ArrowDown") {
-			terminal.sendText(SPECIAL_KEYS.DOWN, false);
-			return;
-		} else if (command === "ArrowRight") {
-			terminal.sendText(SPECIAL_KEYS.RIGHT, false);
-			return;
-		} else if (command === "ArrowLeft") {
-			terminal.sendText(SPECIAL_KEYS.LEFT, false);
-			return;
-		} else if (command === "Space") {
-			terminal.sendText(SPECIAL_KEYS.SPACE, false);
-			return;
-		}
-
-		// Show terminal
-		terminal.show(false)
-		
-		// Brief wait for initialization
-		await new Promise(resolve => setTimeout(resolve, 100))
-
-		if (!terminal.shellIntegration?.executeCommand) {
-			// Wait for shell integration
-			let attempts = 0
-			const maxAttempts = 5
-			
-			while (attempts < maxAttempts) {
-				if (terminal.shellIntegration?.executeCommand) {
-					break
-				}
-				await new Promise(resolve => setTimeout(resolve, 100))
-				attempts++
+			// Start countdown for auto-accept
+			if (this.autoAcceptEnabled) {
+				this.startCountdown()
 			}
-		}
 
-		// Execute command with or without shell integration
-		if (!terminal.shellIntegration?.executeCommand) {
-			terminal.sendText(command, true)
-			this.emit("no_shell_integration")
-			return
-		}
+			// Emit the command as first line
+			this.emit("line", command)
 
-		try {
-			await this.executeCommand(terminal, command)
-		} catch (error) {
-			console.error("Error executing command:", error)
-			terminal.sendText(command, true)
-			this.emit("error", error)
-		}
-	}
-
-	private async executeCommand(terminal: vscode.Terminal, command: string) {
-		if (!terminal.shellIntegration?.executeCommand) {
-			throw new Error("Shell integration is not available")
-		}
-
-		const execution = terminal.shellIntegration.executeCommand(command)
-		const stream = execution.read()
-		this.lastOutputTime = Date.now()
-
-		try {
 			for await (let data of stream) {
-				const cleanData = stripAnsi(data)
-				this.fullOutput += cleanData
+				// Process chunk and remove artifacts
+				if (isFirstChunk) {
+					const outputBetweenSequences = this.removeLastLineArtifacts(
+						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
+					).trim()
 
-				// Detect server information
-				const serverInfo = this.detectServerInfo(cleanData);
-				if (serverInfo.type || serverInfo.url) {
-					this.emit("ready", {
-						type: serverInfo.type || '',
-						url: serverInfo.url,
-						framework: serverInfo.framework
-					});
-				}
-
-				this.lastOutputTime = Date.now()
-
-				// Reset completion timer if it exists
-				if (this.completionTimer) {
-					clearTimeout(this.completionTimer)
-				}
-
-				// Set new completion timer
-				this.completionTimer = setTimeout(() => {
-					const timeSinceLastOutput = Date.now() - this.lastOutputTime
-					if (timeSinceLastOutput >= 2000) {
-						this.emit("completed")
-						this.continue()
+					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
+					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
+					if (lastMatch && lastMatch.index !== undefined) {
+						data = data.slice(lastMatch.index + lastMatch[0].length)
 					}
-				}, 2000)
+					if (outputBetweenSequences) {
+						data = outputBetweenSequences + "\n" + data
+					}
+
+					data = stripAnsi(data)
+					let lines = data ? data.split("\n") : []
+					if (lines.length > 0) {
+						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
+					}
+					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+						lines[0] = lines[0].slice(1)
+					}
+					if (lines.length > 0) {
+						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+					}
+					if (lines.length > 1) {
+						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+					}
+					data = lines.join("\n")
+					isFirstChunk = false
+				} else {
+					data = stripAnsi(data)
+				}
+
+				// first few chunks could be the command being echoed back, so we must ignore
+				// note this means that 'echo' commands wont work
+				if (!didOutputNonCommand) {
+					const lines = data.split("\n")
+					for (let i = 0; i < lines.length; i++) {
+						if (command.includes(lines[i].trim())) {
+							lines.splice(i, 1)
+							i-- // Adjust index after removal
+						} else {
+							didOutputNonCommand = true
+							break
+						}
+					}
+					data = lines.join("\n")
+				}
+
+				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
+				data = data.replace(/,/g, "")
+
+				this.isHot = true
+				if (this.hotTimer) {
+					clearTimeout(this.hotTimer)
+				}
+
+				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
+				const markerNullifiers = [
+					"compiled",
+					"success",
+					"finish",
+					"complete",
+					"succeed",
+					"done",
+					"end",
+					"stop",
+					"exit",
+					"terminate",
+					"error",
+					"fail",
+				]
+				const isCompiling =
+					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
+					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+				this.hotTimer = setTimeout(
+					() => {
+						this.isHot = false
+					},
+					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
+				)
+
+				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
+				if (!didEmitEmptyLine && !this.fullOutput && data) {
+					this.emit("line", "") // empty line to indicate start of command output stream
+					didEmitEmptyLine = true
+				}
+
+				this.fullOutput += data
+				if (this.isListening) {
+					this.emitIfEol(data)
+					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
+				}
 			}
-		} catch (error) {
-			console.error("Error in command execution:", error)
-			this.emit("error", error instanceof Error ? error : new Error(String(error)))
-			this.continue()
+
+			this.emitRemainingBufferIfListening()
+
+			if (this.hotTimer) {
+				clearTimeout(this.hotTimer)
+			}
+			this.isHot = false
+
+			if (this.countdownTimer) {
+				clearInterval(this.countdownTimer)
+				this.countdownTimer = null
+			}
+
+			this.emit("completed")
+			this.emit("continue")
+		} else {
+			terminal.sendText(command, true)
+			this.emit("completed")
+			this.emit("continue")
+			this.emit("no_shell_integration")
 		}
 	}
 
-	// Existing methods like startCountdown, continue, getUnretrievedOutput remain the same
-	private startCountdown() {
-		if (this.countdownTimer) {
-			clearInterval(this.countdownTimer);
+	private emitIfEol(chunk: string) {
+		this.buffer += chunk
+		let lineEndIndex: number
+		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+			let line = this.buffer.slice(0, lineEndIndex).trimEnd()
+			this.emit("line", line)
+			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
+	}
 
-		this.timeLeft = 10;
-		this.countdownTimer = setInterval(() => {
-			this.timeLeft--;
-			this.emit("check_state", { timeLeft: this.timeLeft });
-
-			if (this.timeLeft <= 0) {
-				this.timeLeft = 10;
-				this.emit("line", this.getUnretrievedOutput());
+	private emitRemainingBufferIfListening() {
+		if (this.buffer && this.isListening) {
+			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
+			if (remainingBuffer) {
+				this.emit("line", remainingBuffer)
 			}
-		}, 1000);
+			this.buffer = ""
+			this.lastRetrievedIndex = this.fullOutput.length
+		}
 	}
 
 	continue() {
-		this.isListening = false
 		if (this.countdownTimer) {
-			clearInterval(this.countdownTimer);
-			this.countdownTimer = null;
+			clearInterval(this.countdownTimer)
+			this.countdownTimer = null
 		}
-		if (this.completionTimer) {
-			clearTimeout(this.completionTimer);
-			this.completionTimer = null;
-		}
+		this.emitRemainingBufferIfListening()
+		this.isListening = false
 		this.removeAllListeners("line")
 		this.emit("continue")
 	}
@@ -246,7 +222,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	getUnretrievedOutput(): string {
 		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
 		this.lastRetrievedIndex = this.fullOutput.length
-		return unretrieved.trimEnd()
+		return this.removeLastLineArtifacts(unretrieved)
+	}
+
+	removeLastLineArtifacts(output: string) {
+		const lines = output.trimEnd().split("\n")
+		if (lines.length > 0) {
+			const lastLine = lines[lines.length - 1]
+			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
+		}
+		return lines.join("\n").trimEnd()
 	}
 }
 
@@ -255,7 +240,7 @@ export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
 export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(
-		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const
+		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const,
 	)
 	for (const [property, descriptor] of descriptors) {
 		if (descriptor) {

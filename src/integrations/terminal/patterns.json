@@ -1,0 +1,235 @@
+{
+  "server": {
+    "development": [
+      "starting.*server",
+      "listening.*port",
+      "running.*localhost",
+      "development.*server.*started",
+      "webpack.*compiled",
+      "vite.*server.*running",
+      "astro.*ready",
+      "next.*started",
+      "react-scripts.*start",
+      "angular.*Development.*server",
+      "nuxt.*ready",
+      "gatsby.*running.*localhost",
+      "svelte-kit.*ready",
+      "remix.*watching",
+      "nodemon.*starting",
+      "live-server.*started",
+      "parcel.*server.*running",
+      "expo.*developer.*tools",
+      "flutter.*daemon.*starting",
+      "rails.*server.*started",
+      "django.*development.*server",
+      "flask.*running",
+      "spring.*started",
+      "deno.*watching",
+      "bun.*server.*started"
+    ],
+    "database": [
+      "mongodb.*waiting.*connections",
+      "postgresql.*database.*system.*ready",
+      "mysql.*ready.*connections",
+      "redis.*ready.*accept.*connections",
+      "sqlite.*database.*connected"
+    ],
+    "docker": [
+      "docker.*container.*started",
+      "docker-compose.*done",
+      "kubernetes.*pod.*running",
+      "minikube.*started"
+    ],
+    "url_patterns": {
+      "regex": [
+        "Local\\s+http:\\/\\/localhost:(\\d+)\\/",
+        "http:\\/\\/localhost:(\\d+)",
+        "running on (http:\\/\\/\\S+)",
+        "┃\\s+Local\\s+http:\\/\\/localhost:(\\d+)\\/",
+        "┃\\s+Network\\s+http:\\/\\/\\S+:(\\d+)\\/",
+        "astro\\s+v\\d+\\.\\d+\\.\\d+\\s+ready"
+      ],
+      "frameworks": [
+        {
+          "pattern": "astro",
+          "name": "Astro"
+        },
+        {
+          "pattern": "react",
+          "name": "React"
+        },
+        {
+          "pattern": "vue",
+          "name": "Vue"
+        },
+        {
+          "pattern": "angular",
+          "name": "Angular"
+        },
+        {
+          "pattern": "next",
+          "name": "Next.js"
+        },
+        {
+          "pattern": "vite",
+          "name": "Vite"
+        },
+        {
+          "pattern": "nuxt",
+          "name": "Nuxt"
+        },
+        {
+          "pattern": "gatsby",
+          "name": "Gatsby"
+        },
+        {
+          "pattern": "svelte-kit",
+          "name": "SvelteKit"
+        },
+        {
+          "pattern": "remix",
+          "name": "Remix"
+        },
+        {
+          "pattern": "parcel",
+          "name": "Parcel"
+        },
+        {
+          "pattern": "webpack",
+          "name": "Webpack"
+        }
+      ]
+    }
+  },
+  "installation": {
+    "package_managers": [
+      "npm install",
+      "npm ci",
+      "yarn install",
+      "yarn add",
+      "pnpm install",
+      "pnpm add",
+      "bun install",
+      "pip install",
+      "poetry install",
+      "gem install",
+      "bundle install",
+      "cargo install",
+      "go get",
+      "mvn install",
+      "gradle build",
+      "composer install",
+      "nuget install",
+      "dotnet restore",
+      "pod install",
+      "brew install"
+    ],
+    "build_tools": [
+      "building.*modules",
+      "webpack.*building",
+      "vite.*building",
+      "rollup.*bundling",
+      "tsc.*building",
+      "babel.*transforming",
+      "esbuild.*building",
+      "parcel.*building",
+      "next.*building",
+      "nuxt.*building",
+      "gatsby.*building",
+      "angular.*building",
+      "vue-cli-service.*building",
+      "create-react-app.*building",
+      "svelte-kit.*building",
+      "remix.*building",
+      "flutter.*building",
+      "xcodebuild.*building",
+      "gradle.*building",
+      "maven.*building",
+      "cargo.*building",
+      "go.*building"
+    ],
+    "progress_indicators": [
+      "installing.*dependencies",
+      "downloading.*packages",
+      "resolving.*dependencies",
+      "fetching.*packages",
+      "updating.*dependencies",
+      "compiling.*modules",
+      "linking.*dependencies",
+      "migrating.*database",
+      "generating.*files",
+      "optimizing.*assets",
+      "processing.*files",
+      "analyzing.*bundles",
+      "collecting.*artifacts",
+      "deploying.*application"
+    ]
+  },
+  "testing": {
+    "test_runners": [
+      "jest.*running",
+      "mocha.*running",
+      "vitest.*running",
+      "cypress.*running",
+      "playwright.*running",
+      "karma.*running",
+      "pytest.*collecting",
+      "rspec.*running",
+      "phpunit.*running",
+      "go test.*running",
+      "cargo test.*running",
+      "gradle test.*running",
+      "maven test.*running"
+    ],
+    "test_results": [
+      "\\d+.*tests?.*passed",
+      "✔.*all.*tests.*passed",
+      "test suites.*passed",
+      "test files.*complete",
+      "assertions.*passed",
+      "specs.*completed"
+    ]
+  },
+  "deployment": {
+    "cloud_platforms": [
+      "aws.*deploying",
+      "azure.*deploying",
+      "gcloud.*deploying",
+      "firebase.*deploying",
+      "heroku.*deploying",
+      "vercel.*deploying",
+      "netlify.*deploying",
+      "digitalocean.*deploying"
+    ],
+    "container_platforms": [
+      "docker.*building",
+      "docker.*pushing",
+      "kubernetes.*deploying",
+      "helm.*installing"
+    ]
+  },
+  "git": {
+    "operations": [
+      "git.*cloning",
+      "git.*pulling",
+      "git.*pushing",
+      "git.*fetching",
+      "git.*rebasing",
+      "git.*merging"
+    ]
+  },
+  "shell_prompts": {
+    "zsh": [
+      "^([~\\w\\-./]+)(%|❯)\\s*$",
+      "^➜\\s+([~\\w\\-./]+)\\s*$"
+    ],
+    "bash": [
+      "^[\\w@\\-./]+:[\\w\\-./~]+\\$\\s*$",
+      "^[\\w@\\-./]+\\$\\s*$"
+    ],
+    "fish": [
+      "^❯\\s*$",
+      "^[\\w@\\-./]+❯\\s*$"
+    ]
+  }
+}
