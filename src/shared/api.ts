@@ -237,6 +237,14 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-flash-002"
 export const geminiModels = {
+	"gemini-2.0-flash-exp": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-1.5-flash-002": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
