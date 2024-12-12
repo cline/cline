@@ -8,145 +8,12 @@ export interface TerminalProcessEvents {
 	completed: []
 	error: [error: Error]
 	no_shell_integration: []
-	ready: [{ type: string; url?: string }]
+	check_state: [{ timeLeft: number }]
 }
 
 // how long to wait after a process outputs anything before we consider it "cool" again
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
-
-interface ServerPattern {
-    type: string;
-    readyPatterns: RegExp[];
-    urlPattern?: RegExp;
-}
-
-// Patterns to detect when different types of servers/processes are ready
-const SERVER_PATTERNS: ServerPattern[] = [
-    {
-        type: "next.js",
-        readyPatterns: [
-            /ready started server on/i,
-            /ready in \d+/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "vite",
-        readyPatterns: [
-            /ready in \d+/i,
-            /local:\s+(http:\/\/localhost:\d+)/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "react-scripts",
-        readyPatterns: [
-            /You can now view .+ in the browser/i,
-            /Compiled successfully/i
-        ],
-        urlPattern: /Local:\s+(http:\/\/localhost:\d+)/
-    },
-    {
-        type: "webpack",
-        readyPatterns: [
-            /compiled (?:successfully|with warnings)/i,
-            /webpack \d+\.\d+\.\d+ compiled/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "angular",
-        readyPatterns: [
-            /Compiled successfully/i,
-            /Angular Live Development Server is listening/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "vue-cli",
-        readyPatterns: [
-            /App running at:/i,
-            /Local:\s+http/i
-        ],
-        urlPattern: /http:\/\/localhost:\d+/
-    },
-    {
-        type: "flask",
-        readyPatterns: [
-            /Running on http/i,
-            /Debugger PIN/i
-        ],
-        urlPattern: /http:\/\/\d+\.\d+\.\d+\.\d+:\d+/
-    },
-    {
-        type: "django",
-        readyPatterns: [
-            /Starting development server at/i,
-            /Watching for file changes/i
-        ],
-        urlPattern: /http:\/\/\d+\.\d+\.\d+\.\d+:\d+/
-    },
-    {
-        type: "spring-boot",
-        readyPatterns: [
-            /Tomcat started on port/i,
-            /Started .+ in \d+/i
-        ],
-        urlPattern: /:\d+/
-    },
-    {
-        type: "npm-install",
-        readyPatterns: [
-            /added \d+ packages/i,
-            /found \d+ vulnerabilities/i,
-            /packages are looking for funding/i
-        ]
-    },
-    {
-        type: "yarn-install",
-        readyPatterns: [
-            /Done in \d+/i,
-            /success Saved lockfile/i
-        ]
-    },
-    {
-        type: "build",
-        readyPatterns: [
-            /Build complete/i,
-            /Successfully built/i,
-            /Compiled successfully/i,
-            /Build finished/i
-        ]
-    },
-	{
-		type: "go",
-		readyPatterns: [
-			/listening on/i,
-			/Serving/i
-		],
-		urlPattern: /http:\/\/localhost:\d+/
-	}
-]
-
-// Commands that indicate a long-running process that shouldn't auto-close
-const LONG_RUNNING_MARKERS = [
-    "npm run dev",
-    "npm start",
-    "yarn dev",
-    "yarn start",
-    "pnpm dev",
-    "pnpm start",
-    "python manage.py runserver",
-    "flask run",
-    "rails server",
-    "ng serve",
-    "gatsby develop",
-    "next dev",
-    "vite",
-    "webpack-dev-server",
-	"go run",
-]
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
@@ -156,32 +23,55 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
-	isLongRunning: boolean = false
-	private currentCommand: string = ""
-	private readyEmitted: boolean = false
-	private outputAccumulator: string = ""
+	private countdownTimer: NodeJS.Timeout | null = null
+	private timeLeft: number = 10
+	private autoAcceptEnabled: boolean = false
+
+	setAutoAccept(enabled: boolean) {
+		this.autoAcceptEnabled = enabled;
+	}
+
+	private startCountdown() {
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer)
+		}
+
+		this.timeLeft = 10
+		this.countdownTimer = setInterval(() => {
+			this.timeLeft--
+			this.emit("check_state", { timeLeft: this.timeLeft })
+
+			if (this.timeLeft <= 0 && this.autoAcceptEnabled) {
+				this.continue()
+				if (this.countdownTimer) {
+					clearInterval(this.countdownTimer)
+					this.countdownTimer = null
+				}
+			}
+		}, 1000)
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
-		this.currentCommand = command
-		this.readyEmitted = false
-		this.outputAccumulator = ""
-
-		// Check if this is a long-running process
-		this.isLongRunning = LONG_RUNNING_MARKERS.some(marker => 
-			command.toLowerCase().includes(marker.toLowerCase())
-		)
-
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+
+			// Start countdown for auto-accept
+			if (this.autoAcceptEnabled) {
+				this.startCountdown()
+			}
+
+			// Emit the command as first line
+			this.emit("line", command)
+
 			for await (let data of stream) {
-				// 1. Process chunk and remove artifacts
+				// Process chunk and remove artifacts
 				if (isFirstChunk) {
 					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
 					).trim()
 
 					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
@@ -192,6 +82,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					if (outputBetweenSequences) {
 						data = outputBetweenSequences + "\n" + data
 					}
+
 					data = stripAnsi(data)
 					let lines = data ? data.split("\n") : []
 					if (lines.length > 0) {
@@ -212,12 +103,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 				}
 
+				// first few chunks could be the command being echoed back, so we must ignore
+				// note this means that 'echo' commands wont work
 				if (!didOutputNonCommand) {
 					const lines = data.split("\n")
 					for (let i = 0; i < lines.length; i++) {
 						if (command.includes(lines[i].trim())) {
 							lines.splice(i, 1)
-							i--
+							i-- // Adjust index after removal
 						} else {
 							didOutputNonCommand = true
 							break
@@ -226,13 +119,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = lines.join("\n")
 				}
 
+				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
 				data = data.replace(/,/g, "")
 
-				// Accumulate output for ready detection
-				this.outputAccumulator += data
-				this.checkIfReady()
-
-				// 2. Set isHot depending on the command
 				this.isHot = true
 				if (this.hotTimer) {
 					clearTimeout(this.hotTimer)
@@ -256,19 +145,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				const isCompiling =
 					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
 					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+				this.hotTimer = setTimeout(
+					() => {
+						this.isHot = false
+					},
+					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
+				)
 
-				// For long-running processes, we don't want to set a timeout to mark as not hot
-				if (!this.isLongRunning) {
-					this.hotTimer = setTimeout(
-						() => {
-							this.isHot = false
-						},
-						isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
-					)
-				}
-
+				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
-					this.emit("line", "")
+					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true
 				}
 
@@ -281,12 +167,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.emitRemainingBufferIfListening()
 
-			// Only clear hot status for non-long-running processes
-			if (!this.isLongRunning) {
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-				}
-				this.isHot = false
+			if (this.hotTimer) {
+				clearTimeout(this.hotTimer)
+			}
+			this.isHot = false
+
+			if (this.countdownTimer) {
+				clearInterval(this.countdownTimer)
+				this.countdownTimer = null
 			}
 
 			this.emit("completed")
@@ -296,31 +184,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("completed")
 			this.emit("continue")
 			this.emit("no_shell_integration")
-		}
-	}
-
-	private checkIfReady() {
-		if (this.readyEmitted) return
-
-		for (const pattern of SERVER_PATTERNS) {
-			// Check if all ready patterns match
-			const allPatternsMatch = pattern.readyPatterns.every(readyPattern => 
-				readyPattern.test(this.outputAccumulator)
-			)
-
-			if (allPatternsMatch) {
-				let url: string | undefined
-				if (pattern.urlPattern) {
-					const match = this.outputAccumulator.match(pattern.urlPattern)
-					if (match) {
-						url = match[0]
-					}
-				}
-
-				this.readyEmitted = true
-				this.emit("ready", { type: pattern.type, url })
-				break
-			}
 		}
 	}
 
@@ -346,6 +209,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	continue() {
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer)
+			this.countdownTimer = null
+		}
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
@@ -373,7 +240,7 @@ export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
 export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(
-		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const
+		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const,
 	)
 	for (const [property, descriptor] of descriptors) {
 		if (descriptor) {

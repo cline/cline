@@ -35,11 +35,27 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
+
+When executing commands that may require interaction (like responding to prompts or monitoring output), you should:
+1. First use list_terminals to see available terminals and their states. The terminal information includes:
+   - Recent output (last 10 lines) to understand the current terminal state
+   - Command history to see what commands led to the current state
+   - Terminal type and ID for tracking specific terminals
+2. Then use execute_command with a terminal_id to send commands to a specific terminal
+3. For interactive prompts that require keyboard input, use these special commands:
+   - "Enter" to confirm selections
+   - "ArrowUp" and "ArrowDown" to navigate through options
+   - "ArrowLeft" and "ArrowRight" for horizontal navigation
+   - "Space" for space key
+4. Always check the terminal output history before sending the next command to ensure you're responding to the correct prompt
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
+- terminal_id: (optional) The ID of an existing terminal to run the command in. If not provided, a new terminal will be created. Use this to send commands to specific terminals, such as when you need to respond to prompts or interact with long-running processes.
+
 Usage:
 <execute_command>
 <command>Your command here</command>
+<terminal_id>123</terminal_id>
 </execute_command>
 
 ## read_file
@@ -213,6 +229,24 @@ Usage:
 </list_code_definition_names>${
 	supportsComputerUse
 		? `
+
+## list_terminals
+Description: Request to list all active terminal sessions and their current state. This provides information about running terminals, including their IDs, current working directories, and what processes they're running (if any).
+Parameters:
+- None required
+Usage:
+<list_terminals>
+</list_terminals>
+
+
+## close_terminal
+Description: Close a specific terminal session. Use this when you're done with a terminal and want to clean up. Be careful not to close terminals running important long-running processes like development servers.
+Parameters:
+- terminal_id: (required) The ID of the terminal to close
+Usage:
+<close_terminal>
+<terminal_id>123</terminal_id>
+</close_terminal>
 
 ## browser_action
 Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.

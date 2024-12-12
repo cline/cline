@@ -29,19 +29,6 @@
     "Snippets",
     "Testing"
   ],
-  "keywords": [
-    "cline",
-    "claude",
-    "dev",
-    "openrouter",
-    "coding",
-    "agent",
-    "autonomous",
-    "chatgpt",
-    "sonnet",
-    "ai",
-    "llama"
-  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -131,11 +118,9 @@
     "install:all": "npm install && cd webview-ui && npm install",
     "start:webview": "cd webview-ui && npm run start",
     "build:webview": "cd webview-ui && npm run build",
-    "test:webview": "cd webview-ui && npm run test",
-    "publish:marketplace": "vsce publish && ovsx publish"
+    "test:webview": "cd webview-ui && npm run test"
   },
   "devDependencies": {
-    "@types/diff": "^5.2.1",
     "@types/mocha": "^10.0.7",
     "@types/node": "20.x",
     "@types/react": "^18.3.12",
@@ -155,6 +140,7 @@
     "@anthropic-ai/vertex-sdk": "^0.4.1",
     "@google/generative-ai": "^0.18.0",
     "@types/clone-deep": "^4.0.4",
+    "@types/diff": "^5.2.1",
     "@types/pdf-parse": "^1.1.4",
     "@types/turndown": "^5.0.5",
     "@vscode/codicons": "^0.0.36",
@@ -173,6 +159,7 @@
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",
+    "play-sound": "^1.1.6",
     "puppeteer-chromium-resolver": "^23.0.0",
     "puppeteer-core": "^23.4.0",
     "serialize-error": "^11.0.3",

@@ -1,6 +1,8 @@
 import { CodeBlock, MergeResult, MERGE_MARKERS } from "./types";
 
 export class CodeMerger {
+    private activeMergePromises: Promise<MergeResult>[] = [];
+
     /**
      * Parse content to find SEARCH/REPLACE blocks
      * Handles various code fence formats and ensures blocks are properly formatted
@@ -76,7 +78,22 @@ export class CodeMerger {
         searchText: string,
         replaceText: string
     ): Promise<MergeResult> {
-        try {
+        const mergePromise = this._performMerge(filename, content, searchText, replaceText);
+        this.activeMergePromises.push(mergePromise);
+        
+        return mergePromise;
+    }
+
+    /**
+     * Internal method to perform the actual merge
+     */
+    private async _performMerge(
+        filename: string,
+        content: string,
+        searchText: string,
+        replaceText: string
+    ): Promise<MergeResult> {
+        const mergePromise = (async () => {
             // For new files, just return the new content
             if (!searchText.trim()) {
                 return {
@@ -185,11 +202,41 @@ ${closeMatch}
 
 Make sure your SEARCH block exactly matches the file content.`
             };
+        })();
+
+        try {
+            return await mergePromise;
         } catch (error) {
             return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
+        } finally {
+            // Remove this promise from active merges
+            this.activeMergePromises = this.activeMergePromises.filter(p => p !== mergePromise);
         }
+    }
+
+    /**
+     * Wait for all active merge operations to complete
+     * @param timeoutMs Maximum time to wait for merges (default 10 seconds)
+     */
+    async waitForMerges(timeoutMs: number = 10000): Promise<void> {
+        const startTime = Date.now();
+        
+        while (this.activeMergePromises.length > 0) {
+            if (Date.now() - startTime > timeoutMs) {
+                throw new Error(`Merge operations timed out after ${timeoutMs}ms`);
+            }
+            
+            await Promise.race(this.activeMergePromises);
+        }
+    }
+
+    /**
+     * Get the number of currently active merge operations
+     */
+    getPendingMergeCount(): number {
+        return this.activeMergePromises.length;
     }
 }

@@ -18,6 +18,8 @@ export const toolUseNames = [
 	"browser_action",
 	"ask_followup_question",
 	"attempt_completion",
+	"list_terminals",
+	"close_terminal",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -36,6 +38,7 @@ export const toolParamNames = [
 	"text",
 	"question",
 	"result",
+	"terminal_id",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -92,4 +95,14 @@ export interface AskFollowupQuestionToolUse extends ToolUse {
 export interface AttemptCompletionToolUse extends ToolUse {
 	name: "attempt_completion"
 	params: Partial<Pick<Record<ToolParamName, string>, "result" | "command">>
+}
+
+export interface ListTerminalsToolUse extends ToolUse {
+	name: "list_terminals"
+	params: Partial<Record<ToolParamName, string>>
+}
+
+export interface CloseTerminalToolUse extends ToolUse {
+	name: "close_terminal"
+	params: Partial<Pick<Record<ToolParamName, string>, "terminal_id">>
 }
