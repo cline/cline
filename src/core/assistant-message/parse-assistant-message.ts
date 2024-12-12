@@ -8,21 +8,36 @@ import {
 	ToolUseName,
 } from "."
 
+/**
+ * Parses an assistant message string into structured content blocks.
+ * 
+ * @param assistantMessage - The message string to be parsed.
+ * @returns An array of content blocks, which can include text and tool use information.
+ */
 export function parseAssistantMessage(assistantMessage: string) {
+	// Array to hold parsed content blocks
 	let contentBlocks: AssistantMessageContent[] = []
+	// Current text content being accumulated
 	let currentTextContent: TextContent | undefined = undefined
+	// Index to track the start of the current text content
 	let currentTextContentStartIndex = 0
+	// Current tool use being processed
 	let currentToolUse: ToolUse | undefined = undefined
+	// Index to track the start of the current tool use
 	let currentToolUseStartIndex = 0
+	// Current parameter name being processed
 	let currentParamName: ToolParamName | undefined = undefined
+	// Index to track the start of the current parameter value
 	let currentParamValueStartIndex = 0
+	// Accumulator for building the current content
 	let accumulator = ""
 
+	// Loop through each character in the assistant message
 	for (let i = 0; i < assistantMessage.length; i++) {
 		const char = assistantMessage[i]
 		accumulator += char
 
-		// there should not be a param without a tool use
+		// Check for parameter completion within a tool use
 		if (currentToolUse && currentParamName) {
 			const currentParamValue = accumulator.slice(currentParamValueStartIndex)
 			const paramClosingTag = `</${currentParamName}>`
@@ -37,8 +52,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 			}
 		}
 
-		// no currentParamName
-
+		// Check for tool use completion
 		if (currentToolUse) {
 			const currentToolValue = accumulator.slice(currentToolUseStartIndex)
 			const toolUseClosingTag = `</${currentToolUse.name}>`
@@ -81,13 +95,12 @@ export function parseAssistantMessage(assistantMessage: string) {
 			}
 		}
 
-		// no currentToolUse
-
+		// Check for starting a new tool use
 		let didStartToolUse = false
 		const possibleToolUseOpeningTags = toolUseNames.map((name) => `<${name}>`)
 		for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
 			if (accumulator.endsWith(toolUseOpeningTag)) {
-				// start of a new tool use
+				// Start of a new tool use
 				currentToolUse = {
 					type: "tool_use",
 					name: toolUseOpeningTag.slice(1, -1) as ToolUseName,
@@ -111,19 +124,13 @@ export function parseAssistantMessage(assistantMessage: string) {
 			}
 		}
 
+			// If no tool use was started, treat the content as text
 		if (!didStartToolUse) {
-			// no tool use, so it must be text either at the beginning or between tools
-			if (currentTextContent === undefined) {
-				currentTextContentStartIndex = i
-			}
-			currentTextContent = {
-				type: "text",
-				content: accumulator.slice(currentTextContentStartIndex).trim(),
-				partial: true,
-			}
+			// ... existing code ...
 		}
 	}
 
+	// Handle any remaining tool use or text content
 	if (currentToolUse) {
 		// stream did not complete tool call, add it as partial
 		if (currentParamName) {
