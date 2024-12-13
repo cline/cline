@@ -25,6 +25,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysAllowExecute,
 		alwaysAllowBrowser,
 		setAlwaysAllowBrowser,
+		alwaysAllowMcp,
+		setAlwaysAllowMcp,
 		soundEnabled,
 		setSoundEnabled,
 		diffEnabled,
@@ -50,6 +52,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
 			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
+			vscode.postMessage({ type: "alwaysAllowMcp", bool: alwaysAllowMcp })
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
@@ -195,7 +198,29 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-errorForeground)",
 						}}>
 						⚠️ WARNING: When enabled, Cline will automatically perform browser actions without requiring approval. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.<br/><br/>NOTE: The checkbox only applies when the model supports computer use.
+					</p>
+				</div>
 
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						checked={alwaysAllowMcp}
+						onChange={(e: any) => {
+							setAlwaysAllowMcp(e.target.checked)
+							vscode.postMessage({ type: "alwaysAllowMcp", bool: e.target.checked })
+						}}>
+						<span style={{ fontWeight: "500" }}>Always approve MCP tools</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							padding: "8px",
+							backgroundColor: "var(--vscode-errorBackground)",
+							border: "1px solid var(--vscode-errorBorder)",
+							borderRadius: "4px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						⚠️ WARNING: When enabled, you can set individual MCP tools to auto-approve in the MCP Servers view. A tool will only be auto-approved if both this setting and the tool's individual "Always allow" checkbox are enabled. This is potentially very dangerous and could lead to unwanted system modifications or security risks. Enable only if you fully trust the AI and understand the risks.
 					</p>
 				</div>
 

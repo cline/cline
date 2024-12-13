@@ -29,6 +29,7 @@ export interface WebviewMessage {
 		| "cancelTask"
 		| "refreshOpenRouterModels"
 		| "alwaysAllowBrowser"
+		| "alwaysAllowMcp"
 		| "playSound"
 		| "soundEnabled"
 		| "diffEnabled"

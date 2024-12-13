@@ -17,7 +17,7 @@ type McpViewProps = {
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers } = useExtensionState()
+	const { mcpServers: servers, alwaysAllowMcp } = useExtensionState()
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -126,7 +126,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				{servers.length > 0 && (
 					<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 						{servers.map((server) => (
-							<ServerRow key={server.name} server={server} />
+							<ServerRow key={server.name} server={server} alwaysAllowMcp={alwaysAllowMcp} />
 						))}
 					</div>
 				)}
@@ -152,7 +152,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 }
 
 // Server Row Component
-const ServerRow = ({ server }: { server: McpServer }) => {
+const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer, alwaysAllowMcp?: boolean }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const getStatusColor = () => {
@@ -260,6 +260,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 												key={tool.name}
 												tool={tool}
 												serverName={server.name}
+												alwaysAllowMcp={alwaysAllowMcp}
 											/>
 										))}
 									</div>

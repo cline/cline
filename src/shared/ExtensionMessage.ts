@@ -47,6 +47,7 @@ export interface ExtensionState {
 	alwaysAllowWrite?: boolean
 	alwaysAllowExecute?: boolean
 	alwaysAllowBrowser?: boolean
+	alwaysAllowMcp?: boolean
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
