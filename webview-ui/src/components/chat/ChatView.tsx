@@ -11,6 +11,7 @@ import {
 	ClineSayTool,
 	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
+import { McpServer, McpTool } from "../../../../src/shared/mcp"
 import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
@@ -36,7 +37,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration,  alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, allowedCommands } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, allowedCommands } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -767,6 +768,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return false
 		}
 
+		const isMcpToolAlwaysAllowed = () => {
+			const lastMessage = messages.at(-1)
+			if (lastMessage?.type === "ask" && lastMessage.ask === "use_mcp_server" && lastMessage.text) {
+				const mcpServerUse = JSON.parse(lastMessage.text) as { type: string; serverName: string; toolName: string }
+				if (mcpServerUse.type === "use_mcp_tool") {
+					const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
+					const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
+					return tool?.alwaysAllow || false
+				}
+			}
+			return false
+		}
+
 		const isAllowedCommand = () => {
 			const lastMessage = messages.at(-1)
 			if (lastMessage?.type === "ask" && lastMessage.text) {
@@ -788,11 +802,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			(alwaysAllowBrowser && clineAsk === "browser_action_launch") ||
 			(alwaysAllowReadOnly && clineAsk === "tool" && isReadOnlyToolAction()) ||
 			(alwaysAllowWrite && clineAsk === "tool" && isWriteToolAction()) ||
-			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand())
+			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand()) ||
+			(clineAsk === "use_mcp_server" && isMcpToolAlwaysAllowed())
 		) {
 			handlePrimaryButtonClick()
 		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages, allowedCommands])
+	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages, allowedCommands, mcpServers])
 
 	return (
 		<div

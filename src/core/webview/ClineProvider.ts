@@ -550,6 +550,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "toggleToolAlwaysAllow": {
+						try {
+							await this.mcpHub?.toggleToolAlwaysAllow(
+								message.serverName!,
+								message.toolName!,
+								message.alwaysAllow!
+							)
+						} catch (error) {
+							console.error(`Failed to toggle auto-approve for tool ${message.toolName}:`, error)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 					case "playSound":

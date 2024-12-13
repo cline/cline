@@ -813,14 +813,19 @@ export const ChatRowContent = ({
 
 								{useMcpServer.type === "use_mcp_tool" && (
 									<>
-										<McpToolRow
-											tool={{
-												name: useMcpServer.toolName || "",
-												description:
-													server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
-														?.description || "",
-											}}
-										/>
+										<div onClick={(e) => e.stopPropagation()}>
+											<McpToolRow
+												tool={{
+													name: useMcpServer.toolName || "",
+													description:
+														server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
+															?.description || "",
+													alwaysAllow: server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
+														?.alwaysAllow || false,
+												}}
+												serverName={useMcpServer.serverName}
+											/>
+										</div>
 										{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
 											<div style={{ marginTop: "8px" }}>
 												<div
