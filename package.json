@@ -1,200 +1,234 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline (prev. Claude Dev)",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "2.2.2",
-	"icon": "assets/icons/icon.png",
-	"galleryBanner": {
-		"color": "#617A91",
-		"theme": "dark"
-	},
-	"engines": {
-		"vscode": "^1.84.0"
-	},
-	"author": {
-		"name": "Cline Bot Inc."
-	},
-	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/cline/cline"
-	},
-	"homepage": "https://cline.bot",
-	"categories": [
-		"AI",
-		"Chat",
-		"Programming Languages",
-		"Education",
-		"Snippets",
-		"Testing"
-	],
-	"keywords": [
-		"cline",
-		"claude",
-		"dev",
-		"mcp",
-		"openrouter",
-		"coding",
-		"agent",
-		"autonomous",
-		"chatgpt",
-		"sonnet",
-		"ai",
-		"llama"
-	],
-	"activationEvents": [],
-	"main": "./dist/extension.js",
-	"contributes": {
-		"viewsContainers": {
-			"activitybar": [
-				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
-					"icon": "$(robot)"
-				}
-			]
-		},
-		"views": {
-			"claude-dev-ActivityBar": [
-				{
-					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
-					"name": ""
-				}
-			]
-		},
-		"commands": [
-			{
-				"command": "cline.plusButtonClicked",
-				"title": "New Task",
-				"icon": "$(add)"
-			},
-			{
-				"command": "cline.mcpButtonClicked",
-				"title": "MCP Servers",
-				"icon": "$(server)"
-			},
-			{
-				"command": "cline.historyButtonClicked",
-				"title": "History",
-				"icon": "$(history)"
-			},
-			{
-				"command": "cline.popoutButtonClicked",
-				"title": "Open in Editor",
-				"icon": "$(link-external)"
-			},
-			{
-				"command": "cline.settingsButtonClicked",
-				"title": "Settings",
-				"icon": "$(settings-gear)"
-			},
-			{
-				"command": "cline.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Cline"
-			}
-		],
-		"menus": {
-			"view/title": [
-				{
-					"command": "cline.plusButtonClicked",
-					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.mcpButtonClicked",
-					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.historyButtonClicked",
-					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.popoutButtonClicked",
-					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
-					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
-				}
-			]
-		}
-	},
-	"scripts": {
-		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.js --watch",
-		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
-		"compile-tests": "tsc -p . --outDir out",
-		"watch-tests": "tsc -p . -w --outDir out",
-		"pretest": "npm run compile-tests && npm run compile && npm run lint",
-		"check-types": "tsc --noEmit",
-		"lint": "eslint src --ext ts",
-		"format": "prettier . --check",
-		"format:fix": "prettier . --write",
-		"test": "vscode-test",
-		"install:all": "npm install && cd webview-ui && npm install",
-		"start:webview": "cd webview-ui && npm run start",
-		"build:webview": "cd webview-ui && npm run build",
-		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish"
-	},
-	"devDependencies": {
-		"@types/diff": "^5.2.1",
-		"@types/mocha": "^10.0.7",
-		"@types/node": "20.x",
-		"@types/vscode": "^1.84.0",
-		"@typescript-eslint/eslint-plugin": "^7.14.1",
-		"@typescript-eslint/parser": "^7.11.0",
-		"@vscode/test-cli": "^0.0.9",
-		"@vscode/test-electron": "^2.4.0",
-		"esbuild": "^0.21.5",
-		"eslint": "^8.57.0",
-		"npm-run-all": "^4.1.5",
-		"prettier": "^3.3.3",
-		"typescript": "^5.4.5"
-	},
-	"dependencies": {
-		"@anthropic-ai/bedrock-sdk": "^0.10.2",
-		"@anthropic-ai/sdk": "^0.26.0",
-		"@anthropic-ai/vertex-sdk": "^0.4.1",
-		"@google/generative-ai": "^0.18.0",
-		"@modelcontextprotocol/sdk": "^1.0.1",
-		"@types/clone-deep": "^4.0.4",
-		"@types/pdf-parse": "^1.1.4",
-		"@types/turndown": "^5.0.5",
-		"@vscode/codicons": "^0.0.36",
-		"axios": "^1.7.4",
-		"cheerio": "^1.0.0",
-		"chokidar": "^4.0.1",
-		"clone-deep": "^4.0.1",
-		"default-shell": "^2.2.0",
-		"delay": "^6.0.0",
-		"diff": "^5.2.0",
-		"fast-deep-equal": "^3.1.3",
-		"globby": "^14.0.2",
-		"isbinaryfile": "^5.0.2",
-		"mammoth": "^1.8.0",
-		"monaco-vscode-textmate-theme-converter": "^0.1.7",
-		"openai": "^4.61.0",
-		"os-name": "^6.0.0",
-		"p-wait-for": "^5.0.2",
-		"pdf-parse": "^1.1.1",
-		"puppeteer-chromium-resolver": "^23.0.0",
-		"puppeteer-core": "^23.4.0",
-		"serialize-error": "^11.0.3",
-		"strip-ansi": "^7.1.0",
-		"tree-sitter-wasms": "^0.1.11",
-		"turndown": "^7.2.0",
-		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.23.8"
-	}
+  "name": "roo-cline",
+  "displayName": "Roo Cline",
+  "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
+  "publisher": "RooVeterinaryInc",
+  "version": "2.2.0",
+  "icon": "assets/icons/rocket.png",
+  "galleryBanner": {
+    "color": "#617A91",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.93.1"
+  },
+  "author": {
+    "name": "Roo Vet"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RooVetGit/Roo-Cline"
+  },
+  "homepage": "https://github.com/RooVetGit/Roo-Cline",
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Education",
+    "Snippets",
+    "Testing"
+  ],
+  "keywords": [
+    "cline",
+    "claude",
+    "dev",
+    "mcp",
+    "openrouter",
+    "coding",
+    "agent",
+    "autonomous",
+    "chatgpt",
+    "sonnet",
+    "ai",
+    "llama"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "roo-cline-ActivityBar",
+          "title": "Roo Cline",
+          "icon": "$(rocket)"
+        }
+      ]
+    },
+    "views": {
+      "roo-cline-ActivityBar": [
+        {
+          "type": "webview",
+          "id": "roo-cline.SidebarProvider",
+          "name": ""
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "roo-cline.plusButtonClicked",
+        "title": "New Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "roo-cline.mcpButtonClicked",
+        "title": "MCP Servers",
+        "icon": "$(server)"
+      },
+      {
+        "command": "roo-cline.historyButtonClicked",
+        "title": "History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "roo-cline.popoutButtonClicked",
+        "title": "Open in Editor",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "roo-cline.settingsButtonClicked",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "roo-cline.openInNewTab",
+        "title": "Open In New Tab",
+        "category": "Roo Cline"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "roo-cline.plusButtonClicked",
+          "group": "navigation@1",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.mcpButtonClicked",
+          "group": "navigation@2",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.historyButtonClicked",
+          "group": "navigation@3",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.popoutButtonClicked",
+          "group": "navigation@4",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.settingsButtonClicked",
+          "group": "navigation@5",
+          "when": "view == roo-cline.SidebarProvider"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RooCline",
+      "properties": {
+        "roo-cline.allowedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "npm test",
+            "npm install",
+            "tsc",
+            "git log",
+            "git diff",
+            "git show"
+          ],
+          "description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build:webview && npm run vsix",
+    "build:webview": "cd webview-ui && npm run build",
+    "changeset": "changeset",
+    "check-types": "tsc --noEmit",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "compile-tests": "tsc -p . --outDir out",
+    "install:all": "npm install && cd webview-ui && npm install",
+    "lint": "eslint src --ext ts",
+    "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "start:webview": "cd webview-ui && npm run start",
+    "test": "jest",
+    "test:webview": "cd webview-ui && npm run test",
+    "prepare": "husky",
+    "publish:marketplace": "vsce publish",
+    "publish": "npm run build && changeset publish && npm install --package-lock-only",
+    "version-packages": "changeset version && npm install --package-lock-only",
+    "vscode:prepublish": "npm run package",
+    "vsix": "mkdir -p bin && npx vsce package --out bin",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "watch-tests": "tsc -p . -w --outDir out"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.10",
+    "@types/diff": "^5.2.1",
+    "@types/jest": "^29.5.14",
+    "@types/mocha": "^10.0.7",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^7.14.1",
+    "@typescript-eslint/parser": "^7.11.0",
+    "@vscode/test-cli": "^0.0.9",
+    "@vscode/test-electron": "^2.4.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.57.0",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.2.11",
+    "npm-run-all": "^4.1.5",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.10.2",
+    "@anthropic-ai/sdk": "^0.26.0",
+    "@anthropic-ai/vertex-sdk": "^0.4.1",
+    "@google/generative-ai": "^0.18.0",
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@types/clone-deep": "^4.0.4",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/turndown": "^5.0.5",
+    "@types/vscode": "^1.95.0",
+    "@vscode/codicons": "^0.0.36",
+    "axios": "^1.7.4",
+    "cheerio": "^1.0.0",
+    "chokidar": "^4.0.1",
+    "clone-deep": "^4.0.1",
+    "default-shell": "^2.2.0",
+    "delay": "^6.0.0",
+    "diff": "^5.2.0",
+    "fast-deep-equal": "^3.1.3",
+    "globby": "^14.0.2",
+    "isbinaryfile": "^5.0.2",
+    "mammoth": "^1.8.0",
+    "monaco-vscode-textmate-theme-converter": "^0.1.7",
+    "openai": "^4.61.0",
+    "os-name": "^6.0.0",
+    "p-wait-for": "^5.0.2",
+    "pdf-parse": "^1.1.1",
+    "play-sound": "^1.1.6",
+    "puppeteer-chromium-resolver": "^23.0.0",
+    "puppeteer-core": "^23.4.0",
+    "serialize-error": "^11.0.3",
+    "strip-ansi": "^7.1.0",
+    "tree-sitter-wasms": "^0.1.11",
+    "turndown": "^7.2.0",
+    "web-tree-sitter": "^0.22.6",
+    "zod": "^3.23.8"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "npx eslint -c .eslintrc.json"
+    ]
+  }
 }

@@ -28,6 +28,10 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "alwaysAllowBrowser"
+		| "playSound"
+		| "soundEnabled"
+		| "diffEnabled"
 		| "openMcpSettings"
 		| "restartMcpServer"
 	text?: string

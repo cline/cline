@@ -765,12 +765,6 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub)
-		if (this.customInstructions && this.customInstructions.trim()) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addCustomInstructions(this.customInstructions)
-		}
-
 		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy) + await addCustomInstructions(this.customInstructions ?? '', cwd)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request

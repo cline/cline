@@ -1,12 +1,16 @@
 import defaultShell from "default-shell"
 import os from "os"
 import osName from "os-name"
+import fs from 'fs/promises'
+import path from 'path'
+import { DiffStrategy } from "../diff/DiffStrategy"
 import { McpHub } from "../../services/mcp/McpHub"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
 	supportsComputerUse: boolean,
-	mcpHub: McpHub,
+  mcpHub: McpHub,
+	diffStrategy?: DiffStrategy
 ) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====

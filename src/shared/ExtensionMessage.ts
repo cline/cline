@@ -91,6 +91,7 @@ export type ClineSay =
 	| "shell_integration_warning"
 	| "browser_action"
 	| "browser_action_result"
+	| "command"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
 
