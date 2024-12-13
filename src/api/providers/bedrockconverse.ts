@@ -156,7 +156,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 	}
 
 	private getToolConfig(): ToolConfiguration {
-		const tools: Tool[] = [
+		const allTools: Tool[] = [
 			{
 				toolSpec: {
 					name: "execute_command",
@@ -253,6 +253,24 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			},
 			{
 				toolSpec: {
+					name: "browser_action",
+					description: "Interact with a Puppeteer-controlled browser",
+					inputSchema: {
+						json: {
+							type: "object",
+							properties: {
+								action: { type: "string" },
+								url: { type: "string" },
+								coordinate: { type: "string" },
+								text: { type: "string" }
+							},
+							required: ["action"]
+						}
+					}
+				}
+			},
+			{
+				toolSpec: {
 					name: "ask_followup_question",
 					description: "Ask the user a follow-up question",
 					inputSchema: {
@@ -284,8 +302,14 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			}
 		]
 
+		// Only include browser_action tool if the model supports computer use
+		const modelInfo = this.getModel().info
+		const tools = modelInfo.supportsComputerUse 
+			? allTools 
+			: allTools.filter(tool => tool.toolSpec && tool.toolSpec.name !== "browser_action")
+
 		return {
-			tools: tools,
+			tools,
 			toolChoice: { auto: {} }
 		}
 	}
