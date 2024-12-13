@@ -34,6 +34,8 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
+	includeStreamOptions?: boolean
+	setAzureApiVersion?: boolean
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

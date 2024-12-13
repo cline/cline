@@ -32,18 +32,24 @@ export class OpenAiHandler implements ApiHandler {
 		}
 	}
 
+	// Include stream_options for OpenAI Compatible providers if the checkbox is checked
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		const stream = await this.client.chat.completions.create({
+		const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
-			stream_options: { include_usage: true },
-		})
+		}
+
+		if (this.options.includeStreamOptions ?? true) {
+			requestOptions.stream_options = { include_usage: true }
+		}
+
+		const stream = await this.client.chat.completions.create(requestOptions)
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
