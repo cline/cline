@@ -57,6 +57,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+		const [autoApprove, setautoApprove] = useState(false)
 
 		const queryItems = useMemo(() => {
 			return [
@@ -569,11 +570,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
 						<div
-							className={`input-icon-button codicon codicon-sync`}
+							className={`input-icon-button codicon ${autoApprove ? 'codicon-sync' : 'codicon-sync-ignored'}`}
 							onClick={() => {
-								if (!shouldDisableImages) {
-									onSelectImages()
-								}
+								setautoApprove(!autoApprove);
 							}}
 							style={{
 								marginRight: 5.5,
