@@ -32,6 +32,8 @@ export interface WebviewMessage {
 		| "playSound"
 		| "soundEnabled"
 		| "diffEnabled"
+		| "openMcpSettings"
+		| "restartMcpServer"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

@@ -3,6 +3,53 @@ import * as vscode from 'vscode'
 import { ExtensionMessage, ExtensionState } from '../../../shared/ExtensionMessage'
 import { setSoundEnabled } from '../../../utils/sound'
 
+// Mock delay module
+jest.mock('delay', () => {
+    const delayFn = (ms: number) => Promise.resolve();
+    delayFn.createDelay = () => delayFn;
+    delayFn.reject = () => Promise.reject(new Error('Delay rejected'));
+    delayFn.range = () => Promise.resolve();
+    return delayFn;
+});
+
+// Mock MCP-related modules
+jest.mock('@modelcontextprotocol/sdk/types.js', () => ({
+    CallToolResultSchema: {},
+    ListResourcesResultSchema: {},
+    ListResourceTemplatesResultSchema: {},
+    ListToolsResultSchema: {},
+    ReadResourceResultSchema: {},
+    ErrorCode: {
+        InvalidRequest: 'InvalidRequest',
+        MethodNotFound: 'MethodNotFound',
+        InternalError: 'InternalError'
+    },
+    McpError: class McpError extends Error {
+        code: string;
+        constructor(code: string, message: string) {
+            super(message);
+            this.code = code;
+            this.name = 'McpError';
+        }
+    }
+}), { virtual: true });
+
+jest.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+    Client: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+        listTools: jest.fn().mockResolvedValue({ tools: [] }),
+        callTool: jest.fn().mockResolvedValue({ content: [] })
+    }))
+}), { virtual: true });
+
+jest.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+    StdioClientTransport: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined)
+    }))
+}), { virtual: true });
+
 // Mock dependencies
 jest.mock('vscode', () => ({
     ExtensionContext: jest.fn(),
@@ -19,7 +66,11 @@ jest.mock('vscode', () => ({
         }),
         onDidChangeConfiguration: jest.fn().mockImplementation((callback) => ({
             dispose: jest.fn()
-        }))
+        })),
+        onDidSaveTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+        onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+        onDidOpenTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+        onDidCloseTextDocument: jest.fn(() => ({ dispose: jest.fn() }))
     },
     env: {
         uriScheme: 'vscode'

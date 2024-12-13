@@ -3,6 +3,44 @@ import { ClineProvider } from '../webview/ClineProvider';
 import { ApiConfiguration } from '../../shared/api';
 import * as vscode from 'vscode';
 
+// Mock all MCP-related modules
+jest.mock('@modelcontextprotocol/sdk/types.js', () => ({
+    CallToolResultSchema: {},
+    ListResourcesResultSchema: {},
+    ListResourceTemplatesResultSchema: {},
+    ListToolsResultSchema: {},
+    ReadResourceResultSchema: {},
+    ErrorCode: {
+        InvalidRequest: 'InvalidRequest',
+        MethodNotFound: 'MethodNotFound',
+        InternalError: 'InternalError'
+    },
+    McpError: class McpError extends Error {
+        code: string;
+        constructor(code: string, message: string) {
+            super(message);
+            this.code = code;
+            this.name = 'McpError';
+        }
+    }
+}), { virtual: true });
+
+jest.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+    Client: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+        listTools: jest.fn().mockResolvedValue({ tools: [] }),
+        callTool: jest.fn().mockResolvedValue({ content: [] })
+    }))
+}), { virtual: true });
+
+jest.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+    StdioClientTransport: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined)
+    }))
+}), { virtual: true });
+
 // Mock fileExistsAtPath
 jest.mock('../../utils/fs', () => ({
     fileExistsAtPath: jest.fn().mockImplementation((filePath) => {
@@ -85,7 +123,11 @@ jest.mock('vscode', () => {
             }],
             onDidCreateFiles: jest.fn(() => mockDisposable),
             onDidDeleteFiles: jest.fn(() => mockDisposable),
-            onDidRenameFiles: jest.fn(() => mockDisposable)
+            onDidRenameFiles: jest.fn(() => mockDisposable),
+            onDidSaveTextDocument: jest.fn(() => mockDisposable),
+            onDidChangeTextDocument: jest.fn(() => mockDisposable),
+            onDidOpenTextDocument: jest.fn(() => mockDisposable),
+            onDidCloseTextDocument: jest.fn(() => mockDisposable)
         },
         env: {
             uriScheme: 'vscode',

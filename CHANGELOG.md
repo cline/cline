@@ -1,10 +1,12 @@
 # Roo Cline Changelog
 
-## 2.1.21
+## [2.2.0]
 
-### Patch Changes
+-   Incorporate MCP changes from Cline 2.2.0
 
--   8dbd019: Larger Promp Text Input
+## [2.1.21]
+
+-   Larger text area input + ability to drag images into it
 
 ## [2.1.20]
 
@@ -63,6 +65,12 @@
 ## [2.1.7]
 
 -   Updated extension icon and metadata
+
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that gets the latest npm docs")
 
 ## [2.1.6]
 
