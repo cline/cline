@@ -50,14 +50,29 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			...convertedMessages
 		]
 
-		const bedrockRequest = convertToBedrock(allMessages, model.id, {
+		// Get the base request parameters using the original model ID
+		const baseRequest = convertToBedrock(allMessages, model.id, {
 			temperature: 0,
 			max_tokens: model.info.maxTokens || 8192,
 			toolConfig: this.getToolConfig()
 		})
 
+		// Handle cross-region inference by modifying the modelId in the request if needed
+		if (this.options.awsUseCrossRegionInference) {
+			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			switch (regionPrefix) {
+				case "us-":
+					baseRequest.modelId = `us.${model.id}`
+					break
+				case "eu-":
+					baseRequest.modelId = `eu.${model.id}`
+					break
+				// cross region inference is not supported in other regions, keep default model ID
+			}
+		}
+
 		try {
-			const command = new ConverseCommand(bedrockRequest)
+			const command = new ConverseCommand(baseRequest)
 			const response = await this.client.send(command)
 
 			if (!response.output?.message?.content) {
