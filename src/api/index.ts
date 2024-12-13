@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
+import { AwsBedrockConverseHandler } from "./providers/bedrockconverse"
 import { OpenRouterHandler } from "./providers/openrouter"
 import { VertexHandler } from "./providers/vertex"
 import { OpenAiHandler } from "./providers/openai"
@@ -25,6 +26,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenRouterHandler(options)
 		case "bedrock":
 			return new AwsBedrockHandler(options)
+		case "bedrock-converse":
+			return new AwsBedrockConverseHandler(options)
 		case "vertex":
 			return new VertexHandler(options)
 		case "openai":

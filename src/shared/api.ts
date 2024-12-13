@@ -2,6 +2,7 @@ export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
 	| "bedrock"
+	| "bedrock-converse"
 	| "vertex"
 	| "openai"
 	| "ollama"
@@ -323,3 +324,92 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
+
+// New type for BedrockConverse models
+export type BedrockConverseModelId = keyof typeof bedrockConverseModels
+
+// Default model ID for BedrockConverse
+export const bedrockConverseDefaultModelId: BedrockConverseModelId = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+// BedrockConverse models
+export const bedrockConverseModels = {
+  // Existing Claude models
+  "anthropic.claude-3-5-sonnet-20241022-v2:0": {
+    maxTokens: 8192,
+    contextWindow: 200_000,
+    supportsImages: true,
+    supportsComputerUse: true,
+    supportsPromptCache: false,
+    inputPrice: 3.0,
+    outputPrice: 15.0,
+  },
+  "anthropic.claude-3-5-haiku-20241022-v1:0": {
+    maxTokens: 8192,
+    contextWindow: 200_000,
+    supportsImages: false,
+    supportsPromptCache: false,
+    inputPrice: 1.0,
+    outputPrice: 5.0,
+  },
+  "anthropic.claude-3-5-sonnet-20240620-v1:0": {
+    maxTokens: 8192,
+    contextWindow: 200_000,
+    supportsImages: true,
+    supportsPromptCache: false,
+    inputPrice: 3.0,
+    outputPrice: 15.0,
+  },
+  "anthropic.claude-3-opus-20240229-v1:0": {
+    maxTokens: 4096,
+    contextWindow: 200_000,
+    supportsImages: true,
+    supportsPromptCache: false,
+    inputPrice: 15.0,
+    outputPrice: 75.0,
+  },
+  "anthropic.claude-3-sonnet-20240229-v1:0": {
+    maxTokens: 4096,
+    contextWindow: 200_000,
+    supportsImages: true,
+    supportsPromptCache: false,
+    inputPrice: 3.0,
+    outputPrice: 15.0,
+  },
+  "anthropic.claude-3-haiku-20240307-v1:0": {
+    maxTokens: 4096,
+    contextWindow: 200_000,
+    supportsImages: true,
+    supportsPromptCache: false,
+    inputPrice: 0.25,
+    outputPrice: 1.25,
+  },
+  // New Nova models
+  "amazon.nova-pro-v1:0": {
+    maxTokens: 5000,
+    contextWindow: 300_000,
+    supportsImages: true,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.0008,
+    outputPrice: 0.0032,
+  },
+  "amazon.nova-lite-v1:0": {
+    maxTokens: 5000,
+    contextWindow: 300_000,
+    supportsImages: true,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.00006,
+    outputPrice: 0.00024,
+  },
+  "amazon.nova-micro-v1:0": {
+    maxTokens: 5000,
+    contextWindow: 128_000,
+    supportsImages: false,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.000035,
+    outputPrice: 0.00014,
+  },
+} as const satisfies Record<string, ModelInfo>
+
