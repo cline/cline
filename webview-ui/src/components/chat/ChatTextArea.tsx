@@ -569,6 +569,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}>
 					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
 						<div
+							className={`input-icon-button codicon codicon-sync`}
+							onClick={() => {
+								if (!shouldDisableImages) {
+									onSelectImages()
+								}
+							}}
+							style={{
+								marginRight: 5.5,
+								fontSize: 16.5,
+							}}
+						/>
+						<div
 							className={`input-icon-button ${
 								shouldDisableImages ? "disabled" : ""
 							} codicon codicon-device-camera`}
