@@ -528,13 +528,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
-					case "allowedCommands":
-						await this.context.globalState.update('allowedCommands', message.commands);
-						// Also update workspace settings
-						await vscode.workspace
-							.getConfiguration('roo-cline')
-							.update('allowedCommands', message.commands, vscode.ConfigurationTarget.Global);
-						break;
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
