@@ -33,14 +33,17 @@ export type McpConnection = {
 }
 
 // StdioServerParameters
+const AlwaysAllowSchema = z.array(z.string()).default([])
+
 const StdioConfigSchema = z.object({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
+	alwaysAllow: AlwaysAllowSchema.optional()
 })
 
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(StdioConfigSchema),
+	mcpServers: z.record(StdioConfigSchema)
 })
 
 export class McpHub {
@@ -285,7 +288,21 @@ export class McpHub {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
-			return response?.tools || []
+
+			// Get always allow settings
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			const alwaysAllowConfig = config.mcpServers[serverName]?.alwaysAllow || []
+
+			// Mark tools as always allowed based on settings
+			const tools = (response?.tools || []).map(tool => ({
+				...tool,
+				alwaysAllow: alwaysAllowConfig.includes(tool.name)
+			}))
+
+			console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
+			return tools
 		} catch (error) {
 			// console.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
@@ -478,6 +495,7 @@ export class McpHub {
 				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
 			)
 		}
+
 		return await connection.client.request(
 			{
 				method: "tools/call",
@@ -488,6 +506,45 @@ export class McpHub {
 			},
 			CallToolResultSchema,
 		)
+	}
+
+	async toggleToolAlwaysAllow(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Initialize alwaysAllow if it doesn't exist
+			if (!config.mcpServers[serverName].alwaysAllow) {
+				config.mcpServers[serverName].alwaysAllow = []
+			}
+
+			const alwaysAllow = config.mcpServers[serverName].alwaysAllow
+			const toolIndex = alwaysAllow.indexOf(toolName)
+
+			if (shouldAllow && toolIndex === -1) {
+				// Add tool to always allow list
+				alwaysAllow.push(toolName)
+			} else if (!shouldAllow && toolIndex !== -1) {
+				// Remove tool from always allow list
+				alwaysAllow.splice(toolIndex, 1)
+			}
+
+			// Write updated config back to file
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find(conn => conn.server.name === serverName)
+			if (connection) {
+				connection.server.tools = await this.fetchToolsList(serverName)
+				await this.notifyWebviewOfServerChanges()
+			}
+
+		} catch (error) {
+			console.error("Failed to update always allow settings:", error)
+			vscode.window.showErrorMessage("Failed to update always allow settings")
+			throw error // Re-throw to ensure the error is properly handled
+		}
 	}
 
 	async dispose(): Promise<void> {

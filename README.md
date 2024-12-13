@@ -1,6 +1,6 @@
 # Roo-Cline
 
-A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.
+A fork of Cline, an autonomous coding agent, optimized for speed and flexibility.
 - Auto-approval capabilities for commands, write, and browser operations
 - Support for .clinerules per-project custom instructions
 - Ability to run side-by-side with Cline
@@ -10,6 +10,8 @@ A fork of Cline, an autonomous coding agent, with some added experimental config
 - Support for copying prompts from the history screen
 - Support for editing through diffs / handling truncated full-file edits
 - Support for newer Gemini models (gemini-exp-1206 and gemini-2.0-flash-exp)
+- Support for dragging and dropping images into chats
+- Support for auto-approving MCP tools
 
 ## Disclaimer
 

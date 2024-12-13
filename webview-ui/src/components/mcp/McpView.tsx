@@ -256,7 +256,11 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 									<div
 										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} />
+											<McpToolRow
+												key={tool.name}
+												tool={tool}
+												serverName={server.name}
+											/>
 										))}
 									</div>
 								) : (

@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.2]
+
+-   Add checkboxes to auto-approve MCP tools
+
 ## [2.2.1]
 
 -   Fix another diff editing indentation bug
