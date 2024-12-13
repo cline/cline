@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.1]
+
+-   Fix another diff editing indentation bug
+
 ## [2.2.0]
 
 -   Incorporate MCP changes from Cline 2.2.0
