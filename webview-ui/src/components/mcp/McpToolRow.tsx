@@ -26,6 +26,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				padding: "3px 0",
 			}}>
 			<div
+				data-testid="tool-row-container"
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
 				onClick={(e) => e.stopPropagation()}>
 				<div style={{ display: "flex", alignItems: "center" }}>
