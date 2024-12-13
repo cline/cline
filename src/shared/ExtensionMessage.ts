@@ -45,6 +45,7 @@ export interface ExtensionState {
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
+	soundEnabled?: boolean
 }
 
 export interface ClineMessage {

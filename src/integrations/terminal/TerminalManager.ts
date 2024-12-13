@@ -178,11 +178,17 @@ export class TerminalManager {
 		return newTerminalInfo
 	}
 
-	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
+	getTerminals(busy: boolean): { id: number; lastCommand: string; type?: string; framework?: string; url?: string }[] {
 		return Array.from(this.terminalIds)
 			.map((id) => TerminalRegistry.getTerminal(id))
 			.filter((t): t is TerminalInfo => t !== undefined && t.busy === busy)
-			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
+			.map((t) => ({
+				id: t.id,
+				lastCommand: t.lastCommand,
+				type: t.type,
+				framework: t.framework,
+				url: t.url
+			}))
 	}
 
 	getUnretrievedOutput(terminalId: number): string {
@@ -199,9 +205,6 @@ export class TerminalManager {
 	}
 
 	disposeAll() {
-		// for (const info of this.terminals) {
-		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
-		// }
 		this.terminalIds.clear()
 		this.processes.clear()
 		this.disposables.forEach((disposable) => disposable.dispose())

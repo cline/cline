@@ -37,11 +37,27 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
+
+When executing commands that may require interaction (like responding to prompts or monitoring output), you should:
+1. First use list_terminals to see available terminals and their states. The terminal information includes:
+   - Recent output (last 10 lines) to understand the current terminal state
+   - Command history to see what commands led to the current state
+   - Terminal type and ID for tracking specific terminals
+2. Then use execute_command with a terminal_id to send commands to a specific terminal
+3. For interactive prompts that require keyboard input, use these special commands:
+   - "Enter" to confirm selections
+   - "ArrowUp" and "ArrowDown" to navigate through options
+   - "ArrowLeft" and "ArrowRight" for horizontal navigation
+   - "Space" for space key
+4. Always check the terminal output history before sending the next command to ensure you're responding to the correct prompt
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
+- terminal_id: (optional) The ID of an existing terminal to run the command in. If not provided, a new terminal will be created. Use this to send commands to specific terminals, such as when you need to respond to prompts or interact with long-running processes.
+
 Usage:
 <execute_command>
 <command>Your command here</command>
+<terminal_id>123</terminal_id>
 </execute_command>
 
 ## read_file
@@ -54,17 +70,132 @@ Usage:
 </read_file>
 
 ## write_to_file
-Description: Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.
+Description: Request to write content to a file at the specified path. This tool has two distinct use cases that MUST be handled differently:
+1. For NEW files ONLY: Provide the complete file content directly
+2. For EXISTING files: You MUST use SEARCH/REPLACE blocks to specify only the changes needed. NEVER write the entire file content - this wastes tokens and makes changes harder to review. Instead, use SEARCH/REPLACE blocks to precisely target only the parts that need to change.
+
 Parameters:
-- path: (required) The path of the file to write to (relative to the current working directory ${cwd.toPosix()})
-- content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.
-Usage:
+- path: (required) The path of the file to write to (relative to the current working directory)
+- content: (required) The content to write to the file, formatted according to the usage case below
+
+Usage Cases:
+
+### 1. Creating New Files
+When creating a completely new file, provide the full content:
+
 <write_to_file>
-<path>File path here</path>
+<path>new-file.js</path>
 <content>
-Your file content here
+// Full content for new file
+const hello = () => {
+    console.log('Hello');
+};
 </content>
 </write_to_file>
+
+### 2. Modifying Existing Files (PREFERRED METHOD)
+When modifying an existing file, use SEARCH/REPLACE blocks to specify only the changes. For multiple changes, chain multiple SEARCH/REPLACE blocks one after another:
+
+<write_to_file>
+<path>config.js</path>
+<content>
+<<<<<<< SEARCH
+const version = '1.0.0';
+=======
+const version = '1.0.1';
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+  debug: false,
+  cache: true,
+=======
+  debug: true,
+  cache: false,
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+const PORT = 3000;
+=======
+const PORT = process.env.PORT || 3000;
+>>>>>>> REPLACE
+</content>
+</write_to_file>
+
+Key Rules for Multiple Changes:
+1. Each change gets its own SEARCH/REPLACE block
+2. Place blocks one after another with a single blank line between them
+3. Order blocks from top to bottom as they appear in the file
+4. Each block should be focused on one logical change
+5. Include minimal context (1-2 lines) to ensure unique matches
+6. All blocks must be in the same content tag
+
+Examples of Common Multiple Change Scenarios:
+
+Example 1. Changing Multiple Settings:
+<write_to_file>
+<path>settings.json</path>
+<content>
+<<<<<<< SEARCH
+  "theme": "light",
+=======
+  "theme": "dark",
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+  "fontSize": 12,
+=======
+  "fontSize": 14,
+>>>>>>> REPLACE
+</content>
+</write_to_file>
+
+Example 2. Moving Code (Delete + Insert):
+<write_to_file>
+<path>app.js</path>
+<content>
+<<<<<<< SEARCH
+function helper() {
+  return true;
+}
+=======
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+}  // end class
+=======
+  function helper() {
+    return true;
+  }
+}  // end class
+>>>>>>> REPLACE
+</content>
+</write_to_file>
+
+Example 3. Updating Related Changes:
+<write_to_file>
+<path>database.js</path>
+<content>
+<<<<<<< SEARCH
+const DB_NAME = 'mydb';
+=======
+const DB_NAME = 'mydb_prod';
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+const DB_URL = \`mongodb://localhost/\${DB_NAME}\`;
+=======
+const DB_URL = \`mongodb://prod-server/\${DB_NAME}\`;
+>>>>>>> REPLACE
+</content>
+</write_to_file>
+
+IMPORTANT:
+- Always use SEARCH/REPLACE blocks for existing files
+- Each block must exactly match the file content
+- Multiple blocks are processed in order from top to bottom
+- Keep each block focused on one logical change
+- Include enough context to ensure unique matches
+- Don't repeat unchanged portions of the file
 
 ## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
@@ -100,6 +231,24 @@ Usage:
 </list_code_definition_names>${
 	supportsComputerUse
 		? `
+
+## list_terminals
+Description: Request to list all active terminal sessions and their current state. This provides information about running terminals, including their IDs, current working directories, and what processes they're running (if any).
+Parameters:
+- None required
+Usage:
+<list_terminals>
+</list_terminals>
+
+
+## close_terminal
+Description: Close a specific terminal session. Use this when you're done with a terminal and want to clean up. Be careful not to close terminals running important long-running processes like development servers.
+Parameters:
+- terminal_id: (required) The ID of the terminal to close
+Usage:
+<close_terminal>
+<terminal_id>123</terminal_id>
+</close_terminal>
 
 ## browser_action
 Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
@@ -197,6 +346,8 @@ Your final result description here
 <command>npm run dev</command>
 </execute_command>
 
+<<<<<<< HEAD
+=======
 ## Example 2: Requesting to write to a file
 
 <write_to_file>
@@ -239,6 +390,7 @@ Your final result description here
 <uri>weather://san-francisco/current</uri>
 </access_mcp_resource>
 
+>>>>>>> upstream/main
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -710,7 +862,7 @@ RULES
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
 - Before executing commands, check the "Actively Running Terminals" section in environment_details. If present, consider how these active processes might impact your task. For example, if a local development server is already running, you wouldn't need to start it again. If no active terminals are listed, proceed with command execution as normal.
-- When using the write_to_file tool, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
+- When using write_to_file with SEARCH/REPLACE blocks, you MUST provide the COMPLETE content for each block. Partial blocks or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. Each SEARCH section must EXACTLY match the existing file content, and each REPLACE section must contain the complete intended replacement. However, DO NOT write the entire file content - use SEARCH/REPLACE blocks to specify only the parts that need to change. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 	supportsComputerUse

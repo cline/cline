@@ -1,4 +1,6 @@
-import { ApiConfiguration, ApiProvider } from "./api"
+import { ApiConfiguration } from "./api"
+
+export type AudioType = "notification" | "celebration" | "progress_loop"
 
 export interface WebviewMessage {
 	type:
@@ -23,6 +25,9 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "setAutoAccept"
+		| "playSound"
+		| "soundEnabled"
 		| "openMcpSettings"
 		| "restartMcpServer"
 	text?: string
@@ -30,6 +35,9 @@ export interface WebviewMessage {
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
+	value?: boolean
+	threadId?: number
+	audioType?: AudioType
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
