@@ -5,9 +5,10 @@ import { vscode } from "../../utils/vscode"
 type McpToolRowProps = {
 	tool: McpTool
 	serverName?: string
+	alwaysAllowMcp?: boolean
 }
 
-const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 	const handleAlwaysAllowChange = () => {
 		if (!serverName) return;
 		
@@ -33,7 +34,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
-				{serverName && (
+				{serverName && alwaysAllowMcp && (
 					<VSCodeCheckbox
 						checked={tool.alwaysAllow}
 						onChange={handleAlwaysAllowChange}

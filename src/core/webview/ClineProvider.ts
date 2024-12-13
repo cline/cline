@@ -67,6 +67,7 @@ type GlobalStateKey =
 	| "allowedCommands"
 	| "soundEnabled"
 	| "diffEnabled"
+	| "alwaysAllowMcp"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -454,6 +455,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowBrowser":
 						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowMcp":
+						await this.updateGlobalState("alwaysAllowMcp", message.bool)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -904,6 +909,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite,
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
+			alwaysAllowMcp,
 			soundEnabled,
 			diffEnabled,
 			taskHistory,
@@ -921,6 +927,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite: alwaysAllowWrite ?? false,
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
+			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || [])
@@ -1017,6 +1024,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite,
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
+			alwaysAllowMcp,
 			taskHistory,
 			allowedCommands,
 			soundEnabled,
@@ -1053,6 +1061,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("alwaysAllowWrite") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowMcp") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
@@ -1107,6 +1116,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite: alwaysAllowWrite ?? false,
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
+			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			taskHistory,
 			allowedCommands,
 			soundEnabled,
