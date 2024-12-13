@@ -1,4 +1,3 @@
-import os from "os"
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
@@ -7,9 +6,6 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import delay from "delay"
-import path from "path"
-import fs from "fs"
-
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -27,67 +23,7 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-
-	makeSureCacheDirExists() {
-		const cacheDir = path.join(os.homedir(), ".cline", "cache", "openrouter")
-		if (!fs.existsSync(cacheDir)) {
-			fs.mkdirSync(cacheDir, { recursive: true })
-		}
-	}
-
-	private getCacheFilePath(messages: Anthropic.Messages.MessageParam[]): string {
-		const cacheDir = path.join(os.homedir(), ".cline", "cache", "openrouter")
-		// 使用消息内容的哈希作为缓存文件名
-		const hash = require('crypto')
-			.createHash('md5')
-			.update(JSON.stringify(messages))
-			.digest('hex')
-		return path.join(cacheDir, `${hash}.json`)
-	}
-
-	private async saveToCache(filePath: string, response: any) {
-		try {
-			await fs.promises.writeFile(filePath, JSON.stringify(response))
-		} catch (error) {
-			console.error("Error saving to cache:", error)
-		}
-	}
-
-	private async getFromCache(filePath: string): Promise<any | null> {
-		try {
-			if (fs.existsSync(filePath)) {
-				const data = await fs.promises.readFile(filePath, 'utf8')
-				return JSON.parse(data)
-			}
-		} catch (error) {
-			console.error("Error reading from cache:", error)
-		}
-		return null
-	}
-
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		this.makeSureCacheDirExists()
-		const cacheFilePath = this.getCacheFilePath(messages)
-		
-		// 尝试从缓存读取
-		const cachedResponse = await this.getFromCache(cacheFilePath)
-		if (cachedResponse) {
-			console.log("Using cached response")
-			yield {
-				type: "text",
-				text: cachedResponse.content,
-			}
-			if (cachedResponse.usage) {
-				yield {
-					type: "usage",
-					inputTokens: cachedResponse.usage.inputTokens || 0,
-					outputTokens: cachedResponse.usage.outputTokens || 0,
-					totalCost: cachedResponse.usage.totalCost || 0,
-				}
-			}
-			return
-		}
-
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -168,8 +104,6 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 
 		let genId: string | undefined
-		let fullResponse = ''
-		let usageInfo: any = null
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -185,43 +119,43 @@ export class OpenRouterHandler implements ApiHandler {
 
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
-				fullResponse += delta.content
 				yield {
 					type: "text",
 					text: delta.content,
 				}
 			}
+			// if (chunk.usage) {
+			// 	yield {
+			// 		type: "usage",
+			// 		inputTokens: chunk.usage.prompt_tokens || 0,
+			// 		outputTokens: chunk.usage.completion_tokens || 0,
+			// 	}
+			// }
 		}
 
-		await delay(500)
+		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
-				timeout: 5_000,
+				timeout: 5_000, // this request hangs sometimes
 			})
 
 			const generation = response.data?.data
 			console.log("OpenRouter generation details:", response.data)
-			usageInfo = {
+			yield {
+				type: "usage",
+				// cacheWriteTokens: 0,
+				// cacheReadTokens: 0,
+				// openrouter generation endpoint fails often
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
 			}
-			yield {
-				type: "usage",
-				...usageInfo
-			}
-
-			// 保存到缓存
-			await this.saveToCache(cacheFilePath, {
-				content: fullResponse,
-				usage: usageInfo
-			})
-
 		} catch (error) {
+			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
 		}
 	}
