@@ -65,6 +65,7 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	allowAutoApprove: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -94,6 +95,7 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
+		allowAutoApprove?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -106,7 +108,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-
+		this.allowAutoApprove = allowAutoApprove ?? false
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.resumeTaskFromHistory()
@@ -943,6 +945,9 @@ export class Cline {
 				}
 
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
+				    if (this.allowAutoApprove) {
+						return true
+					}
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
 						if (response === "messageResponse") {

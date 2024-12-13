@@ -20,6 +20,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
+	setAutoApprove: (value: boolean) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -115,6 +116,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setAutoApprove: (value) => setState((prevState) => ({ ...prevState, allowAutoApprove: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

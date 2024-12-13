@@ -33,6 +33,7 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	alwaysAllowReadOnly?: boolean
+	allowAutoApprove?: boolean
 	uriScheme?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]

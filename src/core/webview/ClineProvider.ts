@@ -57,7 +57,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
-
+	| "allowAutoApprove"
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -191,18 +191,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, task, images)
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly, allowAutoApprove } = await this.getState()
+		this.cline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, allowAutoApprove, task, images, undefined)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+		const { apiConfiguration, customInstructions, alwaysAllowReadOnly, allowAutoApprove } = await this.getState()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly,
+			allowAutoApprove,
 			undefined,
 			undefined,
 			historyItem,
@@ -410,6 +411,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
 						if (this.cline) {
 							this.cline.alwaysAllowReadOnly = message.bool ?? false
+						}
+						await this.postStateToWebview()
+						break
+					case "allowAutoApprove":
+						await this.updateGlobalState("allowAutoApprove", message.bool ?? undefined)
+						if (this.cline) {
+							this.cline.allowAutoApprove = message.bool ?? false
 						}
 						await this.postStateToWebview()
 						break
@@ -878,6 +886,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
+			allowAutoApprove,
 			taskHistory,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -907,6 +916,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
+			this.getGlobalState("allowAutoApprove") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 		])
 
@@ -954,6 +964,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			allowAutoApprove: allowAutoApprove ?? false,
 			taskHistory,
 		}
 	}
