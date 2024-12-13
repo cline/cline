@@ -81,30 +81,65 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			}
 
 			let currentText = ""
+			let inputTokens = 0
+			let outputTokens = 0
+			let stopReason: string | undefined
+
 			for await (const event of response.stream) {
 				// Handle content block delta events (text chunks)
 				if ("contentBlockDelta" in event && event.contentBlockDelta?.delta?.text) {
-					currentText += event.contentBlockDelta.delta.text
+					const text = event.contentBlockDelta.delta.text
+					currentText += text
+					
+					// Convert to Anthropic format for text chunks
+					const textBlock: Anthropic.Messages.ContentBlock = {
+						type: "text",
+						text
+					}
 					yield {
 						type: "text",
-						text: event.contentBlockDelta.delta.text,
+						text: textBlock.text,
 					}
 				}
 
 				// Handle message stop events
-				if ("messageStop" in event && event.messageStop?.stopReason === "content_filtered") {
-					throw new Error("Response was filtered by content moderation")
+				if ("messageStop" in event) {
+					if (event.messageStop?.stopReason === "content_filtered") {
+						throw new Error("Response was filtered by content moderation")
+					}
+					stopReason = event.messageStop?.stopReason
 				}
 
 				// Handle metadata events (usage information)
 				if ("metadata" in event && event.metadata?.usage) {
+					inputTokens = event.metadata.usage.inputTokens ?? 0
+					outputTokens = event.metadata.usage.outputTokens ?? 0
+
+					// Convert to Anthropic format for usage
 					yield {
 						type: "usage",
-						inputTokens: event.metadata.usage.inputTokens ?? 0,
-						outputTokens: event.metadata.usage.outputTokens ?? 0,
+						inputTokens,
+						outputTokens,
 					}
 				}
 			}
+
+			// At the end of the stream, construct a complete Anthropic message
+			const anthropicMessage: Anthropic.Messages.Message = {
+				id: `msg_${Date.now()}`,
+				type: "message",
+				role: "assistant",
+				content: [{ type: "text", text: currentText }],
+				model: model.id,
+				stop_reason: this.convertStopReason(stopReason),
+				stop_sequence: null,
+				usage: {
+					input_tokens: inputTokens,
+					output_tokens: outputTokens,
+				},
+			}
+
+			// No need to yield the full message since we've already streamed it chunk by chunk
 		} catch (error) {
 			// Handle specific AWS Bedrock errors
 			if (error instanceof AccessDeniedException) {
@@ -137,6 +172,27 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 
 			// For unknown errors, throw with a generic message
 			throw new Error(error instanceof Error ? error.message : "An unexpected error occurred")
+		}
+	}
+
+	private convertStopReason(reason: string | undefined): Anthropic.Messages.Message["stop_reason"] {
+		if (!reason) return null;
+		
+		switch (reason) {
+			case 'end_turn':
+				return 'end_turn';
+			case 'max_tokens':
+				return 'max_tokens';
+			case 'stop_sequence':
+				return 'stop_sequence';
+			case 'content_filtered':
+			case 'guardrail_intervened':
+			case 'tool_use':
+				// These don't have direct mappings in Anthropic's types, 
+				// but stop_sequence is the closest semantic match
+				return 'stop_sequence';
+			default:
+				return null;
 		}
 	}
 
