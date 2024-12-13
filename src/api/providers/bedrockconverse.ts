@@ -1,6 +1,6 @@
 import { 
   BedrockRuntimeClient, 
-  ConverseCommand, 
+  ConverseStreamCommand,
   ToolConfiguration, 
   Tool,
   AccessDeniedException,
@@ -11,7 +11,8 @@ import {
   ResourceNotFoundException,
   ServiceUnavailableException,
   ThrottlingException,
-  ValidationException
+  ValidationException,
+  ConverseStreamOutput
 } from "@aws-sdk/client-bedrock-runtime";
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockConverseDefaultModelId, BedrockConverseModelId, bedrockConverseModels, ModelInfo } from "../../shared/api"
@@ -72,33 +73,36 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 		}
 
 		try {
-			const command = new ConverseCommand(baseRequest)
+			const command = new ConverseStreamCommand(baseRequest)
 			const response = await this.client.send(command)
 
-			if (!response.output?.message?.content) {
-				throw new Error("Invalid response format from Bedrock Converse API")
+			if (!response.stream) {
+				throw new Error("No stream in response from Bedrock Converse API")
 			}
 
-			const anthropicResponse = convertBedrockResponseToAnthropic(response)
-
-			// Yield each text block from the content
-			if (Array.isArray(anthropicResponse.content)) {
-				for (const block of anthropicResponse.content) {
-					if (block.type === 'text') {
-						yield {
-							type: "text",
-							text: block.text,
-						}
+			let currentText = ""
+			for await (const event of response.stream) {
+				// Handle content block delta events (text chunks)
+				if ("contentBlockDelta" in event && event.contentBlockDelta?.delta?.text) {
+					currentText += event.contentBlockDelta.delta.text
+					yield {
+						type: "text",
+						text: event.contentBlockDelta.delta.text,
 					}
 				}
-			}
 
-			// Yield usage information if available
-			if (response.usage) {
-				yield {
-					type: "usage",
-					inputTokens: response.usage.inputTokens ?? 0,
-					outputTokens: response.usage.outputTokens ?? 0,
+				// Handle message stop events
+				if ("messageStop" in event && event.messageStop?.stopReason === "content_filtered") {
+					throw new Error("Response was filtered by content moderation")
+				}
+
+				// Handle metadata events (usage information)
+				if ("metadata" in event && event.metadata?.usage) {
+					yield {
+						type: "usage",
+						inputTokens: event.metadata.usage.inputTokens ?? 0,
+						outputTokens: event.metadata.usage.outputTokens ?? 0,
+					}
 				}
 			}
 		} catch (error) {
