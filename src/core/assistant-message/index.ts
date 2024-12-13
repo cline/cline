@@ -16,6 +16,8 @@ export const toolUseNames = [
 	"list_files",
 	"list_code_definition_names",
 	"browser_action",
+	"use_mcp_tool",
+	"access_mcp_resource",
 	"ask_followup_question",
 	"attempt_completion",
 ] as const
@@ -34,6 +36,10 @@ export const toolParamNames = [
 	"url",
 	"coordinate",
 	"text",
+	"server_name",
+	"tool_name",
+	"arguments",
+	"uri",
 	"question",
 	"result",
 ] as const
@@ -82,6 +88,16 @@ export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 export interface BrowserActionToolUse extends ToolUse {
 	name: "browser_action"
 	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text">>
+}
+
+export interface UseMcpToolToolUse extends ToolUse {
+	name: "use_mcp_tool"
+	params: Partial<Pick<Record<ToolParamName, string>, "server_name" | "tool_name" | "arguments">>
+}
+
+export interface AccessMcpResourceToolUse extends ToolUse {
+	name: "access_mcp_resource"
+	params: Partial<Pick<Record<ToolParamName, string>, "server_name" | "uri">>
 }
 
 export interface AskFollowupQuestionToolUse extends ToolUse {

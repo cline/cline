@@ -31,7 +31,8 @@ const WelcomeView = () => {
 					Claude 3.5 Sonnet's agentic coding capabilities
 				</VSCodeLink>{" "}
 				and access to tools that let me create & edit files, explore complex projects, use the browser, and
-				execute terminal commands (with your permission, of course).
+				execute terminal commands (with your permission, of course). I can even use MCP to create new tools and
+				extend my own capabilities.
 			</p>
 
 			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
