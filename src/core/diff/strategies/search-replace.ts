@@ -5,10 +5,10 @@ export class SearchReplaceDiffStrategy implements DiffStrategy {
         return `## apply_diff
 Description: Request to replace existing code using search and replace blocks.
 This tool allows for precise, surgical replaces to files by specifying exactly what content to search for and what to replace it with.
-Only use this tool when you need to replace/fix existing code.
 The tool will maintain proper indentation and formatting while making changes.
 Only a single operation is allowed per tool use.
 The SEARCH section must exactly match existing content including whitespace and indentation.
+If you're not confident in the exact content to search for, use the read_file tool first to get the exact content.
 
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})

@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.4]
+
+-   Tweak the prompt to encourage diff edits when they're enabled
+
 ## [2.2.3]
 
 -   Clean up the settings screen
