@@ -12,6 +12,7 @@ A fork of Cline, an autonomous coding agent, optimized for speed and flexibility
 - Support for newer Gemini models (gemini-exp-1206 and gemini-2.0-flash-exp)
 - Support for dragging and dropping images into chats
 - Support for auto-approving MCP tools
+- Support for enabling/disabling MCP servers
 
 ## Disclaimer
 

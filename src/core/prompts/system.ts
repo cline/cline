@@ -633,7 +633,7 @@ npm run build
 
 5. Install the MCP Server by adding the MCP server configuration to the settings file located at '${await mcpHub.getMcpSettingsFilePath()}'. The settings file may have other MCP servers already configured, so you would read it first and then add your new server to the existing \`mcpServers\` object.
 
-IMPORTANT: Regardless of what else you see in the settings file, you must not set any defaults for the \`alwaysAllow\` array in the newly added MCP server.
+IMPORTANT: Regardless of what else you see in the MCP settings file, you must default any new MCP servers you create to disabled=false and alwaysAllow=[].
 
 \`\`\`json
 {
