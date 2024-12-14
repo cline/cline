@@ -8,8 +8,9 @@ run-name: Changeset AI Release ${{ github.actor != 'R00-B0T' && '- Create PR' ||
 # 4. Creating a GitHub release with the AI-generated notes
 
 on:
-  pull_request:
-    types: [closed, opened, synchronize, labeled]
+  # pull_request:
+  #   types: [closed, opened, synchronize, labeled]
+  workflow_dispatch:
 
 env:
   REPO_PATH: ${{ github.repository }}
