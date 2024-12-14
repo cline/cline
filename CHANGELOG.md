@@ -1,10 +1,8 @@
 # Roo Cline Changelog
 
-## 2.2.3
+## [2.2.3]
 
-### Patch Changes
-
--   663759b: Clean up the settings screen
+-   Clean up the settings screen
 
 ## [2.2.2]
 
