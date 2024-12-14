@@ -1,18 +1,15 @@
 import { SearchReplaceDiffStrategy } from '../search-replace'
 
 describe('SearchReplaceDiffStrategy', () => {
-    let strategy: SearchReplaceDiffStrategy
+    describe('exact matching', () => {
+        let strategy: SearchReplaceDiffStrategy
 
-    beforeEach(() => {
-        strategy = new SearchReplaceDiffStrategy()
-    })
+        beforeEach(() => {
+            strategy = new SearchReplaceDiffStrategy() // Default 1.0 threshold for exact matching
+        })
 
-    describe('applyDiff', () => {
         it('should replace matching content', () => {
-            const originalContent = `function hello() {
-    console.log("hello")
-}
-`
+            const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
 function hello() {
@@ -25,19 +22,11 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`function hello() {
-    console.log("hello world")
-}
-`)
+            expect(result).toBe('function hello() {\n    console.log("hello world")\n}\n')
         })
 
         it('should match content with different surrounding whitespace', () => {
-            const originalContent = `
-function example() {
-    return 42;
-}
-
-`
+            const originalContent = '\nfunction example() {\n    return 42;\n}\n\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
 function example() {
@@ -50,19 +39,11 @@ function example() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`
-function example() {
-    return 43;
-}
-
-`)
+            expect(result).toBe('\nfunction example() {\n    return 43;\n}\n\n')
         })
 
         it('should match content with different indentation in search block', () => {
-            const originalContent = `    function test() {
-        return true;
-    }
-`
+            const originalContent = '    function test() {\n        return true;\n    }\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
 function test() {
@@ -75,10 +56,7 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`    function test() {
-        return false;
-    }
-`)
+            expect(result).toBe('    function test() {\n        return false;\n    }\n')
         })
 
         it('should handle tab-based indentation', () => {
@@ -174,10 +152,7 @@ function test() {
         })
 
         it('should return false if search content does not match', () => {
-            const originalContent = `function hello() {
-    console.log("hello")
-}
-`
+            const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
 function hello() {
@@ -194,28 +169,15 @@ function hello() {
         })
 
         it('should return false if diff format is invalid', () => {
-            const originalContent = `function hello() {
-    console.log("hello")
-}
-`
-            const diffContent = `test.ts
-Invalid diff format`
+            const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+            const diffContent = `test.ts\nInvalid diff format`
 
             const result = strategy.applyDiff(originalContent, diffContent)
             expect(result).toBe(false)
         })
 
         it('should handle multiple lines with proper indentation', () => {
-            const originalContent = `class Example {
-    constructor() {
-        this.value = 0
-    }
-
-    getValue() {
-        return this.value
-    }
-}
-`
+            const originalContent = 'class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        return this.value\n    }\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
     getValue() {
@@ -230,18 +192,7 @@ Invalid diff format`
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`class Example {
-    constructor() {
-        this.value = 0
-    }
-
-    getValue() {
-        // Add logging
-        console.log("Getting value")
-        return this.value
-    }
-}
-`)
+            expect(result).toBe('class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n')
         })
 
         it('should preserve whitespace exactly in the output', () => {
@@ -262,7 +213,7 @@ Invalid diff format`
         })
 
         it('should preserve indentation when adding new lines after existing content', () => {
-            const originalContent = `				onScroll={() => updateHighlights()}`
+            const originalContent = '				onScroll={() => updateHighlights()}'
             const diffContent = `test.ts
 <<<<<<< SEARCH
 				onScroll={() => updateHighlights()}
@@ -275,230 +226,78 @@ Invalid diff format`
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(`				onScroll={() => updateHighlights()}
-				onDragOver={(e) => {
-					e.preventDefault()
-					e.stopPropagation()
-				}}`)
+            expect(result).toBe('				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}')
+        })
+    })
+
+    describe('fuzzy matching', () => {
+        let strategy: SearchReplaceDiffStrategy
+
+        beforeEach(() => {
+            strategy = new SearchReplaceDiffStrategy(0.9) // 90% similarity threshold
         })
 
-        it('should handle complex refactoring with multiple functions', () => {
-            const originalContent = `export async function extractTextFromFile(filePath: string): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (error) {
-		throw new Error(\`File not found: \${filePath}\`)
-	}
-	const fileExtension = path.extname(filePath).toLowerCase()
-	switch (fileExtension) {
-		case ".pdf":
-			return extractTextFromPDF(filePath)
-		case ".docx":
-			return extractTextFromDOCX(filePath)
-		case ".ipynb":
-			return extractTextFromIPYNB(filePath)
-		default:
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
-			if (!isBinary) {
-				return addLineNumbers(await fs.readFile(filePath, "utf8"))
-			} else {
-				throw new Error(\`Cannot read text for file type: \${fileExtension}\`)
-			}
-	}
-}
-
-export function addLineNumbers(content: string): string {
-	const lines = content.split('\\n')
-	const maxLineNumberWidth = String(lines.length).length
-	return lines
-		.map((line, index) => {
-			const lineNumber = String(index + 1).padStart(maxLineNumberWidth, ' ')
-			return \`\${lineNumber} | \${line}\`
-		}).join('\\n')
-}`
-
+        it('should match content with small differences (>90% similar)', () => {
+            const originalContent = 'function getData() {\n    const results = fetchData();\n    return results.filter(Boolean);\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
-export async function extractTextFromFile(filePath: string): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (error) {
-		throw new Error(\`File not found: \${filePath}\`)
-	}
-	const fileExtension = path.extname(filePath).toLowerCase()
-	switch (fileExtension) {
-		case ".pdf":
-			return extractTextFromPDF(filePath)
-		case ".docx":
-			return extractTextFromDOCX(filePath)
-		case ".ipynb":
-			return extractTextFromIPYNB(filePath)
-		default:
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
-			if (!isBinary) {
-				return addLineNumbers(await fs.readFile(filePath, "utf8"))
-			} else {
-				throw new Error(\`Cannot read text for file type: \${fileExtension}\`)
-			}
-	}
-}
-
-export function addLineNumbers(content: string): string {
-	const lines = content.split('\\n')
-	const maxLineNumberWidth = String(lines.length).length
-	return lines
-		.map((line, index) => {
-			const lineNumber = String(index + 1).padStart(maxLineNumberWidth, ' ')
-			return \`\${lineNumber} | \${line}\`
-		}).join('\\n')
+function getData() {
+    const result = fetchData();
+    return results.filter(Boolean);
 }
 =======
-function extractLineRange(content: string, startLine?: number, endLine?: number): string {
-	const lines = content.split('\\n')
-	const start = startLine ? Math.max(1, startLine) : 1
-	const end = endLine ? Math.min(lines.length, endLine) : lines.length
-	
-	if (start > end || start > lines.length) {
-		throw new Error(\`Invalid line range: start=\${start}, end=\${end}, total lines=\${lines.length}\`)
-	}
-	
-	return lines.slice(start - 1, end).join('\\n')
-}
-
-export async function extractTextFromFile(filePath: string, startLine?: number, endLine?: number): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (error) {
-		throw new Error(\`File not found: \${filePath}\`)
-	}
-	const fileExtension = path.extname(filePath).toLowerCase()
-	let content: string
-	
-	switch (fileExtension) {
-		case ".pdf": {
-			const dataBuffer = await fs.readFile(filePath)
-			const data = await pdf(dataBuffer)
-			content = extractLineRange(data.text, startLine, endLine)
-			break
-		}
-		case ".docx": {
-			const result = await mammoth.extractRawText({ path: filePath })
-			content = extractLineRange(result.value, startLine, endLine)
-			break
-		}
-		case ".ipynb": {
-			const data = await fs.readFile(filePath, "utf8")
-			const notebook = JSON.parse(data)
-			let extractedText = ""
-			
-			for (const cell of notebook.cells) {
-				if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
-					extractedText += cell.source.join("\\n") + "\\n"
-				}
-			}
-			content = extractLineRange(extractedText, startLine, endLine)
-			break
-		}
-		default: {
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
-			if (!isBinary) {
-				const fileContent = await fs.readFile(filePath, "utf8")
-				content = extractLineRange(fileContent, startLine, endLine)
-			} else {
-				throw new Error(\`Cannot read text for file type: \${fileExtension}\`)
-			}
-		}
-	}
-	
-	return addLineNumbers(content, startLine)
-}
-
-export function addLineNumbers(content: string, startLine: number = 1): string {
-	const lines = content.split('\\n')
-	const maxLineNumberWidth = String(startLine + lines.length - 1).length
-	return lines
-		.map((line, index) => {
-			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, ' ')
-			return \`\${lineNumber} | \${line}\`
-		}).join('\\n')
+function getData() {
+    const data = fetchData();
+    return data.filter(Boolean);
 }
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            const expected = `function extractLineRange(content: string, startLine?: number, endLine?: number): string {
-	const lines = content.split('\\n')
-	const start = startLine ? Math.max(1, startLine) : 1
-	const end = endLine ? Math.min(lines.length, endLine) : lines.length
-	
-	if (start > end || start > lines.length) {
-		throw new Error(\`Invalid line range: start=\${start}, end=\${end}, total lines=\${lines.length}\`)
-	}
-	
-	return lines.slice(start - 1, end).join('\\n')
-}
+            expect(result).toBe('function getData() {\n    const data = fetchData();\n    return data.filter(Boolean);\n}\n')
+        })
 
-export async function extractTextFromFile(filePath: string, startLine?: number, endLine?: number): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (error) {
-		throw new Error(\`File not found: \${filePath}\`)
-	}
-	const fileExtension = path.extname(filePath).toLowerCase()
-	let content: string
-	
-	switch (fileExtension) {
-		case ".pdf": {
-			const dataBuffer = await fs.readFile(filePath)
-			const data = await pdf(dataBuffer)
-			content = extractLineRange(data.text, startLine, endLine)
-			break
-		}
-		case ".docx": {
-			const result = await mammoth.extractRawText({ path: filePath })
-			content = extractLineRange(result.value, startLine, endLine)
-			break
-		}
-		case ".ipynb": {
-			const data = await fs.readFile(filePath, "utf8")
-			const notebook = JSON.parse(data)
-			let extractedText = ""
-			
-			for (const cell of notebook.cells) {
-				if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
-					extractedText += cell.source.join("\\n") + "\\n"
-				}
-			}
-			content = extractLineRange(extractedText, startLine, endLine)
-			break
-		}
-		default: {
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
-			if (!isBinary) {
-				const fileContent = await fs.readFile(filePath, "utf8")
-				content = extractLineRange(fileContent, startLine, endLine)
-			} else {
-				throw new Error(\`Cannot read text for file type: \${fileExtension}\`)
-			}
-		}
-	}
-	
-	return addLineNumbers(content, startLine)
+        it('should not match when content is too different (<90% similar)', () => {
+            const originalContent = 'function processUsers(data) {\n    return data.map(user => user.name);\n}\n'
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function handleItems(items) {
+    return items.map(item => item.username);
 }
+=======
+function processData(data) {
+    return data.map(d => d.value);
+}
+>>>>>>> REPLACE`
 
-export function addLineNumbers(content: string, startLine: number = 1): string {
-	const lines = content.split('\\n')
-	const maxLineNumberWidth = String(startLine + lines.length - 1).length
-	return lines
-		.map((line, index) => {
-			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, ' ')
-			return \`\${lineNumber} | \${line}\`
-		}).join('\\n')
-}`
-            expect(result).toBe(expected)
+            const result = strategy.applyDiff(originalContent, diffContent)
+            expect(result).toBe(false)
+        })
+
+        it('should match content with extra whitespace', () => {
+            const originalContent = 'function sum(a, b) {\n    return a + b;\n}'
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function   sum(a,   b)    {
+    return    a + b;
+}
+=======
+function sum(a, b) {
+    return a + b + 1;
+}
+>>>>>>> REPLACE`
+
+            const result = strategy.applyDiff(originalContent, diffContent)
+            expect(result).toBe('function sum(a, b) {\n    return a + b + 1;\n}')
         })
     })
 
     describe('getToolDescription', () => {
+        let strategy: SearchReplaceDiffStrategy
+
+        beforeEach(() => {
+            strategy = new SearchReplaceDiffStrategy()
+        })
+
         it('should include the current working directory', () => {
             const cwd = '/test/dir'
             const description = strategy.getToolDescription(cwd)
@@ -515,4 +314,3 @@ export function addLineNumbers(content: string, startLine: number = 1): string {
         })
     })
 })
-

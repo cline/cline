@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.6]
+
+-   Add a fuzzy match tolerance when applying diffs
+
 ## [2.2.5]
 
 -   Allow MCP servers to be enabled/disabled
