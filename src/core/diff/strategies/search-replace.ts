@@ -1,6 +1,59 @@
 import { DiffStrategy } from "../types"
 
+function levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+
+    // Initialize matrix
+    for (let i = 0; i <= a.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= b.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    // Fill matrix
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            if (a[i-1] === b[j-1]) {
+                matrix[i][j] = matrix[i-1][j-1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i-1][j-1] + 1, // substitution
+                    matrix[i][j-1] + 1,   // insertion
+                    matrix[i-1][j] + 1    // deletion
+                );
+            }
+        }
+    }
+
+    return matrix[a.length][b.length];
+}
+
+function getSimilarity(original: string, search: string): number {
+    // Normalize strings by removing extra whitespace but preserve case
+    const normalizeStr = (str: string) => str.replace(/\s+/g, ' ').trim();
+    
+    const normalizedOriginal = normalizeStr(original);
+    const normalizedSearch = normalizeStr(search);
+    
+    if (normalizedOriginal === normalizedSearch) { return 1; }
+    
+    // Calculate Levenshtein distance
+    const distance = levenshteinDistance(normalizedOriginal, normalizedSearch);
+    
+    // Calculate similarity ratio (0 to 1, where 1 is exact match)
+    const maxLength = Math.max(normalizedOriginal.length, normalizedSearch.length);
+    return 1 - (distance / maxLength);
+}
+
 export class SearchReplaceDiffStrategy implements DiffStrategy {
+    private fuzzyThreshold: number;
+
+    constructor(fuzzyThreshold?: number) {
+        // Default to exact matching (1.0) unless fuzzy threshold specified
+        this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
+    }
+
     getToolDescription(cwd: string): string {
         return `## apply_diff
 Description: Request to replace existing code using search and replace blocks.
@@ -78,30 +131,24 @@ Your search/replace content here
         const replaceLines = replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
         
-        // Find the search content in the original
+        // Find the search content in the original using fuzzy matching
         let matchIndex = -1;
+        let bestMatchScore = 0;
         
         for (let i = 0; i <= originalLines.length - searchLines.length; i++) {
-            let found = true;
+            // Join the lines and calculate overall similarity
+            const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
+            const searchChunk = searchLines.join('\n');
             
-            for (let j = 0; j < searchLines.length; j++) {
-                const originalLine = originalLines[i + j];
-                const searchLine = searchLines[j];
-                
-                // Compare lines after removing leading/trailing whitespace
-                if (originalLine.trim() !== searchLine.trim()) {
-                    found = false;
-                    break;
-                }
-            }
-            
-            if (found) {
+            const similarity = getSimilarity(originalChunk, searchChunk);
+            if (similarity > bestMatchScore) {
+                bestMatchScore = similarity;
                 matchIndex = i;
-                break;
             }
         }
         
-        if (matchIndex === -1) {
+        // Require similarity to meet threshold
+        if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
             return false;
         }
         
@@ -121,7 +168,7 @@ Your search/replace content here
         });
         
         // Apply the replacement while preserving exact indentation
-        const indentedReplace = replaceLines.map((line, i) => {
+        const indentedReplaceLines = replaceLines.map((line, i) => {
             // Get the corresponding original and search indentations
             const originalIndent = originalIndents[Math.min(i, originalIndents.length - 1)];
             const searchIndent = searchIndents[Math.min(i, searchIndents.length - 1)];
@@ -162,6 +209,6 @@ Your search/replace content here
         const beforeMatch = originalLines.slice(0, matchIndex);
         const afterMatch = originalLines.slice(matchIndex + searchLines.length);
         
-        return [...beforeMatch, ...indentedReplace, ...afterMatch].join(lineEnding);
+        return [...beforeMatch, ...indentedReplaceLines, ...afterMatch].join(lineEnding);
     }
 }
