@@ -6,6 +6,7 @@ export type McpServer = {
 	tools?: McpTool[]
 	resources?: McpResource[]
 	resourceTemplates?: McpResourceTemplate[]
+	disabled?: boolean
 }
 
 export type McpTool = {

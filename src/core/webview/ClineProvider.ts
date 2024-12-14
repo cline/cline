@@ -567,6 +567,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "toggleMcpServer": {
+						try {
+							await this.mcpHub?.toggleServerDisabled(
+								message.serverName!,
+								message.disabled!
+							)
+						} catch (error) {
+							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 					case "playSound":

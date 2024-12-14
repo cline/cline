@@ -148,6 +148,103 @@ describe('McpHub', () => {
     })
   })
 
+  describe('server disabled state', () => {
+    it('should toggle server disabled state', async () => {
+      const mockConfig = {
+        mcpServers: {
+          'test-server': {
+            command: 'node',
+            args: ['test.js'],
+            disabled: false
+          }
+        }
+      }
+
+      // Mock reading initial config
+      ;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+
+      await mcpHub.toggleServerDisabled('test-server', true)
+
+      // Verify the config was updated correctly
+      const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
+      const writtenConfig = JSON.parse(writeCall[1])
+      expect(writtenConfig.mcpServers['test-server'].disabled).toBe(true)
+    })
+
+    it('should filter out disabled servers from getServers', () => {
+      const mockConnections: McpConnection[] = [
+        {
+          server: {
+            name: 'enabled-server',
+            config: '{}',
+            status: 'connected',
+            disabled: false
+          },
+          client: {} as any,
+          transport: {} as any
+        },
+        {
+          server: {
+            name: 'disabled-server',
+            config: '{}',
+            status: 'connected',
+            disabled: true
+          },
+          client: {} as any,
+          transport: {} as any
+        }
+      ]
+
+      mcpHub.connections = mockConnections
+      const servers = mcpHub.getServers()
+
+      expect(servers.length).toBe(1)
+      expect(servers[0].name).toBe('enabled-server')
+    })
+
+    it('should prevent calling tools on disabled servers', async () => {
+      const mockConnection: McpConnection = {
+        server: {
+          name: 'disabled-server',
+          config: '{}',
+          status: 'connected',
+          disabled: true
+        },
+        client: {
+          request: jest.fn().mockResolvedValue({ result: 'success' })
+        } as any,
+        transport: {} as any
+      }
+
+      mcpHub.connections = [mockConnection]
+
+      await expect(mcpHub.callTool('disabled-server', 'some-tool', {}))
+        .rejects
+        .toThrow('Server "disabled-server" is disabled and cannot be used')
+    })
+
+    it('should prevent reading resources from disabled servers', async () => {
+      const mockConnection: McpConnection = {
+        server: {
+          name: 'disabled-server',
+          config: '{}',
+          status: 'connected',
+          disabled: true
+        },
+        client: {
+          request: jest.fn()
+        } as any,
+        transport: {} as any
+      }
+
+      mcpHub.connections = [mockConnection]
+
+      await expect(mcpHub.readResource('disabled-server', 'some/uri'))
+        .rejects
+        .toThrow('Server "disabled-server" is disabled')
+    })
+  })
+
   describe('callTool', () => {
     it('should execute tool successfully', async () => {
       // Mock the connection with a minimal client implementation

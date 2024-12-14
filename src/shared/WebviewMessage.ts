@@ -36,7 +36,9 @@ export interface WebviewMessage {
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
+		| "toggleMcpServer"
 	text?: string
+	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
