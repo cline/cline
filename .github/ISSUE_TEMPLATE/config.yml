@@ -4,5 +4,5 @@ contact_links:
       url: https://github.com/RooVetGit/Roo-Cline/discussions/categories/feature-requests
       about: Share and vote on feature requests for Roo Cline
     - name: Leave a Review
-      url: https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline
+      url: https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details
       about: Enjoying Roo Cline? Leave a review here!
