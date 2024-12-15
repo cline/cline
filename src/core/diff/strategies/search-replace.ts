@@ -211,11 +211,18 @@ Your search/replace content here
             const currentIndent = currentIndentMatch ? currentIndentMatch[0] : '';
             const searchBaseIndent = searchIndents[0] || '';
             
-            // Calculate the relative indentation from the search content
-            const relativeIndent = currentIndent.slice(searchBaseIndent.length);
+            // Calculate the relative indentation level
+            const searchBaseLevel = searchBaseIndent.length;
+            const currentLevel = currentIndent.length;
+            const relativeLevel = currentLevel - searchBaseLevel;
             
-            // Apply the matched indentation plus any relative indentation
-            return matchedIndent + relativeIndent + line.trim();
+            // If relative level is negative, remove indentation from matched indent
+            // If positive, add to matched indent
+            const finalIndent = relativeLevel < 0
+                ? matchedIndent.slice(0, Math.max(0, matchedIndent.length + relativeLevel))
+                : matchedIndent + currentIndent.slice(searchBaseLevel);
+            
+            return finalIndent + line.trim();
         });
 
         // Construct the final content

@@ -418,6 +418,93 @@ class Example {
     }
 }`);
         });
+
+        it('should handle negative indentation relative to search content', () => {
+            const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+            this.setup();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+            this.setup();
+=======
+        this.init();
+        this.setup();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`class Example {
+    constructor() {
+        if (true) {
+        this.init();
+        this.setup();
+        }
+    }
+}`);
+        });
+        
+        it('should handle extreme negative indentation (no indent)', () => {
+    const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+=======
+this.init();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`class Example {
+    constructor() {
+        if (true) {
+this.init();
+        }
+    }
+}`);
+        });
+        
+        it('should handle mixed indentation changes in replace block', () => {
+    const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+            this.setup();
+            this.validate();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+            this.setup();
+            this.validate();
+=======
+        this.init();
+            this.setup();
+    this.validate();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`class Example {
+    constructor() {
+        if (true) {
+        this.init();
+            this.setup();
+    this.validate();
+        }
+    }
+}`);
+        });
     })
 
     describe('fuzzy matching', () => {
