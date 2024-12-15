@@ -19,6 +19,7 @@ export class BrowserSession {
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
+	private defaultViewport = { width: 1280, height: 720 }
 
 	constructor(context: vscode.ExtensionContext) {
 		this.context = context
@@ -58,10 +59,7 @@ export class BrowserSession {
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
 			executablePath: stats.executablePath,
-			defaultViewport: {
-				width: 900,
-				height: 600,
-			},
+			defaultViewport: this.defaultViewport,
 			// headless: false,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
@@ -266,5 +264,12 @@ export class BrowserSession {
 			})
 			await delay(300)
 		})
+	}
+
+	async changeViewport(width: number, height: number): Promise<void> {
+		this.defaultViewport = { width, height }
+		if (this.page) {
+			await this.page.setViewport(this.defaultViewport)
+		}
 	}
 }

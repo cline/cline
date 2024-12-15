@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -23,6 +23,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	const [viewportResolution, setViewportResolution] = useState<string>("1280x720")
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
@@ -33,6 +34,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "viewportResolution", resolution: viewportResolution })
 			onDone()
 		}
 	}
@@ -127,6 +129,35 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<label htmlFor="viewport-resolution">
+						<span style={{ fontWeight: 500 }}>Viewport Resolution</span>
+					</label>
+					<VSCodeDropdown
+						id="viewport-resolution"
+						value={viewportResolution}
+						onChange={(e: any) => setViewportResolution(e.target.value)}
+						style={{ width: "100%" }}>
+						<VSCodeOption value="1280x720">1280x720 (HD)</VSCodeOption>
+						<VSCodeOption value="1920x1080">1920x1080 (Full HD)</VSCodeOption>
+						<VSCodeOption value="1366x768">1366x768 (WXGA)</VSCodeOption>
+						<VSCodeOption value="1440x900">1440x900 (WXGA+)</VSCodeOption>
+						<VSCodeOption value="1536x864">1536x864 (HD+)</VSCodeOption>
+						<VSCodeOption value="1600x900">1600x900 (HD+)</VSCodeOption>
+						<VSCodeOption value="1680x1050">1680x1050 (WSXGA+)</VSCodeOption>
+						<VSCodeOption value="2560x1440">2560x1440 (QHD)</VSCodeOption>
+						<VSCodeOption value="3840x2160">3840x2160 (4K UHD)</VSCodeOption>
+					</VSCodeDropdown>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Select a common resolution for the viewport while the extension is running.
 					</p>
 				</div>
 
