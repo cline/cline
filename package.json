@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.1.21",
+  "version": "2.2.7",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -32,6 +32,7 @@
     "cline",
     "claude",
     "dev",
+    "mcp",
     "openrouter",
     "coding",
     "agent",
@@ -69,6 +70,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "roo-cline.mcpButtonClicked",
+        "title": "MCP Servers",
+        "icon": "$(server)"
+      },
+      {
         "command": "roo-cline.historyButtonClicked",
         "title": "History",
         "icon": "$(history)"
@@ -97,18 +103,23 @@
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.historyButtonClicked",
+          "command": "roo-cline.mcpButtonClicked",
           "group": "navigation@2",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.popoutButtonClicked",
+          "command": "roo-cline.historyButtonClicked",
           "group": "navigation@3",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.settingsButtonClicked",
+          "command": "roo-cline.popoutButtonClicked",
           "group": "navigation@4",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.settingsButtonClicked",
+          "group": "navigation@5",
           "when": "view == roo-cline.SidebarProvider"
         }
       ]
@@ -146,7 +157,7 @@
     "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "start:webview": "cd webview-ui && npm run start",
-    "test": "vscode-test",
+    "test": "jest",
     "test:webview": "cd webview-ui && npm run test",
     "prepare": "husky",
     "publish:marketplace": "vsce publish",
@@ -184,6 +195,7 @@
     "@anthropic-ai/sdk": "^0.26.0",
     "@anthropic-ai/vertex-sdk": "^0.4.1",
     "@google/generative-ai": "^0.18.0",
+    "@modelcontextprotocol/sdk": "^1.0.1",
     "@types/clone-deep": "^4.0.4",
     "@types/pdf-parse": "^1.1.4",
     "@types/turndown": "^5.0.5",
@@ -191,6 +203,7 @@
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.4",
     "cheerio": "^1.0.0",
+    "chokidar": "^4.0.1",
     "clone-deep": "^4.0.1",
     "default-shell": "^2.2.0",
     "delay": "^6.0.0",
@@ -211,7 +224,8 @@
     "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
     "turndown": "^7.2.0",
-    "web-tree-sitter": "^0.22.6"
+    "web-tree-sitter": "^0.22.6",
+    "zod": "^3.23.8"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [

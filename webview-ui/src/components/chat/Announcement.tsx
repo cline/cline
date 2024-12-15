@@ -30,20 +30,36 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in v{minorVersion}
+				🎉{"  "}New in Cline v{minorVersion}
 			</h3>
+			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>Add custom tools to Cline using MCP!</p>
 			<p style={{ margin: "5px 0px" }}>
-				Cline now uses Anthropic's new{" "}
-				<VSCodeLink
-					href="https://www.anthropic.com/news/3-5-models-and-computer-use"
-					style={{ display: "inline" }}>
-					"Computer Use"
-				</VSCodeLink>{" "}
-				feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging,
-				end-to-end testing, and even general web use. Try asking "Look up the weather in Colorado" to see it in
-				action, or{" "}
-				<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
-					see a full demo here.
+				The Model Context Protocol allows agents like Cline to plug and play custom tools,{" "}
+				<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+					e.g. a web-search tool or GitHub tool.
+				</VSCodeLink>
+			</p>
+			<p style={{ margin: "5px 0px" }}>
+				You can add and configure MCP servers by clicking the new{" "}
+				<span className="codicon codicon-server" style={{ fontSize: "10px" }}></span> icon in the menu bar.
+			</p>
+			<p style={{ margin: "5px 0px" }}>
+				To take things a step further, Cline also has the ability to create custom tools for himself. Just say
+				"add a tool that..." and watch as he builds and installs new capabilities specific to{" "}
+				<i>your workflow</i>. For example:
+				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
+					<li>"...fetches Jira tickets": Get ticket ACs and put Cline to work</li>
+					<li>"...manages AWS EC2s": Check server metrics and scale up or down</li>
+					<li>"...pulls PagerDuty incidents": Pulls details to help Cline fix bugs</li>
+				</ul>
+				Cline handles everything from creating the MCP server to installing it in the extension, ready to use in
+				future tasks. The servers are saved to <code>~/Documents/Cline/MCP</code> so you can easily share them
+				with others too.{" "}
+			</p>
+			<p style={{ margin: "5px 0px" }}>
+				Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
+				<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+					see a demo of MCP in action here.
 				</VSCodeLink>
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
@@ -93,6 +109,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					environments)
 				</li>
 			</ul>*/}
+			<div
+				style={{
+					height: "1px",
+					background: "var(--vscode-foreground)",
+					opacity: 0.1,
+					margin: "8px 0",
+				}}
+			/>
 			<p style={{ margin: "0" }}>
 				Join
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">

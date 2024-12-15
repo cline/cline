@@ -11,6 +11,7 @@ import {
 	ClineSayTool,
 	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
+import { McpServer, McpTool } from "../../../../src/shared/mcp"
 import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
@@ -36,7 +37,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration,  alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, allowedCommands } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -156,6 +157,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Proceed While Running")
 							setSecondaryButtonText(undefined)
 							break
+						case "use_mcp_server":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("use_mcp_server")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
+							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
 							playSoundOnMessage("celebration")
@@ -205,6 +213,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "browser_action":
 						case "browser_action_result":
 						case "command_output":
+						case "mcp_server_request_started":
+						case "mcp_server_response":
 						case "completion_result":
 						case "tool":
 							break
@@ -273,6 +283,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "browser_action_launch":
 						case "command": // user can provide feedback to a tool or command use
 						case "command_output": // user can send input to command stdin
+						case "use_mcp_server":
 						case "completion_result": // if this happens then the user has feedback for the completion result
 						case "resume_task":
 						case "resume_completed_task":
@@ -314,6 +325,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "command_output":
 			case "tool":
 			case "browser_action_launch":
+			case "use_mcp_server":
 			case "resume_task":
 			case "mistake_limit_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
@@ -348,6 +360,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "command":
 			case "tool":
 			case "browser_action_launch":
+			case "use_mcp_server":
 				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
@@ -463,6 +476,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
+				case "mcp_server_request_started":
+					return false
 			}
 			return true
 		})
@@ -753,6 +768,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return false
 		}
 
+		const isMcpToolAlwaysAllowed = () => {
+			const lastMessage = messages.at(-1)
+			if (lastMessage?.type === "ask" && lastMessage.ask === "use_mcp_server" && lastMessage.text) {
+				const mcpServerUse = JSON.parse(lastMessage.text) as { type: string; serverName: string; toolName: string }
+				if (mcpServerUse.type === "use_mcp_tool") {
+					const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
+					const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
+					return tool?.alwaysAllow || false
+				}
+			}
+			return false
+		}
+
 		const isAllowedCommand = () => {
 			const lastMessage = messages.at(-1)
 			if (lastMessage?.type === "ask" && lastMessage.text) {
@@ -774,11 +802,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			(alwaysAllowBrowser && clineAsk === "browser_action_launch") ||
 			(alwaysAllowReadOnly && clineAsk === "tool" && isReadOnlyToolAction()) ||
 			(alwaysAllowWrite && clineAsk === "tool" && isWriteToolAction()) ||
-			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand())
+			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand()) ||
+			(alwaysAllowMcp && clineAsk === "use_mcp_server" && isMcpToolAlwaysAllowed())
 		) {
 			handlePrimaryButtonClick()
 		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, messages, allowedCommands])
+	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers])
 
 	return (
 		<div
@@ -824,7 +853,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							I can handle complex software development tasks step-by-step. With tools that let me create
 							& edit files, explore complex projects, use the browser, and execute terminal commands
 							(after you grant permission), I can assist you in ways that go beyond code completion or
-							tech support.
+							tech support. I can even use MCP to create new tools and extend my own capabilities.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}

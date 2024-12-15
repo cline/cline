@@ -7,9 +7,9 @@ import { SearchReplaceDiffStrategy } from './strategies/search-replace'
  * @returns The appropriate diff strategy for the model
  */
 export function getDiffStrategy(model: string): DiffStrategy {
-    // For now, return SearchReplaceDiffStrategy for all models
+    // For now, return SearchReplaceDiffStrategy for all models (with a fuzzy threshold of 0.9)
     // This architecture allows for future optimizations based on model capabilities
-    return new SearchReplaceDiffStrategy()
+    return new SearchReplaceDiffStrategy(0.9)
 }
 
 export type { DiffStrategy }

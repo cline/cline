@@ -1,6 +1,6 @@
 # Roo-Cline
 
-A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.
+A fork of Cline, an autonomous coding agent, optimized for speed and flexibility.
 - Auto-approval capabilities for commands, write, and browser operations
 - Support for .clinerules per-project custom instructions
 - Ability to run side-by-side with Cline
@@ -10,6 +10,15 @@ A fork of Cline, an autonomous coding agent, with some added experimental config
 - Support for copying prompts from the history screen
 - Support for editing through diffs / handling truncated full-file edits
 - Support for newer Gemini models (gemini-exp-1206 and gemini-2.0-flash-exp)
+- Support for dragging and dropping images into chats
+- Support for auto-approving MCP tools
+- Support for enabling/disabling MCP servers
+
+## Disclaimer
+
+**Please note** that Roo Veterinary, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo-Cline, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
+
+## Demo
 
 Here's an example of Roo-Cline autonomously creating a snake game with "Always approve write operations" and "Always approve browser actions" turned on:
 
@@ -100,7 +109,7 @@ Subscribe to our [Github releases](https://github.com/RooVetGit/Roo-Cline/releas
 
 Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
+Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. Cline can even use the Model Context Protocol (MCP) to create new tools and extend his own capabilities. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
 
 1. Enter your task and add images to convert mockups into functional apps or fix bugs with screenshots.
 2. Cline starts by analyzing your file structure & source code ASTs, running regex searches, and reading relevant files to get up to speed in existing projects. By carefully managing what information is added to context, Cline can provide valuable assistance even for large, complex projects without overwhelming the context window.
@@ -163,11 +172,55 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
+
+### "add a tool that..."
+
+Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol), Cline can extend his capabilities through custom tools. While you can use [community-made servers](https://github.com/modelcontextprotocol/servers), Cline can instead create and install tools tailored to your specific workflow. Just ask Cline to "add a tool" and he will handle everything, from creating a new MCP server to installing it into the extension. These custom tools then become part of Cline's toolkit, ready to use in future tasks.
+
+-   "add a tool that fetches Jira tickets": Retrieve ticket ACs and put Cline to work
+-   "add a tool that manages AWS EC2s": Check server metrics and scale instances up or down
+-   "add a tool that pulls the latest PagerDuty incidents": Fetch details and ask Cline to fix bugs
+
+<!-- Transparent pixel to create line break after floating image -->
+
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
+
+<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
 
 ### Add Context
 
--   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
--   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
--   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
--   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
+**`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
+
+**`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
+
+**`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
+
+**`@folder`:** Adds folder's files all at once to speed up your workflow even more
+
+## Contributing
+
+To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
+
+<details>
+<summary>Local Development Instructions</summary>
+
+1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
+    ```bash
+    git clone https://github.com/cline/cline.git
+    ```
+2. Open the project in VSCode:
+    ```bash
+    code cline
+    ```
+3. Install the necessary dependencies for the extension and webview-gui:
+    ```bash
+    npm run install:all
+    ```
+4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+
+</details>
+
+## License
+
+[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)

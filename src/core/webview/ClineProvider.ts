@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -10,6 +11,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
@@ -65,11 +67,13 @@ type GlobalStateKey =
 	| "allowedCommands"
 	| "soundEnabled"
 	| "diffEnabled"
+	| "alwaysAllowMcp"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
+	mcpSettings: "cline_mcp_settings.json",
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
@@ -80,7 +84,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	private latestAnnouncementId = "oct-28-2024" // update to some unique identifier when we add a new announcement
+	mcpHub?: McpHub
+	private latestAnnouncementId = "dec-10-2024" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -89,6 +94,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
+		this.mcpHub = new McpHub(this)
 	}
 
 	/*
@@ -112,6 +118,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
+		this.mcpHub?.dispose()
+		this.mcpHub = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -449,6 +457,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("alwaysAllowBrowser", message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
+					case "alwaysAllowMcp":
+						await this.updateGlobalState("alwaysAllowMcp", message.bool)
+						await this.postStateToWebview()
+						break
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -528,6 +540,44 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							.getConfiguration('roo-cline')
 							.update('allowedCommands', message.commands, vscode.ConfigurationTarget.Global);
 						break;
+					case "openMcpSettings": {
+						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+						if (mcpSettingsFilePath) {
+							openFile(mcpSettingsFilePath)
+						}
+						break
+					}
+					case "restartMcpServer": {
+						try {
+							await this.mcpHub?.restartConnection(message.text!)
+						} catch (error) {
+							console.error(`Failed to retry connection for ${message.text}:`, error)
+						}
+						break
+					}
+					case "toggleToolAlwaysAllow": {
+						try {
+							await this.mcpHub?.toggleToolAlwaysAllow(
+								message.serverName!,
+								message.toolName!,
+								message.alwaysAllow!
+							)
+						} catch (error) {
+							console.error(`Failed to toggle auto-approve for tool ${message.toolName}:`, error)
+						}
+						break
+					}
+					case "toggleMcpServer": {
+						try {
+							await this.mcpHub?.toggleServerDisabled(
+								message.serverName!,
+								message.disabled!
+							)
+						} catch (error) {
+							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 					case "playSound":
@@ -561,6 +611,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.cline.customInstructions = instructions || undefined
 		}
 		await this.postStateToWebview()
+	}
+
+	// MCP
+
+	async ensureMcpServersDirectoryExists(): Promise<string> {
+		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		try {
+			await fs.mkdir(mcpServersDir, { recursive: true })
+		} catch (error) {
+			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+		}
+		return mcpServersDir
+	}
+
+	async ensureSettingsDirectoryExists(): Promise<string> {
+		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
+		await fs.mkdir(settingsDir, { recursive: true })
+		return settingsDir
 	}
 
 	// Ollama
@@ -852,6 +920,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite,
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
+			alwaysAllowMcp,
 			soundEnabled,
 			diffEnabled,
 			taskHistory,
@@ -869,6 +938,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite: alwaysAllowWrite ?? false,
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
+			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || [])
@@ -965,6 +1035,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite,
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
+			alwaysAllowMcp,
 			taskHistory,
 			allowedCommands,
 			soundEnabled,
@@ -1001,6 +1072,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("alwaysAllowWrite") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowMcp") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
@@ -1055,6 +1127,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowWrite: alwaysAllowWrite ?? false,
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
+			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			taskHistory,
 			allowedCommands,
 			soundEnabled,
