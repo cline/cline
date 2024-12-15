@@ -228,6 +228,196 @@ function hello() {
             const result = strategy.applyDiff(originalContent, diffContent)
             expect(result).toBe('				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}')
         })
+
+        it('should handle varying indentation levels correctly', () => {
+            const originalContent = `
+class Example {
+    constructor() {
+        this.value = 0;
+        if (true) {
+            this.init();
+        }
+    }
+}`.trim();
+        
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    class Example {
+        constructor() {
+            this.value = 0;
+            if (true) {
+                this.init();
+            }
+        }
+    }
+=======
+    class Example {
+        constructor() {
+            this.value = 1;
+            if (true) {
+                this.init();
+                this.setup();
+                this.validate();
+            }
+        }
+    }
+>>>>>>> REPLACE`.trim();
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`
+class Example {
+    constructor() {
+        this.value = 1;
+        if (true) {
+            this.init();
+            this.setup();
+            this.validate();
+        }
+    }
+}`.trim());
+        });
+
+        it('should handle mixed indentation styles in the same file', () => {
+    const originalContent = `class Example {
+    constructor() {
+        this.value = 0;
+        if (true) {
+        this.init();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    constructor() {
+        this.value = 0;
+        if (true) {
+        this.init();
+        }
+    }
+=======
+    constructor() {
+        this.value = 1;
+        if (true) {
+        this.init();
+        this.validate();
+        }
+    }
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`class Example {
+    constructor() {
+        this.value = 1;
+        if (true) {
+        this.init();
+        this.validate();
+        }
+    }
+}`);
+        });
+        
+        it('should handle Python-style significant whitespace', () => {
+            const originalContent = `def example():
+    if condition:
+        do_something()
+        for item in items:
+            process(item)
+    return True`.trim();
+    const diffContent = `test.ts
+<<<<<<< SEARCH
+    if condition:
+        do_something()
+        for item in items:
+            process(item)
+=======
+    if condition:
+        do_something()
+        while items:
+            item = items.pop()
+            process(item)
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`def example():
+    if condition:
+        do_something()
+        while items:
+            item = items.pop()
+            process(item)
+    return True`);
+        });
+        
+        it('should preserve empty lines with indentation', () => {
+    const originalContent = `function test() {
+    const x = 1;
+    
+    if (x) {
+        return true;
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    const x = 1;
+    
+    if (x) {
+=======
+    const x = 1;
+    
+    // Check x
+    if (x) {
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`function test() {
+    const x = 1;
+    
+    // Check x
+    if (x) {
+        return true;
+    }
+}`);
+        });
+        
+        it('should handle indentation when replacing entire blocks', () => {
+            const originalContent = `class Test {
+    method() {
+        if (true) {
+            console.log("test");
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    method() {
+        if (true) {
+            console.log("test");
+        }
+    }
+=======
+    method() {
+        try {
+            if (true) {
+                console.log("test");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result).toBe(`class Test {
+    method() {
+        try {
+            if (true) {
+                console.log("test");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+}`);
+        });
     })
 
     describe('fuzzy matching', () => {
