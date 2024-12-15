@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.7]
+
+-   More fixes to search/replace diffs
+
 ## [2.2.6]
 
 -   Add a fuzzy match tolerance when applying diffs

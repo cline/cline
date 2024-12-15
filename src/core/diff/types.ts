@@ -13,7 +13,9 @@ export interface DiffStrategy {
      * Apply a diff to the original content
      * @param originalContent The original file content
      * @param diffContent The diff content in the strategy's format
+     * @param startLine Optional line number where the search block starts. If not provided, searches the entire file.
+     * @param endLine Optional line number where the search block ends. If not provided, searches the entire file.
      * @returns The new content after applying the diff, or false if the diff could not be applied
      */
-    applyDiff(originalContent: string, diffContent: string): string | false
+    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): string | false
 }
