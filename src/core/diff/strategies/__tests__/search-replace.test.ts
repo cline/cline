@@ -612,6 +612,95 @@ function three() {
     return 3;
 }`)
         })
+
+        it('should prioritize exact line match over expanded search', () => {
+            const originalContent = `
+function one() {
+    return 1;
+}
+
+function process() {
+    return "old";
+}
+
+function process() {
+    return "old";
+}
+
+function two() {
+    return 2;
+}`
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function process() {
+    return "old";
+}
+=======
+function process() {
+    return "new";
+}
+>>>>>>> REPLACE`
+
+            // Should match the second instance exactly at lines 10-12
+            // even though the first instance at 6-8 is within the expanded search range
+            const result = strategy.applyDiff(originalContent, diffContent, 10, 12)
+            expect(result).toBe(`
+function one() {
+    return 1;
+}
+
+function process() {
+    return "old";
+}
+
+function process() {
+    return "new";
+}
+
+function two() {
+    return 2;
+}`)
+            })
+
+        it('should fall back to expanded search only if exact match fails', () => {
+            const originalContent = `
+function one() {
+    return 1;
+}
+
+function process() {
+    return "target";
+}
+
+function two() {
+    return 2;
+}`.trim()
+    const diffContent = `test.ts
+<<<<<<< SEARCH
+function process() {
+    return "target";
+}
+=======
+function process() {
+    return "updated";
+}
+>>>>>>> REPLACE`
+
+            // Specify wrong line numbers (3-5), but content exists at 6-8
+            // Should still find and replace it since it's within the expanded range
+            const result = strategy.applyDiff(originalContent, diffContent, 3, 5)
+            expect(result).toBe(`function one() {
+    return 1;
+}
+
+function process() {
+    return "updated";
+}
+
+function two() {
+    return 2;
+}`)
+        })
     })
 
     describe('getToolDescription', () => {

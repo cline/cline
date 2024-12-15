@@ -132,41 +132,60 @@ Your search/replace content here
         const replaceLines = replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
         
-        // Determine search range based on provided line numbers
-        let searchStartIndex = 0;
-        let searchEndIndex = originalLines.length;
-        
-        if (startLine !== undefined || endLine !== undefined) {
-            // Convert to 0-based index and add buffer
-            if (startLine !== undefined) {
-                searchStartIndex = Math.max(0, startLine - 6);
-            }
-            if (endLine !== undefined) {
-                searchEndIndex = Math.min(originalLines.length, endLine + 5);
-            }
-        }
-        
-        // Find the search content in the original using fuzzy matching
+        // First try exact line range if provided
         let matchIndex = -1;
         let bestMatchScore = 0;
         
-        for (let i = searchStartIndex; i <= searchEndIndex - searchLines.length; i++) {
-            // Join the lines and calculate overall similarity
-            const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
+        if (startLine !== undefined && endLine !== undefined) {
+            // Convert to 0-based index
+            const exactStartIndex = startLine - 1;
+            const exactEndIndex = endLine - 1;
+
+            // Check exact range first
+            const originalChunk = originalLines.slice(exactStartIndex, exactEndIndex + 1).join('\n');
             const searchChunk = searchLines.join('\n');
             
             const similarity = getSimilarity(originalChunk, searchChunk);
-            if (similarity > bestMatchScore) {
+            if (similarity >= this.fuzzyThreshold) {
+                matchIndex = exactStartIndex;
                 bestMatchScore = similarity;
-                matchIndex = i;
             }
         }
-        
+
+        // If no match found in exact range, try expanded range
+        if (matchIndex === -1) {
+            let searchStartIndex = 0;
+            let searchEndIndex = originalLines.length;
+
+            if (startLine !== undefined || endLine !== undefined) {
+                // Convert to 0-based index and add buffer
+                if (startLine !== undefined) {
+                    searchStartIndex = Math.max(0, startLine - 6);
+                }
+                if (endLine !== undefined) {
+                    searchEndIndex = Math.min(originalLines.length, endLine + 5);
+                }
+            }
+
+            // Find the search content in the expanded range using fuzzy matching
+            for (let i = searchStartIndex; i <= searchEndIndex - searchLines.length; i++) {
+                // Join the lines and calculate overall similarity
+                const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
+                const searchChunk = searchLines.join('\n');
+
+                const similarity = getSimilarity(originalChunk, searchChunk);
+                if (similarity > bestMatchScore) {
+                    bestMatchScore = similarity;
+                    matchIndex = i;
+                }
+            }
+        }
+
         // Require similarity to meet threshold
         if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
             return false;
         }
-        
+
         // Get the matched lines from the original content
         const matchedLines = originalLines.slice(matchIndex, matchIndex + searchLines.length);
         
@@ -175,13 +194,13 @@ Your search/replace content here
             const match = line.match(/^[\t ]*/);
             return match ? match[0] : '';
         });
-        
+
         // Get the exact indentation of each line in the search block
         const searchIndents = searchLines.map(line => {
             const match = line.match(/^[\t ]*/);
             return match ? match[0] : '';
         });
-        
+
         // Apply the replacement while preserving exact indentation
         const indentedReplaceLines = replaceLines.map((line, i) => {
             // Get the matched line's exact indentation
@@ -198,7 +217,7 @@ Your search/replace content here
             // Apply the matched indentation plus any relative indentation
             return matchedIndent + relativeIndent + line.trim();
         });
-        
+
         // Construct the final content
         const beforeMatch = originalLines.slice(0, matchIndex);
         const afterMatch = originalLines.slice(matchIndex + searchLines.length);
