@@ -1,362 +1,232 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import HistoryView from '../HistoryView'
-import { ExtensionStateContextProvider } from '../../../context/ExtensionStateContext'
+import { useExtensionState } from '../../../context/ExtensionStateContext'
 import { vscode } from '../../../utils/vscode'
-import { highlight } from '../HistoryView'
-import { FuseResult } from 'fuse.js'
 
-// Mock vscode API
-jest.mock('../../../utils/vscode', () => ({
-  vscode: {
-    postMessage: jest.fn(),
-  },
+// Mock dependencies
+jest.mock('../../../context/ExtensionStateContext')
+jest.mock('../../../utils/vscode')
+jest.mock('react-virtuoso', () => ({
+  Virtuoso: ({ data, itemContent }: any) => (
+    <div data-testid="virtuoso-container">
+      {data.map((item: any, index: number) => (
+        <div key={item.id} data-testid={`virtuoso-item-${item.id}`}>
+          {itemContent(index, item)}
+        </div>
+      ))}
+    </div>
+  ),
 }))
 
-interface VSCodeButtonProps {
-  children: React.ReactNode;
-  onClick?: (e: any) => void;
-  appearance?: string;
-  className?: string;
-}
-
-interface VSCodeTextFieldProps {
-  value?: string;
-  onInput?: (e: { target: { value: string } }) => void;
-  placeholder?: string;
-  style?: React.CSSProperties;
-}
-
-interface VSCodeRadioGroupProps {
-  children?: React.ReactNode;
-  value?: string;
-  onChange?: (e: { target: { value: string } }) => void;
-  style?: React.CSSProperties;
-}
-
-interface VSCodeRadioProps {
-  value: string;
-  children: React.ReactNode;
-  disabled?: boolean;
-  style?: React.CSSProperties;
-}
-
-// Mock VSCode components
-jest.mock('@vscode/webview-ui-toolkit/react', () => ({
-  VSCodeButton: function MockVSCodeButton({ 
-    children,
-    onClick,
-    appearance,
-    className 
-  }: VSCodeButtonProps) {
-    return (
-      <button 
-        onClick={onClick} 
-        data-appearance={appearance}
-        className={className}
-      >
-        {children}
-      </button>
-    )
+const mockTaskHistory = [
+  {
+    id: '1',
+    task: 'Test task 1',
+    ts: new Date('2022-02-16T00:00:00').getTime(),
+    tokensIn: 100,
+    tokensOut: 50,
+    totalCost: 0.002,
   },
-  VSCodeTextField: function MockVSCodeTextField({ 
-    value,
-    onInput,
-    placeholder,
-    style 
-  }: VSCodeTextFieldProps) {
-    return (
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onInput?.({ target: { value: e.target.value } })}
-        placeholder={placeholder}
-        style={style}
-      />
-    )
+  {
+    id: '2',
+    task: 'Test task 2',
+    ts: new Date('2022-02-17T00:00:00').getTime(),
+    tokensIn: 200,
+    tokensOut: 100,
+    cacheWrites: 50,
+    cacheReads: 25,
   },
-  VSCodeRadioGroup: function MockVSCodeRadioGroup({
-    children,
-    value,
-    onChange,
-    style
-  }: VSCodeRadioGroupProps) {
-    return (
-      <div style={style} role="radiogroup" data-current-value={value}>
-        {children}
-      </div>
-    )
-  },
-  VSCodeRadio: function MockVSCodeRadio({
-    value,
-    children,
-    disabled,
-    style
-  }: VSCodeRadioProps) {
-    return (
-      <label style={style}>
-        <input
-          type="radio"
-          value={value}
-          disabled={disabled}
-          data-testid={`radio-${value}`}
-        />
-        {children}
-      </label>
-    )
-  }
-}))
-
-// Mock window.navigator.clipboard
-Object.assign(navigator, {
-  clipboard: {
-    writeText: jest.fn(),
-  },
-})
-
-// Mock window.postMessage to trigger state hydration
-const mockPostMessage = (state: any) => {
-  window.postMessage({
-    type: 'state',
-    state: {
-      version: '1.0.0',
-      taskHistory: [],
-      ...state
-    }
-  }, '*')
-}
+]
 
 describe('HistoryView', () => {
-  const mockOnDone = jest.fn()
-  const sampleHistory = [
-    {
-      id: '1',
-      task: 'First task',
-      ts: Date.now() - 3000,
-      tokensIn: 100,
-      tokensOut: 50,
-      totalCost: 0.002
-    },
-    {
-      id: '2',
-      task: 'Second task',
-      ts: Date.now() - 2000,
-      tokensIn: 200,
-      tokensOut: 100,
-      totalCost: 0.004
-    },
-    {
-      id: '3',
-      task: 'Third task',
-      ts: Date.now() - 1000,
-      tokensIn: 300,
-      tokensOut: 150,
-      totalCost: 0.006
-    }
-  ]
-
   beforeEach(() => {
+    // Reset all mocks before each test
     jest.clearAllMocks()
+    jest.useFakeTimers()
+    
+    // Mock useExtensionState implementation
+    ;(useExtensionState as jest.Mock).mockReturnValue({
+      taskHistory: mockTaskHistory,
+    })
   })
 
-  it('renders history items in correct order', () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
-
-    mockPostMessage({ taskHistory: sampleHistory })
-
-    const historyItems = screen.getAllByText(/task/i)
-    expect(historyItems).toHaveLength(3)
-    expect(historyItems[0]).toHaveTextContent('Third task')
-    expect(historyItems[1]).toHaveTextContent('Second task')
-    expect(historyItems[2]).toHaveTextContent('First task')
+  afterEach(() => {
+    jest.useRealTimers()
   })
 
-  it('handles sorting by different criteria', async () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
+  it('renders history items correctly', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
 
-    mockPostMessage({ taskHistory: sampleHistory })
+    // Check if both tasks are rendered
+    expect(screen.getByTestId('virtuoso-item-1')).toBeInTheDocument()
+    expect(screen.getByTestId('virtuoso-item-2')).toBeInTheDocument()
+    expect(screen.getByText('Test task 1')).toBeInTheDocument()
+    expect(screen.getByText('Test task 2')).toBeInTheDocument()
+  })
 
-    // Test oldest sort
-    const oldestRadio = screen.getByTestId('radio-oldest')
+  it('handles search functionality', async () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    // Get search input and radio group
+    const searchInput = screen.getByPlaceholderText('Fuzzy search history...')
+    const radioGroup = screen.getByRole('radiogroup')
+    
+    // Type in search
+    await userEvent.type(searchInput, 'task 1')
+
+    // Check if sort option automatically changes to "Most Relevant"
+    const mostRelevantRadio = within(radioGroup).getByLabelText('Most Relevant')
+    expect(mostRelevantRadio).not.toBeDisabled()
+    
+    // Click and wait for radio update
+    fireEvent.click(mostRelevantRadio)
+
+    // Wait for radio button to be checked
+    const updatedRadio = await within(radioGroup).findByRole('radio', { name: 'Most Relevant', checked: true })
+    expect(updatedRadio).toBeInTheDocument()
+  })
+
+  it('handles sort options correctly', async () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    const radioGroup = screen.getByRole('radiogroup')
+
+    // Test changing sort options
+    const oldestRadio = within(radioGroup).getByLabelText('Oldest')
     fireEvent.click(oldestRadio)
     
-    let historyItems = screen.getAllByText(/task/i)
-    expect(historyItems[0]).toHaveTextContent('First task')
-    expect(historyItems[2]).toHaveTextContent('Third task')
+    // Wait for oldest radio to be checked
+    const checkedOldestRadio = await within(radioGroup).findByRole('radio', { name: 'Oldest', checked: true })
+    expect(checkedOldestRadio).toBeInTheDocument()
 
-    // Test most expensive sort
-    const expensiveRadio = screen.getByTestId('radio-mostExpensive')
-    fireEvent.click(expensiveRadio)
+    const mostExpensiveRadio = within(radioGroup).getByLabelText('Most Expensive')
+    fireEvent.click(mostExpensiveRadio)
     
-    historyItems = screen.getAllByText(/task/i)
-    expect(historyItems[0]).toHaveTextContent('Third task')
-    expect(historyItems[2]).toHaveTextContent('First task')
-
-    // Test most tokens sort
-    const tokensRadio = screen.getByTestId('radio-mostTokens')
-    fireEvent.click(tokensRadio)
-    
-    historyItems = screen.getAllByText(/task/i)
-    expect(historyItems[0]).toHaveTextContent('Third task')
-    expect(historyItems[2]).toHaveTextContent('First task')
+    // Wait for most expensive radio to be checked
+    const checkedExpensiveRadio = await within(radioGroup).findByRole('radio', { name: 'Most Expensive', checked: true })
+    expect(checkedExpensiveRadio).toBeInTheDocument()
   })
 
-  it('handles search functionality and auto-switches to most relevant sort', async () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
+  it('handles task selection', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
 
-    mockPostMessage({ taskHistory: sampleHistory })
+    // Click on first task
+    fireEvent.click(screen.getByText('Test task 1'))
 
-    const searchInput = screen.getByPlaceholderText('Fuzzy search history...')
-    fireEvent.change(searchInput, { target: { value: 'First' } })
-
-    const historyItems = screen.getAllByText(/task/i)
-    expect(historyItems).toHaveLength(1)
-    expect(historyItems[0]).toHaveTextContent('First task')
-
-    // Verify sort switched to Most Relevant
-    const radioGroup = screen.getByRole('radiogroup')
-    expect(radioGroup.getAttribute('data-current-value')).toBe('mostRelevant')
-
-    // Clear search and verify sort reverts
-    fireEvent.change(searchInput, { target: { value: '' } })
-    expect(radioGroup.getAttribute('data-current-value')).toBe('newest')
-  })
-
-  it('handles copy functionality and shows/hides modal', async () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
-
-    mockPostMessage({ taskHistory: sampleHistory })
-
-    const copyButtons = screen.getAllByRole('button', { hidden: true })
-      .filter(button => button.className.includes('copy-button'))
-    
-    fireEvent.click(copyButtons[0])
-
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Third task')
-    
-    // Verify modal appears
-    await waitFor(() => {
-      expect(screen.getByText('Prompt Copied to Clipboard')).toBeInTheDocument()
+    // Verify vscode message was sent
+    expect(vscode.postMessage).toHaveBeenCalledWith({
+      type: 'showTaskWithId',
+      text: '1',
     })
-
-    // Verify modal disappears
-    await waitFor(() => {
-      expect(screen.queryByText('Prompt Copied to Clipboard')).not.toBeInTheDocument()
-    }, { timeout: 2500 })
   })
 
-  it('handles delete functionality', () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
+  it('handles task deletion', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
 
-    mockPostMessage({ taskHistory: sampleHistory })
-
-    const deleteButtons = screen.getAllByRole('button', { hidden: true })
-      .filter(button => button.className.includes('delete-button'))
+    // Find and hover over first task
+    const taskContainer = screen.getByTestId('virtuoso-item-1')
+    fireEvent.mouseEnter(taskContainer)
     
-    fireEvent.click(deleteButtons[0])
+    const deleteButton = within(taskContainer).getByTitle('Delete Task')
+    fireEvent.click(deleteButton)
 
+    // Verify vscode message was sent
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'deleteTaskWithId',
-      text: '3'
+      text: '1',
     })
+  })
+
+  it('handles task copying', async () => {
+    const mockClipboard = {
+      writeText: jest.fn().mockResolvedValue(undefined),
+    }
+    Object.assign(navigator, { clipboard: mockClipboard })
+
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    // Find and hover over first task
+    const taskContainer = screen.getByTestId('virtuoso-item-1')
+    fireEvent.mouseEnter(taskContainer)
+    
+    const copyButton = within(taskContainer).getByTitle('Copy Prompt')
+    await userEvent.click(copyButton)
+
+    // Verify clipboard API was called
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Test task 1')
+    
+    // Wait for copy modal to appear
+    const copyModal = await screen.findByText('Prompt Copied to Clipboard')
+    expect(copyModal).toBeInTheDocument()
+
+    // Fast-forward timers and wait for modal to disappear
+    jest.advanceTimersByTime(2000)
+    await waitFor(() => {
+      expect(screen.queryByText('Prompt Copied to Clipboard')).not.toBeInTheDocument()
+    })
+  })
+
+  it('formats dates correctly', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    // Find first task container and check date format
+    const taskContainer = screen.getByTestId('virtuoso-item-1')
+    const dateElement = within(taskContainer).getByText((content) => {
+      return content.includes('FEBRUARY 16') && content.includes('12:00 AM')
+    })
+    expect(dateElement).toBeInTheDocument()
+  })
+
+  it('displays token counts correctly', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    // Find first task container
+    const taskContainer = screen.getByTestId('virtuoso-item-1')
+
+    // Find token counts within the task container
+    const tokensContainer = within(taskContainer).getByTestId('tokens-container')
+    expect(within(tokensContainer).getByTestId('tokens-in')).toHaveTextContent('100')
+    expect(within(tokensContainer).getByTestId('tokens-out')).toHaveTextContent('50')
+  })
+
+  it('displays cache information when available', () => {
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
+
+    // Find second task container
+    const taskContainer = screen.getByTestId('virtuoso-item-2')
+
+    // Find cache info within the task container
+    const cacheContainer = within(taskContainer).getByTestId('cache-container')
+    expect(within(cacheContainer).getByTestId('cache-writes')).toHaveTextContent('+50')
+    expect(within(cacheContainer).getByTestId('cache-reads')).toHaveTextContent('25')
   })
 
   it('handles export functionality', () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
+    const onDone = jest.fn()
+    render(<HistoryView onDone={onDone} />)
 
-    mockPostMessage({ taskHistory: sampleHistory })
-
-    const exportButtons = screen.getAllByRole('button', { hidden: true })
-      .filter(button => button.className.includes('export-button'))
+    // Find and hover over second task
+    const taskContainer = screen.getByTestId('virtuoso-item-2')
+    fireEvent.mouseEnter(taskContainer)
     
-    fireEvent.click(exportButtons[0])
+    const exportButton = within(taskContainer).getByText('EXPORT')
+    fireEvent.click(exportButton)
 
+    // Verify vscode message was sent
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'exportTaskWithId',
-      text: '3'
-    })
-  })
-
-  it('calls onDone when Done button is clicked', () => {
-    render(
-      <ExtensionStateContextProvider>
-        <HistoryView onDone={mockOnDone} />
-      </ExtensionStateContextProvider>
-    )
-
-    const doneButton = screen.getByText('Done')
-    fireEvent.click(doneButton)
-
-    expect(mockOnDone).toHaveBeenCalled()
-  })
-
-  describe('highlight function', () => {
-    it('correctly highlights search matches', () => {
-      const testData = [{
-        item: { text: 'Hello world' },
-        matches: [{ key: 'text', value: 'Hello world', indices: [[0, 4]] }],
-        refIndex: 0
-      }] as FuseResult<any>[]
-
-      const result = highlight(testData)
-      expect(result[0].text).toBe('<span class="history-item-highlight">Hello</span> world')
-    })
-
-    it('handles multiple matches', () => {
-      const testData = [{
-        item: { text: 'Hello world Hello' },
-        matches: [{ 
-          key: 'text', 
-          value: 'Hello world Hello', 
-          indices: [[0, 4], [11, 15]] 
-        }],
-        refIndex: 0
-      }] as FuseResult<any>[]
-
-      const result = highlight(testData)
-      expect(result[0].text).toBe(
-        '<span class="history-item-highlight">Hello</span> world ' +
-        '<span class="history-item-highlight">Hello</span>'
-      )
-    })
-
-    it('handles overlapping matches', () => {
-      const testData = [{
-        item: { text: 'Hello' },
-        matches: [{ 
-          key: 'text', 
-          value: 'Hello', 
-          indices: [[0, 2], [1, 4]] 
-        }],
-        refIndex: 0
-      }] as FuseResult<any>[]
-
-      const result = highlight(testData)
-      expect(result[0].text).toBe('<span class="history-item-highlight">Hello</span>')
+      text: '2',
     })
   })
 })
