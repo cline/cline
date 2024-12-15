@@ -66,6 +66,7 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	alwaysAllowWrite: boolean
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -95,6 +96,7 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
+		alwaysAllowWrite?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -107,6 +109,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
+		this.alwaysAllowWrite = alwaysAllowWrite ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1081,7 +1084,11 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (!this.alwaysAllowWrite) {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								} else {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1111,7 +1118,11 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									if (!this.alwaysAllowWrite) {
+										await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									} else {
+										await this.say("tool", partialMessage, undefined, true)
+									}
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1130,7 +1141,12 @@ export class Cline {
 											)
 										: undefined,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
+								let didApprove = true
+								if (!this.alwaysAllowWrite) {
+									didApprove = await askApproval("tool", completeMessage)
+								} else {
+									await this.say("tool", completeMessage)
+								}
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges()
 									break
@@ -1147,6 +1163,7 @@ export class Cline {
 											diff: userEdits,
 										} satisfies ClineSayTool),
 									)
+
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
@@ -1537,7 +1554,12 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = await askApproval("command", command)
+								let didApprove = true
+								if (!this.alwaysAllowWrite) {
+									//TODO revise commands
+									didApprove = await askApproval("command", command)
+								}
+
 								if (!didApprove) {
 									break
 								}

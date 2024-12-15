@@ -19,6 +19,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		alwaysAllowWrite,
+		setAlwaysAllowWrite,
 		openRouterModels,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -33,6 +35,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			onDone()
 		}
 	}
@@ -79,7 +82,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					marginBottom: "17px",
 					paddingRight: 17,
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings vSeyacat0.0.1</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
@@ -119,6 +122,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
 						<span style={{ fontWeight: "500" }}>Always approve read-only operations</span>
 					</VSCodeCheckbox>
+					
 					<p
 						style={{
 							fontSize: "12px",
@@ -127,6 +131,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will automatically view directory contents and read files without requiring
 						you to click the Approve button.
+					</p>
+					<VSCodeCheckbox
+						checked={alwaysAllowWrite}
+						onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
+						<span style={{ fontWeight: "500" }}>Always approve write operations</span>
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Use at your own risk!
 					</p>
 				</div>
 
