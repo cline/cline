@@ -10,4 +10,4 @@ bin/
 roo-cline-*.vsix
 
 # Local prompts and rules
-local-prompts
+/local-prompts
