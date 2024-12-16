@@ -97,6 +97,7 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		diffEnabled?: boolean,
+		debugDiffEnabled?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -109,7 +110,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		if (diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id, debugDiffEnabled)
 		}
 		if (historyItem) {
 			this.taskId = historyItem.id

@@ -1,4 +1,7 @@
 import { DiffStrategy, DiffResult } from "../types"
+import { addLineNumbers } from "../../../integrations/misc/extract-text"
+
+const BUFFER_LINES = 5; // Number of extra context lines to show before and after matches
 
 function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
@@ -48,10 +51,12 @@ function getSimilarity(original: string, search: string): number {
 
 export class SearchReplaceDiffStrategy implements DiffStrategy {
     private fuzzyThreshold: number;
+    public debugEnabled: boolean;
 
-    constructor(fuzzyThreshold?: number) {
+    constructor(fuzzyThreshold?: number, debugEnabled?: boolean) {
         // Default to exact matching (1.0) unless fuzzy threshold specified
         this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
+        this.debugEnabled = debugEnabled ?? false;
     }
 
     getToolDescription(cwd: string): string {
@@ -119,15 +124,11 @@ Your search/replace content here
         // Extract the search and replace blocks
         const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/);
         if (!match) {
-            // Log detailed format information
-            console.log('Invalid Diff Format Debug:', {
-                expectedFormat: "<<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE",
-                tip: "Make sure to include both SEARCH and REPLACE sections with correct markers"
-            });
+            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers` : '';
 
             return {
                 success: false,
-                error: "Invalid diff format - missing required SEARCH/REPLACE sections"
+                error: `Invalid diff format - missing required SEARCH/REPLACE sections${debugInfo}`
             };
         }
 
@@ -167,15 +168,11 @@ Your search/replace content here
             const exactEndIndex = endLine - 1;
 
             if (exactStartIndex < 0 || exactEndIndex >= originalLines.length) {
-                // Log detailed debug information
-                console.log('Invalid Line Range Debug:', {
-                    requestedRange: { start: startLine, end: endLine },
-                    fileBounds: { start: 1, end: originalLines.length }
-                });
-
+                const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}` : '';
+    
                 return {
                     success: false,
-                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)`,
+                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)${debugInfo}`,
                 };
             }
 
@@ -198,11 +195,12 @@ Your search/replace content here
 
             if (startLine !== undefined || endLine !== undefined) {
                 // Convert to 0-based index and add buffer
+                const BUFFER_LINES = 5;
                 if (startLine !== undefined) {
-                    searchStartIndex = Math.max(0, startLine - 6);
+                    searchStartIndex = Math.max(0, startLine - (BUFFER_LINES + 1));
                 }
                 if (endLine !== undefined) {
-                    searchEndIndex = Math.min(originalLines.length, endLine + 5);
+                    searchEndIndex = Math.min(originalLines.length, endLine + BUFFER_LINES);
                 }
             }
 
@@ -224,17 +222,27 @@ Your search/replace content here
         // Require similarity to meet threshold
         if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
             const searchChunk = searchLines.join('\n');
-            // Log detailed debug information to console
-            console.log('Search/Replace Debug Info:', {
-                similarity: bestMatchScore,
-                threshold: this.fuzzyThreshold,
-                searchContent: searchChunk,
-                bestMatch: bestMatchContent || undefined
-            });
+            const originalContentSection = startLine !== undefined && endLine !== undefined
+                ? `\n\nOriginal Content:\n${addLineNumbers(
+                    originalLines.slice(
+                        Math.max(0, startLine - 1 - BUFFER_LINES),
+                        Math.min(originalLines.length, endLine + BUFFER_LINES)
+                    ).join('\n'),
+                    Math.max(1, startLine - BUFFER_LINES)
+                )}`
+                : `\n\nOriginal Content:\n${addLineNumbers(originalLines.join('\n'))}`;
 
+            const bestMatchSection = bestMatchContent
+                ? `\n\nBest Match Found:\n${addLineNumbers(bestMatchContent, matchIndex + 1)}`
+                : `\n\nBest Match Found:\n(no match)`;
+
+            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Line Range: lines ${startLine}-${endLine}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
+
+            const lineRange = startLine !== undefined || endLine !== undefined ?
+                ` at ${startLine !== undefined ? `start: ${startLine}` : 'start'} to ${endLine !== undefined ? `end: ${endLine}` : 'end'}` : '';
             return {
                 success: false,
-                error: `No sufficiently similar match found${startLine !== undefined ? ` near lines ${startLine}-${endLine}` : ''} (${Math.round(bestMatchScore * 100)}% similar, needs ${Math.round(this.fuzzyThreshold * 100)}%)`
+                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)${debugInfo}`
             };
         }
 

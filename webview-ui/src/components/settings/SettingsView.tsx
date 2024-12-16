@@ -31,6 +31,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundEnabled,
 		diffEnabled,
 		setDiffEnabled,
+		debugDiffEnabled,
+		setDebugDiffEnabled,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -46,7 +48,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
 		if (!apiValidationResult && !modelIdValidationResult) {
-			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			vscode.postMessage({
+				type: "apiConfiguration",
+				apiConfiguration
+			})
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
@@ -56,6 +61,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
+			vscode.postMessage({ type: "debugDiffEnabled", bool: debugDiffEnabled })
 			onDone()
 		}
 	}
@@ -322,6 +328,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								color: "var(--vscode-descriptionForeground)",
 							}}>
 							When enabled, Cline will play sound effects for notifications and events.
+						</p>
+					</div>
+
+					<div style={{ marginBottom: 5 }}>
+						<VSCodeCheckbox checked={debugDiffEnabled} onChange={(e: any) => setDebugDiffEnabled(e.target.checked)}>
+							<span style={{ fontWeight: "500" }}>Debug diff operations</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Cline will show detailed debug information when applying diffs fails.
 						</p>
 					</div>
 				</div>
