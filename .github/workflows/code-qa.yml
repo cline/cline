@@ -42,4 +42,4 @@ jobs:
         run: npm run install:all
 
       - name: Run unit tests
-        run: npx jest
+        run: npm test

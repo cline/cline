@@ -248,6 +248,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									<VSCodeTextField
 										value={commandInput}
 										onInput={(e: any) => setCommandInput(e.target.value)}
+										onKeyDown={(e: any) => {
+											if (e.key === 'Enter') {
+												e.preventDefault()
+												handleAddCommand()
+											}
+										}}
 										placeholder="Enter command prefix (e.g., 'git ')"
 										style={{ flexGrow: 1 }}
 									/>

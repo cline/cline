@@ -62,7 +62,6 @@ The tool will maintain proper indentation and formatting while making changes.
 Only a single operation is allowed per tool use.
 The SEARCH section must exactly match existing content including whitespace and indentation.
 If you're not confident in the exact content to search for, use the read_file tool first to get the exact content.
-IMPORTANT: The read_file tool returns the file content with line numbers prepended to each line. However, DO NOT include line numbers in the SEARCH and REPLACE sections of the diff content.
 
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})
@@ -132,10 +131,25 @@ Your search/replace content here
             };
         }
 
-        const [_, searchContent, replaceContent] = match;
+        let [_, searchContent, replaceContent] = match;
         
         // Detect line ending from original content
         const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
+
+        // Strip line numbers from search and replace content if every line starts with a line number
+        const hasLineNumbers = (content: string) => {
+            const lines = content.split(/\r?\n/);
+            return lines.length > 0 && lines.every(line => /^\d+\s+\|(?!\|)/.test(line));
+        };
+
+        if (hasLineNumbers(searchContent) && hasLineNumbers(replaceContent)) {
+            const stripLineNumbers = (content: string) => {
+                return content.replace(/^\d+\s+\|(?!\|)/gm, '') 
+            };
+
+            searchContent = stripLineNumbers(searchContent);
+            replaceContent = stripLineNumbers(replaceContent);
+        }
         
         // Split content into lines, handling both \n and \r\n
         const searchLines = searchContent.split(/\r?\n/);
