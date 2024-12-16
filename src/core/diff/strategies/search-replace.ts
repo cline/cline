@@ -62,6 +62,7 @@ The tool will maintain proper indentation and formatting while making changes.
 Only a single operation is allowed per tool use.
 The SEARCH section must exactly match existing content including whitespace and indentation.
 If you're not confident in the exact content to search for, use the read_file tool first to get the exact content.
+IMPORTANT: The read_file tool returns the file content with line numbers prepended to each line. However, DO NOT include line numbers in the SEARCH and REPLACE sections of the diff content.
 
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})
