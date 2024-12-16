@@ -59,7 +59,10 @@ function calculateTotal(items: number[]): number {
 export { calculateTotal };`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(expected)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(expected)
+            }
         })
 
         it('should successfully apply a diff adding a new method', () => {
@@ -93,7 +96,10 @@ export { calculateTotal };`
 }`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(expected)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(expected)
+            }
         })
 
         it('should successfully apply a diff modifying imports', () => {
@@ -128,7 +134,10 @@ function App() {
 }`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(expected)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(expected)
+            }
         })
 
         it('should successfully apply a diff with multiple hunks', () => {
@@ -190,7 +199,10 @@ async function processFile(path: string) {
 export { processFile };`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(expected)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(expected)
+            }
         })
 
         it('should handle empty original content', () => {
@@ -207,7 +219,10 @@ export { processFile };`
 }\n`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(expected)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(expected)
+            }
         })
     })
 })

@@ -1,5 +1,5 @@
 import { applyPatch } from "diff"
-import { DiffStrategy } from "../types"
+import { DiffStrategy, DiffResult } from "../types"
 
 export class UnifiedDiffStrategy implements DiffStrategy {
     getToolDescription(cwd: string): string {
@@ -108,7 +108,30 @@ Your diff here
 </apply_diff>`
     }
 
-    applyDiff(originalContent: string, diffContent: string): string | false {
-        return applyPatch(originalContent, diffContent) as string | false
+    applyDiff(originalContent: string, diffContent: string): DiffResult {
+        try {
+            const result = applyPatch(originalContent, diffContent)
+            if (result === false) {
+                return {
+                    success: false,
+                    error: "Failed to apply unified diff - patch rejected",
+                    details: {
+                        searchContent: diffContent
+                    }
+                }
+            }
+            return {
+                success: true,
+                content: result
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: `Error applying unified diff: ${error.message}`,
+                details: {
+                    searchContent: diffContent
+                }
+            }
+        }
     }
 }

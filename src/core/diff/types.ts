@@ -1,6 +1,17 @@
 /**
  * Interface for implementing different diff strategies
  */
+
+export type DiffResult = 
+  | { success: true; content: string }
+  | { success: false; error: string; details?: { 
+      similarity?: number;
+      threshold?: number;
+      matchedRange?: { start: number; end: number };
+      searchContent?: string;
+      bestMatch?: string;
+    }};
+
 export interface DiffStrategy {
     /**
      * Get the tool description for this diff strategy
@@ -15,7 +26,7 @@ export interface DiffStrategy {
      * @param diffContent The diff content in the strategy's format
      * @param startLine Optional line number where the search block starts. If not provided, searches the entire file.
      * @param endLine Optional line number where the search block ends. If not provided, searches the entire file.
-     * @returns The new content after applying the diff, or false if the diff could not be applied
+     * @returns A DiffResult object containing either the successful result or error details
      */
-    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): string | false
+    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult
 }

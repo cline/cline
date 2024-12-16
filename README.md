@@ -1,18 +1,19 @@
 # Roo-Cline
 
-A fork of Cline, an autonomous coding agent, optimized for speed and flexibility.
-- Auto-approval capabilities for commands, write, and browser operations
-- Support for .clinerules per-project custom instructions
-- Ability to run side-by-side with Cline
-- Unit test coverage (written almost entirely by Roo Cline!)
-- Support for playing sound effects
-- Support for OpenRouter compression
-- Support for copying prompts from the history screen
-- Support for editing through diffs / handling truncated full-file edits
-- Support for newer Gemini models (gemini-exp-1206 and gemini-2.0-flash-exp)
-- Support for dragging and dropping images into chats
-- Support for auto-approving MCP tools
-- Support for enabling/disabling MCP servers
+A fork of Cline, an autonomous coding agent, tweaked for more speed and flexibility. It’s been mainly writing itself recently, with a light touch of human guidance here and there.
+
+## Features
+
+- Automatically approve commands, browsing, file writing, and MCP tools
+- Faster, more targeted edits via diffs (even on big files)
+- Detects and fixes missing code chunks
+- `.clinerules` for project-specific instructions
+- Drag and drop images into chats
+- Sound effects for feedback
+- Quick prompt copying from history
+- OpenRouter compression support
+- Support for newer Gemini models (gemini-exp-1206, gemini-2.0-flash-exp)
+- Runs alongside the original Cline
 
 ## Disclaimer
 
