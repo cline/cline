@@ -591,6 +591,26 @@ this.init();
                     expect(result.content).toBe('function test() {\n    return false;\n}\n')
                 }
             })
+
+            it('should strip line numbers with leading spaces', () => {
+                const originalContent = 'function test() {\n    return true;\n}\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+ 1 | function test() {
+ 2 |     return true;
+ 3 | }
+=======
+ 1 | function test() {
+ 2 |     return false;
+ 3 | }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('function test() {\n    return false;\n}\n')
+                }
+            })
         
             it('should not strip when not all lines have numbers in either section', () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
