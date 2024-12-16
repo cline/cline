@@ -22,7 +22,10 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('function hello() {\n    console.log("hello world")\n}\n')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('function hello() {\n    console.log("hello world")\n}\n')
+            }
         })
 
         it('should match content with different surrounding whitespace', () => {
@@ -39,7 +42,10 @@ function example() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('\nfunction example() {\n    return 43;\n}\n\n')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('\nfunction example() {\n    return 43;\n}\n\n')
+            }
         })
 
         it('should match content with different indentation in search block', () => {
@@ -56,7 +62,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('    function test() {\n        return false;\n    }\n')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('    function test() {\n        return false;\n    }\n')
+            }
         })
 
         it('should handle tab-based indentation', () => {
@@ -73,7 +82,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("function test() {\n\treturn false;\n}\n")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("function test() {\n\treturn false;\n}\n")
+            }
         })
 
         it('should preserve mixed tabs and spaces', () => {
@@ -94,7 +106,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("\tclass Example {\n\t    constructor() {\n\t\tthis.value = 1;\n\t    }\n\t}")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("\tclass Example {\n\t    constructor() {\n\t\tthis.value = 1;\n\t    }\n\t}")
+            }
         })
 
         it('should handle additional indentation with tabs', () => {
@@ -112,7 +127,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("\tfunction test() {\n\t\t// Add comment\n\t\treturn false;\n\t}")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("\tfunction test() {\n\t\t// Add comment\n\t\treturn false;\n\t}")
+            }
         })
 
         it('should preserve exact indentation characters when adding lines', () => {
@@ -131,7 +149,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}")
+            }
         })
 
         it('should handle Windows-style CRLF line endings', () => {
@@ -148,7 +169,10 @@ function test() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("function test() {\r\n    return false;\r\n}\r\n")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("function test() {\r\n    return false;\r\n}\r\n")
+            }
         })
 
         it('should return false if search content does not match', () => {
@@ -165,7 +189,7 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(false)
+            expect(result.success).toBe(false)
         })
 
         it('should return false if diff format is invalid', () => {
@@ -173,7 +197,7 @@ function hello() {
             const diffContent = `test.ts\nInvalid diff format`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(false)
+            expect(result.success).toBe(false)
         })
 
         it('should handle multiple lines with proper indentation', () => {
@@ -192,7 +216,10 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n')
+            }
         })
 
         it('should preserve whitespace exactly in the output', () => {
@@ -209,7 +236,10 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe("    modified\n        still indented\n    end\n")
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe("    modified\n        still indented\n    end\n")
+            }
         })
 
         it('should preserve indentation when adding new lines after existing content', () => {
@@ -226,9 +256,460 @@ function hello() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}')
+            }
         })
+
+        it('should handle varying indentation levels correctly', () => {
+            const originalContent = `
+class Example {
+    constructor() {
+        this.value = 0;
+        if (true) {
+            this.init();
+        }
+    }
+}`.trim();
+        
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    class Example {
+        constructor() {
+            this.value = 0;
+            if (true) {
+                this.init();
+            }
+        }
+    }
+=======
+    class Example {
+        constructor() {
+            this.value = 1;
+            if (true) {
+                this.init();
+                this.setup();
+                this.validate();
+            }
+        }
+    }
+>>>>>>> REPLACE`.trim();
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`
+class Example {
+    constructor() {
+        this.value = 1;
+        if (true) {
+            this.init();
+            this.setup();
+            this.validate();
+        }
+    }
+}`.trim());
+            }
+        })
+
+        it('should handle mixed indentation styles in the same file', () => {
+            const originalContent = `class Example {
+    constructor() {
+        this.value = 0;
+        if (true) {
+            this.init();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    constructor() {
+        this.value = 0;
+        if (true) {
+        this.init();
+        }
+    }
+=======
+    constructor() {
+        this.value = 1;
+        if (true) {
+        this.init();
+        this.validate();
+        }
+    }
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`class Example {
+    constructor() {
+        this.value = 1;
+        if (true) {
+        this.init();
+        this.validate();
+        }
+    }
+}`);
+            }
+        })
+        
+        it('should handle Python-style significant whitespace', () => {
+            const originalContent = `def example():
+    if condition:
+        do_something()
+        for item in items:
+            process(item)
+    return True`.trim();
+    const diffContent = `test.ts
+<<<<<<< SEARCH
+    if condition:
+        do_something()
+        for item in items:
+            process(item)
+=======
+    if condition:
+        do_something()
+        while items:
+            item = items.pop()
+            process(item)
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`def example():
+    if condition:
+        do_something()
+        while items:
+            item = items.pop()
+            process(item)
+    return True`);
+            }
+        });
+        
+        it('should preserve empty lines with indentation', () => {
+            const originalContent = `function test() {
+    const x = 1;
+    
+    if (x) {
+        return true;
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    const x = 1;
+    
+    if (x) {
+=======
+    const x = 1;
+    
+    // Check x
+    if (x) {
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function test() {
+    const x = 1;
+    
+    // Check x
+    if (x) {
+        return true;
+    }
+}`);
+            }  
+        });
+        
+        it('should handle indentation when replacing entire blocks', () => {
+            const originalContent = `class Test {
+    method() {
+        if (true) {
+            console.log("test");
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    method() {
+        if (true) {
+            console.log("test");
+        }
+    }
+=======
+    method() {
+        try {
+            if (true) {
+                console.log("test");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`class Test {
+    method() {
+        try {
+            if (true) {
+                console.log("test");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+}`);
+            }
+        });
+
+        it('should handle negative indentation relative to search content', () => {
+            const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+            this.setup();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+            this.setup();
+=======
+        this.init();
+        this.setup();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+            expect(result.content).toBe(`class Example {
+    constructor() {
+        if (true) {
+        this.init();
+        this.setup();
+        }
+    }
+}`);
+            }
+        });
+        
+        it('should handle extreme negative indentation (no indent)', () => {
+    const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+=======
+this.init();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`class Example {
+    constructor() {
+        if (true) {
+this.init();
+        }
+    }
+}`);
+            }
+        });
+        
+        it('should handle mixed indentation changes in replace block', () => {
+    const originalContent = `class Example {
+    constructor() {
+        if (true) {
+            this.init();
+            this.setup();
+            this.validate();
+        }
+    }
+}`.trim();
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+            this.init();
+            this.setup();
+            this.validate();
+=======
+        this.init();
+            this.setup();
+    this.validate();
+>>>>>>> REPLACE`;
+        
+            const result = strategy.applyDiff(originalContent, diffContent);
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`class Example {
+    constructor() {
+        if (true) {
+        this.init();
+            this.setup();
+    this.validate();
+        }
+    }
+}`);
+            }
+        });
     })
+
+    describe('line number stripping', () => {
+        describe('line number stripping', () => {
+            let strategy: SearchReplaceDiffStrategy
+        
+            beforeEach(() => {
+                strategy = new SearchReplaceDiffStrategy()
+            })
+        
+            it('should strip line numbers from both search and replace sections', () => {
+                const originalContent = 'function test() {\n    return true;\n}\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+1 | function test() {
+2 |     return true;
+3 | }
+=======
+1 | function test() {
+2 |     return false;
+3 | }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('function test() {\n    return false;\n}\n')
+                }
+            })
+        
+            it('should not strip when not all lines have numbers in either section', () => {
+                const originalContent = 'function test() {\n    return true;\n}\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+1 | function test() {
+2 |     return true;
+3 | }
+=======
+1 | function test() {
+    return false;
+3 | }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(false)
+            })
+        
+            it('should preserve content that naturally starts with pipe', () => {
+                const originalContent = '|header|another|\n|---|---|\n|data|more|\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+1 | |header|another|
+2 | |---|---|
+3 | |data|more|
+=======
+1 | |header|another|
+2 | |---|---|
+3 | |data|updated|
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('|header|another|\n|---|---|\n|data|updated|\n')
+                }
+            })
+        
+            it('should preserve indentation when stripping line numbers', () => {
+                const originalContent = '    function test() {\n        return true;\n    }\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+1 |     function test() {
+2 |         return true;
+3 |     }
+=======
+1 |     function test() {
+2 |         return false;
+3 |     }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('    function test() {\n        return false;\n    }\n')
+                }
+            })
+        
+            it('should handle different line numbers between sections', () => {
+                const originalContent = 'function test() {\n    return true;\n}\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+10 | function test() {
+11 |     return true;
+12 | }
+=======
+20 | function test() {
+21 |     return false;
+22 | }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('function test() {\n    return false;\n}\n')
+                }
+            })
+
+            it('should not strip content that starts with pipe but no line number', () => {
+                const originalContent = '| Pipe\n|---|\n| Data\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+| Pipe
+|---|
+| Data
+=======
+| Pipe
+|---|
+| Updated
+>>>>>>> REPLACE`
+            
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('| Pipe\n|---|\n| Updated\n')
+                }
+            })
+            
+            it('should handle mix of line-numbered and pipe-only content', () => {
+                const originalContent = '| Pipe\n|---|\n| Data\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+| Pipe
+|---|
+| Data
+=======
+1 | | Pipe
+2 | |---|
+3 | | NewData
+>>>>>>> REPLACE`
+            
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('1 | | Pipe\n2 | |---|\n3 | | NewData\n')
+                }
+            })
+        })
+    });
 
     describe('fuzzy matching', () => {
         let strategy: SearchReplaceDiffStrategy
@@ -253,7 +734,10 @@ function getData() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('function getData() {\n    const data = fetchData();\n    return data.filter(Boolean);\n}\n')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('function getData() {\n    const data = fetchData();\n    return data.filter(Boolean);\n}\n')
+            }
         })
 
         it('should not match when content is too different (<90% similar)', () => {
@@ -270,7 +754,7 @@ function processData(data) {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe(false)
+            expect(result.success).toBe(false)
         })
 
         it('should match content with extra whitespace', () => {
@@ -287,7 +771,10 @@ function sum(a, b) {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent)
-            expect(result).toBe('function sum(a, b) {\n    return a + b + 1;\n}')
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('function sum(a, b) {\n    return a + b + 1;\n}')
+            }
         })
     })
 
@@ -324,7 +811,9 @@ function two() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return 1;
 }
 
@@ -335,6 +824,7 @@ function two() {
 function three() {
     return 3;
 }`)
+            }
         })
 
         it('should find and replace within buffer zone (5 lines before/after)', () => {
@@ -365,7 +855,9 @@ function three() {
             // Even though we specify lines 5-7, it should still find the match at lines 9-11
             // because it's within the 5-line buffer zone
             const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return 1;
 }
 
@@ -376,6 +868,7 @@ function two() {
 function three() {
     return "three";
 }`)
+            }
         })
 
         it('should not find matches outside search range and buffer zone', () => {
@@ -414,7 +907,7 @@ function five() {
             // Searching around function two() (lines 5-7)
             // function five() is more than 5 lines away, so it shouldn't match
             const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
-            expect(result).toBe(false)
+            expect(result.success).toBe(false)
         })
 
         it('should handle search range at start of file', () => {
@@ -439,13 +932,16 @@ function one() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent, 1, 3)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return "one";
 }
 
 function two() {
     return 2;
 }`)
+            }
         })
 
         it('should handle search range at end of file', () => {
@@ -470,13 +966,16 @@ function two() {
 >>>>>>> REPLACE`
 
             const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return 1;
 }
 
 function two() {
     return "two";
 }`)
+            }
         })
 
         it('should match specific instance of duplicate code using line numbers', () => {
@@ -513,7 +1012,9 @@ function processData(data) {
 
             // Target the second instance of processData
             const result = strategy.applyDiff(originalContent, diffContent, 10, 12)
-            expect(result).toBe(`function processData(data) {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function processData(data) {
     return data.map(x => x * 2);
 }
 
@@ -531,6 +1032,7 @@ function processData(data) {
 function moreStuff() {
     console.log("world");
 }`)
+            }
         })
 
         it('should search from start line to end of file when only start_line is provided', () => {
@@ -560,7 +1062,9 @@ function three() {
 
             // Only provide start_line, should search from there to end of file
             const result = strategy.applyDiff(originalContent, diffContent, 8)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return 1;
 }
 
@@ -571,6 +1075,7 @@ function two() {
 function three() {
     return "three";
 }`)
+            }
         })
 
         it('should search from start of file to end line when only end_line is provided', () => {
@@ -600,7 +1105,9 @@ function one() {
 
             // Only provide end_line, should search from start of file to there
             const result = strategy.applyDiff(originalContent, diffContent, undefined, 4)
-            expect(result).toBe(`function one() {
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
     return "one";
 }
 
@@ -611,6 +1118,102 @@ function two() {
 function three() {
     return 3;
 }`)
+            }
+        })
+
+        it('should prioritize exact line match over expanded search', () => {
+            const originalContent = `
+function one() {
+    return 1;
+}
+
+function process() {
+    return "old";
+}
+
+function process() {
+    return "old";
+}
+
+function two() {
+    return 2;
+}`
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function process() {
+    return "old";
+}
+=======
+function process() {
+    return "new";
+}
+>>>>>>> REPLACE`
+
+            // Should match the second instance exactly at lines 10-12
+            // even though the first instance at 6-8 is within the expanded search range
+            const result = strategy.applyDiff(originalContent, diffContent, 10, 12)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`
+function one() {
+    return 1;
+}
+
+function process() {
+    return "old";
+}
+
+function process() {
+    return "new";
+}
+
+function two() {
+    return 2;
+}`)
+            }
+        })
+
+        it('should fall back to expanded search only if exact match fails', () => {
+            const originalContent = `
+function one() {
+    return 1;
+}
+
+function process() {
+    return "target";
+}
+
+function two() {
+    return 2;
+}`.trim()
+    const diffContent = `test.ts
+<<<<<<< SEARCH
+function process() {
+    return "target";
+}
+=======
+function process() {
+    return "updated";
+}
+>>>>>>> REPLACE`
+
+            // Specify wrong line numbers (3-5), but content exists at 6-8
+            // Should still find and replace it since it's within the expanded range
+            const result = strategy.applyDiff(originalContent, diffContent, 3, 5)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
+    return 1;
+}
+
+function process() {
+    return "updated";
+}
+
+function two() {
+    return 2;
+}`)
+            }
         })
     })
 

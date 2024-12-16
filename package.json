@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.2.7",
+  "version": "2.2.10",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -157,7 +157,7 @@
     "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "start:webview": "cd webview-ui && npm run start",
-    "test": "jest",
+    "test": "jest && npm run test:webview",
     "test:webview": "cd webview-ui && npm run test",
     "prepare": "husky",
     "publish:marketplace": "vsce publish",

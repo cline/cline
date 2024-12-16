@@ -7,7 +7,7 @@
 export function detectCodeOmission(originalFileContent: string, newFileContent: string): boolean {
 	const originalLines = originalFileContent.split("\n")
 	const newLines = newFileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "..."]
+	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "content", "same", "..."]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
@@ -15,6 +15,7 @@ export function detectCodeOmission(originalFileContent: string, newFileContent: 
 		/^\s*\/\*/, // Multi-line comment opening
 		/^\s*{\s*\/\*/, // JSX comment opening
 		/^\s*<!--/, // HTML comment opening
+		/^\s*\[/, // Square bracket notation
 	]
 
 	for (const line of newLines) {

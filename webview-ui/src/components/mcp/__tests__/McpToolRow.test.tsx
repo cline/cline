@@ -9,6 +9,30 @@ jest.mock('../../../utils/vscode', () => ({
   }
 }))
 
+jest.mock('@vscode/webview-ui-toolkit/react', () => ({
+  VSCodeCheckbox: function MockVSCodeCheckbox({
+    children,
+    checked,
+    onChange
+  }: {
+    children?: React.ReactNode;
+    checked?: boolean;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  }) {
+    return (
+      <label>
+        <input
+          type="checkbox"
+          role="checkbox"
+          checked={checked}
+          onChange={onChange}
+        />
+        {children}
+      </label>
+    )
+  }
+}))
+
 describe('McpToolRow', () => {
   const mockTool = {
     name: 'test-tool',
@@ -33,18 +57,18 @@ describe('McpToolRow', () => {
     expect(screen.queryByText('Always allow')).not.toBeInTheDocument()
   })
 
-  it('shows always allow checkbox when serverName is provided', () => {
-    render(<McpToolRow tool={mockTool} serverName="test-server" />)
+  it('shows always allow checkbox when serverName and alwaysAllowMcp are provided', () => {
+    render(<McpToolRow tool={mockTool} serverName="test-server" alwaysAllowMcp={true} />)
     
     expect(screen.getByText('Always allow')).toBeInTheDocument()
   })
-
+  
   it('sends message to toggle always allow when checkbox is clicked', () => {
-    render(<McpToolRow tool={mockTool} serverName="test-server" />)
+    render(<McpToolRow tool={mockTool} serverName="test-server" alwaysAllowMcp={true} />)
     
     const checkbox = screen.getByRole('checkbox')
     fireEvent.click(checkbox)
-
+  
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'toggleToolAlwaysAllow',
       serverName: 'test-server',
@@ -52,29 +76,31 @@ describe('McpToolRow', () => {
       alwaysAllow: true
     })
   })
-
+  
   it('reflects always allow state in checkbox', () => {
     const alwaysAllowedTool = {
       ...mockTool,
       alwaysAllow: true
     }
-
-    render(<McpToolRow tool={alwaysAllowedTool} serverName="test-server" />)
+  
+    render(<McpToolRow tool={alwaysAllowedTool} serverName="test-server" alwaysAllowMcp={true} />)
     
-    const checkbox = screen.getByRole('checkbox')
-    expect(checkbox).toBeChecked()
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement
+    expect(checkbox.checked).toBe(true)
   })
-
+  
   it('prevents event propagation when clicking the checkbox', () => {
-    const mockStopPropagation = jest.fn()
-    render(<McpToolRow tool={mockTool} serverName="test-server" />)
+    const mockOnClick = jest.fn()
+    render(
+      <div onClick={mockOnClick}>
+        <McpToolRow tool={mockTool} serverName="test-server" alwaysAllowMcp={true} />
+      </div>
+    )
     
     const container = screen.getByTestId('tool-row-container')
-    fireEvent.click(container, {
-      stopPropagation: mockStopPropagation
-    })
-
-    expect(mockStopPropagation).toHaveBeenCalled()
+    fireEvent.click(container)
+    
+    expect(mockOnClick).not.toHaveBeenCalled()
   })
 
   it('displays input schema parameters when provided', () => {

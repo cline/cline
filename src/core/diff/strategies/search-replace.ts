@@ -1,4 +1,4 @@
-import { DiffStrategy } from "../types"
+import { DiffStrategy, DiffResult } from "../types"
 
 function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
@@ -115,58 +115,129 @@ Your search/replace content here
 </apply_diff>`
     }
 
-    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): string | false {
+    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult {
         // Extract the search and replace blocks
         const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/);
         if (!match) {
-            return false;
+            // Log detailed format information
+            console.log('Invalid Diff Format Debug:', {
+                expectedFormat: "<<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE",
+                tip: "Make sure to include both SEARCH and REPLACE sections with correct markers"
+            });
+
+            return {
+                success: false,
+                error: "Invalid diff format - missing required SEARCH/REPLACE sections"
+            };
         }
 
-        const [_, searchContent, replaceContent] = match;
+        let [_, searchContent, replaceContent] = match;
         
         // Detect line ending from original content
         const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
+
+        // Strip line numbers from search and replace content if every line starts with a line number
+        const hasLineNumbers = (content: string) => {
+            const lines = content.split(/\r?\n/);
+            return lines.length > 0 && lines.every(line => /^\d+\s+\|(?!\|)/.test(line));
+        };
+
+        if (hasLineNumbers(searchContent) && hasLineNumbers(replaceContent)) {
+            const stripLineNumbers = (content: string) => {
+                return content.replace(/^\d+\s+\|(?!\|)/gm, '') 
+            };
+
+            searchContent = stripLineNumbers(searchContent);
+            replaceContent = stripLineNumbers(replaceContent);
+        }
         
         // Split content into lines, handling both \n and \r\n
         const searchLines = searchContent.split(/\r?\n/);
         const replaceLines = replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
         
-        // Determine search range based on provided line numbers
-        let searchStartIndex = 0;
-        let searchEndIndex = originalLines.length;
-        
-        if (startLine !== undefined || endLine !== undefined) {
-            // Convert to 0-based index and add buffer
-            if (startLine !== undefined) {
-                searchStartIndex = Math.max(0, startLine - 6);
-            }
-            if (endLine !== undefined) {
-                searchEndIndex = Math.min(originalLines.length, endLine + 5);
-            }
-        }
-        
-        // Find the search content in the original using fuzzy matching
+        // First try exact line range if provided
         let matchIndex = -1;
         let bestMatchScore = 0;
+        let bestMatchContent = "";
         
-        for (let i = searchStartIndex; i <= searchEndIndex - searchLines.length; i++) {
-            // Join the lines and calculate overall similarity
-            const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
+        if (startLine !== undefined && endLine !== undefined) {
+            // Convert to 0-based index
+            const exactStartIndex = startLine - 1;
+            const exactEndIndex = endLine - 1;
+
+            if (exactStartIndex < 0 || exactEndIndex >= originalLines.length) {
+                // Log detailed debug information
+                console.log('Invalid Line Range Debug:', {
+                    requestedRange: { start: startLine, end: endLine },
+                    fileBounds: { start: 1, end: originalLines.length }
+                });
+
+                return {
+                    success: false,
+                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)`,
+                };
+            }
+
+            // Check exact range first
+            const originalChunk = originalLines.slice(exactStartIndex, exactEndIndex + 1).join('\n');
             const searchChunk = searchLines.join('\n');
             
             const similarity = getSimilarity(originalChunk, searchChunk);
-            if (similarity > bestMatchScore) {
+            if (similarity >= this.fuzzyThreshold) {
+                matchIndex = exactStartIndex;
                 bestMatchScore = similarity;
-                matchIndex = i;
+                bestMatchContent = originalChunk;
             }
         }
-        
+
+        // If no match found in exact range, try expanded range
+        if (matchIndex === -1) {
+            let searchStartIndex = 0;
+            let searchEndIndex = originalLines.length;
+
+            if (startLine !== undefined || endLine !== undefined) {
+                // Convert to 0-based index and add buffer
+                if (startLine !== undefined) {
+                    searchStartIndex = Math.max(0, startLine - 6);
+                }
+                if (endLine !== undefined) {
+                    searchEndIndex = Math.min(originalLines.length, endLine + 5);
+                }
+            }
+
+            // Find the search content in the expanded range using fuzzy matching
+            for (let i = searchStartIndex; i <= searchEndIndex - searchLines.length; i++) {
+                // Join the lines and calculate overall similarity
+                const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
+                const searchChunk = searchLines.join('\n');
+
+                const similarity = getSimilarity(originalChunk, searchChunk);
+                if (similarity > bestMatchScore) {
+                    bestMatchScore = similarity;
+                    matchIndex = i;
+                    bestMatchContent = originalChunk;
+                }
+            }
+        }
+
         // Require similarity to meet threshold
         if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
-            return false;
+            const searchChunk = searchLines.join('\n');
+            // Log detailed debug information to console
+            console.log('Search/Replace Debug Info:', {
+                similarity: bestMatchScore,
+                threshold: this.fuzzyThreshold,
+                searchContent: searchChunk,
+                bestMatch: bestMatchContent || undefined
+            });
+
+            return {
+                success: false,
+                error: `No sufficiently similar match found${startLine !== undefined ? ` near lines ${startLine}-${endLine}` : ''} (${Math.round(bestMatchScore * 100)}% similar, needs ${Math.round(this.fuzzyThreshold * 100)}%)`
+            };
         }
-        
+
         // Get the matched lines from the original content
         const matchedLines = originalLines.slice(matchIndex, matchIndex + searchLines.length);
         
@@ -175,13 +246,13 @@ Your search/replace content here
             const match = line.match(/^[\t ]*/);
             return match ? match[0] : '';
         });
-        
+
         // Get the exact indentation of each line in the search block
         const searchIndents = searchLines.map(line => {
             const match = line.match(/^[\t ]*/);
             return match ? match[0] : '';
         });
-        
+
         // Apply the replacement while preserving exact indentation
         const indentedReplaceLines = replaceLines.map((line, i) => {
             // Get the matched line's exact indentation
@@ -192,17 +263,28 @@ Your search/replace content here
             const currentIndent = currentIndentMatch ? currentIndentMatch[0] : '';
             const searchBaseIndent = searchIndents[0] || '';
             
-            // Calculate the relative indentation from the search content
-            const relativeIndent = currentIndent.slice(searchBaseIndent.length);
+            // Calculate the relative indentation level
+            const searchBaseLevel = searchBaseIndent.length;
+            const currentLevel = currentIndent.length;
+            const relativeLevel = currentLevel - searchBaseLevel;
             
-            // Apply the matched indentation plus any relative indentation
-            return matchedIndent + relativeIndent + line.trim();
+            // If relative level is negative, remove indentation from matched indent
+            // If positive, add to matched indent
+            const finalIndent = relativeLevel < 0
+                ? matchedIndent.slice(0, Math.max(0, matchedIndent.length + relativeLevel))
+                : matchedIndent + currentIndent.slice(searchBaseLevel);
+            
+            return finalIndent + line.trim();
         });
-        
+
         // Construct the final content
         const beforeMatch = originalLines.slice(0, matchIndex);
         const afterMatch = originalLines.slice(matchIndex + searchLines.length);
         
-        return [...beforeMatch, ...indentedReplaceLines, ...afterMatch].join(lineEnding);
+        const finalContent = [...beforeMatch, ...indentedReplaceLines, ...afterMatch].join(lineEnding);
+        return {
+            success: true,
+            content: finalContent
+        };
     }
 }
