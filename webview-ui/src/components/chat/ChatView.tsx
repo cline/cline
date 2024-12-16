@@ -155,9 +155,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "use_mcp_server":
-							if (!isAutoApproved(lastMessage)) {
-								playSound("notification")
-							}
 							setTextAreaDisabled(isPartial)
 							setClineAsk("use_mcp_server")
 							setEnableButtons(!isPartial)
