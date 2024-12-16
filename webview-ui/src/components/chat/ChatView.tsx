@@ -139,7 +139,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
-							if (!isAutoApproved(lastMessage)) {
+							if (lastMessage.text && !isAutoApproved(lastMessage)) {
 								playSound("notification")
 							}
 							setTextAreaDisabled(isPartial)
@@ -156,7 +156,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "use_mcp_server":
-							if (!isAutoApproved(lastMessage)) {
+							if (lastMessage.text && !isAutoApproved(lastMessage)) {
 								playSound("notification")
 							}
 							setTextAreaDisabled(isPartial)
