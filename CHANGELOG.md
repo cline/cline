@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.12]
+
+-   Better support for pure deletion and insertion diffs
+
 ## [2.2.11]
 
 -   Added settings checkbox for verbose diff debugging
