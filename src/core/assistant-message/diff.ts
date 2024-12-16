@@ -18,11 +18,13 @@
  *    incremental chunk (with `isFinal` indicating the last chunk), the final reconstructed
  *    file content is produced.
  *
- * 2. Exact Matching:
+ * 2. Exact Matching with Fallback:
  *    - For each SEARCH block, the exact text must appear in the original file after
- *      `lastProcessedIndex`. If it does, that portion of the original file will be replaced
- *      with the corresponding REPLACE content immediately following the "=======" marker.
- *    - If no exact match is found, an error is thrown.
+ *      `lastProcessedIndex`. If it does, that portion of the original file will be replaced.
+ *    - If no exact match is found using a plain `indexOf`, we fall back to a line-by-line
+ *      comparison that ignores leading/trailing whitespace. This is useful if the AI-generated
+ *      search content differs slightly in indentation or spacing from the original code.
+ *    - If neither exact nor trimmed line-based match is found, an error is thrown.
  *
  * 3. Empty SEARCH Section:
  *    - If SEARCH is empty and the original file is empty, this indicates creating a new file
@@ -50,12 +52,65 @@
  * 7. Finalization:
  *    - Once all chunks have been processed (when `isFinal` is true), any remaining original
  *      content after the last replaced section is appended to the result.
- *    - Trailing newlines are trimmed.
+ *    - Trailing newlines are not forcibly added. The code tries to output exactly what is specified.
  *
  * Errors:
- * - If a specified SEARCH block does not appear in the original file at the expected position,
- *   an error is thrown indicating that the search text was not found.
+ * - If the search block cannot be matched exactly or with the line-trimmed fallback approach,
+ *   an error is thrown.
  */
+
+/**
+ * Attempts a line-trimmed fallback match for the given search content in the original content.
+ * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
+ * from `lastProcessedIndex`. Lines are matched by trimming leading/trailing whitespace and ensuring
+ * they are identical afterwards.
+ *
+ * Returns [matchIndexStart, matchIndexEnd] if found, or false if not found.
+ */
+function lineTrimmedFallbackMatch(
+	originalContent: string,
+	searchContent: string,
+	startIndex: number,
+): [number, number] | false {
+	const searchLines = searchContent
+		.trimEnd()
+		.split("\n")
+		.map((line) => line.trim())
+	if (searchLines.length === 0) {
+		// Empty search content fallback doesn't make sense here—should be handled elsewhere
+		return false
+	}
+
+	const originalAfterIndex = originalContent.slice(startIndex)
+	const originalLines = originalAfterIndex.split("\n")
+
+	// We'll try to find a consecutive block of lines in original that matches searchLines when trimmed
+	for (let i = 0; i <= originalLines.length - searchLines.length; i++) {
+		let allMatch = true
+		for (let j = 0; j < searchLines.length; j++) {
+			const originalLineTrimmed = originalLines[i + j].trim()
+			if (originalLineTrimmed !== searchLines[j]) {
+				allMatch = false
+				break
+			}
+		}
+
+		if (allMatch) {
+			// Compute the indices in originalContent
+			// We know the matched block spans from line i to i+searchLines.length-1 in originalLines
+			const preMatchLength = originalLines.slice(0, i).join("\n").length
+			const matchStart = startIndex + preMatchLength + (i > 0 ? 1 : 0)
+			// Add one char for newline if not the first line
+
+			const matchedBlock = originalLines.slice(i, i + searchLines.length).join("\n")
+			const matchEnd = matchStart + matchedBlock.length
+
+			return [matchStart, matchEnd]
+		}
+	}
+	return false
+}
+
 export async function constructNewFileContent(
 	diffContent: string,
 	originalContent: string,
@@ -75,7 +130,7 @@ export async function constructNewFileContent(
 	let lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
-	// we are removing it because it might be incomplete.
+	// remove it because it might be incomplete.
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
@@ -101,7 +156,6 @@ export async function constructNewFileContent(
 
 			if (!currentSearchContent) {
 				// Empty search block
-
 				if (originalContent.length === 0) {
 					// New file scenario: nothing to match, just start inserting
 					searchMatchIndex = 0
@@ -118,9 +172,19 @@ export async function constructNewFileContent(
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
 				} else {
-					throw new Error(
-						`The search text:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+					// Attempt fallback line-trimmed matching
+					const fallbackMatch = lineTrimmedFallbackMatch(
+						originalContent,
+						currentSearchContent,
+						lastProcessedIndex,
 					)
+					if (fallbackMatch) {
+						;[searchMatchIndex, searchEndIndex] = fallbackMatch
+					} else {
+						throw new Error(
+							`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+						)
+					}
 				}
 			}
 
