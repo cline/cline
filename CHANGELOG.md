@@ -1,16 +1,8 @@
 # Roo Cline Changelog
 
-## [2.2.8]
-
--   More work on diff editing (better matching, indentation, logging)
-
-## [2.2.7]
+## [2.2.6 - 2.2.10]
 
 -   More fixes to search/replace diffs
-
-## [2.2.6]
-
--   Add a fuzzy match tolerance when applying diffs
 
 ## [2.2.5]
 
