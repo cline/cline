@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.9]
+
+-   Fix a bug where Gemini was including line numbers in the search/replace content
+
 ## [2.2.8]
 
 -   More work on diff editing (better matching, indentation, logging)
