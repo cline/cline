@@ -162,12 +162,12 @@ Your search/replace content here
         let bestMatchScore = 0;
         let bestMatchContent = "";
         
-        if (startLine !== undefined && endLine !== undefined) {
+        if (startLine && endLine) {
             // Convert to 0-based index
             const exactStartIndex = startLine - 1;
             const exactEndIndex = endLine - 1;
 
-            if (exactStartIndex < 0 || exactEndIndex >= originalLines.length) {
+            if (exactStartIndex < 0 || exactEndIndex >= originalLines.length || exactStartIndex > exactEndIndex) {
                 const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}` : '';
     
                 return {
@@ -193,13 +193,12 @@ Your search/replace content here
             let searchStartIndex = 0;
             let searchEndIndex = originalLines.length;
 
-            if (startLine !== undefined || endLine !== undefined) {
+            if (startLine || endLine) {
                 // Convert to 0-based index and add buffer
-                const BUFFER_LINES = 5;
-                if (startLine !== undefined) {
+                if (startLine) {
                     searchStartIndex = Math.max(0, startLine - (BUFFER_LINES + 1));
                 }
-                if (endLine !== undefined) {
+                if (endLine) {
                     searchEndIndex = Math.min(originalLines.length, endLine + BUFFER_LINES);
                 }
             }
@@ -236,10 +235,10 @@ Your search/replace content here
                 ? `\n\nBest Match Found:\n${addLineNumbers(bestMatchContent, matchIndex + 1)}`
                 : `\n\nBest Match Found:\n(no match)`;
 
-            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Line Range: lines ${startLine}-${endLine}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
+            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
 
-            const lineRange = startLine !== undefined || endLine !== undefined ?
-                ` at ${startLine !== undefined ? `start: ${startLine}` : 'start'} to ${endLine !== undefined ? `end: ${endLine}` : 'end'}` : '';
+            const lineRange = startLine || endLine ?
+                ` at ${startLine ? `start: ${startLine}` : 'start'} to ${endLine ? `end: ${endLine}` : 'end'}` : '';
             return {
                 success: false,
                 error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)${debugInfo}`
