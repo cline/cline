@@ -72,42 +72,56 @@ function lineTrimmedFallbackMatch(
 	searchContent: string,
 	startIndex: number,
 ): [number, number] | false {
-	const searchLines = searchContent
-		.trimEnd()
-		.split("\n")
-		.map((line) => line.trim())
-	if (searchLines.length === 0) {
-		// Empty search content fallback doesn't make sense here—should be handled elsewhere
-		return false
+	// Split both contents into lines
+	const originalLines = originalContent.split("\n")
+	const searchLines = searchContent.split("\n")
+
+	// Trim trailing empty line if exists (from the trailing \n in searchContent)
+	if (searchLines[searchLines.length - 1] === "") {
+		searchLines.pop()
 	}
 
-	const originalAfterIndex = originalContent.slice(startIndex)
-	const originalLines = originalAfterIndex.split("\n")
+	// Find the line number where startIndex falls
+	let startLineNum = 0
+	let currentIndex = 0
+	while (currentIndex < startIndex && startLineNum < originalLines.length) {
+		currentIndex += originalLines[startLineNum].length + 1 // +1 for \n
+		startLineNum++
+	}
 
-	// We'll try to find a consecutive block of lines in original that matches searchLines when trimmed
-	for (let i = 0; i <= originalLines.length - searchLines.length; i++) {
-		let allMatch = true
+	// For each possible starting position in original content
+	for (let i = startLineNum; i <= originalLines.length - searchLines.length; i++) {
+		let matches = true
+
+		// Try to match all search lines from this position
 		for (let j = 0; j < searchLines.length; j++) {
-			const originalLineTrimmed = originalLines[i + j].trim()
-			if (originalLineTrimmed !== searchLines[j]) {
-				allMatch = false
+			const originalTrimmed = originalLines[i + j].trim()
+			const searchTrimmed = searchLines[j].trim()
+
+			if (originalTrimmed !== searchTrimmed) {
+				matches = false
 				break
 			}
 		}
 
-		if (allMatch) {
-			// Compute the indices in originalContent
-			// We know the matched block spans from line i to i+searchLines.length-1 in originalLines
-			const preMatchLength = originalLines.slice(0, i).join("\n").length
-			const matchStart = startIndex + preMatchLength + (i > 0 ? 1 : 0)
-			// Add one char for newline if not the first line
+		// If we found a match, calculate the exact character positions
+		if (matches) {
+			// Find start character index
+			let matchStartIndex = 0
+			for (let k = 0; k < i; k++) {
+				matchStartIndex += originalLines[k].length + 1 // +1 for \n
+			}
 
-			const matchedBlock = originalLines.slice(i, i + searchLines.length).join("\n")
-			const matchEnd = matchStart + matchedBlock.length + 1
+			// Find end character index
+			let matchEndIndex = matchStartIndex
+			for (let k = 0; k < searchLines.length; k++) {
+				matchEndIndex += originalLines[i + k].length + 1 // +1 for \n
+			}
 
-			return [matchStart, matchEnd]
+			return [matchStartIndex, matchEndIndex]
 		}
 	}
+
 	return false
 }
 
