@@ -591,6 +591,26 @@ this.init();
                     expect(result.content).toBe('function test() {\n    return false;\n}\n')
                 }
             })
+
+            it('should strip line numbers with leading spaces', () => {
+                const originalContent = 'function test() {\n    return true;\n}\n'
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+ 1 | function test() {
+ 2 |     return true;
+ 3 | }
+=======
+ 1 | function test() {
+ 2 |     return false;
+ 3 | }
+>>>>>>> REPLACE`
+        
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe('function test() {\n    return false;\n}\n')
+                }
+            })
         
             it('should not strip when not all lines have numbers in either section', () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
@@ -710,6 +730,212 @@ this.init();
             })
         })
     });
+
+    describe('insertion/deletion', () => {
+        let strategy: SearchReplaceDiffStrategy
+    
+        beforeEach(() => {
+            strategy = new SearchReplaceDiffStrategy()
+        })
+    
+        describe('deletion', () => {
+            it('should delete code when replace block is empty', () => {
+                const originalContent = `function test() {
+    console.log("hello");
+    // Comment to remove
+    console.log("world");
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+    // Comment to remove
+=======
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`function test() {
+    console.log("hello");
+    console.log("world");
+}`)
+                }
+            })
+    
+            it('should delete multiple lines when replace block is empty', () => {
+                const originalContent = `class Example {
+    constructor() {
+        // Initialize
+        this.value = 0;
+        // Set defaults
+        this.name = "";
+        // End init
+    }
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+        // Initialize
+        this.value = 0;
+        // Set defaults
+        this.name = "";
+        // End init
+=======
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`class Example {
+    constructor() {
+    }
+}`)
+                }
+            })
+    
+            it('should preserve indentation when deleting nested code', () => {
+                const originalContent = `function outer() {
+    if (true) {
+        // Remove this
+        console.log("test");
+        // And this
+    }
+    return true;
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+        // Remove this
+        console.log("test");
+        // And this
+=======
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`function outer() {
+    if (true) {
+    }
+    return true;
+}`)
+                }
+            })
+        })
+    
+        describe('insertion', () => {
+            it('should insert code at specified line when search block is empty', () => {
+            const originalContent = `function test() {
+    const x = 1;
+    return x;
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+=======
+    console.log("Adding log");
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent, 2, 2)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`function test() {
+    console.log("Adding log");
+    const x = 1;
+    return x;
+}`)
+                }
+            })
+    
+            it('should preserve indentation when inserting at nested location', () => {
+                const originalContent = `function test() {
+    if (true) {
+        const x = 1;
+    }
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+=======
+        console.log("Before");
+        console.log("After");
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent, 3, 3)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`function test() {
+    if (true) {
+        console.log("Before");
+        console.log("After");
+        const x = 1;
+    }
+}`)
+                }
+            })
+    
+            it('should handle insertion at start of file', () => {
+                const originalContent = `function test() {
+    return true;
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+=======
+// Copyright 2024
+// License: MIT
+
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent, 1, 1)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`// Copyright 2024
+// License: MIT
+
+function test() {
+    return true;
+}`)
+                }
+            })
+    
+            it('should handle insertion at end of file', () => {
+                const originalContent = `function test() {
+    return true;
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+=======
+
+// End of file
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent, 4, 4)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`function test() {
+    return true;
+}
+
+// End of file`)
+                }
+            })
+    
+            it('should insert at the start of the file if no start_line is provided for insertion', () => {
+                const originalContent = `function test() {
+    return true;
+}`
+                const diffContent = `test.ts
+<<<<<<< SEARCH
+=======
+console.log("test");
+>>>>>>> REPLACE`
+    
+                const result = strategy.applyDiff(originalContent, diffContent)
+                expect(result.success).toBe(true)
+                if (result.success) {
+                    expect(result.content).toBe(`console.log("test");
+function test() {
+    return true;
+}`)
+                }
+            })
+        })
+    })
 
     describe('fuzzy matching', () => {
         let strategy: SearchReplaceDiffStrategy
@@ -1241,8 +1467,8 @@ function two() {
 
         it('should document start_line and end_line parameters', () => {
             const description = strategy.getToolDescription('/test')
-            expect(description).toContain('start_line: (required) The line number where the search block starts.')
-            expect(description).toContain('end_line: (required) The line number where the search block ends.')
+            expect(description).toContain('start_line: (required) The line number where the search block starts (inclusive).')
+            expect(description).toContain('end_line: (required) The line number where the search block ends (inclusive).')
         })
     })
 })

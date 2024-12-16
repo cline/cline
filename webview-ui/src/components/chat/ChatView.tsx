@@ -64,7 +64,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [isAtBottom, setIsAtBottom] = useState(false)
 
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
-	const [hasStarted, setHasStarted] = useState(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -73,12 +72,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	function playSound(audioType: AudioType) {
 		vscode.postMessage({ type: "playSound", audioType })
-	}
-
-	function playSoundOnMessage(audioType: AudioType) {
-		if (hasStarted && !isStreaming) {
-			playSound(audioType)
-		}
 	}
 
 	useDeepCompareEffect(() => {
@@ -91,7 +84,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const isPartial = lastMessage.partial === true
 					switch (lastMessage.ask) {
 						case "api_req_failed":
-							playSoundOnMessage("progress_loop")
+							playSound("progress_loop")
 							setTextAreaDisabled(true)
 							setClineAsk("api_req_failed")
 							setEnableButtons(true)
@@ -99,7 +92,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "mistake_limit_reached":
-							playSoundOnMessage("progress_loop")
+							playSound("progress_loop")
 							setTextAreaDisabled(false)
 							setClineAsk("mistake_limit_reached")
 							setEnableButtons(true)
@@ -107,7 +100,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
 							setEnableButtons(isPartial)
@@ -115,7 +107,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							// setSecondaryButtonText(undefined)
 							break
 						case "tool":
-							playSoundOnMessage("notification")
+							if (!isAutoApproved(lastMessage)) {
+								playSound("notification")
+							}
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
 							setEnableButtons(!isPartial)
@@ -134,7 +128,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}
 							break
 						case "browser_action_launch":
-							playSoundOnMessage("notification")
+							if (!isAutoApproved(lastMessage)) {
+								playSound("notification")
+							}
 							setTextAreaDisabled(isPartial)
 							setClineAsk("browser_action_launch")
 							setEnableButtons(!isPartial)
@@ -142,7 +138,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
-							playSoundOnMessage("notification")
+							if (!isAutoApproved(lastMessage)) {
+								playSound("notification")
+							}
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
 							setEnableButtons(!isPartial)
@@ -150,7 +148,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command_output":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("command_output")
 							setEnableButtons(true)
@@ -166,7 +163,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
-							playSoundOnMessage("celebration")
+							playSound("celebration")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
@@ -174,7 +171,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "resume_task":
-							playSoundOnMessage("notification")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
@@ -183,7 +179,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setDidClickCancel(false) // special case where we reset the cancel button state							
 							break
 						case "resume_completed_task":
-							playSoundOnMessage("celebration")
+							playSound("celebration")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
@@ -482,36 +478,122 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		})
 	}, [modifiedMessages])
-	useEffect(() => {
-		if (isStreaming) {
-			// Set to true once any request has started
-			setHasStarted(true)
+
+	const isReadOnlyToolAction = useCallback((message: ClineMessage | undefined) => {
+		if (message?.type === "ask") {
+			if (!message.text) {
+				return true
+			}
+			const tool = JSON.parse(message.text)
+			return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
 		}
+		return false
+	}, [])
+
+	const isWriteToolAction = useCallback((message: ClineMessage | undefined) => {
+		if (message?.type === "ask") {
+			if (!message.text) {
+				return true
+			}
+			const tool = JSON.parse(message.text)
+			return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
+		}
+		return false
+	}, [])
+
+	const isMcpToolAlwaysAllowed = useCallback((message: ClineMessage | undefined) => {
+		if (message?.type === "ask" && message.ask === "use_mcp_server") {
+			if (!message.text) {
+				return true
+			}
+			const mcpServerUse = JSON.parse(message.text) as { type: string; serverName: string; toolName: string }
+			if (mcpServerUse.type === "use_mcp_tool") {
+				const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
+				const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
+				return tool?.alwaysAllow || false
+			}
+		}
+		return false
+	}, [mcpServers])
+
+	const isAllowedCommand = useCallback((message: ClineMessage | undefined) => {
+		if (message?.type === "ask") {
+			const command = message.text
+			if (!command) {
+				return true
+			}
+
+			// Split command by chaining operators
+			const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
+
+			// Check if all individual commands are allowed
+			return commands.every((cmd) => {
+				const trimmedCommand = cmd.toLowerCase()
+				return allowedCommands?.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
+			})
+		}
+		return false
+	}, [allowedCommands])
+
+	const isAutoApproved = useCallback(
+		(message: ClineMessage | undefined) => {
+			if (!message || message.type !== "ask") return false
+
+			return (
+				(alwaysAllowBrowser && message.ask === "browser_action_launch") ||
+				(alwaysAllowReadOnly && message.ask === "tool" && isReadOnlyToolAction(message)) ||
+				(alwaysAllowWrite && message.ask === "tool" && isWriteToolAction(message)) ||
+				(alwaysAllowExecute && message.ask === "command" && isAllowedCommand(message)) ||
+				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message))
+			)
+		},
+		[
+			alwaysAllowBrowser,
+			alwaysAllowReadOnly,
+			alwaysAllowWrite,
+			alwaysAllowExecute,
+			alwaysAllowMcp,
+			isReadOnlyToolAction,
+			isWriteToolAction,
+			isAllowedCommand,
+			isMcpToolAlwaysAllowed
+		]
+	)
+
+	useEffect(() => {
 		// Only execute when isStreaming changes from true to false
 		if (wasStreaming && !isStreaming && lastMessage) {
 			// Play appropriate sound based on lastMessage content
 			if (lastMessage.type === "ask") {
-				switch (lastMessage.ask) {
-					case "api_req_failed":
-					case "mistake_limit_reached":
-						playSound("progress_loop")
-						break
-					case "tool":
-					case "followup":
-					case "browser_action_launch":
-					case "resume_task":
-						playSound("notification")
-						break
-					case "completion_result":
-					case "resume_completed_task":
-						playSound("celebration")
-						break
+				// Don't play sounds for auto-approved actions
+				if (!isAutoApproved(lastMessage)) {
+					switch (lastMessage.ask) {
+						case "api_req_failed":
+						case "mistake_limit_reached":
+							playSound("progress_loop")
+							break
+						case "followup":
+							if (!lastMessage.partial) {
+								playSound("notification")
+							}
+							break
+						case "tool":
+						case "browser_action_launch":
+						case "resume_task":
+						case "use_mcp_server":
+							playSound("notification")
+							break
+						case "completion_result":
+						case "resume_completed_task":
+							playSound("celebration")
+							break
+					}
 				}
 			}
 		}
 		// Update previous value
 		setWasStreaming(isStreaming)
-	}, [isStreaming, lastMessage, wasStreaming])
+	}, [isStreaming, lastMessage, wasStreaming, isAutoApproved])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
@@ -750,64 +832,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// Only proceed if we have an ask and buttons are enabled
 		if (!clineAsk || !enableButtons) return
 
-		const isReadOnlyToolAction = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const tool = JSON.parse(lastMessage.text)
-				return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
-			}
-			return false
-		}
-
-		const isWriteToolAction = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const tool = JSON.parse(lastMessage.text)
-				return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
-			}
-			return false
-		}
-
-		const isMcpToolAlwaysAllowed = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.ask === "use_mcp_server" && lastMessage.text) {
-				const mcpServerUse = JSON.parse(lastMessage.text) as { type: string; serverName: string; toolName: string }
-				if (mcpServerUse.type === "use_mcp_tool") {
-					const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
-					const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
-					return tool?.alwaysAllow || false
-				}
-			}
-			return false
-		}
-
-		const isAllowedCommand = () => {
-			const lastMessage = messages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.text) {
-				const command = lastMessage.text
-
-				// Split command by chaining operators
-				const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
-
-				// Check if all individual commands are allowed
-				return commands.every((cmd) => {
-					const trimmedCommand = cmd.toLowerCase()
-					return allowedCommands?.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
-				})
-			}
-			return false
-		}
-
-		if (
-			(alwaysAllowBrowser && clineAsk === "browser_action_launch") ||
-			(alwaysAllowReadOnly && clineAsk === "tool" && isReadOnlyToolAction()) ||
-			(alwaysAllowWrite && clineAsk === "tool" && isWriteToolAction()) ||
-			(alwaysAllowExecute && clineAsk === "command" && isAllowedCommand()) ||
-			(alwaysAllowMcp && clineAsk === "use_mcp_server" && isMcpToolAlwaysAllowed())
-		) {
+		if (isAutoApproved(lastMessage)) {
 			handlePrimaryButtonClick()
 		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers])
+	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers, isAutoApproved, lastMessage])
 
 	return (
 		<div
