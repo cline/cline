@@ -24,23 +24,6 @@ export interface BedrockConverseRequest {
   toolConfig?: ToolConfiguration;
 }
 
-export interface BedrockConverseResponse {
-  output?: {
-    message?: {
-      content?: { text?: string }[];
-    };
-    stopReason?: 'content_filtered' | 'end_turn' | 'guardrail_intervened' | 'max_tokens' | 'stop_sequence' | 'tool_use';
-  };
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-  };
-  metrics?: {
-    latencyMs?: number;
-  };
-}
-
 interface ConversionOptions {
   temperature?: number;
   top_p?: number;
@@ -87,54 +70,5 @@ export function convertToBedrock(
       },
       ...(options.toolConfig && { toolConfig: options.toolConfig }),
     }),
-  };
-}
-
-export function convertBedrockResponseToAnthropic(response: BedrockConverseResponse): Anthropic.Messages.Message {
-  const content: Anthropic.Messages.ContentBlock[] = [];
-
-  if (response.output?.message?.content) {
-    for (const contentBlock of response.output.message.content) {
-      if (contentBlock.text) {
-        content.push({ type: "text", text: contentBlock.text });
-      }
-    }
-  }
-
-  // Map Bedrock Converse stop reasons to Anthropic stop reasons
-  let stop_reason: Anthropic.Messages.Message["stop_reason"] = null;
-  if (response.output?.stopReason) {
-    switch (response.output.stopReason) {
-      case 'end_turn':
-        stop_reason = 'end_turn';
-        break;
-      case 'max_tokens':
-        stop_reason = 'max_tokens';
-        break;
-      case 'stop_sequence':
-        stop_reason = 'stop_sequence';
-        break;
-      case 'content_filtered':
-      case 'guardrail_intervened':
-      case 'tool_use':
-        // These don't have direct mappings in Anthropic's types, 
-        // but stop_sequence is the closest semantic match
-        stop_reason = 'stop_sequence';
-        break;
-    }
-  }
-
-  return {
-    id: `msg_${Date.now()}`,
-    type: "message",
-    role: "assistant",
-    content,
-    model: "",
-    stop_reason,
-    stop_sequence: null,
-    usage: {
-      input_tokens: response.usage?.inputTokens ?? 0,
-      output_tokens: response.usage?.outputTokens ?? 0,
-    },
   };
 }

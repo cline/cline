@@ -333,7 +333,36 @@ export const bedrockConverseDefaultModelId: BedrockConverseModelId = "anthropic.
 
 // BedrockConverse models
 export const bedrockConverseModels = {
-  // Existing Claude models
+  // Amazon models
+  "amazon.nova-pro-v1:0": {
+    maxTokens: 5000,
+    contextWindow: 300_000,
+    supportsImages: true,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.8,
+    outputPrice: 3.2,
+  },
+  "amazon.nova-lite-v1:0": {
+    maxTokens: 5000,
+    contextWindow: 300_000,
+    supportsImages: true,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.06,
+    outputPrice: 0.24,
+  },
+  "amazon.nova-micro-v1:0": {
+    maxTokens: 4096,
+    contextWindow: 128_000,
+    supportsImages: false,
+    supportsComputerUse: false,
+    supportsPromptCache: false,
+    inputPrice: 0.035,
+    outputPrice: 0.014,
+  },
+
+  // Anthropic Claude models
   "anthropic.claude-3-5-sonnet-20241022-v2:0": {
     maxTokens: 8192,
     contextWindow: 200_000,
@@ -347,6 +376,7 @@ export const bedrockConverseModels = {
     maxTokens: 8192,
     contextWindow: 200_000,
     supportsImages: false,
+    supportsComputerUse: false,
     supportsPromptCache: false,
     inputPrice: 1.0,
     outputPrice: 5.0,
@@ -355,6 +385,7 @@ export const bedrockConverseModels = {
     maxTokens: 8192,
     contextWindow: 200_000,
     supportsImages: true,
+    supportsComputerUse: false,
     supportsPromptCache: false,
     inputPrice: 3.0,
     outputPrice: 15.0,
@@ -363,6 +394,7 @@ export const bedrockConverseModels = {
     maxTokens: 4096,
     contextWindow: 200_000,
     supportsImages: true,
+    supportsComputerUse: false,
     supportsPromptCache: false,
     inputPrice: 15.0,
     outputPrice: 75.0,
@@ -371,6 +403,7 @@ export const bedrockConverseModels = {
     maxTokens: 4096,
     contextWindow: 200_000,
     supportsImages: true,
+    supportsComputerUse: false,
     supportsPromptCache: false,
     inputPrice: 3.0,
     outputPrice: 15.0,
@@ -379,37 +412,10 @@ export const bedrockConverseModels = {
     maxTokens: 4096,
     contextWindow: 200_000,
     supportsImages: true,
+    supportsComputerUse: false,
     supportsPromptCache: false,
     inputPrice: 0.25,
     outputPrice: 1.25,
   },
-  // New Nova models
-  "amazon.nova-pro-v1:0": {
-    maxTokens: 5000,
-    contextWindow: 300_000,
-    supportsImages: true,
-    supportsComputerUse: false,
-    supportsPromptCache: false,
-    inputPrice: 0.0008,
-    outputPrice: 0.0032,
-  },
-  "amazon.nova-lite-v1:0": {
-    maxTokens: 5000,
-    contextWindow: 300_000,
-    supportsImages: true,
-    supportsComputerUse: false,
-    supportsPromptCache: false,
-    inputPrice: 0.00006,
-    outputPrice: 0.00024,
-  },
-  "amazon.nova-micro-v1:0": {
-    maxTokens: 5000,
-    contextWindow: 128_000,
-    supportsImages: false,
-    supportsComputerUse: false,
-    supportsPromptCache: false,
-    inputPrice: 0.000035,
-    outputPrice: 0.00014,
-  },
-} as const satisfies Record<string, ModelInfo>
 
+} as const satisfies Record<string, ModelInfo>
