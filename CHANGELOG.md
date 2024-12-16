@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.11]
+
+-   Added settings checkbox for verbose diff debugging
+
 ## [2.2.6 - 2.2.10]
 
 -   More fixes to search/replace diffs

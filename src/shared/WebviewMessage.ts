@@ -33,6 +33,7 @@ export interface WebviewMessage {
 		| "playSound"
 		| "soundEnabled"
 		| "diffEnabled"
+		| "debugDiffEnabled"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"

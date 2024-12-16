@@ -97,6 +97,7 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		diffEnabled?: boolean,
+		debugDiffEnabled?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -109,7 +110,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		if (diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id, debugDiffEnabled)
 		}
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1237,7 +1238,12 @@ export class Cline {
 								const originalContent = await fs.readFile(absolutePath, "utf-8")
 
 								// Apply the diff to the original content
-								const diffResult = this.diffStrategy?.applyDiff(originalContent, diffContent) ?? {
+								const diffResult = this.diffStrategy?.applyDiff(
+									originalContent, 
+									diffContent, 
+									parseInt(block.params.start_line ?? ''), 
+									parseInt(block.params.end_line ?? '')
+								) ?? {
 									success: false,
 									error: "No diff strategy available"
 								}
