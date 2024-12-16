@@ -40,7 +40,7 @@ jest.mock('@vscode/webview-ui-toolkit/react', () => ({
     />
   ),
   VSCodeTextArea: () => <textarea />,
-  VSCodeLink: () => <a />,
+  VSCodeLink: ({ children, href }: any) => <a href={href || '#'}>{children}</a>,
   VSCodeDropdown: ({ children, value, onChange }: any) => (
     <select value={value} onChange={onChange}>
       {children}

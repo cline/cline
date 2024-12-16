@@ -153,7 +153,7 @@
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "compile-tests": "tsc -p . --outDir out",
     "install:all": "npm install && cd webview-ui && npm install",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src --ext ts && npm run lint --prefix webview-ui",
     "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "start:webview": "cd webview-ui && npm run start",

@@ -31,7 +31,8 @@
 		"start": "react-scripts start",
 		"build": "node ./scripts/build-react-no-split.js",
 		"test": "react-scripts test --watchAll=false",
-		"eject": "react-scripts eject"
+		"eject": "react-scripts eject",
+		"lint": "eslint src --ext ts,tsx"
 	},
 	"eslintConfig": {
 		"extends": [
@@ -53,7 +54,8 @@
 	},
 	"devDependencies": {
 		"@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-		"@types/vscode-webview": "^1.57.5"
+		"@types/vscode-webview": "^1.57.5",
+		"eslint": "^8.57.0"
 	},
 	"jest": {
 		"transformIgnorePatterns": [
