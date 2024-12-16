@@ -136,6 +136,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("Resolving webview view")
 		this.view = webviewView
 
+		// Initialize sound enabled state
+		this.getState().then(({ soundEnabled }) => {
+			setSoundEnabled(soundEnabled ?? false)
+		})
+
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
