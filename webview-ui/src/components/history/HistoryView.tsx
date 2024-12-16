@@ -2,7 +2,7 @@ import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@v
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState, useEffect } from "react"
+import React, { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "../../utils/format"
 
@@ -82,30 +82,28 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const taskHistorySearchResults = useMemo(() => {
 		let results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
 
-		results.sort((a, b) => {
+		// First apply search if needed
+		const searchResults = searchQuery ? results : presentableTasks;
+		
+		// Then sort the results
+		return [...searchResults].sort((a, b) => {
 			switch (sortOption) {
 				case "oldest":
-					return a.ts - b.ts
+					return (a.ts || 0) - (b.ts || 0);
 				case "mostExpensive":
-					return (b.totalCost || 0) - (a.totalCost || 0)
+					return (b.totalCost || 0) - (a.totalCost || 0);
 				case "mostTokens":
-					return (
-						(b.tokensIn || 0) +
-						(b.tokensOut || 0) +
-						(b.cacheWrites || 0) +
-						(b.cacheReads || 0) -
-						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
-					)
+					const aTokens = (a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0);
+					const bTokens = (b.tokensIn || 0) + (b.tokensOut || 0) + (b.cacheWrites || 0) + (b.cacheReads || 0);
+					return bTokens - aTokens;
 				case "mostRelevant":
-					// NOTE: you must never sort directly on object since it will cause members to be reordered
-					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
+					// Keep fuse order if searching, otherwise sort by newest
+					return searchQuery ? 0 : (b.ts || 0) - (a.ts || 0);
 				case "newest":
 				default:
-					return b.ts - a.ts
+					return (b.ts || 0) - (a.ts || 0);
 			}
-		})
-
-		return results
+		});
 	}, [presentableTasks, searchQuery, fuse, sortOption])
 
 	return (
@@ -227,9 +225,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							overflowY: "scroll",
 						}}
 						data={taskHistorySearchResults}
+						data-testid="virtuoso-container"
+						components={{
+							List: React.forwardRef((props, ref) => (
+								<div {...props} ref={ref} data-testid="virtuoso-item-list" />
+							))
+						}}
 						itemContent={(index, item) => (
 							<div
 								key={item.id}
+								data-testid={`task-item-${item.id}`}
 								className="history-item"
 								style={{
 									cursor: "pointer",
@@ -263,23 +268,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{formatDate(item.ts)}
 										</span>
 										<div style={{ display: "flex", gap: "4px" }}>
-											<VSCodeButton
-												appearance="icon"
-												title="Copy Prompt"
-												className="copy-button"
-												onClick={(e) => handleCopyTask(e, item.task)}>
-												<span className="codicon codicon-copy"></span>
-											</VSCodeButton>
-											<VSCodeButton
-												appearance="icon"
-												title="Delete Task"
-												onClick={(e) => {
-													e.stopPropagation()
-													handleDeleteHistoryItem(item.id)
-												}}
-												className="delete-button">
-												<span className="codicon codicon-trash"></span>
-											</VSCodeButton>
+											<button
+											  title="Copy Prompt"
+											  className="copy-button"
+											  data-appearance="icon"
+											  onClick={(e) => handleCopyTask(e, item.task)}>
+											  <span className="codicon codicon-copy"></span>
+											</button>
+											<button
+											  title="Delete Task"
+											  className="delete-button"
+											  data-appearance="icon"
+											  onClick={(e) => {
+											    e.stopPropagation()
+											    handleDeleteHistoryItem(item.id)
+											  }}>
+											  <span className="codicon codicon-trash"></span>
+											</button>
 										</div>
 									</div>
 									<div
@@ -298,6 +303,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									/>
 									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 										<div
+											data-testid="tokens-container"
 											style={{
 												display: "flex",
 												justifyContent: "space-between",
@@ -318,6 +324,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													Tokens:
 												</span>
 												<span
+													data-testid="tokens-in"
 													style={{
 														display: "flex",
 														alignItems: "center",
@@ -335,6 +342,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
 												<span
+													data-testid="tokens-out"
 													style={{
 														display: "flex",
 														alignItems: "center",
@@ -357,6 +365,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 										{!!item.cacheWrites && (
 											<div
+												data-testid="cache-container"
 												style={{
 													display: "flex",
 													alignItems: "center",
@@ -371,6 +380,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													Cache:
 												</span>
 												<span
+													data-testid="cache-writes"
 													style={{
 														display: "flex",
 														alignItems: "center",
@@ -388,6 +398,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													+{formatLargeNumber(item.cacheWrites || 0)}
 												</span>
 												<span
+													data-testid="cache-reads"
 													style={{
 														display: "flex",
 														alignItems: "center",
@@ -499,31 +510,48 @@ export const highlight = (
 		if (regions.length === 0) {
 			return inputText
 		}
-
+	
 		// Sort and merge overlapping regions
 		const mergedRegions = mergeRegions(regions)
-
-		let content = ""
-		let nextUnhighlightedRegionStartingIndex = 0
-
-		mergedRegions.forEach((region) => {
-			const start = region[0]
-			const end = region[1]
-			const lastRegionNextIndex = end + 1
-
-			content += [
-				inputText.substring(nextUnhighlightedRegionStartingIndex, start),
-				`<span class="${highlightClassName}">`,
-				inputText.substring(start, lastRegionNextIndex),
-				"</span>",
-			].join("")
-
-			nextUnhighlightedRegionStartingIndex = lastRegionNextIndex
+	
+		// Convert regions to a list of parts with their highlight status
+		const parts: { text: string; highlight: boolean }[] = []
+		let lastIndex = 0
+	
+		mergedRegions.forEach(([start, end]) => {
+			// Add non-highlighted text before this region
+			if (start > lastIndex) {
+				parts.push({
+					text: inputText.substring(lastIndex, start),
+					highlight: false
+				})
+			}
+	
+			// Add highlighted text
+			parts.push({
+				text: inputText.substring(start, end + 1),
+				highlight: true
+			})
+	
+			lastIndex = end + 1
 		})
-
-		content += inputText.substring(nextUnhighlightedRegionStartingIndex)
-
-		return content
+	
+		// Add any remaining text
+		if (lastIndex < inputText.length) {
+			parts.push({
+				text: inputText.substring(lastIndex),
+				highlight: false
+			})
+		}
+	
+		// Build final string
+		return parts
+			.map(part =>
+				part.highlight
+					? `<span class="${highlightClassName}">${part.text}</span>`
+					: part.text
+			)
+			.join('')
 	}
 
 	return fuseSearchResult

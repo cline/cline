@@ -30,7 +30,7 @@
 	"scripts": {
 		"start": "react-scripts start",
 		"build": "node ./scripts/build-react-no-split.js",
-		"test": "react-scripts test",
+		"test": "react-scripts test --watchAll=false",
 		"eject": "react-scripts eject"
 	},
 	"eslintConfig": {
@@ -57,7 +57,7 @@
 	},
 	"jest": {
 		"transformIgnorePatterns": [
-			"/node_modules/(?!(rehype-highlight|react-remark|unist-util-visit|vfile|unified|bail|is-plain-obj|trough|vfile-message|unist-util-stringify-position|mdast-util-from-markdown|mdast-util-to-string|micromark|decode-named-character-reference|character-entities|markdown-table|zwitch|longest-streak|escape-string-regexp|unist-util-is|hast-util-to-text)/)"
+			"/node_modules/(?!(rehype-highlight|react-remark|unist-util-visit|vfile|unified|bail|is-plain-obj|trough|vfile-message|unist-util-stringify-position|mdast-util-from-markdown|mdast-util-to-string|micromark|decode-named-character-reference|character-entities|markdown-table|zwitch|longest-streak|escape-string-regexp|unist-util-is|hast-util-to-text|@vscode/webview-ui-toolkit|@microsoft/fast-react-wrapper|@microsoft/fast-element|@microsoft/fast-foundation|@microsoft/fast-web-utilities|exenv-es6)/)"
 		],
 		"moduleNameMapper": {
 			"\\.(css|less|scss|sass)$": "identity-obj-proxy"
