@@ -171,9 +171,7 @@ export async function constructNewFileContent(
 				if (exactIndex !== -1) {
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
-					console.log("Exact match found", searchMatchIndex, searchEndIndex)
 				} else {
-					console.log("No exact match found, trying fallback line-trimmed matching")
 					// Attempt fallback line-trimmed matching
 					const fallbackMatch = lineTrimmedFallbackMatch(
 						originalContent,
@@ -182,7 +180,6 @@ export async function constructNewFileContent(
 					)
 					if (fallbackMatch) {
 						;[searchMatchIndex, searchEndIndex] = fallbackMatch
-						console.log("Fallback line-trimmed match found", searchMatchIndex, searchEndIndex)
 					} else {
 						throw new Error(
 							`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
