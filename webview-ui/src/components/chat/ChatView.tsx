@@ -479,7 +479,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
-	const isReadOnlyToolAction = (message: ClineMessage | undefined) => {
+	const isReadOnlyToolAction = useCallback((message: ClineMessage | undefined) => {
 		if (message?.type === "ask") {
 			if (!message.text) {
 				return true
@@ -488,9 +488,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
 		}
 		return false
-	}
+	}, [])
 
-	const isWriteToolAction = (message: ClineMessage | undefined) => {
+	const isWriteToolAction = useCallback((message: ClineMessage | undefined) => {
 		if (message?.type === "ask") {
 			if (!message.text) {
 				return true
@@ -499,9 +499,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
 		}
 		return false
-	}
+	}, [])
 
-	const isMcpToolAlwaysAllowed = (message: ClineMessage | undefined) => {
+	const isMcpToolAlwaysAllowed = useCallback((message: ClineMessage | undefined) => {
 		if (message?.type === "ask" && message.ask === "use_mcp_server") {
 			if (!message.text) {
 				return true
@@ -514,9 +514,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 		}
 		return false
-	}
+	}, [mcpServers])
 
-	const isAllowedCommand = (message: ClineMessage | undefined) => {
+	const isAllowedCommand = useCallback((message: ClineMessage | undefined) => {
 		if (message?.type === "ask") {
 			const command = message.text
 			if (!command) {
@@ -533,19 +533,32 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			})
 		}
 		return false
-	}
+	}, [allowedCommands])
 
-	const isAutoApproved = (message: ClineMessage | undefined) => {
-		if (!message || message.type !== "ask") return false
+	const isAutoApproved = useCallback(
+		(message: ClineMessage | undefined) => {
+			if (!message || message.type !== "ask") return false
 
-		return (
-			(alwaysAllowBrowser && message.ask === "browser_action_launch") ||
-			(alwaysAllowReadOnly && message.ask === "tool" && isReadOnlyToolAction(message)) ||
-			(alwaysAllowWrite && message.ask === "tool" && isWriteToolAction(message)) ||
-			(alwaysAllowExecute && message.ask === "command" && isAllowedCommand(message)) ||
-			(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message))
-		)
-	}
+			return (
+				(alwaysAllowBrowser && message.ask === "browser_action_launch") ||
+				(alwaysAllowReadOnly && message.ask === "tool" && isReadOnlyToolAction(message)) ||
+				(alwaysAllowWrite && message.ask === "tool" && isWriteToolAction(message)) ||
+				(alwaysAllowExecute && message.ask === "command" && isAllowedCommand(message)) ||
+				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message))
+			)
+		},
+		[
+			alwaysAllowBrowser,
+			alwaysAllowReadOnly,
+			alwaysAllowWrite,
+			alwaysAllowExecute,
+			alwaysAllowMcp,
+			isReadOnlyToolAction,
+			isWriteToolAction,
+			isAllowedCommand,
+			isMcpToolAlwaysAllowed
+		]
+	)
 
 	useEffect(() => {
 		// Only execute when isStreaming changes from true to false
