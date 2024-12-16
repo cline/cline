@@ -547,3 +547,247 @@ describe('ChatView - Auto Approval Tests', () => {
     })
   })
 })
+
+describe('ChatView - Sound Playing Tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('does not play sound for auto-approved browser actions', async () => {
+    render(
+      <ExtensionStateContextProvider>
+        <ChatView 
+          isHidden={false}
+          showAnnouncement={false}
+          hideAnnouncement={() => {}}
+          showHistoryView={() => {}}
+        />
+      </ExtensionStateContextProvider>
+    )
+
+    // First hydrate state with initial task and streaming
+    mockPostMessage({
+      alwaysAllowBrowser: true,
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'say',
+          say: 'api_req_started',
+          ts: Date.now() - 1000,
+          text: JSON.stringify({}),
+          partial: true
+        }
+      ]
+    })
+
+    // Then send the browser action ask message (streaming finished)
+    mockPostMessage({
+      alwaysAllowBrowser: true,
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'ask',
+          ask: 'browser_action_launch',
+          ts: Date.now(),
+          text: JSON.stringify({ action: 'launch', url: 'http://example.com' }),
+          partial: false
+        }
+      ]
+    })
+
+    // Verify no sound was played
+    expect(vscode.postMessage).not.toHaveBeenCalledWith({
+      type: 'playSound',
+      audioType: expect.any(String)
+    })
+  })
+
+  it('plays notification sound for non-auto-approved browser actions', async () => {
+    render(
+      <ExtensionStateContextProvider>
+        <ChatView 
+          isHidden={false}
+          showAnnouncement={false}
+          hideAnnouncement={() => {}}
+          showHistoryView={() => {}}
+        />
+      </ExtensionStateContextProvider>
+    )
+
+    // First hydrate state with initial task and streaming
+    mockPostMessage({
+      alwaysAllowBrowser: false,
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'say',
+          say: 'api_req_started',
+          ts: Date.now() - 1000,
+          text: JSON.stringify({}),
+          partial: true
+        }
+      ]
+    })
+
+    // Then send the browser action ask message (streaming finished)
+    mockPostMessage({
+      alwaysAllowBrowser: false,
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'ask',
+          ask: 'browser_action_launch',
+          ts: Date.now(),
+          text: JSON.stringify({ action: 'launch', url: 'http://example.com' }),
+          partial: false
+        }
+      ]
+    })
+
+    // Verify notification sound was played
+    await waitFor(() => {
+      expect(vscode.postMessage).toHaveBeenCalledWith({
+        type: 'playSound',
+        audioType: 'notification'
+      })
+    })
+  })
+
+  it('plays celebration sound for completion results', async () => {
+    render(
+      <ExtensionStateContextProvider>
+        <ChatView 
+          isHidden={false}
+          showAnnouncement={false}
+          hideAnnouncement={() => {}}
+          showHistoryView={() => {}}
+        />
+      </ExtensionStateContextProvider>
+    )
+
+    // First hydrate state with initial task and streaming
+    mockPostMessage({
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'say',
+          say: 'api_req_started',
+          ts: Date.now() - 1000,
+          text: JSON.stringify({}),
+          partial: true
+        }
+      ]
+    })
+
+    // Then send the completion result message (streaming finished)
+    mockPostMessage({
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'ask',
+          ask: 'completion_result',
+          ts: Date.now(),
+          text: 'Task completed successfully',
+          partial: false
+        }
+      ]
+    })
+
+    // Verify celebration sound was played
+    await waitFor(() => {
+      expect(vscode.postMessage).toHaveBeenCalledWith({
+        type: 'playSound',
+        audioType: 'celebration'
+      })
+    })
+  })
+
+  it('plays progress_loop sound for api failures', async () => {
+    render(
+      <ExtensionStateContextProvider>
+        <ChatView 
+          isHidden={false}
+          showAnnouncement={false}
+          hideAnnouncement={() => {}}
+          showHistoryView={() => {}}
+        />
+      </ExtensionStateContextProvider>
+    )
+
+    // First hydrate state with initial task and streaming
+    mockPostMessage({
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'say',
+          say: 'api_req_started',
+          ts: Date.now() - 1000,
+          text: JSON.stringify({}),
+          partial: true
+        }
+      ]
+    })
+
+    // Then send the api failure message (streaming finished)
+    mockPostMessage({
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        },
+        {
+          type: 'ask',
+          ask: 'api_req_failed',
+          ts: Date.now(),
+          text: 'API request failed',
+          partial: false
+        }
+      ]
+    })
+
+    // Verify progress_loop sound was played
+    await waitFor(() => {
+      expect(vscode.postMessage).toHaveBeenCalledWith({
+        type: 'playSound',
+        audioType: 'progress_loop'
+      })
+    })
+  })
+})
