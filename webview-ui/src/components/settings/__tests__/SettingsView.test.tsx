@@ -104,6 +104,9 @@ describe('SettingsView - Sound Settings', () => {
       name: /Enable sound effects/i
     })
     expect(soundCheckbox).not.toBeChecked()
+    
+    // Volume slider should not be visible when sound is disabled
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
   })
 
   it('toggles sound setting and sends message to VSCode', () => {
@@ -125,6 +128,50 @@ describe('SettingsView - Sound Settings', () => {
       expect.objectContaining({
         type: 'soundEnabled',
         bool: true
+      })
+    )
+  })
+
+  it('shows volume slider when sound is enabled', () => {
+    renderSettingsView()
+    
+    // Enable sound
+    const soundCheckbox = screen.getByRole('checkbox', {
+      name: /Enable sound effects/i
+    })
+    fireEvent.click(soundCheckbox)
+
+    // Volume slider should be visible
+    const volumeSlider = screen.getByRole('slider')
+    expect(volumeSlider).toBeInTheDocument()
+    expect(volumeSlider).toHaveValue('0.5') // Default value
+  })
+
+  it('updates volume and sends message to VSCode when slider changes', () => {
+    renderSettingsView()
+    
+    // Enable sound
+    const soundCheckbox = screen.getByRole('checkbox', {
+      name: /Enable sound effects/i
+    })
+    fireEvent.click(soundCheckbox)
+
+    // Change volume
+    const volumeSlider = screen.getByRole('slider')
+    fireEvent.change(volumeSlider, { target: { value: '0.75' } })
+
+    // Verify volume display updates
+    expect(screen.getByText('75%')).toBeInTheDocument()
+
+    // Click Done to save settings
+    const doneButton = screen.getByText('Done')
+    fireEvent.click(doneButton)
+
+    // Verify message sent to VSCode
+    expect(vscode.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'soundVolume',
+        value: 0.75
       })
     )
   })
