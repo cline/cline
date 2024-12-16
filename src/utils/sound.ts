@@ -21,6 +21,7 @@ export const isWAV = (filepath: string): boolean => {
 }
 
 let isSoundEnabled = false
+let volume = .5
 
 /**
  * Set sound configuration
@@ -28,6 +29,14 @@ let isSoundEnabled = false
  */
 export const setSoundEnabled = (enabled: boolean): void => {
 	isSoundEnabled = enabled
+}
+
+/**
+ * Set sound volume
+ * @param volume number
+ */
+export const setSoundVolume = (newVolume: number): void => {
+	volume = newVolume
 }
 
 /**
@@ -54,11 +63,9 @@ export const playSound = (filepath: string): void => {
 			return // Skip playback within minimum interval to prevent continuous playback
 		}
 
-		const player = require("play-sound")()
-		player.play(filepath, function (err: any) {
-			if (err) {
-				throw new Error("Failed to play sound effect")
-			}
+		const sound = require("sound-play")
+		sound.play(filepath, volume).catch(() => {
+			throw new Error("Failed to play sound effect")
 		})
 
 		lastPlayedTime = currentTime

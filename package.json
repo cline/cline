@@ -220,6 +220,7 @@
     "puppeteer-chromium-resolver": "^23.0.0",
     "puppeteer-core": "^23.4.0",
     "serialize-error": "^11.0.3",
+    "sound-play": "^1.1.0",
     "strip-ansi": "^7.1.0",
     "tree-sitter-wasms": "^0.1.11",
     "turndown": "^7.2.0",

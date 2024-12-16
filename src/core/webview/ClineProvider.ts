@@ -22,7 +22,7 @@ import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { playSound, setSoundEnabled } from "../../utils/sound"
+import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -66,6 +66,7 @@ type GlobalStateKey =
 	| "openRouterUseMiddleOutTransform"
 	| "allowedCommands"
 	| "soundEnabled"
+	| "soundVolume"
 	| "diffEnabled"
 	| "alwaysAllowMcp"
 
@@ -597,6 +598,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						setSoundEnabled(soundEnabled)  // Add this line to update the sound utility
 						await this.postStateToWebview()
 						break
+					case "soundVolume":
+						const soundVolume = message.value ?? 0.5
+						await this.updateGlobalState("soundVolume", soundVolume)
+						setSoundVolume(soundVolume)
+						await this.postStateToWebview()
+						break
 					case "diffEnabled":
 						const diffEnabled = message.bool ?? true
 						await this.updateGlobalState("diffEnabled", diffEnabled)
@@ -929,6 +936,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			taskHistory,
+			soundVolume,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -953,6 +961,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled: diffEnabled ?? false,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
+			soundVolume: soundVolume ?? 0.5,
 		}
 	}
 
@@ -1045,6 +1054,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled,
 			diffEnabled,
+			soundVolume,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1082,6 +1092,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1137,6 +1148,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled,
 			diffEnabled,
+			soundVolume,
 		}
 	}
 

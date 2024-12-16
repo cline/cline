@@ -51,6 +51,7 @@ export interface ExtensionState {
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
+	soundVolume?: number
 	diffEnabled?: boolean
 }
 

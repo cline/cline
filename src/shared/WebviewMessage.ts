@@ -32,6 +32,7 @@ export interface WebviewMessage {
 		| "alwaysAllowMcp"
 		| "playSound"
 		| "soundEnabled"
+		| "soundVolume"
 		| "diffEnabled"
 		| "openMcpSettings"
 		| "restartMcpServer"
@@ -43,6 +44,7 @@ export interface WebviewMessage {
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
+	value?: number
 	commands?: string[]
 	audioType?: AudioType
 	// For toggleToolAutoApprove

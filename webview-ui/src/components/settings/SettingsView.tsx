@@ -29,6 +29,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysAllowMcp,
 		soundEnabled,
 		setSoundEnabled,
+		soundVolume,
+		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
 		openRouterModels,
@@ -55,6 +57,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "alwaysAllowMcp", bool: alwaysAllowMcp })
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
+			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			onDone()
 		}
@@ -306,17 +309,42 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<h4 style={{ fontWeight: 500, marginBottom: 10 }}>Experimental Features</h4>
 
 					<div style={{ marginBottom: 5 }}>
-						<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
-							<span style={{ fontWeight: "500" }}>Enable sound effects</span>
-						</VSCodeCheckbox>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							When enabled, Cline will play sound effects for notifications and events.
-						</p>
+						<div style={{ marginBottom: 10 }}>
+							<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
+								<span style={{ fontWeight: "500" }}>Enable sound effects</span>
+							</VSCodeCheckbox>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								When enabled, Cline will play sound effects for notifications and events.
+							</p>
+						</div>
+						{soundEnabled && (
+							<div style={{ marginLeft: 0 }}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+									<span style={{ fontWeight: "500", minWidth: '50px' }}>Volume</span>
+									<input
+										type="range"
+										min="0"
+										max="1"
+										step="0.01"
+										value={soundVolume ?? 0.5}
+										onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
+										style={{
+											flexGrow: 1,
+											accentColor: 'var(--vscode-button-background)',
+											height: '2px'
+										}}
+									/>
+									<span style={{ minWidth: '35px', textAlign: 'left' }}>
+										{Math.round((soundVolume ?? 0.5) * 100)}%
+									</span>
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 
