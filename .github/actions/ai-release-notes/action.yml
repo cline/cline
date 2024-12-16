@@ -20,17 +20,14 @@ inputs:
     default: ''
     type: string
   git_ref:
-    required: false
+    required: true
     type: string
-    default: ''
   head_ref:
-    required: false
+    required: true
     type: string
-    default: main
   base_ref:
-    required: false
+    required: true
     type: string
-    default: main
 
 outputs:
   RELEASE_NOTES:
@@ -41,9 +38,9 @@ outputs:
     value: ${{ steps.ai_prompt.outputs.OPENAI_PROMPT }}
 
 env:
-  GITHUB_REF: ${{ inputs.git_ref == '' && github.event.pull_request.head.ref || inputs.git_ref }}
-  BASE_REF: ${{ inputs.base_ref == '' && github.base_ref || inputs.base_ref }}
-  HEAD_REF: ${{ inputs.head_ref == '' && github.event.pull_request.head.sha || inputs.head_ref }}
+  GITHUB_REF: ${{ inputs.git_ref }}
+  BASE_REF: ${{ inputs.base_ref }}
+  HEAD_REF: ${{ inputs.head_ref }}
 
 runs:
   using: "composite"
