@@ -48,6 +48,7 @@ import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
+import { constructNewFileContent } from "./assistant-message/diff"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1034,9 +1035,9 @@ export class Cline {
 				switch (block.name) {
 					case "write_to_file": {
 						const relPath: string | undefined = block.params.path
-						let newContent: string | undefined = block.params.content
-						if (!relPath || !newContent) {
-							// checking for newContent ensure relPath is complete
+						let diff: string | undefined = block.params.diff
+						if (!relPath || !diff) {
+							// checking for diff ensure relPath is complete
 							// wait so we can determine if it's a new file or editing an existing file
 							break
 						}
@@ -1050,34 +1051,43 @@ export class Cline {
 							this.diffViewProvider.editType = fileExists ? "modify" : "create"
 						}
 
-						// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
-						if (newContent.startsWith("```")) {
-							// this handles cases where it includes language specifiers like ```python ```js
-							newContent = newContent.split("\n").slice(1).join("\n").trim()
-						}
-						if (newContent.endsWith("```")) {
-							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
-						}
-
-						if (!this.api.getModel().id.includes("claude")) {
-							// it seems not just llama models are doing this, but also gemini and potentially others
-							if (
-								newContent.includes("&gt;") ||
-								newContent.includes("&lt;") ||
-								newContent.includes("&quot;")
-							) {
-								newContent = newContent
-									.replace(/&gt;/g, ">")
-									.replace(/&lt;/g, "<")
-									.replace(/&quot;/g, '"')
-							}
-						}
-
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
 						try {
+							// Construct newContent from diff
+							let newContent = await constructNewFileContent(
+								diff,
+								this.diffViewProvider.originalContent || "",
+								!block.partial,
+							)
+
+							// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
+							// if (newContent.startsWith("```")) {
+							// 	// this handles cases where it includes language specifiers like ```python ```js
+							// 	newContent = newContent.split("\n").slice(1).join("\n").trim()
+							// }
+							// if (newContent.endsWith("```")) {
+							// 	newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+							// }
+
+							if (!this.api.getModel().id.includes("claude")) {
+								// it seems not just llama models are doing this, but also gemini and potentially others
+								if (
+									newContent.includes("&gt;") ||
+									newContent.includes("&lt;") ||
+									newContent.includes("&quot;")
+								) {
+									newContent = newContent
+										.replace(/&gt;/g, ">")
+										.replace(/&lt;/g, "<")
+										.replace(/&quot;/g, '"')
+								}
+							}
+
+							newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
+
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
@@ -1097,9 +1107,9 @@ export class Cline {
 									await this.diffViewProvider.reset()
 									break
 								}
-								if (!newContent) {
+								if (!diff) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "diff"))
 									await this.diffViewProvider.reset()
 									break
 								}
@@ -1117,18 +1127,18 @@ export class Cline {
 								await this.diffViewProvider.update(newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
-								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+								// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: fileExists ? undefined : newContent,
-									diff: fileExists
-										? formatResponse.createPrettyPatch(
-												relPath,
-												this.diffViewProvider.originalContent,
-												newContent,
-											)
-										: undefined,
+									diff: fileExists ? diff : undefined,
+									// ? formatResponse.createPrettyPatch(
+									// 		relPath,
+									// 		this.diffViewProvider.originalContent,
+									// 		newContent,
+									// 	)
+									// : undefined,
 								} satisfies ClineSayTool)
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
@@ -1151,6 +1161,7 @@ export class Cline {
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+											`IMPORTANT: If you need to make further changes to this file, use this final_file_content as the new baseline for your changes, as it is now the current state of the file (including the user's edits and any auto-formatting done by the system). \n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1159,7 +1170,11 @@ export class Cline {
 									)
 								} else {
 									pushToolResult(
-										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`,
+										`The content was successfully saved to ${relPath.toPosix()}.\n\n` +
+											`Here is the full, updated content of the file:\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+											`IMPORTANT: If you need to make further changes to this file, use this final_file_content as the new baseline for your changes, as it is now the current state of the file (including any auto-formatting done by the system). \n\n` +
+											`${newProblemsMessage}`,
 									)
 								}
 								await this.diffViewProvider.reset()
@@ -1167,6 +1182,7 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("writing file", error)
+							await this.diffViewProvider.revertChanges()
 							await this.diffViewProvider.reset()
 							break
 						}

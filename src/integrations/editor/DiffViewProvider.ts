@@ -148,10 +148,14 @@ export class DiffViewProvider {
 		}
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
-		const editedContent = updatedDocument.getText()
+
 		if (updatedDocument.isDirty) {
 			await updatedDocument.save()
 		}
+
+		// await delay(100)
+		// Need to get text after save in case there is any auto-formatting done by the editor
+		const editedContent = updatedDocument.getText()
 
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 		await this.closeAllDiffViews()

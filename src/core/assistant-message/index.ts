@@ -28,7 +28,7 @@ export type ToolUseName = (typeof toolUseNames)[number]
 export const toolParamNames = [
 	"command",
 	"path",
-	"content",
+	"diff",
 	"regex",
 	"file_pattern",
 	"recursive",
@@ -67,7 +67,7 @@ export interface ReadFileToolUse extends ToolUse {
 
 export interface WriteToFileToolUse extends ToolUse {
 	name: "write_to_file"
-	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "diff">>
 }
 
 export interface SearchFilesToolUse extends ToolUse {

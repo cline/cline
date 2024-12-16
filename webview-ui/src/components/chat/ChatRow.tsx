@@ -257,7 +257,7 @@ export const ChatRowContent = ({
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
-							diff={tool.diff!}
+							code={tool.diff!}
 							path={tool.path!}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}

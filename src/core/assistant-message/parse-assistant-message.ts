@@ -61,18 +61,16 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 				// there's no current param, and not starting a new param
 
-				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
-				const contentParamName: ToolParamName = "content"
-				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
+				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting diff tag and the LAST diff tag.
+				const diffParamName: ToolParamName = "diff"
+				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${diffParamName}>`)) {
 					const toolContent = accumulator.slice(currentToolUseStartIndex)
-					const contentStartTag = `<${contentParamName}>`
-					const contentEndTag = `</${contentParamName}>`
-					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
-					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
-					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
-						currentToolUse.params[contentParamName] = toolContent
-							.slice(contentStartIndex, contentEndIndex)
-							.trim()
+					const diffStartTag = `<${diffParamName}>`
+					const diffEndTag = `</${diffParamName}>`
+					const diffStartIndex = toolContent.indexOf(diffStartTag) + diffStartTag.length
+					const diffEndIndex = toolContent.lastIndexOf(diffEndTag)
+					if (diffStartIndex !== -1 && diffEndIndex !== -1 && diffEndIndex > diffStartIndex) {
+						currentToolUse.params[diffParamName] = toolContent.slice(diffStartIndex, diffEndIndex).trim()
 					}
 				}
 

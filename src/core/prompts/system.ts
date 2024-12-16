@@ -54,16 +54,40 @@ Usage:
 </read_file>
 
 ## write_to_file
-Description: Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.
+Description: Request to write to a file using search/replace blocks that define exact changes. Creates new files or modifies existing ones with precise control. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.
 Parameters:
 - path: (required) The path of the file to write to (relative to the current working directory ${cwd.toPosix()})
-- content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.
+- diff: (required) One or more search/replace blocks following this exact format:
+  \`\`\`
+  <<<<<<< SEARCH
+  [exact content to find]
+  =======
+  [content to replace with]
+  >>>>>>> REPLACE
+  \`\`\`
+  Each block must follow these critical rules:
+  1. SEARCH section must match existing file content EXACTLY:
+     * Match character-for-character including whitespace, indentation, line endings
+     * Include all comments, docstrings, etc.
+  2. Only the first match occurrence is replaced
+     * Use multiple blocks for multiple occurrences
+     * Include enough context lines to ensure unique matches
+  3. Keep blocks focused:
+     * Break large changes into multiple small blocks
+     * Include only changing lines and minimal context
+     * Do not include long runs of unchanged lines
+     * Each block should modify one logical chunk
+  4. Special operations:
+     * New files: Use empty SEARCH section
+     * Completely replace existing file's contents: Use empty SEARCH section
+     * Moving code: Use two blocks (delete from original + insert at new location)
+     * Code deletion: Use empty REPLACE section
 Usage:
 <write_to_file>
 <path>File path here</path>
-<content>
-Your file content here
-</content>
+<diff>
+Search and replace blocks here
+</diff>
 </write_to_file>
 
 ## search_files
@@ -197,29 +221,7 @@ Your final result description here
 <command>npm run dev</command>
 </execute_command>
 
-## Example 2: Requesting to write to a file
-
-<write_to_file>
-<path>frontend-config.json</path>
-<content>
-{
-  "apiEndpoint": "https://api.example.com",
-  "theme": {
-    "primaryColor": "#007bff",
-    "secondaryColor": "#6c757d",
-    "fontFamily": "Arial, sans-serif"
-  },
-  "features": {
-    "darkMode": true,
-    "notifications": true,
-    "analytics": false
-  },
-  "version": "1.0.0"
-}
-</content>
-</write_to_file>
-
-## Example 3: Requesting to use an MCP tool
+## Example 2: Requesting to use an MCP tool
 
 <use_mcp_tool>
 <server_name>weather-server</server_name>
@@ -232,12 +234,94 @@ Your final result description here
 </arguments>
 </use_mcp_tool>
 
-## Example 4: Requesting to access an MCP resource
+## Example 3: Requesting to access an MCP resource
 
 <access_mcp_resource>
 <server_name>weather-server</server_name>
 <uri>weather://san-francisco/current</uri>
 </access_mcp_resource>
+
+## Example 4: Requesting to create a new file
+
+<write_to_file>
+<path>src/utils/types.ts</path>
+<diff>
+<<<<<<< SEARCH
+=======
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+>>>>>>> REPLACE
+</diff>
+</write_to_file>
+
+## Example 5: Requesting to modify existing content
+
+<write_to_file>
+<path>src/services/UserService.ts</path>
+<diff>
+<<<<<<< SEARCH
+  async getUser(id: string) {
+    return await this.users.findOne(id);
+  }
+=======
+  async getUser(id: string) {
+    const user = await this.users.findOne(id);
+    if (!user) throw new Error(\`User \${id} not found\`);
+    return user;
+  }
+>>>>>>> REPLACE
+</write_to_file>
+
+## Example 6: Requesting to move two blocks of code
+
+<write_to_file>
+<path>src/components/App.tsx</path>
+<diff>
+<<<<<<< SEARCH
+function handleSubmit() {
+  saveData();
+  setLoading(false);
+}
+
+=======
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+return (
+  <div>
+=======
+function handleSubmit() {
+  saveData();
+  setLoading(false);
+}
+
+return (
+  <div>
+>>>>>>> REPLACE
+</diff>
+</write_to_file>
+
+## Example 7: Requesting to make multiple focused changes in a file
+
+<write_to_file>
+<path>src/config.ts</path>
+<diff>
+<<<<<<< SEARCH
+const maxRetries = 3;
+=======
+const maxRetries = 5;
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+export const timeout = 1000;
+=======
+export const timeout = process.env.TIMEOUT || 1000;
+>>>>>>> REPLACE
+</diff>
+</write_to_file>
 
 # Tool Use Guidelines
 
@@ -710,7 +794,6 @@ RULES
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
 - Before executing commands, check the "Actively Running Terminals" section in environment_details. If present, consider how these active processes might impact your task. For example, if a local development server is already running, you wouldn't need to start it again. If no active terminals are listed, proceed with command execution as normal.
-- When using the write_to_file tool, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 	supportsComputerUse
