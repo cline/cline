@@ -156,6 +156,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "use_mcp_server":
+							if (!isAutoApproved(lastMessage)) {
+								playSound("notification")
+							}
 							setTextAreaDisabled(isPartial)
 							setClineAsk("use_mcp_server")
 							setEnableButtons(!isPartial)
@@ -552,6 +555,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "followup":
 						case "browser_action_launch":
 						case "resume_task":
+						case "use_mcp_server":
 							playSound("notification")
 							break
 						case "completion_result":
