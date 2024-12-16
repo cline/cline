@@ -100,7 +100,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Start New Task")
 							break
 						case "followup":
-							playSound("notification")
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
 							setEnableButtons(isPartial)
@@ -139,7 +138,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText("Reject")
 							break
 						case "command":
-							if (lastMessage.text && !isAutoApproved(lastMessage)) {
+							if (!isAutoApproved(lastMessage)) {
 								playSound("notification")
 							}
 							setTextAreaDisabled(isPartial)
@@ -156,7 +155,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							break
 						case "use_mcp_server":
-							if (lastMessage.text && !isAutoApproved(lastMessage)) {
+							if (!isAutoApproved(lastMessage)) {
 								playSound("notification")
 							}
 							setTextAreaDisabled(isPartial)
@@ -484,7 +483,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const isReadOnlyToolAction = (message: ClineMessage | undefined) => {
-		if (message?.type === "ask" && message.text) {
+		if (message?.type === "ask") {
+			if (!message.text) {
+				return true
+			}
 			const tool = JSON.parse(message.text)
 			return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
 		}
@@ -492,7 +494,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}
 
 	const isWriteToolAction = (message: ClineMessage | undefined) => {
-		if (message?.type === "ask" && message.text) {
+		if (message?.type === "ask") {
+			if (!message.text) {
+				return true
+			}
 			const tool = JSON.parse(message.text)
 			return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
 		}
@@ -500,7 +505,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}
 
 	const isMcpToolAlwaysAllowed = (message: ClineMessage | undefined) => {
-		if (message?.type === "ask" && message.ask === "use_mcp_server" && message.text) {
+		if (message?.type === "ask" && message.ask === "use_mcp_server") {
+			if (!message.text) {
+				return true
+			}
 			const mcpServerUse = JSON.parse(message.text) as { type: string; serverName: string; toolName: string }
 			if (mcpServerUse.type === "use_mcp_tool") {
 				const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
@@ -512,8 +520,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}
 
 	const isAllowedCommand = (message: ClineMessage | undefined) => {
-		if (message?.type === "ask" && message.text) {
+		if (message?.type === "ask") {
 			const command = message.text
+			if (!command) {
+				return true
+			}
 
 			// Split command by chaining operators
 			const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
@@ -551,8 +562,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mistake_limit_reached":
 							playSound("progress_loop")
 							break
-						case "tool":
 						case "followup":
+							if (!lastMessage.partial) {
+								playSound("notification")
+							}
+							break
+						case "tool":
 						case "browser_action_launch":
 						case "resume_task":
 						case "use_mcp_server":
