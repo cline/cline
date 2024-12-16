@@ -22,15 +22,12 @@ inputs:
   git_ref:
     required: true
     type: string
-    default: ''
   head_ref:
     required: true
     type: string
-    default: main
   base_ref:
     required: true
     type: string
-    default: main
 
 outputs:
   RELEASE_NOTES:
