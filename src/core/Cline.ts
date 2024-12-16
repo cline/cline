@@ -20,7 +20,7 @@ import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
-import { combineCommandSequences } from "../shared/combineCommandSequences"
+import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -1538,6 +1538,9 @@ export class Cline {
 					}
 					case "execute_command": {
 						const command: string | undefined = block.params.command
+						const requiresApprovalRaw: string | undefined = block.params.requires_approval
+						const requiresApproval = requiresApprovalRaw?.toLowerCase() === "true"
+
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -1552,8 +1555,21 @@ export class Cline {
 									)
 									break
 								}
+								if (!requiresApprovalRaw) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError(
+											"execute_command",
+											"requires_approval",
+										),
+									)
+									break
+								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = await askApproval("command", command)
+								const didApprove = await askApproval(
+									"command",
+									command + `${requiresApproval ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+								)
 								if (!didApprove) {
 									break
 								}

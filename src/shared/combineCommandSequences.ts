@@ -71,3 +71,4 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 		})
 }
 export const COMMAND_OUTPUT_STRING = "Output:"
+export const COMMAND_REQ_APP_STRING = "REQ_APP"

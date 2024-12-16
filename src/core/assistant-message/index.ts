@@ -27,6 +27,7 @@ export type ToolUseName = (typeof toolUseNames)[number]
 
 export const toolParamNames = [
 	"command",
+	"requires_approval",
 	"path",
 	"diff",
 	"regex",
@@ -57,7 +58,7 @@ export interface ToolUse {
 export interface ExecuteCommandToolUse extends ToolUse {
 	name: "execute_command"
 	// Pick<Record<ToolParamName, string>, "command"> makes "command" required, but Partial<> makes it optional
-	params: Partial<Pick<Record<ToolParamName, string>, "command">>
+	params: Partial<Pick<Record<ToolParamName, string>, "command" | "requires_approval">>
 }
 
 export interface ReadFileToolUse extends ToolUse {

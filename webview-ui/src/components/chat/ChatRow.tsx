@@ -8,7 +8,7 @@ import {
 	ClineMessage,
 	ClineSayTool,
 } from "../../../../src/shared/ExtensionMessage"
-import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
@@ -732,7 +732,11 @@ export const ChatRowContent = ({
 						}
 					}
 
-					const { command, output } = splitMessage(message.text || "")
+					const { command: rawCommand, output } = splitMessage(message.text || "")
+
+					const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
+					const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+
 					return (
 						<>
 							<div style={headerStyle}>
@@ -772,6 +776,20 @@ export const ChatRowContent = ({
 									</div>
 								)}
 							</div>
+							{requestsApproval && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: 10,
+										padding: 8,
+										fontSize: "12px",
+										color: "var(--vscode-errorForeground)",
+									}}>
+									<i className="codicon codicon-warning"></i>
+									<span>The model has determined this command requires explicit approval</span>
+								</div>
+							)}
 						</>
 					)
 				case "use_mcp_server":
