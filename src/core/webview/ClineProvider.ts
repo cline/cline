@@ -68,6 +68,7 @@ type GlobalStateKey =
 	| "soundEnabled"
 	| "soundVolume"
 	| "diffEnabled"
+	| "debugDiffEnabled"
 	| "alwaysAllowMcp"
 
 export const GlobalFileNames = {
@@ -213,28 +214,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask()
-		const { 
-			apiConfiguration, 
-			customInstructions, 
+		const {
+			apiConfiguration,
+			customInstructions,
 			diffEnabled,
-		} = await this.getState()
-		
-		this.cline = new Cline(
-			this, 
-			apiConfiguration, 
-			customInstructions, 
-			diffEnabled,
-			task, 
-			images
-		)
-	}
-
-	async initClineWithHistoryItem(historyItem: HistoryItem) {
-		await this.clearTask()
-		const { 
-			apiConfiguration, 
-			customInstructions, 
-			diffEnabled,
+			debugDiffEnabled,
 		} = await this.getState()
 		
 		this.cline = new Cline(
@@ -242,6 +226,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customInstructions,
 			diffEnabled,
+			debugDiffEnabled,
+			task,
+			images
+		)
+	}
+
+	async initClineWithHistoryItem(historyItem: HistoryItem) {
+		await this.clearTask()
+		const {
+			apiConfiguration,
+			customInstructions,
+			diffEnabled,
+			debugDiffEnabled,
+		} = await this.getState()
+		
+		this.cline = new Cline(
+			this,
+			apiConfiguration,
+			customInstructions,
+			diffEnabled,
+			debugDiffEnabled,
 			undefined,
 			undefined,
 			historyItem,
@@ -609,6 +614,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("diffEnabled", diffEnabled)
 						await this.postStateToWebview()
 						break
+					case "debugDiffEnabled":
+						const debugDiffEnabled = message.bool ?? false
+						await this.updateGlobalState("debugDiffEnabled", debugDiffEnabled)
+						await this.postStateToWebview()
+						break
 				}
 			},
 			null,
@@ -935,6 +945,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowMcp,
 			soundEnabled,
 			diffEnabled,
+			debugDiffEnabled,
 			taskHistory,
 			soundVolume,
 		} = await this.getState()
@@ -959,6 +970,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				.sort((a, b) => b.ts - a.ts),
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? false,
+			debugDiffEnabled: debugDiffEnabled ?? false,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -1054,6 +1066,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled,
 			diffEnabled,
+			debugDiffEnabled,
 			soundVolume,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1092,6 +1105,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("debugDiffEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 		])
 
@@ -1146,8 +1160,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			taskHistory,
 			allowedCommands,
-			soundEnabled,
-			diffEnabled,
+			soundEnabled: soundEnabled ?? false,
+			diffEnabled: diffEnabled ?? false,
+			debugDiffEnabled: debugDiffEnabled ?? false,
 			soundVolume,
 		}
 	}

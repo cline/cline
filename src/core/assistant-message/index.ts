@@ -44,6 +44,8 @@ export const toolParamNames = [
 	"question",
 	"result",
 	"diff",
+	"start_line",
+	"end_line",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

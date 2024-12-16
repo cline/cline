@@ -278,7 +278,8 @@ describe('Cline', () => {
                 mockProvider,
                 mockApiConfig,
                 'custom instructions',
-                false,
+                false, // diffEnabled
+                false, // debugDiffEnabled
                 'test task'
             );
 

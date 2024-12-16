@@ -33,6 +33,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
+		debugDiffEnabled,
+		setDebugDiffEnabled,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -48,7 +50,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
 		if (!apiValidationResult && !modelIdValidationResult) {
-			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			vscode.postMessage({
+				type: "apiConfiguration",
+				apiConfiguration
+			})
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
@@ -59,6 +64,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
+			vscode.postMessage({ type: "debugDiffEnabled", bool: debugDiffEnabled })
 			onDone()
 		}
 	}
@@ -158,7 +164,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						When enabled, Cline will be able to edit files more quickly and will automatically reject truncated full-file writes.
+						When enabled, Cline will be able to edit files more quickly and will automatically reject truncated full-file writes. Works best with the latest Claude 3.5 Sonnet model.
 					</p>
 				</div>
 
@@ -351,6 +357,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								</div>
 							</div>
 						)}
+					</div>
+
+					<div style={{ marginBottom: 5 }}>
+						<VSCodeCheckbox checked={debugDiffEnabled} onChange={(e: any) => setDebugDiffEnabled(e.target.checked)}>
+							<span style={{ fontWeight: "500" }}>Debug diff operations</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Cline will show detailed debug information when applying diffs fails.
+						</p>
 					</div>
 				</div>
 

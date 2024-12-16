@@ -53,15 +53,12 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 
 	return addLineNumbers(extractedText)
 }
-
-export function addLineNumbers(content: string): string {
+export function addLineNumbers(content: string, startLine: number = 1): string {
 	const lines = content.split('\n')
-	const maxLineNumberWidth = String(lines.length).length
+	const maxLineNumberWidth = String(startLine + lines.length - 1).length
 	return lines
 		.map((line, index) => {
-			const lineNumber = String(index + 1).padStart(maxLineNumberWidth, ' ')
+			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, ' ')
 			return `${lineNumber} | ${line}`
 		}).join('\n')
 }
-
-
