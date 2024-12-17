@@ -75,8 +75,8 @@ If you're not confident in the exact content to search for, use the read_file to
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})
 - diff: (required) The search/replace block defining the changes.
-- start_line: (required) The line number where the search block starts (inclusive).
-- end_line: (required) The line number where the search block ends (inclusive).
+- start_line: (required) The line number where the search block starts.
+- end_line: (required) The line number where the search block ends.
 
 Diff format:
 \`\`\`
@@ -98,79 +98,30 @@ Original file:
 5 |     return total
 \`\`\`
 
-1. Search/replace a specific chunk of code:
+Search/Replace content:
 \`\`\`
-<apply_diff>
-<path>File path here</path>
-<diff>
 <<<<<<< SEARCH
+def calculate_total(items):
     total = 0
     for item in items:
         total += item
     return total
 =======
+def calculate_total(items):
     """Calculate total with 10% markup"""
     return sum(item * 1.1 for item in items)
 >>>>>>> REPLACE
-</diff>
-<start_line>2</start_line>
-<end_line>5</end_line>
-</apply_diff>
 \`\`\`
 
-Result:
-\`\`\`
-1 | def calculate_total(items):
-2 |     """Calculate total with 10% markup"""
-3 |     return sum(item * 1.1 for item in items)
-\`\`\`
-
-2. Insert code at a specific line (start_line and end_line must be the same, and the content gets inserted before whatever is currently at that line):
-\`\`\`
+Usage:
 <apply_diff>
 <path>File path here</path>
 <diff>
-<<<<<<< SEARCH
-=======
-    """TODO: Write a test for this"""
->>>>>>> REPLACE
+Your search/replace content here
 </diff>
-<start_line>2</start_line>
-<end_line>2</end_line>
-</apply_diff>
-\`\`\`
-
-Result:
-\`\`\`
-1 | def calculate_total(items):
-2 |     """TODO: Write a test for this"""
-3 |     """Calculate total with 10% markup"""
-4 |     return sum(item * 1.1 for item in items)
-\`\`\`
-
-3. Delete code at a specific line range:
-\`\`\`
-<apply_diff>
-<path>File path here</path>
-<diff>
-<<<<<<< SEARCH
-    total = 0
-    for item in items:
-        total += item
-    return total
-=======
->>>>>>> REPLACE
-</diff>
-<start_line>2</start_line>
+<start_line>1</start_line>
 <end_line>5</end_line>
-</apply_diff>
-\`\`\`
-
-Result:
-\`\`\`
-1 | def calculate_total(items):
-\`\`\`
-`
+</apply_diff>`
     }
 
     applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult {
