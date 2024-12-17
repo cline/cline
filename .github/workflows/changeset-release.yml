@@ -86,6 +86,6 @@ jobs:
 
       # Enable auto-merge for the PR
       - name: Enable automerge on PR
-        run: gh pr merge --squash --auto ${{ github.event.pull_request.number }}
+        run: gh pr merge --merge --auto ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
