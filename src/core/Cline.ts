@@ -75,6 +75,7 @@ export class Cline {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private consecutiveMistakeCount: number = 0
+	private consecutiveMistakeCountForApplyDiff: Map<string, number> = new Map()
 	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAborting = false
@@ -97,7 +98,6 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
 		diffEnabled?: boolean,
-		debugDiffEnabled?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -110,7 +110,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		if (diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id, debugDiffEnabled)
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
 		}
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1230,8 +1230,9 @@ export class Cline {
 
 								if (!fileExists) {
 									this.consecutiveMistakeCount++
-									await this.say("error", `File does not exist at path: ${absolutePath}`)
-									pushToolResult(`Error: File does not exist at path: ${absolutePath}`)
+									const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
+									await this.say("error", formattedError)
+									pushToolResult(formattedError)
 									break
 								}
 
@@ -1249,15 +1250,19 @@ export class Cline {
 								}
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
-									const errorDetails = diffResult.details ? `\n\nDetails:\n${JSON.stringify(diffResult.details, null, 2)}` : ''
-									await this.say("error", `Unable to apply diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
-									pushToolResult(`Error applying diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
+									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
+									this.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
+									const errorDetails = diffResult.details ? JSON.stringify(diffResult.details, null, 2) : ''
+									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${diffResult.error}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ''}\n</error_details>`
+									if (currentCount >= 2) {
+										await this.say("error", formattedError)
+									}
+									pushToolResult(formattedError)
 									break
 								}
-								const newContent = diffResult.content
 
 								this.consecutiveMistakeCount = 0
-
+								this.consecutiveMistakeCountForApplyDiff.delete(relPath)
 								// Show diff view before asking for approval
 								this.diffViewProvider.editType = "modify"
 								await this.diffViewProvider.open(relPath);

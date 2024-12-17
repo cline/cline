@@ -279,8 +279,9 @@ describe('Cline', () => {
                 mockApiConfig,
                 'custom instructions',
                 false, // diffEnabled
-                false, // debugDiffEnabled
-                'test task'
+                'test task', // task
+                undefined, // images
+                undefined  // historyItem
             );
 
             expect(cline.customInstructions).toBe('custom instructions');

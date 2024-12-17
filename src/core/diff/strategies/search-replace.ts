@@ -1,7 +1,7 @@
 import { DiffStrategy, DiffResult } from "../types"
 import { addLineNumbers } from "../../../integrations/misc/extract-text"
 
-const BUFFER_LINES = 5; // Number of extra context lines to show before and after matches
+const BUFFER_LINES = 20; // Number of extra context lines to show before and after matches
 
 function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
@@ -55,12 +55,12 @@ function getSimilarity(original: string, search: string): number {
 
 export class SearchReplaceDiffStrategy implements DiffStrategy {
     private fuzzyThreshold: number;
-    public debugEnabled: boolean;
+    private bufferLines: number;
 
-    constructor(fuzzyThreshold?: number, debugEnabled?: boolean) {
+    constructor(fuzzyThreshold?: number, bufferLines?: number) {
         // Default to exact matching (1.0) unless fuzzy threshold specified
         this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
-        this.debugEnabled = debugEnabled ?? false;
+        this.bufferLines = bufferLines ?? BUFFER_LINES;
     }
 
     getToolDescription(cwd: string): string {
@@ -75,8 +75,8 @@ If you're not confident in the exact content to search for, use the read_file to
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})
 - diff: (required) The search/replace block defining the changes.
-- start_line: (required) The line number where the search block starts (inclusive).
-- end_line: (required) The line number where the search block ends (inclusive).
+- start_line: (required) The line number where the search block starts.
+- end_line: (required) The line number where the search block ends.
 
 Diff format:
 \`\`\`
@@ -98,90 +98,39 @@ Original file:
 5 |     return total
 \`\`\`
 
-1. Search/replace a specific chunk of code:
+Search/Replace content:
 \`\`\`
-<apply_diff>
-<path>File path here</path>
-<diff>
 <<<<<<< SEARCH
+def calculate_total(items):
     total = 0
     for item in items:
         total += item
     return total
 =======
+def calculate_total(items):
     """Calculate total with 10% markup"""
     return sum(item * 1.1 for item in items)
 >>>>>>> REPLACE
-</diff>
-<start_line>2</start_line>
-<end_line>5</end_line>
-</apply_diff>
 \`\`\`
 
-Result:
-\`\`\`
-1 | def calculate_total(items):
-2 |     """Calculate total with 10% markup"""
-3 |     return sum(item * 1.1 for item in items)
-\`\`\`
-
-2. Insert code at a specific line (start_line and end_line must be the same, and the content gets inserted before whatever is currently at that line):
-\`\`\`
+Usage:
 <apply_diff>
 <path>File path here</path>
 <diff>
-<<<<<<< SEARCH
-=======
-    """TODO: Write a test for this"""
->>>>>>> REPLACE
+Your search/replace content here
 </diff>
-<start_line>2</start_line>
-<end_line>2</end_line>
-</apply_diff>
-\`\`\`
-
-Result:
-\`\`\`
-1 | def calculate_total(items):
-2 |     """TODO: Write a test for this"""
-3 |     """Calculate total with 10% markup"""
-4 |     return sum(item * 1.1 for item in items)
-\`\`\`
-
-3. Delete code at a specific line range:
-\`\`\`
-<apply_diff>
-<path>File path here</path>
-<diff>
-<<<<<<< SEARCH
-    total = 0
-    for item in items:
-        total += item
-    return total
-=======
->>>>>>> REPLACE
-</diff>
-<start_line>2</start_line>
+<start_line>1</start_line>
 <end_line>5</end_line>
-</apply_diff>
-\`\`\`
-
-Result:
-\`\`\`
-1 | def calculate_total(items):
-\`\`\`
-`
+</apply_diff>`
     }
 
     applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult {
         // Extract the search and replace blocks
         const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n?=======\n([\s\S]*?)\n?>>>>>>> REPLACE/);
         if (!match) {
-            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers` : '';
-
             return {
                 success: false,
-                error: `Invalid diff format - missing required SEARCH/REPLACE sections${debugInfo}`
+                error: `Invalid diff format - missing required SEARCH/REPLACE sections\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers`
             };
         }
 
@@ -209,70 +158,90 @@ Result:
         const searchLines = searchContent === '' ? [] : searchContent.split(/\r?\n/);
         const replaceLines = replaceContent === '' ? [] : replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
+
+        // Validate that empty search requires start line
+        if (searchLines.length === 0 && !startLine) {
+            return {
+                success: false,
+                error: `Empty search content requires start_line to be specified\n\nDebug Info:\n- Empty search content is only valid for insertions at a specific line\n- For insertions, specify the line number where content should be inserted`
+            };
+        }
+
+        // Validate that empty search requires same start and end line
+        if (searchLines.length === 0 && startLine && endLine && startLine !== endLine) {
+            return {
+                success: false,
+                error: `Empty search content requires start_line and end_line to be the same (got ${startLine}-${endLine})\n\nDebug Info:\n- Empty search content is only valid for insertions at a specific line\n- For insertions, use the same line number for both start_line and end_line`
+            };
+        }
         
-        // First try exact line range if provided
+        // Initialize search variables
         let matchIndex = -1;
         let bestMatchScore = 0;
         let bestMatchContent = "";
-        
+        const searchChunk = searchLines.join('\n');
+
+        // Determine search bounds
+        let searchStartIndex = 0;
+        let searchEndIndex = originalLines.length;
+
+        // Validate and handle line range if provided
         if (startLine && endLine) {
             // Convert to 0-based index
             const exactStartIndex = startLine - 1;
             const exactEndIndex = endLine - 1;
 
             if (exactStartIndex < 0 || exactEndIndex > originalLines.length || exactStartIndex > exactEndIndex) {
-                const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}` : '';
-    
-                // Log detailed debug information
-                console.log('Invalid Line Range Debug:', {
-                    requestedRange: { start: startLine, end: endLine },
-                    fileBounds: { start: 1, end: originalLines.length }
-                });
-
                 return {
                     success: false,
-                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)${debugInfo}`,
+                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}`,
                 };
             }
 
-            // Check exact range first
+            // Try exact match first
             const originalChunk = originalLines.slice(exactStartIndex, exactEndIndex + 1).join('\n');
-            const searchChunk = searchLines.join('\n');
-            
             const similarity = getSimilarity(originalChunk, searchChunk);
             if (similarity >= this.fuzzyThreshold) {
                 matchIndex = exactStartIndex;
                 bestMatchScore = similarity;
                 bestMatchContent = originalChunk;
+            } else {
+                // Set bounds for buffered search
+                searchStartIndex = Math.max(0, startLine - (this.bufferLines + 1));
+                searchEndIndex = Math.min(originalLines.length, endLine + this.bufferLines);
             }
         }
 
-        // If no match found in exact range, try expanded range
+        // If no match found yet, try middle-out search within bounds
         if (matchIndex === -1) {
-            let searchStartIndex = 0;
-            let searchEndIndex = originalLines.length;
+            const midPoint = Math.floor((searchStartIndex + searchEndIndex) / 2);
+            let leftIndex = midPoint;
+            let rightIndex = midPoint + 1;
 
-            if (startLine || endLine) {
-                // Convert to 0-based index and add buffer
-                if (startLine) {
-                    searchStartIndex = Math.max(0, startLine - (BUFFER_LINES + 1));
+            // Search outward from the middle within bounds
+            while (leftIndex >= searchStartIndex || rightIndex <= searchEndIndex - searchLines.length) {
+                // Check left side if still in range
+                if (leftIndex >= searchStartIndex) {
+                    const originalChunk = originalLines.slice(leftIndex, leftIndex + searchLines.length).join('\n');
+                    const similarity = getSimilarity(originalChunk, searchChunk);
+                    if (similarity > bestMatchScore) {
+                        bestMatchScore = similarity;
+                        matchIndex = leftIndex;
+                        bestMatchContent = originalChunk;
+                    }
+                    leftIndex--;
                 }
-                if (endLine) {
-                    searchEndIndex = Math.min(originalLines.length, endLine + BUFFER_LINES);
-                }
-            }
 
-            // Find the search content in the expanded range using fuzzy matching
-            for (let i = searchStartIndex; i <= searchEndIndex - searchLines.length; i++) {
-                // Join the lines and calculate overall similarity
-                const originalChunk = originalLines.slice(i, i + searchLines.length).join('\n');
-                const searchChunk = searchLines.join('\n');
-
-                const similarity = getSimilarity(originalChunk, searchChunk);
-                if (similarity > bestMatchScore) {
-                    bestMatchScore = similarity;
-                    matchIndex = i;
-                    bestMatchContent = originalChunk;
+                // Check right side if still in range
+                if (rightIndex <= searchEndIndex - searchLines.length) {
+                    const originalChunk = originalLines.slice(rightIndex, rightIndex + searchLines.length).join('\n');
+                    const similarity = getSimilarity(originalChunk, searchChunk);
+                    if (similarity > bestMatchScore) {
+                        bestMatchScore = similarity;
+                        matchIndex = rightIndex;
+                        bestMatchContent = originalChunk;
+                    }
+                    rightIndex++;
                 }
             }
         }
@@ -283,10 +252,10 @@ Result:
             const originalContentSection = startLine !== undefined && endLine !== undefined
                 ? `\n\nOriginal Content:\n${addLineNumbers(
                     originalLines.slice(
-                        Math.max(0, startLine - 1 - BUFFER_LINES),
-                        Math.min(originalLines.length, endLine + BUFFER_LINES)
+                        Math.max(0, startLine - 1 - this.bufferLines),
+                        Math.min(originalLines.length, endLine + this.bufferLines)
                     ).join('\n'),
-                    Math.max(1, startLine - BUFFER_LINES)
+                    Math.max(1, startLine - this.bufferLines)
                 )}`
                 : `\n\nOriginal Content:\n${addLineNumbers(originalLines.join('\n'))}`;
 
@@ -294,13 +263,11 @@ Result:
                 ? `\n\nBest Match Found:\n${addLineNumbers(bestMatchContent, matchIndex + 1)}`
                 : `\n\nBest Match Found:\n(no match)`;
 
-            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
-
             const lineRange = startLine || endLine ?
                 ` at ${startLine ? `start: ${startLine}` : 'start'} to ${endLine ? `end: ${endLine}` : 'end'}` : '';
             return {
                 success: false,
-                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)${debugInfo}`
+                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}`
             };
         }
 

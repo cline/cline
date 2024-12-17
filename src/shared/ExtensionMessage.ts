@@ -53,7 +53,6 @@ export interface ExtensionState {
 	soundEnabled?: boolean
 	soundVolume?: number
 	diffEnabled?: boolean
-	debugDiffEnabled?: boolean
 }
 
 export interface ClineMessage {

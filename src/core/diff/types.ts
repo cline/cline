@@ -14,11 +14,6 @@ export type DiffResult =
 
 export interface DiffStrategy {
     /**
-     * Whether to enable detailed debug logging
-     */
-    debugEnabled?: boolean;
-
-    /**
      * Get the tool description for this diff strategy
      * @param cwd The current working directory
      * @returns The complete tool description including format requirements and examples

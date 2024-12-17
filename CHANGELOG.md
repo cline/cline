@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.14]
+
+-   Make diff editing more robust to transient errors
+
 ## [2.2.13]
 
 -   Fixes to sound playing and applying diffs
