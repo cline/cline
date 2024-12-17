@@ -1,5 +1,5 @@
 import { DiffStrategy, DiffResult } from "../types"
-import { addLineNumbers } from "../../../integrations/misc/extract-text"
+import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../../../integrations/misc/extract-text"
 
 const BUFFER_LINES = 20; // Number of extra context lines to show before and after matches
 
@@ -140,16 +140,7 @@ Your search/replace content here
         const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
 
         // Strip line numbers from search and replace content if every line starts with a line number
-        const hasLineNumbers = (content: string) => {
-            const lines = content.split(/\r?\n/);
-            return lines.length > 0 && lines.every(line => /^\s*\d+\s+\|(?!\|)/.test(line));
-        };
-
-        if (hasLineNumbers(searchContent) && hasLineNumbers(replaceContent)) {
-            const stripLineNumbers = (content: string) => {
-                return content.replace(/^\s*\d+\s+\|(?!\|)/gm, '');
-            };
-
+        if (everyLineHasLineNumbers(searchContent) && everyLineHasLineNumbers(replaceContent)) {
             searchContent = stripLineNumbers(searchContent);
             replaceContent = stripLineNumbers(replaceContent);
         }
