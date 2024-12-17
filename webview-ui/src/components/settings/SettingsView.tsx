@@ -33,8 +33,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
-		debugDiffEnabled,
-		setDebugDiffEnabled,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -64,7 +62,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
-			vscode.postMessage({ type: "debugDiffEnabled", bool: debugDiffEnabled })
 			onDone()
 		}
 	}
@@ -357,20 +354,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								</div>
 							</div>
 						)}
-					</div>
-
-					<div style={{ marginBottom: 5 }}>
-						<VSCodeCheckbox checked={debugDiffEnabled} onChange={(e: any) => setDebugDiffEnabled(e.target.checked)}>
-							<span style={{ fontWeight: "500" }}>Debug diff operations</span>
-						</VSCodeCheckbox>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							When enabled, Cline will show detailed debug information when applying diffs fails.
-						</p>
 					</div>
 				</div>
 

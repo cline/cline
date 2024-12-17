@@ -55,12 +55,10 @@ function getSimilarity(original: string, search: string): number {
 
 export class SearchReplaceDiffStrategy implements DiffStrategy {
     private fuzzyThreshold: number;
-    public debugEnabled: boolean;
 
-    constructor(fuzzyThreshold?: number, debugEnabled?: boolean) {
+    constructor(fuzzyThreshold?: number) {
         // Default to exact matching (1.0) unless fuzzy threshold specified
         this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
-        this.debugEnabled = debugEnabled ?? false;
     }
 
     getToolDescription(cwd: string): string {
@@ -177,11 +175,9 @@ Result:
         // Extract the search and replace blocks
         const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n?=======\n([\s\S]*?)\n?>>>>>>> REPLACE/);
         if (!match) {
-            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers` : '';
-
             return {
                 success: false,
-                error: `Invalid diff format - missing required SEARCH/REPLACE sections${debugInfo}`
+                error: `Invalid diff format - missing required SEARCH/REPLACE sections\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers`
             };
         }
 
@@ -221,17 +217,9 @@ Result:
             const exactEndIndex = endLine - 1;
 
             if (exactStartIndex < 0 || exactEndIndex > originalLines.length || exactStartIndex > exactEndIndex) {
-                const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}` : '';
-    
-                // Log detailed debug information
-                console.log('Invalid Line Range Debug:', {
-                    requestedRange: { start: startLine, end: endLine },
-                    fileBounds: { start: 1, end: originalLines.length }
-                });
-
                 return {
                     success: false,
-                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)${debugInfo}`,
+                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}`,
                 };
             }
 
@@ -294,13 +282,11 @@ Result:
                 ? `\n\nBest Match Found:\n${addLineNumbers(bestMatchContent, matchIndex + 1)}`
                 : `\n\nBest Match Found:\n(no match)`;
 
-            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
-
             const lineRange = startLine || endLine ?
                 ` at ${startLine ? `start: ${startLine}` : 'start'} to ${endLine ? `end: ${endLine}` : 'end'}` : '';
             return {
                 success: false,
-                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)${debugInfo}`
+                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}`
             };
         }
 
