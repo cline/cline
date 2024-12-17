@@ -1,5 +1,10 @@
 # Roo Cline Changelog
 
+## [2.2.16]
+
+-   Add support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
+-   Unified Bedrock calls using BedrockClient and Bedrock Runtime API
+
 ## [2.2.14 - 2.2.15]
 
 -   Make diff editing more robust to transient errors / fix bugs
