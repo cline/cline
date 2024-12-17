@@ -139,7 +139,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					alignItems: "center",
 					gap: "8px",
 					padding: isExpanded ? "8px 0" : "8px 0 0 0",
-					cursor: "pointer",
+					cursor: !hasEnabledActions ? "pointer" : "default",
 				}}
 				onMouseEnter={() => {
 					if (!hasEnabledActions) {
@@ -151,7 +151,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						setIsHoveringCollapsibleSection(false)
 					}
 				}}
-				onClick={() => setIsExpanded((prev) => !prev)}>
+				onClick={() => {
+					if (!hasEnabledActions) {
+						setIsExpanded((prev) => !prev)
+					}
+				}}>
 				<VSCodeCheckbox
 					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
 					checked={hasEnabledActions && autoApprovalSettings.enabled}
@@ -169,7 +173,15 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						updateEnabled(!autoApprovalSettings.enabled)
 					}}
 				/>
-				<CollapsibleSection isHovered={isHoveringCollapsibleSection}>
+				<CollapsibleSection
+					isHovered={isHoveringCollapsibleSection}
+					style={{ cursor: "pointer" }}
+					onClick={() => {
+						// to prevent this from counteracting parent
+						if (hasEnabledActions) {
+							setIsExpanded((prev) => !prev)
+						}
+					}}>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
 					<span
 						style={{
