@@ -1519,8 +1519,8 @@ function two() {
 
         it('should document start_line and end_line parameters', () => {
             const description = strategy.getToolDescription('/test')
-            expect(description).toContain('start_line: (required) The line number where the search block starts (inclusive).')
-            expect(description).toContain('end_line: (required) The line number where the search block ends (inclusive).')
+            expect(description).toContain('start_line: (required) The line number where the search block starts.')
+            expect(description).toContain('end_line: (required) The line number where the search block ends.')
         })
     })
 })
