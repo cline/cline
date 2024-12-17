@@ -12,9 +12,8 @@ A fork of Cline, an autonomous coding agent, tweaked for more speed and flexibil
 - Sound effects for feedback
 - Quick prompt copying from history
 - OpenRouter compression support
-- Support for newer Gemini models (gemini-exp-1206, gemini-2.0-flash-exp)
+- Support for newer Gemini models (gemini-exp-1206, gemini-2.0-flash-exp) and Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Runs alongside the original Cline
-- Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
 
 ## Disclaimer
 
