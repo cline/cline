@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.13]
+
+-   Fixes to sound playing and applying diffs
+
 ## [2.2.12]
 
 -   Better support for pure deletion and insertion diffs
