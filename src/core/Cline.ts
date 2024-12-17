@@ -46,9 +46,9 @@ import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { showOmissionWarning } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { constructNewFileContent } from "./assistant-message/diff"
+import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -67,6 +67,7 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	alwaysAllowReadOnly: boolean
+	autoApprovalSettings: AutoApprovalSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -94,6 +95,7 @@ export class Cline {
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
+		autoApprovalSettings: AutoApprovalSettings,
 		customInstructions?: string,
 		alwaysAllowReadOnly?: boolean,
 		task?: string,
@@ -108,7 +110,7 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-
+		this.autoApprovalSettings = autoApprovalSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.resumeTaskFromHistory()
