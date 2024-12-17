@@ -21,6 +21,8 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUsePromptCache?: boolean
+	awspromptCacheId?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -107,9 +109,63 @@ export const anthropicModels = {
 
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
+export interface MessageContent {
+    type: 'text' | 'image' | 'video' | 'tool_use' | 'tool_result';
+    text?: string;
+    source?: {
+        type: 'base64';
+        data: string | Uint8Array; // string for Anthropic, Uint8Array for Bedrock
+        media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    };
+    // Video specific fields
+    format?: string;
+    s3Location?: {
+        uri: string;
+        bucketOwner?: string;
+    };
+    // Tool use and result fields
+    toolUseId?: string;
+    name?: string;
+    input?: any;
+    output?: any; // Used for tool_result type
+}
+
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 export const bedrockModels = {
+	"amazon.nova-pro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 3.2,
+		cacheWritesPrice: 0.8, // per million tokens
+		cacheReadsPrice: 0.2, // per million tokens
+	},
+	"amazon.nova-lite-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.06,
+		outputPrice: 0.024,
+		cacheWritesPrice: 0.06, // per million tokens
+		cacheReadsPrice: 0.015, // per million tokens
+	},
+	"amazon.nova-micro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.035,
+		outputPrice: 0.14,
+		cacheWritesPrice: 0.035, // per million tokens
+		cacheReadsPrice: 0.00875, // per million tokens
+	},
 	"anthropic.claude-3-5-sonnet-20241022-v2:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -118,6 +174,9 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75, // per million tokens
+		cacheReadsPrice: 0.3, // per million tokens
+
 	},
 	"anthropic.claude-3-5-haiku-20241022-v1:0": {
 		maxTokens: 8192,
@@ -126,6 +185,9 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
+
 	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
@@ -158,6 +220,87 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+	},
+	"meta.llama3-2-90b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.72,
+		outputPrice: 0.72,
+	},
+	"meta.llama3-2-11b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.16,
+		outputPrice: 0.16,
+	},
+	"meta.llama3-2-3b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"meta.llama3-2-1b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"meta.llama3-1-405b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 2.4,
+	},
+	"meta.llama3-1-70b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.72,
+		outputPrice: 0.72,
+	},
+	"meta.llama3-1-8b-instruct-v1:0" : {
+		maxTokens: 8192,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.22,
+	},
+	"meta.llama3-70b-instruct-v1:0" : {
+		maxTokens: 2048 ,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 2.65,
+		outputPrice: 3.5,
+	},
+	"meta.llama3-8b-instruct-v1:0" : {
+		maxTokens: 2048 ,
+		contextWindow: 4_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -342,3 +485,4 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
+
