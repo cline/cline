@@ -75,6 +75,7 @@ export class Cline {
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
 	private consecutiveMistakeCount: number = 0
+	private consecutiveMistakeCountForApplyDiff: Map<string, number> = new Map()
 	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAborting = false
@@ -1248,15 +1249,18 @@ export class Cline {
 								}
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
+									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
+									this.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 									const errorDetails = diffResult.details ? `\n\nDetails:\n${JSON.stringify(diffResult.details, null, 2)}` : ''
-									await this.say("error", `Unable to apply diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
+									if (currentCount >= 2) {
+										await this.say("error", `Unable to apply diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
+									}
 									pushToolResult(`Error applying diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
 									break
 								}
-								const newContent = diffResult.content
 
 								this.consecutiveMistakeCount = 0
-
+								this.consecutiveMistakeCountForApplyDiff.delete(relPath)
 								// Show diff view before asking for approval
 								this.diffViewProvider.editType = "modify"
 								await this.diffViewProvider.open(relPath);
