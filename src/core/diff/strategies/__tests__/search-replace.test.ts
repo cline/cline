@@ -1054,6 +1054,23 @@ function sum(a, b) {
                 expect(result.content).toBe('function sum(a, b) {\n    return a + b + 1;\n}')
             }
         })
+
+        it('should not exact match empty lines', () => {
+            const originalContent = 'function sum(a, b) {\n\n    return a + b;\n}'
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+function sum(a, b) {
+=======
+import { a } from "a";
+function sum(a, b) {
+>>>>>>> REPLACE`
+
+            const result = strategy.applyDiff(originalContent, diffContent)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe('import { a } from "a";\nfunction sum(a, b) {\n\n    return a + b;\n}')
+            }
+        })
     })
 
     describe('line-constrained search', () => {

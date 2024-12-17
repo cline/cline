@@ -53,6 +53,7 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 
 	return addLineNumbers(extractedText)
 }
+
 export function addLineNumbers(content: string, startLine: number = 1): string {
 	const lines = content.split('\n')
 	const maxLineNumberWidth = String(startLine + lines.length - 1).length
@@ -61,4 +62,29 @@ export function addLineNumbers(content: string, startLine: number = 1): string {
 			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, ' ')
 			return `${lineNumber} | ${line}`
 		}).join('\n')
+}
+// Checks if every line in the content has line numbers prefixed (e.g., "1 | content" or "123 | content")
+// Line numbers must be followed by a single pipe character (not double pipes)
+export function everyLineHasLineNumbers(content: string): boolean {
+	const lines = content.split(/\r?\n/)
+	return lines.length > 0 && lines.every(line => /^\s*\d+\s+\|(?!\|)/.test(line))
+}
+
+// Strips line numbers from content while preserving the actual content
+// Handles formats like "1 | content", " 12 | content", "123 | content"
+// Preserves content that naturally starts with pipe characters
+export function stripLineNumbers(content: string): string {
+	// Split into lines to handle each line individually
+	const lines = content.split(/\r?\n/)
+	
+	// Process each line
+	const processedLines = lines.map(line => {
+		// Match line number pattern and capture everything after the pipe
+		const match = line.match(/^\s*\d+\s+\|(?!\|)\s?(.*)$/)
+		return match ? match[1] : line
+	})
+	
+	// Join back with original line endings
+	const lineEnding = content.includes('\r\n') ? '\r\n' : '\n'
+	return processedLines.join(lineEnding)
 }

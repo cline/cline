@@ -12,7 +12,7 @@ import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile, addLineNumbers } from "../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers, stripLineNumbers, everyLineHasLineNumbers } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -1090,7 +1090,7 @@ export class Cline {
 									await this.diffViewProvider.open(relPath)
 								}
 								// editor is open, stream content in
-								await this.diffViewProvider.update(newContent, false)
+								await this.diffViewProvider.update(everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent, false)
 								break
 							} else {
 								if (!relPath) {
@@ -1116,7 +1116,7 @@ export class Cline {
 									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
-								await this.diffViewProvider.update(newContent, true)
+								await this.diffViewProvider.update(everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent, true)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 
