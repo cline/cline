@@ -5,7 +5,7 @@ describe('SearchReplaceDiffStrategy', () => {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
-            strategy = new SearchReplaceDiffStrategy() // Default 1.0 threshold for exact matching
+            strategy = new SearchReplaceDiffStrategy(1.0, 5) // Default 1.0 threshold for exact matching, 5 line buffer for tests
         })
 
         it('should replace matching content', () => {
@@ -562,6 +562,63 @@ this.init();
 }`);
             }
         });
+
+        it('should find matches from middle out', () => {
+            const originalContent = `
+function one() {
+    return "target";
+}
+
+function two() {
+    return "target";
+}
+
+function three() {
+    return "target";
+}
+
+function four() {
+    return "target";
+}
+
+function five() {
+    return "target";
+}`.trim()
+        
+            const diffContent = `test.ts
+<<<<<<< SEARCH
+    return "target";
+=======
+    return "updated";
+>>>>>>> REPLACE`
+        
+            // Search around the middle (function three)
+            // Even though all functions contain the target text,
+            // it should match the one closest to line 9 first
+            const result = strategy.applyDiff(originalContent, diffContent, 9, 9)
+            expect(result.success).toBe(true)
+            if (result.success) {
+                expect(result.content).toBe(`function one() {
+    return "target";
+}
+
+function two() {
+    return "target";
+}
+
+function three() {
+    return "updated";
+}
+
+function four() {
+    return "target";
+}
+
+function five() {
+    return "target";
+}`)
+            }
+        })
     })
 
     describe('line number stripping', () => {
@@ -915,7 +972,7 @@ function test() {
                 }
             })
     
-            it('should insert at the start of the file if no start_line is provided for insertion', () => {
+            it('should error if no start_line is provided for insertion', () => {
                 const originalContent = `function test() {
     return true;
 }`
@@ -926,22 +983,15 @@ console.log("test");
 >>>>>>> REPLACE`
     
                 const result = strategy.applyDiff(originalContent, diffContent)
-                expect(result.success).toBe(true)
-                if (result.success) {
-                    expect(result.content).toBe(`console.log("test");
-function test() {
-    return true;
-}`)
-                }
+                expect(result.success).toBe(false)
             })
         })
     })
 
     describe('fuzzy matching', () => {
         let strategy: SearchReplaceDiffStrategy
-
         beforeEach(() => {
-            strategy = new SearchReplaceDiffStrategy(0.9) // 90% similarity threshold
+            strategy = new SearchReplaceDiffStrategy(0.9, 5) // 90% similarity threshold, 5 line buffer for tests
         })
 
         it('should match content with small differences (>90% similar)', () => {
@@ -958,6 +1008,8 @@ function getData() {
     return data.filter(Boolean);
 }
 >>>>>>> REPLACE`
+
+            strategy = new SearchReplaceDiffStrategy(0.9, 5) // Use 5 line buffer for tests
 
             const result = strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
@@ -1008,7 +1060,7 @@ function sum(a, b) {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
-            strategy = new SearchReplaceDiffStrategy()
+            strategy = new SearchReplaceDiffStrategy(0.9, 5)
         })
 
         it('should find and replace within specified line range', () => {
