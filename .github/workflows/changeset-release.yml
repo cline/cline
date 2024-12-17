@@ -1,0 +1,91 @@
+name: Changeset Release
+run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Approve & Merge' }}
+
+on:
+  pull_request:
+    types: [closed, opened, synchronize, labeled]
+
+env:
+  REPO_PATH: ${{ github.repository }}
+  GIT_REF: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  # Job 1: Create version bump PR when changesets are merged to main
+  changeset-pr-version-bump:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.actor != 'R00-B0T'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.GIT_REF }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+            
+      - name: Install Dependencies
+        run: npm run install:all
+
+      # Check if there are any new changesets to process
+      - name: Check for changesets
+        id: check-changesets
+        run: |
+          NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
+          echo "Changesets diff with previous version: $NEW_CHANGESETS"
+          echo "new_changesets=$NEW_CHANGESETS" >> $GITHUB_OUTPUT
+
+      # Create version bump PR using changesets/action if there are new changesets
+      - name: Changeset Pull Request
+        if: steps.check-changesets.outputs.new_changesets != '0'
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          commit: "changeset version bump"
+          title: "Changeset version bump"
+          version: npm run version-packages # This performs the changeset version bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
+
+  # Job 2: Process version bump PR created by R00-B0T
+  changeset-pr-approve-merge:
+    name: Auto approve and merge Bump version PRs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    if: >
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.base.ref == 'main' &&
+        github.actor == 'R00-B0T' &&
+        contains(github.event.pull_request.title, 'Changeset version bump')
+    
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
+          fetch-depth: 0
+          ref: ${{ env.GIT_REF }}
+
+      # Auto-approve PR
+      - name: Auto approve PR
+        uses: hmarr/auto-approve-action@v4
+        with:
+          review-message: "I'm approving since it's a bump version PR"
+
+      # Enable auto-merge for the PR
+      - name: Enable automerge on PR
+        run: gh pr merge --squash --auto ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}

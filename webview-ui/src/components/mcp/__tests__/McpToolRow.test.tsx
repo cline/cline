@@ -23,7 +23,6 @@ jest.mock('@vscode/webview-ui-toolkit/react', () => ({
       <label>
         <input
           type="checkbox"
-          role="checkbox"
           checked={checked}
           onChange={onChange}
         />

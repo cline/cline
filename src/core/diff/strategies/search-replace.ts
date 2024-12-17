@@ -1,4 +1,7 @@
 import { DiffStrategy, DiffResult } from "../types"
+import { addLineNumbers } from "../../../integrations/misc/extract-text"
+
+const BUFFER_LINES = 5; // Number of extra context lines to show before and after matches
 
 function levenshteinDistance(a: string, b: string): number {
     const matrix: number[][] = [];
@@ -30,6 +33,10 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 function getSimilarity(original: string, search: string): number {
+    if (original === '' || search === '') {
+        return 1;
+    }
+
     // Normalize strings by removing extra whitespace but preserve case
     const normalizeStr = (str: string) => str.replace(/\s+/g, ' ').trim();
     
@@ -48,10 +55,12 @@ function getSimilarity(original: string, search: string): number {
 
 export class SearchReplaceDiffStrategy implements DiffStrategy {
     private fuzzyThreshold: number;
+    public debugEnabled: boolean;
 
-    constructor(fuzzyThreshold?: number) {
+    constructor(fuzzyThreshold?: number, debugEnabled?: boolean) {
         // Default to exact matching (1.0) unless fuzzy threshold specified
         this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
+        this.debugEnabled = debugEnabled ?? false;
     }
 
     getToolDescription(cwd: string): string {
@@ -66,8 +75,8 @@ If you're not confident in the exact content to search for, use the read_file to
 Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${cwd})
 - diff: (required) The search/replace block defining the changes.
-- start_line: (required) The line number where the search block starts.
-- end_line: (required) The line number where the search block ends.
+- start_line: (required) The line number where the search block starts (inclusive).
+- end_line: (required) The line number where the search block ends (inclusive).
 
 Diff format:
 \`\`\`
@@ -89,62 +98,107 @@ Original file:
 5 |     return total
 \`\`\`
 
-Search/Replace content:
+1. Search/replace a specific chunk of code:
 \`\`\`
+<apply_diff>
+<path>File path here</path>
+<diff>
 <<<<<<< SEARCH
-def calculate_total(items):
     total = 0
     for item in items:
         total += item
     return total
 =======
-def calculate_total(items):
     """Calculate total with 10% markup"""
     return sum(item * 1.1 for item in items)
 >>>>>>> REPLACE
+</diff>
+<start_line>2</start_line>
+<end_line>5</end_line>
+</apply_diff>
 \`\`\`
 
-Usage:
+Result:
+\`\`\`
+1 | def calculate_total(items):
+2 |     """Calculate total with 10% markup"""
+3 |     return sum(item * 1.1 for item in items)
+\`\`\`
+
+2. Insert code at a specific line (start_line and end_line must be the same, and the content gets inserted before whatever is currently at that line):
+\`\`\`
 <apply_diff>
 <path>File path here</path>
 <diff>
-Your search/replace content here
+<<<<<<< SEARCH
+=======
+    """TODO: Write a test for this"""
+>>>>>>> REPLACE
 </diff>
-<start_line>1</start_line>
+<start_line>2</start_line>
+<end_line>2</end_line>
+</apply_diff>
+\`\`\`
+
+Result:
+\`\`\`
+1 | def calculate_total(items):
+2 |     """TODO: Write a test for this"""
+3 |     """Calculate total with 10% markup"""
+4 |     return sum(item * 1.1 for item in items)
+\`\`\`
+
+3. Delete code at a specific line range:
+\`\`\`
+<apply_diff>
+<path>File path here</path>
+<diff>
+<<<<<<< SEARCH
+    total = 0
+    for item in items:
+        total += item
+    return total
+=======
+>>>>>>> REPLACE
+</diff>
+<start_line>2</start_line>
 <end_line>5</end_line>
-</apply_diff>`
+</apply_diff>
+\`\`\`
+
+Result:
+\`\`\`
+1 | def calculate_total(items):
+\`\`\`
+`
     }
 
     applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult {
         // Extract the search and replace blocks
-        const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/);
+        const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n?=======\n([\s\S]*?)\n?>>>>>>> REPLACE/);
         if (!match) {
-            // Log detailed format information
-            console.log('Invalid Diff Format Debug:', {
-                expectedFormat: "<<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE",
-                tip: "Make sure to include both SEARCH and REPLACE sections with correct markers"
-            });
+            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include both SEARCH and REPLACE sections with correct markers` : '';
 
             return {
                 success: false,
-                error: "Invalid diff format - missing required SEARCH/REPLACE sections"
+                error: `Invalid diff format - missing required SEARCH/REPLACE sections${debugInfo}`
             };
         }
 
         let [_, searchContent, replaceContent] = match;
-        
+
         // Detect line ending from original content
         const lineEnding = originalContent.includes('\r\n') ? '\r\n' : '\n';
 
         // Strip line numbers from search and replace content if every line starts with a line number
         const hasLineNumbers = (content: string) => {
             const lines = content.split(/\r?\n/);
-            return lines.length > 0 && lines.every(line => /^\d+\s+\|(?!\|)/.test(line));
+            return lines.length > 0 && lines.every(line => /^\s*\d+\s+\|(?!\|)/.test(line));
         };
 
         if (hasLineNumbers(searchContent) && hasLineNumbers(replaceContent)) {
             const stripLineNumbers = (content: string) => {
-                return content.replace(/^\d+\s+\|(?!\|)/gm, '') 
+                return content.replace(/^\s*\d+\s+\|(?!\|)/gm, '');
             };
 
             searchContent = stripLineNumbers(searchContent);
@@ -152,8 +206,8 @@ Your search/replace content here
         }
         
         // Split content into lines, handling both \n and \r\n
-        const searchLines = searchContent.split(/\r?\n/);
-        const replaceLines = replaceContent.split(/\r?\n/);
+        const searchLines = searchContent === '' ? [] : searchContent.split(/\r?\n/);
+        const replaceLines = replaceContent === '' ? [] : replaceContent.split(/\r?\n/);
         const originalLines = originalContent.split(/\r?\n/);
         
         // First try exact line range if provided
@@ -161,12 +215,14 @@ Your search/replace content here
         let bestMatchScore = 0;
         let bestMatchContent = "";
         
-        if (startLine !== undefined && endLine !== undefined) {
+        if (startLine && endLine) {
             // Convert to 0-based index
             const exactStartIndex = startLine - 1;
             const exactEndIndex = endLine - 1;
 
-            if (exactStartIndex < 0 || exactEndIndex >= originalLines.length) {
+            if (exactStartIndex < 0 || exactEndIndex > originalLines.length || exactStartIndex > exactEndIndex) {
+                const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Requested Range: lines ${startLine}-${endLine}\n- File Bounds: lines 1-${originalLines.length}` : '';
+    
                 // Log detailed debug information
                 console.log('Invalid Line Range Debug:', {
                     requestedRange: { start: startLine, end: endLine },
@@ -175,7 +231,7 @@ Your search/replace content here
 
                 return {
                     success: false,
-                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)`,
+                    error: `Line range ${startLine}-${endLine} is invalid (file has ${originalLines.length} lines)${debugInfo}`,
                 };
             }
 
@@ -196,13 +252,13 @@ Your search/replace content here
             let searchStartIndex = 0;
             let searchEndIndex = originalLines.length;
 
-            if (startLine !== undefined || endLine !== undefined) {
+            if (startLine || endLine) {
                 // Convert to 0-based index and add buffer
-                if (startLine !== undefined) {
-                    searchStartIndex = Math.max(0, startLine - 6);
+                if (startLine) {
+                    searchStartIndex = Math.max(0, startLine - (BUFFER_LINES + 1));
                 }
-                if (endLine !== undefined) {
-                    searchEndIndex = Math.min(originalLines.length, endLine + 5);
+                if (endLine) {
+                    searchEndIndex = Math.min(originalLines.length, endLine + BUFFER_LINES);
                 }
             }
 
@@ -224,17 +280,27 @@ Your search/replace content here
         // Require similarity to meet threshold
         if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
             const searchChunk = searchLines.join('\n');
-            // Log detailed debug information to console
-            console.log('Search/Replace Debug Info:', {
-                similarity: bestMatchScore,
-                threshold: this.fuzzyThreshold,
-                searchContent: searchChunk,
-                bestMatch: bestMatchContent || undefined
-            });
+            const originalContentSection = startLine !== undefined && endLine !== undefined
+                ? `\n\nOriginal Content:\n${addLineNumbers(
+                    originalLines.slice(
+                        Math.max(0, startLine - 1 - BUFFER_LINES),
+                        Math.min(originalLines.length, endLine + BUFFER_LINES)
+                    ).join('\n'),
+                    Math.max(1, startLine - BUFFER_LINES)
+                )}`
+                : `\n\nOriginal Content:\n${addLineNumbers(originalLines.join('\n'))}`;
 
+            const bestMatchSection = bestMatchContent
+                ? `\n\nBest Match Found:\n${addLineNumbers(bestMatchContent, matchIndex + 1)}`
+                : `\n\nBest Match Found:\n(no match)`;
+
+            const debugInfo = this.debugEnabled ? `\n\nDebug Info:\n- Similarity Score: ${Math.floor(bestMatchScore * 100)}%\n- Required Threshold: ${Math.floor(this.fuzzyThreshold * 100)}%\n- Search Range: ${startLine && endLine ? `lines ${startLine}-${endLine}` : 'start to end'}\n\nSearch Content:\n${searchChunk}${bestMatchSection}${originalContentSection}` : '';
+
+            const lineRange = startLine || endLine ?
+                ` at ${startLine ? `start: ${startLine}` : 'start'} to ${endLine ? `end: ${endLine}` : 'end'}` : '';
             return {
                 success: false,
-                error: `No sufficiently similar match found${startLine !== undefined ? ` near lines ${startLine}-${endLine}` : ''} (${Math.round(bestMatchScore * 100)}% similar, needs ${Math.round(this.fuzzyThreshold * 100)}%)`
+                error: `No sufficiently similar match found${lineRange} (${Math.floor(bestMatchScore * 100)}% similar, needs ${Math.floor(this.fuzzyThreshold * 100)}%)${debugInfo}`
             };
         }
 
@@ -256,7 +322,7 @@ Your search/replace content here
         // Apply the replacement while preserving exact indentation
         const indentedReplaceLines = replaceLines.map((line, i) => {
             // Get the matched line's exact indentation
-            const matchedIndent = originalIndents[0];
+            const matchedIndent = originalIndents[0] || '';
             
             // Get the current line's indentation relative to the search content
             const currentIndentMatch = line.match(/^[\t ]*/);
