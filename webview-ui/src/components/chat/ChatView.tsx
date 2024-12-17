@@ -523,7 +523,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 
 			// Split command by chaining operators
-			const commands = command.split(/&&|\|\||;|\||\$\(|`/).map(cmd => cmd.trim())
+			const commands = command.split(/&&|\|\||;|(?<!"[^"]*)\|(?![^"]*")|\$\(|`/).map(cmd => cmd.trim())
 
 			// Check if all individual commands are allowed
 			return commands.every((cmd) => {
