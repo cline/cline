@@ -2,8 +2,8 @@
 
 ## [2.2.16]
 
--   Add support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
--   Unified Bedrock calls using BedrockClient and Bedrock Runtime API
+-  Incorporate dbasclpy's [PR](https://github.com/RooVetGit/Roo-Cline/pull/54) to add support for gemini-exp-1206
+-   Unified Bedrock calls using BedrockClient and Bedrock Runtime API from [PR](https://github.com/RooVetGit/Roo-Cline/pull/54)
 
 ## [2.2.14 - 2.2.15]
 
