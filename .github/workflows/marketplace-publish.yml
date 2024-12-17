@@ -7,7 +7,7 @@ on:
 jobs:
   publish-extension:
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'R00-B0T'}}
+    if: ${{ github.actor == 'R00-B0T' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
