@@ -1,8 +1,8 @@
 # Roo Cline Changelog
 
-## [2.2.14]
+## [2.2.14 - 2.2.15]
 
--   Make diff editing more robust to transient errors
+-   Make diff editing more robust to transient errors / fix bugs
 
 ## [2.2.13]
 
