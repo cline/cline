@@ -1230,8 +1230,9 @@ export class Cline {
 
 								if (!fileExists) {
 									this.consecutiveMistakeCount++
-									await this.say("error", `File does not exist at path: ${absolutePath}`)
-									pushToolResult(`Error: File does not exist at path: ${absolutePath}`)
+									const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
+									await this.say("error", formattedError)
+									pushToolResult(formattedError)
 									break
 								}
 
@@ -1251,11 +1252,12 @@ export class Cline {
 									this.consecutiveMistakeCount++
 									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 									this.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
-									const errorDetails = diffResult.details ? `\n\nDetails:\n${JSON.stringify(diffResult.details, null, 2)}` : ''
+									const errorDetails = diffResult.details ? JSON.stringify(diffResult.details, null, 2) : ''
+									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${diffResult.error}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ''}\n</error_details>`
 									if (currentCount >= 2) {
-										await this.say("error", `Unable to apply diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
+										await this.say("error", formattedError)
 									}
-									pushToolResult(`Error applying diff to file: ${absolutePath}\n${diffResult.error}${errorDetails}`)
+									pushToolResult(formattedError)
 									break
 								}
 
