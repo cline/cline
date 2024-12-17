@@ -45,7 +45,7 @@ export class BrowserSession {
 		return stats
 	}
 
-	async launchBrowser() {
+	async launchBrowser(): Promise<void> {
 		console.log("launch browser called")
 		if (this.browser) {
 			// throw new Error("Browser already launched")
@@ -58,10 +58,9 @@ export class BrowserSession {
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
 			executablePath: stats.executablePath,
-			defaultViewport: {
-				width: 900,
-				height: 600,
-			},
+			defaultViewport: await this.context.globalState.get("browserLargeViewport")
+				? { width: 1280, height: 800 }
+				: { width: 900, height: 600 },
 			// headless: false,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
@@ -245,25 +244,27 @@ export class BrowserSession {
 	}
 
 	async scrollDown(): Promise<BrowserActionResult> {
+		const isLargeViewport = await this.context.globalState.get("browserLargeViewport")
 		return this.doAction(async (page) => {
-			await page.evaluate(() => {
+			await page.evaluate((scrollHeight) => {
 				window.scrollBy({
-					top: 600,
+					top: scrollHeight,
 					behavior: "auto",
 				})
-			})
+			}, isLargeViewport ? 800 : 600)
 			await delay(300)
 		})
 	}
 
 	async scrollUp(): Promise<BrowserActionResult> {
+		const isLargeViewport = await this.context.globalState.get("browserLargeViewport")
 		return this.doAction(async (page) => {
-			await page.evaluate(() => {
+			await page.evaluate((scrollHeight) => {
 				window.scrollBy({
-					top: -600,
+					top: -scrollHeight,
 					behavior: "auto",
 				})
-			})
+			}, isLargeViewport ? 800 : 600)
 			await delay(300)
 		})
 	}

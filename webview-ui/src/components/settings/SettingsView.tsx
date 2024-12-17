@@ -33,6 +33,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
+		browserLargeViewport = false,
+		setBrowserLargeViewport,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
@@ -62,6 +64,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
+			vscode.postMessage({ type: "browserLargeViewport", bool: browserLargeViewport })
 			onDone()
 		}
 	}
@@ -316,6 +319,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				<div style={{ marginBottom: 5 }}>
 					<h4 style={{ fontWeight: 500, marginBottom: 10 }}>Experimental Features</h4>
+
+					<div style={{ marginBottom: 10 }}>
+						<VSCodeCheckbox checked={browserLargeViewport} onChange={(e: any) => setBrowserLargeViewport(e.target.checked)}>
+							<span style={{ fontWeight: "500" }}>Use larger browser viewport (1280x800)</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Cline will use a larger viewport size for browser interactions.
+						</p>
+					</div>
 
 					<div style={{ marginBottom: 5 }}>
 						<div style={{ marginBottom: 10 }}>
