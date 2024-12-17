@@ -51,8 +51,13 @@ const ACTION_METADATA: {
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
+	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
+
+	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
+	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
+	const hasEnabledActions = enabledActions.length > 0
 
 	const updateEnabled = useCallback(
 		(enabled: boolean) => {
@@ -69,14 +74,22 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const updateAction = useCallback(
 		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
+			// Calculate what the new actions state will be
+			const newActions = {
+				...autoApprovalSettings.actions,
+				[actionId]: value,
+			}
+
+			// Check if this will result in any enabled actions
+			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
+
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
 					...autoApprovalSettings,
-					actions: {
-						...autoApprovalSettings.actions,
-						[actionId]: value,
-					},
+					actions: newActions,
+					// If no actions will be enabled, ensure the main toggle is off
+					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
 				},
 			})
 		},
@@ -109,9 +122,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		[autoApprovalSettings],
 	)
 
-	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
-	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
-
 	return (
 		<div
 			style={{
@@ -131,16 +141,35 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					padding: isExpanded ? "8px 0" : "8px 0 0 0",
 					cursor: "pointer",
 				}}
+				onMouseEnter={() => {
+					if (!hasEnabledActions) {
+						setIsHoveringCollapsibleSection(true)
+					}
+				}}
+				onMouseLeave={() => {
+					if (!hasEnabledActions) {
+						setIsHoveringCollapsibleSection(false)
+					}
+				}}
 				onClick={() => setIsExpanded((prev) => !prev)}>
 				<VSCodeCheckbox
-					checked={autoApprovalSettings.enabled}
-					onChange={(e) => {
-						const checked = (e.target as HTMLInputElement).checked
-						updateEnabled(checked)
+					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
+					checked={hasEnabledActions && autoApprovalSettings.enabled}
+					disabled={!hasEnabledActions}
+					// onChange={(e) => {
+					// 	const checked = (e.target as HTMLInputElement).checked
+					// 	updateEnabled(checked)
+					// }}
+					onClick={(e) => {
+						/*
+						vscode web toolkit bug: when changing the value of a vscodecheckbox programatically, it will call its onChange with stale state. This led to updateEnabled being called with an old vesion of autoApprovalSettings, effectively undoing the state change that was triggered by the last action being unchecked. A simple workaround is to just not use onChange and intead use onClick. We are lucky this is a checkbox and the newvalue is simply opposite of current state.
+						*/
+						if (!hasEnabledActions) return
+						e.stopPropagation() // stops click from bubbling up to the parent, in this case stopping the expanding/collapsing
+						updateEnabled(!autoApprovalSettings.enabled)
 					}}
-					onClick={(e) => e.stopPropagation()}
 				/>
-				<CollapsibleSection>
+				<CollapsibleSection isHovered={isHoveringCollapsibleSection}>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
 					<span
 						style={{
@@ -253,11 +282,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	)
 }
 
-const CollapsibleSection = styled.div`
+const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	color: var(--vscode-descriptionForeground);
+	color: ${(props) => (props.isHovered ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	flex: 1;
 	min-width: 0;
 
