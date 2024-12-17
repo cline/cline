@@ -179,7 +179,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setDidClickCancel(false) // special case where we reset the cancel button state							
 							break
 						case "resume_completed_task":
-							playSound("celebration")
 							setTextAreaDisabled(false)
 							setClineAsk("resume_completed_task")
 							setEnableButtons(true)
