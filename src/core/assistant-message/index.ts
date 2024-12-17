@@ -12,6 +12,7 @@ export const toolUseNames = [
 	"execute_command",
 	"read_file",
 	"write_to_file",
+	"replace_in_file",
 	"search_files",
 	"list_files",
 	"list_code_definition_names",
@@ -29,6 +30,7 @@ export const toolParamNames = [
 	"command",
 	"requires_approval",
 	"path",
+	"content",
 	"diff",
 	"regex",
 	"file_pattern",
@@ -68,6 +70,11 @@ export interface ReadFileToolUse extends ToolUse {
 
 export interface WriteToFileToolUse extends ToolUse {
 	name: "write_to_file"
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
+}
+
+export interface ReplaceInFileToolUse extends ToolUse {
+	name: "replace_in_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "diff">>
 }
 

@@ -13,12 +13,14 @@ import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
+import { BrowserSession } from "../services/browser/BrowserSession"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
+import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
 import {
@@ -40,15 +42,13 @@ import { ClineAskResponse } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
-import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
+import { constructNewFileContent } from "./assistant-message/diff"
+import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { BrowserSession } from "../services/browser/BrowserSession"
-import { constructNewFileContent } from "./assistant-message/diff"
-import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -621,7 +621,7 @@ export class Cline {
 			text:
 				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
 					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+						? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 						: ""
 				}` +
 				(responseText
@@ -896,6 +896,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.path}']`
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
+						case "replace_in_file":
+							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
 							return `[${block.name} for '${block.params.regex}'${
 								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
@@ -1035,11 +1037,15 @@ export class Cline {
 				}
 
 				switch (block.name) {
-					case "write_to_file": {
+					case "write_to_file":
+					case "replace_in_file": {
+						console.log("editing file with", block.name)
+
 						const relPath: string | undefined = block.params.path
-						let diff: string | undefined = block.params.diff
-						if (!relPath || !diff) {
-							// checking for diff ensure relPath is complete
+						let content: string | undefined = block.params.content // for write_to_file
+						let diff: string | undefined = block.params.diff // for replace_in_file
+						if (!relPath || (!content && !diff)) {
+							// checking for content/diff ensures relPath is complete
 							// wait so we can determine if it's a new file or editing an existing file
 							break
 						}
@@ -1053,26 +1059,30 @@ export class Cline {
 							this.diffViewProvider.editType = fileExists ? "modify" : "create"
 						}
 
-						const sharedMessageProps: ClineSayTool = {
-							tool: fileExists ? "editedExistingFile" : "newFileCreated",
-							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
-						}
 						try {
 							// Construct newContent from diff
-							let newContent = await constructNewFileContent(
-								diff,
-								this.diffViewProvider.originalContent || "",
-								!block.partial,
-							)
+							let newContent: string
+							if (diff) {
+								newContent = await constructNewFileContent(
+									diff,
+									this.diffViewProvider.originalContent || "",
+									!block.partial,
+								)
+							} else if (content) {
+								newContent = content
 
-							// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
-							// if (newContent.startsWith("```")) {
-							// 	// this handles cases where it includes language specifiers like ```python ```js
-							// 	newContent = newContent.split("\n").slice(1).join("\n").trim()
-							// }
-							// if (newContent.endsWith("```")) {
-							// 	newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
-							// }
+								// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
+								if (newContent.startsWith("```")) {
+									// this handles cases where it includes language specifiers like ```python ```js
+									newContent = newContent.split("\n").slice(1).join("\n").trim()
+								}
+								if (newContent.endsWith("```")) {
+									newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
+								}
+							} else {
+								// can't happen, since we already checked for content/diff above. but need to do this for type error
+								break
+							}
 
 							if (!this.api.getModel().id.includes("claude")) {
 								// it seems not just llama models are doing this, but also gemini and potentially others
@@ -1090,6 +1100,13 @@ export class Cline {
 
 							newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
+							const sharedMessageProps: ClineSayTool = {
+								tool: fileExists ? "editedExistingFile" : "newFileCreated",
+								path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+								content: fileExists ? undefined : newContent,
+								diff: fileExists ? diff : undefined,
+							}
+
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
@@ -1105,13 +1122,19 @@ export class Cline {
 							} else {
 								if (!relPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
+									pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"))
 									await this.diffViewProvider.reset()
 									break
 								}
-								if (!diff) {
+								if (block.name === "replace_in_file" && !diff) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "diff"))
+									pushToolResult(await this.sayAndCreateMissingParamError("replace_in_file", "diff"))
+									await this.diffViewProvider.reset()
+									break
+								}
+								if (block.name === "write_to_file" && !content) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
 									await this.diffViewProvider.reset()
 									break
 								}
@@ -1163,11 +1186,11 @@ export class Cline {
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`IMPORTANT: If you need to make further changes to this file, use this final_file_content as the new baseline for your changes, as it is now the current state of the file (including the user's edits and any auto-formatting done by the system). \n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
 											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+											`4. If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including the user's edits and any auto-formatting done by the system).\n` +
 											`${newProblemsMessage}`,
 									)
 								} else {
@@ -1175,7 +1198,7 @@ export class Cline {
 										`The content was successfully saved to ${relPath.toPosix()}.\n\n` +
 											`Here is the full, updated content of the file:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`IMPORTANT: If you need to make further changes to this file, use this final_file_content as the new baseline for your changes, as it is now the current state of the file (including any auto-formatting done by the system). \n\n` +
+											`Please note: If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including any auto-formatting done by the system).\n\n` +
 											`${newProblemsMessage}`,
 									)
 								}

@@ -180,6 +180,15 @@ export async function constructNewFileContent(
 					searchEndIndex = originalContent.length
 				}
 			} else {
+				// Add check for inefficient full-file search
+				// if (currentSearchContent.trim() === originalContent.trim()) {
+				// 	throw new Error(
+				// 		"The SEARCH block contains the entire file content. Please either:\n" +
+				// 			"1. Use an empty SEARCH block to replace the entire file, or\n" +
+				// 			"2. Make focused changes to specific parts of the file that need modification.",
+				// 	)
+				// }
+
 				// Exact search match scenario
 				const exactIndex = originalContent.indexOf(currentSearchContent, lastProcessedIndex)
 				if (exactIndex !== -1) {
