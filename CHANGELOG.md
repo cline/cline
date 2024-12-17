@@ -2,7 +2,7 @@
 
 ## [2.2.16]
 
--   Incorporate dbasclpy's [PR](https://github.com/RooVetGit/Roo-Cline/pull/60) to add support for Meta Models via Bedrock (3, 3.1, 3.2) and unified Bedrock calls using BedrockClient and Bedrock Runtime API
+-   Incorporate Premshays's [PR](https://github.com/RooVetGit/Roo-Cline/pull/60) to add support for Meta Models via Bedrock (3, 3.1, 3.2) and unified Bedrock calls using BedrockClient and Bedrock Runtime API
 
 ## [2.2.14 - 2.2.15]
 
