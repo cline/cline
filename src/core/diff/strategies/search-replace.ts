@@ -33,7 +33,7 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 function getSimilarity(original: string, search: string): number {
-    if (original === '' || search === '') {
+    if (search === '') {
         return 1;
     }
 
