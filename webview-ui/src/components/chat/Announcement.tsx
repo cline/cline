@@ -75,7 +75,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					</VSCodeLink>{" "}
 					feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime
 					debugging, end-to-end testing, and even general web use!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
+					<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
 						See a demo here.
 					</VSCodeLink>
 				</li>
