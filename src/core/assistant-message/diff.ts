@@ -205,7 +205,7 @@ export async function constructNewFileContent(
 						;[searchMatchIndex, searchEndIndex] = fallbackMatch
 					} else {
 						throw new Error(
-							`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+							`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.\nThis is likely due to differences in whitespace or line endings between the SEARCH block and the actual file. Try again with a more precise SEARCH block.\n(If you keep running into this error, you may use the write_to_file tool as a workaround.)`,
 						)
 					}
 				}

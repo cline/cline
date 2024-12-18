@@ -1134,8 +1134,7 @@ export class Cline {
 							const sharedMessageProps: ClineSayTool = {
 								tool: fileExists ? "editedExistingFile" : "newFileCreated",
 								path: getReadablePath(cwd, removeClosingTag("path", relPath)),
-								content: fileExists ? undefined : newContent,
-								diff: fileExists ? diff : undefined,
+								content: diff || content,
 							}
 
 							if (block.partial) {
@@ -1191,8 +1190,7 @@ export class Cline {
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
-									content: fileExists ? undefined : newContent,
-									diff: fileExists ? diff : undefined,
+									content: diff || content,
 									// ? formatResponse.createPrettyPatch(
 									// 		relPath,
 									// 		this.diffViewProvider.originalContent,
@@ -1204,6 +1202,9 @@ export class Cline {
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+
+									// we need an artificial delay to let the diagnostics catch up to the changes
+									await delay(3_500)
 								} else {
 									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 									showNotificationForApprovalIfAutoApprovalEnabled(
@@ -1649,12 +1650,13 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (this.shouldAutoApproveTool(block.name)) {
-									await this.say(
-										"command",
-										removeClosingTag("command", command),
-										undefined,
-										block.partial,
-									).catch(() => {})
+									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
+									// await this.say(
+									// 	"command",
+									// 	removeClosingTag("command", command),
+									// 	undefined,
+									// 	block.partial,
+									// ).catch(() => {})
 								} else {
 									await this.ask(
 										"command",

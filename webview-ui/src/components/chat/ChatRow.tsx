@@ -281,7 +281,7 @@ export const ChatRowContent = ({
 						</div>
 						<CodeAccordian
 							// isLoading={message.partial}
-							code={tool.diff!}
+							code={tool.content}
 							path={tool.path!}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
@@ -565,7 +565,7 @@ export const ChatRowContent = ({
 							color: "var(--vscode-errorForeground)",
 						}}>
 						<i className="codicon codicon-warning"></i>
-						<span>The model has determined this command requires explicit approval</span>
+						<span>The model has determined this command requires explicit approval.</span>
 					</div>
 				)}
 			</>
