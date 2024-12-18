@@ -5,6 +5,7 @@
 - Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
 - Adds support for a more comprehensive auto-approve configuration, allowing you to specify which tools require approval and which don't.
 - Adds ability to enable system notifications for when Cline needs approval or completes a task.
+- Adds support for a root-level `.clinerules` file that can be used to specify custom instructions for the project.
 
 ## [2.2.0]
 

@@ -34,13 +34,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
+					<b>Auto-approve menu:</b> You can now specify which tools require approval, set a max # of
+					auto-approved API requests, and enable system notifications for when Cline completes a task.
+				</li>
+				<li>
 					<b>New diff editing for large files:</b> Cline now uses an efficient search & replace approach when
 					modifying large files for faster, more reliable edits (no more "
 					<code>{"// rest of code here"}</code>" deletions).
 				</li>
 				<li>
-					<b>Auto-approve menu:</b> You can now specify which tools require approval, set a max # of
-					auto-approved API requests, and enable system notifications for when Cline completes a task.
+					<b>.clinerules:</b> Add a root-level <code>.clinerules</code> file to specify custom instructions
+					for the project.
 				</li>
 			</ul>
 			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.2 Updates:</p>
@@ -61,22 +65,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
 					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
 						see a demo of MCP in action here.
-					</VSCodeLink>
-				</li>
-			</ul>
-			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.1 Updates:</p>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				<li>
-					Cline now uses Anthropic's new{" "}
-					<VSCodeLink
-						href="https://www.anthropic.com/news/3-5-models-and-computer-use"
-						style={{ display: "inline" }}>
-						"Computer Use"
-					</VSCodeLink>{" "}
-					feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime
-					debugging, end-to-end testing, and even general web use!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1850880547825823989" style={{ display: "inline" }}>
-						See a demo here.
 					</VSCodeLink>
 				</li>
 			</ul>
