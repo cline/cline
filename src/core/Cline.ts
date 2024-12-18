@@ -73,6 +73,7 @@ export class Cline {
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
+	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
 	private providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
@@ -1192,6 +1193,7 @@ export class Cline {
 
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -1274,6 +1276,7 @@ export class Cline {
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -1326,6 +1329,7 @@ export class Cline {
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -1375,6 +1379,7 @@ export class Cline {
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -1431,6 +1436,7 @@ export class Cline {
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
@@ -1506,6 +1512,7 @@ export class Cline {
 
 									if (this.shouldAutoApproveTool(block.name)) {
 										await this.say("browser_action_launch", url, undefined, false)
+										this.consecutiveAutoApprovedRequestsCount++
 									} else {
 										const didApprove = await askApproval("browser_action_launch", url)
 										if (!didApprove) {
@@ -1649,6 +1656,7 @@ export class Cline {
 
 								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
 									await this.say("command", command, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval(
 										"command",
@@ -1741,6 +1749,7 @@ export class Cline {
 
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("use_mcp_server", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
@@ -1821,6 +1830,7 @@ export class Cline {
 
 								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("use_mcp_server", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
@@ -2073,6 +2083,18 @@ export class Cline {
 				)
 			}
 			this.consecutiveMistakeCount = 0
+		}
+
+		if (
+			this.autoApprovalSettings.enabled &&
+			this.consecutiveAutoApprovedRequestsCount >= this.autoApprovalSettings.maxRequests
+		) {
+			await this.ask(
+				"auto_approval_max_req_reached",
+				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
+			)
+			// if we get past the promise it means the user approved and did not start a new task
+			this.consecutiveAutoApprovedRequestsCount = 0
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history

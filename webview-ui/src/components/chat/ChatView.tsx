@@ -89,6 +89,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Proceed Anyways")
 							setSecondaryButtonText("Start New Task")
 							break
+						case "auto_approval_max_req_reached":
+							setTextAreaDisabled(true)
+							setClineAsk("auto_approval_max_req_reached")
+							setEnableButtons(true)
+							setPrimaryButtonText("Proceed")
+							setSecondaryButtonText("Start New Task")
+							break
 						case "followup":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
@@ -305,6 +312,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "use_mcp_server":
 			case "resume_task":
 			case "mistake_limit_reached":
+			case "auto_approval_max_req_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
 				break
 			case "completion_result":
@@ -331,6 +339,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		switch (clineAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
+			case "auto_approval_max_req_reached":
 				startNewTask()
 				break
 			case "command":

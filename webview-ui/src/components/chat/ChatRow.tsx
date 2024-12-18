@@ -119,6 +119,13 @@ export const ChatRowContent = ({
 						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
 					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
+			case "auto_approval_max_req_reached":
+				return [
+					<span
+						className="codicon codicon-warning"
+						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
+				]
 			case "command":
 				return [
 					isCommandExecuting ? (
@@ -886,7 +893,16 @@ export const ChatRowContent = ({
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
 					)
-
+				case "auto_approval_max_req_reached":
+					return (
+						<>
+							<div style={headerStyle}>
+								{icon}
+								{title}
+							</div>
+							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
+						</>
+					)
 				case "completion_result":
 					if (message.text) {
 						return (
