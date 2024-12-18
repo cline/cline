@@ -20,20 +20,28 @@ async function showMacOSNotification(options: NotificationOptions): Promise<void
 }
 
 async function showWindowsNotification(options: NotificationOptions): Promise<void> {
-	const { title, message } = options
-	const duration = 6 // seconds
+	const { subtitle, message } = options
+
 	const script = `
-    Add-Type -AssemblyName System.Windows.Forms
-    $balloon = New-Object System.Windows.Forms.NotifyIcon
-    $balloon.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
-    $balloon.BalloonTipTitle = '${title}'
-    $balloon.BalloonTipText = '${message}'
-    $balloon.Visible = $true
-    $balloon.ShowBalloonTip(${duration * 1000})
-    Start-Sleep -Seconds ${duration}
-    $balloon.Visible = $false
-    $balloon.Dispose()
-  `
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+    $template = @"
+    <toast>
+        <visual>
+            <binding template="ToastText02">
+                <text id="1">${subtitle}</text>
+                <text id="2">${message}</text>
+            </binding>
+        </visual>
+    </toast>
+"@
+
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xml.LoadXml($template)
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Cline").Show($toast)
+    `
 
 	try {
 		await execa("powershell", ["-Command", script])
