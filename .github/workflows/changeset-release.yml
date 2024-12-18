@@ -1,5 +1,5 @@
 name: Changeset Release
-run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Approve & Merge' }}
+run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Ready for Review' }}
 
 on:
   pull_request:
@@ -69,7 +69,6 @@ jobs:
         github.event.pull_request.base.ref == 'main' &&
         github.actor == 'R00-B0T' &&
         contains(github.event.pull_request.title, 'Changeset version bump')
-    
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -77,15 +76,15 @@ jobs:
           token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
           fetch-depth: 0
           ref: ${{ env.GIT_REF }}
-
       # Auto-approve PR
       - name: Auto approve PR
         uses: hmarr/auto-approve-action@v4
         with:
           review-message: "I'm approving since it's a bump version PR"
-
-      # Enable auto-merge for the PR
-      - name: Enable automerge on PR
-        run: gh pr merge --merge --auto ${{ github.event.pull_request.number }}
+      
+      # Auto-merge PR
+      - name: Automerge on PR
+        if: false # Needs enablePullRequestAutoMerge in repo settings to work
+        run: gh pr merge --auto --merge ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}

@@ -1,16 +1,26 @@
 name: Publish Extension
 on:
-  push:
-    branches: ["main"]
+  pull_request:
+    types: [closed]
   workflow_dispatch:
+
+env:
+  GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
 
 jobs:
   publish-extension:
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'R00-B0T' || github.event_name == 'workflow_dispatch' }}
+    if: >
+        ( github.event_name == 'pull_request' &&
+        github.event.pull_request.base.ref == 'main' &&
+        contains(github.event.pull_request.title, 'Changeset version bump') ) ||
+        github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GIT_REF }}
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
       - run: |
