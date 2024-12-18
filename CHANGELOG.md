@@ -1,10 +1,8 @@
 # Roo Cline Changelog
 
-## 2.2.18
+## [2.2.18]
 
-### Patch Changes
-
--   More targeted styling fix for gemini chats
+-   More targeted styling fix for Gemini chats
 
 ## [2.2.17]
 
