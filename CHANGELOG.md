@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.19
-
-### Patch Changes
+## [2.2.19]
 
 -   Add experimental option to use a bigger browser (1280x800)
 
