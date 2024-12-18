@@ -52,8 +52,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
+	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
@@ -186,6 +186,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "text":
 						case "browser_action":
 						case "browser_action_result":
+						case "browser_action_launch":
+						case "command":
+						case "use_mcp_server":
 						case "command_output":
 						case "mcp_server_request_started":
 						case "mcp_server_response":
@@ -210,8 +213,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			setTextAreaDisabled(false)
 			setClineAsk(undefined)
 			setEnableButtons(false)
-			setPrimaryButtonText(undefined)
-			setSecondaryButtonText(undefined)
+			setPrimaryButtonText("Approve")
+			setSecondaryButtonText("Reject")
 		}
 	}, [messages.length])
 
@@ -462,7 +465,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return ["browser_action_launch"].includes(message.ask!)
 		}
 		if (message.type === "say") {
-			return ["api_req_started", "text", "browser_action", "browser_action_result"].includes(message.say!)
+			return [
+				"browser_action_launch",
+				"api_req_started",
+				"text",
+				"browser_action",
+				"browser_action_result",
+			].includes(message.say!)
 		}
 		return false
 	}
@@ -481,7 +490,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 
 		visibleMessages.forEach((message) => {
-			if (message.ask === "browser_action_launch") {
+			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 				// complete existing browser session if any
 				endBrowserSession()
 				// start new
@@ -881,7 +890,7 @@ const ScrollToBottomButton = styled.div`
 	justify-content: center;
 	align-items: center;
 	flex: 1;
-	height: 25px;
+	height: 24px;
 
 	&:hover {
 		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);

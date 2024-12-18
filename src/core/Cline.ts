@@ -66,7 +66,6 @@ export class Cline {
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	alwaysAllowReadOnly: boolean
 	autoApprovalSettings: AutoApprovalSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -97,7 +96,6 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		customInstructions?: string,
-		alwaysAllowReadOnly?: boolean,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -109,7 +107,6 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
 		this.autoApprovalSettings = autoApprovalSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -754,6 +751,29 @@ export class Cline {
 		}
 	}
 
+	shouldAutoApproveTool(toolName: ToolUseName): boolean {
+		if (this.autoApprovalSettings.enabled) {
+			switch (toolName) {
+				case "read_file":
+				case "list_files":
+				case "list_code_definition_names":
+				case "search_files":
+					return this.autoApprovalSettings.actions.readFiles
+				case "write_to_file":
+				case "replace_in_file":
+					return this.autoApprovalSettings.actions.editFiles
+				case "execute_command":
+					return this.autoApprovalSettings.actions.executeCommands
+				case "browser_action":
+					return this.autoApprovalSettings.actions.useBrowser
+				case "access_mcp_resource":
+				case "use_mcp_tool":
+					return this.autoApprovalSettings.actions.useMcp
+			}
+		}
+		return false
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1110,7 +1130,11 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1165,11 +1189,17 @@ export class Cline {
 									// 	)
 									// : undefined,
 								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									await this.diffViewProvider.revertChanges()
-									break
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										await this.diffViewProvider.revertChanges()
+										break
+									}
 								}
+
 								const { newProblemsMessage, userEdits, finalContent } =
 									await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
@@ -1224,7 +1254,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1242,7 +1272,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1274,7 +1304,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1294,7 +1324,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1322,7 +1352,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1343,7 +1373,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1375,7 +1405,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
@@ -1399,7 +1429,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
 									const didApprove = await askApproval("tool", completeMessage)
@@ -1434,11 +1464,20 @@ export class Cline {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									await this.ask(
-										"browser_action_launch",
-										removeClosingTag("url", url),
-										block.partial,
-									).catch(() => {})
+									if (this.shouldAutoApproveTool(block.name)) {
+										await this.say(
+											"browser_action_launch",
+											removeClosingTag("url", url),
+											undefined,
+											block.partial,
+										)
+									} else {
+										await this.ask(
+											"browser_action_launch",
+											removeClosingTag("url", url),
+											block.partial,
+										).catch(() => {})
+									}
 								} else {
 									await this.say(
 										"browser_action",
@@ -1464,9 +1503,14 @@ export class Cline {
 										break
 									}
 									this.consecutiveMistakeCount = 0
-									const didApprove = await askApproval("browser_action_launch", url)
-									if (!didApprove) {
-										break
+
+									if (this.shouldAutoApproveTool(block.name)) {
+										await this.say("browser_action_launch", url, undefined, false)
+									} else {
+										const didApprove = await askApproval("browser_action_launch", url)
+										if (!didApprove) {
+											break
+										}
 									}
 
 									// NOTE: it's okay that we call this message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
@@ -1568,9 +1612,20 @@ export class Cline {
 
 						try {
 							if (block.partial) {
-								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {},
-								)
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say(
+										"command",
+										removeClosingTag("command", command),
+										undefined,
+										block.partial,
+									).catch(() => {})
+								} else {
+									await this.ask(
+										"command",
+										removeClosingTag("command", command),
+										block.partial,
+									).catch(() => {})
+								}
 								break
 							} else {
 								if (!command) {
@@ -1591,13 +1646,20 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
-								const didApprove = await askApproval(
-									"command",
-									command + `${requiresApproval ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
-								)
-								if (!didApprove) {
-									break
+
+								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+									await this.say("command", command, undefined, false)
+								} else {
+									const didApprove = await askApproval(
+										"command",
+										command +
+											`${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+									)
+									if (!didApprove) {
+										break
+									}
 								}
+
 								const [userRejected, result] = await this.executeCommandTool(command)
 								if (userRejected) {
 									this.didRejectTool = true
@@ -1622,7 +1684,13 @@ export class Cline {
 									toolName: removeClosingTag("tool_name", tool_name),
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
-								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								}
+
 								break
 							} else {
 								if (!server_name) {
@@ -1670,10 +1738,16 @@ export class Cline {
 									toolName: tool_name,
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
-								const didApprove = await askApproval("use_mcp_server", completeMessage)
-								if (!didApprove) {
-									break
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("use_mcp_server", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("use_mcp_server", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
+
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
 								const toolResult = await this.providerRef
@@ -1715,7 +1789,13 @@ export class Cline {
 									serverName: removeClosingTag("server_name", server_name),
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
-								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								}
+
 								break
 							} else {
 								if (!server_name) {
@@ -1738,10 +1818,16 @@ export class Cline {
 									serverName: server_name,
 									uri,
 								} satisfies ClineAskUseMcpServer)
-								const didApprove = await askApproval("use_mcp_server", completeMessage)
-								if (!didApprove) {
-									break
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say("use_mcp_server", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("use_mcp_server", completeMessage)
+									if (!didApprove) {
+										break
+									}
 								}
+
 								// now execute the tool
 								await this.say("mcp_server_request_started")
 								const resourceResult = await this.providerRef
@@ -1824,6 +1910,7 @@ export class Cline {
 									// remove the previous partial attempt_completion ask, replace with say, post state to webview, then stream command
 
 									// const secondLastMessage = this.clineMessages.at(-2)
+									// NOTE: we do not want to auto approve a command run as part of the attempt_completion tool
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
 										await this.ask(

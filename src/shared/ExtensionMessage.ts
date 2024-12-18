@@ -41,7 +41,6 @@ export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
-	alwaysAllowReadOnly?: boolean
 	uriScheme?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
@@ -82,13 +81,16 @@ export type ClineSay =
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "api_req_retried"
+	| "command"
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
+	| "browser_action_launch"
 	| "browser_action"
 	| "browser_action_result"
 	| "mcp_server_request_started"
 	| "mcp_server_response"
+	| "use_mcp_server"
 
 export interface ClineSayTool {
 	tool:
