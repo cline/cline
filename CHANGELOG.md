@@ -1,5 +1,11 @@
 # Change Log
 
+## [3.0.0]
+
+- Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
+- Adds support for a more comprehensive auto-approve configuration, allowing you to specify which tools require approval and which don't.
+- Adds ability to enable system notifications for when Cline needs approval or completes a task.
+
 ## [2.2.0]
 
 - Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool

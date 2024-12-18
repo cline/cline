@@ -32,36 +32,54 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>Add custom tools to Cline using MCP!</p>
-			<p style={{ margin: "5px 0px" }}>
-				The Model Context Protocol allows agents like Cline to plug and play custom tools,{" "}
-				<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-					e.g. a web-search tool or GitHub tool.
-				</VSCodeLink>
-			</p>
-			<p style={{ margin: "5px 0px" }}>
-				You can add and configure MCP servers by clicking the new{" "}
-				<span className="codicon codicon-server" style={{ fontSize: "10px" }}></span> icon in the menu bar.
-			</p>
-			<p style={{ margin: "5px 0px" }}>
-				To take things a step further, Cline also has the ability to create custom tools for himself. Just say
-				"add a tool that..." and watch as he builds and installs new capabilities specific to{" "}
-				<i>your workflow</i>. For example:
-				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>"...fetches Jira tickets": Get ticket ACs and put Cline to work</li>
-					<li>"...manages AWS EC2s": Check server metrics and scale up or down</li>
-					<li>"...pulls PagerDuty incidents": Pulls details to help Cline fix bugs</li>
-				</ul>
-				Cline handles everything from creating the MCP server to installing it in the extension, ready to use in
-				future tasks. The servers are saved to <code>~/Documents/Cline/MCP</code> so you can easily share them
-				with others too.{" "}
-			</p>
-			<p style={{ margin: "5px 0px" }}>
-				Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
-				<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-					see a demo of MCP in action here.
-				</VSCodeLink>
-			</p>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				<li>
+					<b>New diff editing for large files:</b> Cline now uses an efficient search & replace approach when
+					modifying large files for faster, more reliable edits (no more "
+					<code>{"// rest of code here"}</code>" deletions).
+				</li>
+				<li>
+					<b>Auto-approve menu:</b> You can now specify which tools require approval, set a max # of
+					auto-approved API requests, and enable system notifications for when Cline completes a task.
+				</li>
+			</ul>
+			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.2 Updates:</p>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				<li>
+					Add and configure{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+						MCP servers
+					</VSCodeLink>
+					by clicking the new <span className="codicon codicon-server" style={{ fontSize: "10px" }}></span>{" "}
+					icon in the menu bar.
+				</li>
+				<li>
+					Cline can also create custom tools–just say "add a tool that...", and watch him create the MCP
+					server and install it in the extension, ready to use in future tasks.
+				</li>
+				<li>
+					Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
+					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+						see a demo of MCP in action here.
+					</VSCodeLink>
+				</li>
+			</ul>
+			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.1 Updates:</p>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				<li>
+					Cline now uses Anthropic's new{" "}
+					<VSCodeLink
+						href="https://www.anthropic.com/news/3-5-models-and-computer-use"
+						style={{ display: "inline" }}>
+						"Computer Use"
+					</VSCodeLink>{" "}
+					feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime
+					debugging, end-to-end testing, and even general web use!{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
+				</li>
+			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
