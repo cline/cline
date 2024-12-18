@@ -1084,8 +1084,6 @@ export class Cline {
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
-						console.log("editing file with", block.name)
-
 						const relPath: string | undefined = block.params.path
 						let content: string | undefined = block.params.content // for write_to_file
 						let diff: string | undefined = block.params.diff // for replace_in_file
