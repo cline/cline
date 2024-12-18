@@ -13,7 +13,7 @@ export class OllamaHandler implements ApiHandler {
 		this.options = options
 		this.client = new OpenAI({
 			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
-			apiKey: "ollama",
+			apiKey: this.options.ollamaApiKey || "ollama",
 		})
 	}
 
