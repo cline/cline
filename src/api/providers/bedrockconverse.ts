@@ -1,6 +1,7 @@
 import { 
   BedrockRuntimeClient, 
   ConverseStreamCommand,
+  ConverseCommand,
   ToolConfiguration, 
   Tool,
   AccessDeniedException,
@@ -19,6 +20,48 @@ import { ApiHandlerOptions, bedrockConverseDefaultModelId, BedrockConverseModelI
 import { ApiStream } from "../transform/stream"
 import { convertToBedrock } from "../transform/bedrockconverse-format"
 import { Anthropic } from "@anthropic-ai/sdk"
+
+// Define interfaces for Bedrock content block types
+interface ContentBlockBase {
+  text?: string;
+}
+
+interface ImageContentBlock extends ContentBlockBase {
+  image?: {
+    format?: string;
+  };
+}
+
+interface DocumentContentBlock extends ContentBlockBase {
+  document?: {
+    name?: string;
+    format?: string;
+  };
+}
+
+interface VideoContentBlock extends ContentBlockBase {
+  video?: {
+    format?: string;
+  };
+}
+
+interface ToolUseContentBlock extends ContentBlockBase {
+  toolUse?: {
+    name?: string;
+  };
+}
+
+interface ToolResultContentBlock extends ContentBlockBase {
+  toolResult?: {
+    content?: Array<{
+      text?: string;
+      json?: unknown;
+    }>;
+    status?: string;
+  };
+}
+
+type ContentBlock = ContentBlockBase & ImageContentBlock & DocumentContentBlock & VideoContentBlock & ToolUseContentBlock & ToolResultContentBlock;
 
 export class AwsBedrockConverseHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -51,73 +94,128 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			...convertedMessages
 		]
 
-		// Get the base request parameters using the original model ID
+		// Get the base request parameters
 		const baseRequest = convertToBedrock(allMessages, model.id, {
 			temperature: 0,
 			max_tokens: model.info.maxTokens || 8192,
-			toolConfig: this.getToolConfig()
+			toolConfig: model.info.supportsStreamingWithTools ? this.getToolConfig() : undefined,
+			awsUseCrossRegionInference: this.options.awsUseCrossRegionInference,
+			awsRegion: this.options.awsRegion
 		})
 
-		// Handle cross-region inference by modifying the modelId in the request if needed
-		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
-			switch (regionPrefix) {
-				case "us-":
-					baseRequest.modelId = `us.${model.id}`
-					break
-				case "eu-":
-					baseRequest.modelId = `eu.${model.id}`
-					break
-				// cross region inference is not supported in other regions, keep default model ID
-			}
-		}
-
 		try {
-			const command = new ConverseStreamCommand(baseRequest)
-			const response = await this.client.send(command)
+			// Use streaming for models that support tools, non-streaming for others
+			if (model.info.supportsStreamingWithTools) {
+				// Streaming implementation with tools
+				const command = new ConverseStreamCommand(baseRequest)
+				const response = await this.client.send(command)
 
-			if (!response.stream) {
-				throw new Error("No stream in response from Bedrock Converse API")
-			}
-
-			let currentText = ""
-			let inputTokens = 0
-			let outputTokens = 0
-
-			for await (const event of response.stream) {
-				// Handle content block delta events (text chunks)
-				if ("contentBlockDelta" in event && event.contentBlockDelta?.delta?.text) {
-					const text = event.contentBlockDelta.delta.text
-					currentText += text
-					
-					// Convert to Anthropic format for text chunks
-					const textBlock: Anthropic.Messages.ContentBlock = {
-						type: "text",
-						text
-					}
-					yield {
-						type: "text",
-						text: textBlock.text,
-					}
+				if (!response.stream) {
+					throw new Error("No stream in response from Bedrock Converse API")
 				}
 
-				// Handle message stop events
-				if ("messageStop" in event) {
-					if (event.messageStop?.stopReason === "content_filtered") {
-						throw new Error("Response was filtered by content moderation")
+				let currentText = ""
+				let inputTokens = 0
+				let outputTokens = 0
+
+				for await (const event of response.stream) {
+					// Handle content block delta events (text chunks)
+					if ("contentBlockDelta" in event && event.contentBlockDelta?.delta?.text) {
+						const text = event.contentBlockDelta.delta.text
+						currentText += text
+						
+						// Convert to Anthropic format for text chunks
+						const textBlock: Anthropic.Messages.ContentBlock = {
+							type: "text",
+							text
+						}
+						yield {
+							type: "text",
+							text: textBlock.text,
+						}
+					}
+
+					// Handle message stop events
+					if ("messageStop" in event) {
+						if (event.messageStop?.stopReason === "content_filtered") {
+							throw new Error("Response was filtered by content moderation")
+						}
+					}
+
+					// Handle metadata events (usage information)
+					if ("metadata" in event && event.metadata?.usage) {
+						inputTokens = event.metadata.usage.inputTokens ?? 0
+						outputTokens = event.metadata.usage.outputTokens ?? 0
+
+						// Convert to Anthropic format for usage
+						yield {
+							type: "usage",
+							inputTokens: inputTokens || 0,
+							outputTokens: outputTokens || 0,
+						}
 					}
 				}
+			} else {
+				// Non-streaming implementation without tools
+				const command = new ConverseCommand(baseRequest)
+				const response = await this.client.send(command)
 
-				// Handle metadata events (usage information)
-				if ("metadata" in event && event.metadata?.usage) {
-					inputTokens = event.metadata.usage.inputTokens ?? 0
-					outputTokens = event.metadata.usage.outputTokens ?? 0
+				if (response.output?.message?.content) {
+					// Convert each content block to Anthropic format
+					for (const block of response.output.message.content) {
+						const contentBlock = block as ContentBlock
 
-					// Convert to Anthropic format for usage
-					yield {
-						type: "usage",
-						inputTokens,
-						outputTokens,
+						if (contentBlock.text) {
+							yield {
+								type: "text",
+								text: contentBlock.text,
+							}
+						} else if (contentBlock.image?.format) {
+							yield {
+								type: "text",
+								text: `[Image: ${contentBlock.image.format}]`,
+							}
+						} else if (contentBlock.document?.name && contentBlock.document?.format) {
+							yield {
+								type: "text",
+								text: `[Document: ${contentBlock.document.name} (${contentBlock.document.format})]`,
+							}
+						} else if (contentBlock.video?.format) {
+							yield {
+								type: "text",
+								text: `[Video: ${contentBlock.video.format}]`,
+							}
+						} else if (contentBlock.toolUse?.name) {
+							yield {
+								type: "text",
+								text: `[Tool Use: ${contentBlock.toolUse.name}]`,
+							}
+						} else if (contentBlock.toolResult?.content) {
+							const resultContent = contentBlock.toolResult.content
+								.map(c => {
+									if (c.text) return c.text
+									if (c.json) return JSON.stringify(c.json)
+									return ''
+								})
+								.filter(text => text.length > 0)
+								.join('\n')
+
+							if (resultContent) {
+								yield {
+									type: "text",
+									text: `[Tool Result: ${contentBlock.toolResult.status || 'unknown'}]\n${resultContent}`,
+								}
+							}
+						}
+					}
+
+					// Yield usage information if available
+					if (response.usage) {
+						yield {
+							type: "usage",
+							inputTokens: response.usage.inputTokens || 0,
+							outputTokens: response.usage.outputTokens || 0,
+						}
 					}
 				}
 			}
@@ -195,14 +293,14 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "execute_command",
-					description: "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory.",
+					description: "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory. Each command is run in a new terminal instance, and interactive/long-running commands are supported.",
 					inputSchema: {
 						json: {
 							type: "object",
 							properties: {
 								command: { 
 									type: "string",
-									description: "The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions."
+									description: "The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions. For commands that need to run in a different directory, prepend with cd into that directory."
 								}
 							},
 							required: ["command"]
@@ -231,7 +329,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "write_to_file",
-					description: "Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.",
+					description: "Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified. Partial updates or placeholders are strictly forbidden.",
 					inputSchema: {
 						json: {
 							type: "object",
@@ -242,7 +340,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 								},
 								content: { 
 									type: "string",
-									description: "The content to write to the file. Must be the complete file content, not partial updates."
+									description: "The content to write to the file. Must be the complete file content, not partial updates. Include ALL parts of the file, even unchanged sections."
 								}
 							},
 							required: ["path", "content"]
@@ -253,7 +351,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "search_files",
-					description: "Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context. Use this for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.",
+					description: "Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context. Use this for understanding code patterns, finding specific implementations, or identifying areas that need refactoring. Results include surrounding lines for better context understanding.",
 					inputSchema: {
 						json: {
 							type: "object",
@@ -264,7 +362,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 								},
 								regex: { 
 									type: "string",
-									description: "The regular expression pattern to search for. Uses Rust regex syntax."
+									description: "The regular expression pattern to search for. Uses Rust regex syntax. Craft patterns carefully to balance specificity and flexibility."
 								},
 								file_pattern: { 
 									type: "string",
@@ -279,7 +377,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "list_files",
-					description: "Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.",
+					description: "Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not. Use recursive listing for detailed directory exploration, and top-level only for simpler directory views.",
 					inputSchema: {
 						json: {
 							type: "object",
@@ -319,7 +417,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "browser_action",
-					description: "Request to interact with a Puppeteer-controlled browser. Every action, except 'close', will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action. The sequence of actions must always start with launching the browser at a URL, and must always end with closing the browser. While the browser is active, only the browser_action tool can be used. The browser window has a resolution of 900x600 pixels.",
+					description: "Request to interact with a Puppeteer-controlled browser. Every action, except 'close', will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action. The sequence of actions must always start with launching the browser at a URL, and must always end with closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL. While the browser is active, only the browser_action tool can be used. The browser window has a resolution of 900x600 pixels. Before clicking on elements, consult the screenshot to determine coordinates and click in the center of elements.",
 					inputSchema: {
 						json: {
 							type: "object",
@@ -334,7 +432,7 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 								},
 								coordinate: { 
 									type: "string",
-									description: "The X,Y coordinates for click action (e.g., '450,300'). Must be within 900x600 resolution"
+									description: "The X,Y coordinates for click action (e.g., '450,300'). Must be within 900x600 resolution. Always click in the center of elements."
 								},
 								text: { 
 									type: "string",
@@ -367,14 +465,14 @@ export class AwsBedrockConverseHandler implements ApiHandler {
 			{
 				toolSpec: {
 					name: "attempt_completion",
-					description: "Present the result of your work to the user after confirming all previous tool uses were successful. The result should be final and not require further input. Never end the result with questions or offers for further assistance.",
+					description: "Present the result of your work to the user after confirming all previous tool uses were successful. The result should be final and not require further input. Never end the result with questions or offers for further assistance. This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Wait for user confirmation after each tool use before proceeding.",
 					inputSchema: {
 						json: {
 							type: "object",
 							properties: {
 								result: { 
 									type: "string",
-									description: "The result of the task. Must be final and not require further input from the user."
+									description: "The result of the task. Must be final and not require further input from the user. Do not end with questions or offers for assistance."
 								},
 								command: { 
 									type: "string",
