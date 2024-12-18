@@ -54,21 +54,15 @@ const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 3px;
-		margin: 13px 0;
-		padding: 10px;
-		max-width: 100%;
+		margin: 13x 0;
+		padding: 10px 10px;
+		max-width: calc(100vw - 20px);
+		overflow-x: auto;
+		overflow-y: hidden;
 		white-space: pre-wrap;
-		word-break: break-word;
-		overflow-wrap: break-word;
 	}
 
 	pre > code {
-		white-space: pre-wrap;
-		word-break: break-word;
-		overflow-wrap: break-word;
-		width: 100%;
-		display: inline-block;
-
 		.hljs-deletion {
 			background-color: var(--vscode-diffEditor-removedTextBackground);
 			display: inline-block;
@@ -85,9 +79,7 @@ const StyledMarkdown = styled.div`
 		span.line:empty {
 			display: none;
 		}
-		white-space: pre-wrap;
-		word-break: break-word;
-		overflow-wrap: break-word;
+		word-wrap: break-word;
 		border-radius: 3px;
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
@@ -125,10 +117,7 @@ const StyledMarkdown = styled.div`
 	li,
 	ol,
 	ul {
-		line-height: 1.4;
-		white-space: pre-wrap;
-		word-break: break-word;
-		overflow-wrap: break-word;
+		line-height: 1.25;
 	}
 
 	ol,
