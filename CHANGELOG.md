@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.18]
+
+-   More targeted styling fix for Gemini chats
+
 ## [2.2.17]
 
 -   Improved regex for auto-execution of chained commands
