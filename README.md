@@ -10,6 +10,7 @@ A fork of Cline, an autonomous coding agent, tweaked for more speed and flexibil
 - `.clinerules` for project-specific instructions
 - Drag and drop images into chats
 - Sound effects for feedback
+- Option to use a larger 1280x800 browser
 - Quick prompt copying from history
 - OpenRouter compression support
 - Support for newer Gemini models (gemini-exp-1206, gemini-2.0-flash-exp) and Meta 3, 3.1, and 3.2 models via AWS Bedrock

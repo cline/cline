@@ -1,6 +1,7 @@
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -219,6 +220,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	}, [isBrowsing, currentPage?.nextAction?.messages])
 
 	// Use latest click position while browsing, otherwise use display state
+	const { browserLargeViewport } = useExtensionState()
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
 
 	const [browserSessionRow, { height }] = useSize(
@@ -277,7 +279,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				<div
 					style={{
 						width: "100%",
-						paddingBottom: "calc(200%/3)",
+						paddingBottom: browserLargeViewport ? "62.5%" : "66.67%", // 800/1280 = 0.625, 600/900 = 0.667
 						position: "relative",
 						backgroundColor: "var(--vscode-input-background)",
 					}}>
@@ -319,8 +321,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(parseInt(mousePosition.split(",")[1]) / 600) * 100}%`,
-								left: `${(parseInt(mousePosition.split(",")[0]) / 900) * 100}%`,
+								top: `${(parseInt(mousePosition.split(",")[1]) / (browserLargeViewport ? 800 : 600)) * 100}%`,
+								left: `${(parseInt(mousePosition.split(",")[0]) / (browserLargeViewport ? 1280 : 900)) * 100}%`,
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>

@@ -766,7 +766,8 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy) + await addCustomInstructions(this.customInstructions ?? '', cwd)
+		const { browserLargeViewport } = await this.providerRef.deref()?.getState() ?? {}
+		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserLargeViewport) + await addCustomInstructions(this.customInstructions ?? '', cwd)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {

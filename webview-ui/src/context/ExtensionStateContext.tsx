@@ -31,6 +31,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setSoundEnabled: (value: boolean) => void
 	setSoundVolume: (value: number) => void
 	setDiffEnabled: (value: boolean) => void
+	setBrowserLargeViewport: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -147,6 +148,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setSoundVolume: (value) => setState((prevState) => ({ ...prevState, soundVolume: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
+		setBrowserLargeViewport: (value) => setState((prevState) => ({ ...prevState, browserLargeViewport: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
