@@ -10,6 +10,11 @@ import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
+/**
+ * Manages the VSCode diff view functionality for comparing and editing file changes.
+ * This provider handles both creation of new files and modification of existing files,
+ * with support for streaming updates, decoration overlays, and diagnostic tracking.
+ */
 export class DiffViewProvider {
 	editType?: "create" | "modify"
 	isEditing = false
@@ -23,9 +28,27 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private batchSize = 10
+	private updateTimeout?: NodeJS.Timeout
+	private scrollTimeout?: NodeJS.Timeout
+	private updateMetrics = {
+		lastUpdateTime: 0,
+		updateCount: 0,
+		totalUpdateTime: 0
+	}
 
+	/**
+	 * Creates a new DiffViewProvider instance.
+	 * @param cwd - The current working directory path
+	 */
 	constructor(private cwd: string) {}
 
+	/**
+	 * Opens a file in the diff view for editing.
+	 * Creates necessary directories for new files and handles existing file content.
+	 * @param relPath - The relative path to the file from the current working directory
+	 * @throws Error if the diff editor cannot be opened
+	 */
 	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
 		const fileExists = this.editType === "modify"
@@ -79,6 +102,12 @@ export class DiffViewProvider {
 		this.streamedLines = []
 	}
 
+	/**
+	 * Updates the diff view with new content, handling the changes in batches for performance.
+	 * @param accumulatedContent - The complete content up to this point
+	 * @param isFinal - Whether this is the final update
+	 * @throws Error if required values are not set or editor is closed
+	 */
 	async update(accumulatedContent: string, isFinal: boolean) {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
@@ -96,48 +125,96 @@ export class DiffViewProvider {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		// Place cursor at beginning
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
+		// Optimize batch size based on content length
+		this.batchSize = this.calculateOptimalBatchSize(diffLines.length)
+
+		// Batch process lines
+		for (let i = 0; i < diffLines.length; i += this.batchSize) {
+			const start = performance.now()
+			const batchLines = diffLines.slice(i, i + this.batchSize)
 			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+
+			// Apply batch edit
 			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+			const rangeToReplace = new vscode.Range(0, 0, currentLine + batchLines.length, 0)
+			const contentToReplace = [...accumulatedLines.slice(0, currentLine), ...batchLines].join("\n") + "\n"
 			edit.replace(document.uri, rangeToReplace, contentToReplace)
 			await vscode.workspace.applyEdit(edit)
-			// Update decorations
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
+
+			// Debounce decoration updates
+			if (this.updateTimeout) {
+				clearTimeout(this.updateTimeout)
+			}
+			this.updateTimeout = setTimeout(() => {
+				// Update decorations for the batch
+				this.activeLineController?.setActiveLine(currentLine + batchLines.length - 1)
+				this.fadedOverlayController?.updateOverlayAfterLine(
+					currentLine + batchLines.length - 1,
+					document.lineCount
+				)
+				// Scroll to current line with debounce
+				if (this.scrollTimeout) {
+					clearTimeout(this.scrollTimeout)
+				}
+				this.scrollTimeout = setTimeout(() => {
+					this.scrollEditorToLine(currentLine + batchLines.length - 1)
+				}, 32)
+			}, 32)
+
+			// Update streamedLines for this batch
+			this.streamedLines = [...this.streamedLines, ...batchLines]
+
+			// Update metrics
+			const duration = performance.now() - start
+			this.updateMetrics.updateCount++
+			this.updateMetrics.totalUpdateTime += duration
+			
+			// Adjust batch size periodically
+			if (this.updateMetrics.updateCount % 10 === 0) {
+				const avgUpdateTime = this.updateMetrics.totalUpdateTime / this.updateMetrics.updateCount
+				this.batchSize = this.adjustBatchSize(avgUpdateTime)
+			}
 		}
-		// Update the streamedLines with the new accumulated content
-		this.streamedLines = accumulatedLines
+
 		if (isFinal) {
-			// Handle any remaining lines if the new content is shorter than the original
+			// Clear timeouts
+			if (this.updateTimeout) {
+				clearTimeout(this.updateTimeout)
+			}
+			if (this.scrollTimeout) {
+				clearTimeout(this.scrollTimeout)
+			}
+
+			// Handle remaining lines if content is shorter
 			if (this.streamedLines.length < document.lineCount) {
 				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
+				edit.delete(
+					document.uri,
+					new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0)
+				)
 				await vscode.workspace.applyEdit(edit)
 			}
-			// Add empty last line if original content had one
+
+			// Add final newline if needed
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
+			if (hasEmptyLastLine && !accumulatedContent.endsWith("\n")) {
+				accumulatedContent += "\n"
 			}
-			// Clear all decorations at the end (before applying final edit)
+
+			// Clear decorations
 			this.fadedOverlayController.clear()
 			this.activeLineController.clear()
 		}
 	}
 
+	/**
+	 * Saves the changes made in the diff view and handles any new diagnostics.
+	 * @returns Object containing new problems message, user edits, and final content
+	 */
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -184,7 +261,7 @@ export class DiffViewProvider {
 		const newProblems = diagnosticsToProblemsString(
 			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
 			[
-				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
+				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the Workspace Problems (see below for diagnostics) mention)
 			],
 			this.cwd,
 		) // will be empty string if no errors
@@ -211,6 +288,10 @@ export class DiffViewProvider {
 		}
 	}
 
+	/**
+	 * Reverts any changes made in the diff view and cleans up resources.
+	 * For new files, this includes deleting the file and any created directories.
+	 */
 	async revertChanges(): Promise<void> {
 		if (!this.relPath || !this.activeDiffEditor) {
 			return
@@ -254,6 +335,10 @@ export class DiffViewProvider {
 		await this.reset()
 	}
 
+	/**
+	 * Closes all diff views in VSCode.
+	 * Only closes tabs that aren't dirty to prevent data loss.
+	 */
 	private async closeAllDiffViews() {
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
@@ -270,6 +355,11 @@ export class DiffViewProvider {
 		}
 	}
 
+	/**
+	 * Opens a new diff editor or activates an existing one.
+	 * @returns Promise resolving to the active text editor
+	 * @throws Error if the diff editor fails to open
+	 */
 	private async openDiffEditor(): Promise<vscode.TextEditor> {
 		if (!this.relPath) {
 			throw new Error("No file path set")
@@ -314,6 +404,10 @@ export class DiffViewProvider {
 		})
 	}
 
+	/**
+	 * Scrolls the editor to reveal a specific line.
+	 * @param line - The line number to scroll to
+	 */
 	private scrollEditorToLine(line: number) {
 		if (this.activeDiffEditor) {
 			const scrollLine = line + 4
@@ -324,6 +418,32 @@ export class DiffViewProvider {
 		}
 	}
 
+	/**
+	 * Calculates the optimal batch size based on total number of lines.
+	 * @param totalLines - Total number of lines in the content
+	 * @returns Optimal batch size for processing
+	 */
+	private calculateOptimalBatchSize(totalLines: number): number {
+		if (totalLines < 100) return 5
+		if (totalLines < 500) return 10
+		if (totalLines < 1000) return 20
+		return 50
+	}
+
+	/**
+	 * Adjusts the batch size based on average update time for performance optimization.
+	 * @param avgUpdateTime - Average time taken for updates in milliseconds
+	 * @returns Adjusted batch size
+	 */
+	private adjustBatchSize(avgUpdateTime: number): number {
+		if (avgUpdateTime > 100) return Math.max(5, this.batchSize / 2)
+		if (avgUpdateTime < 16) return Math.min(50, this.batchSize * 1.5)
+		return this.batchSize
+	}
+
+	/**
+	 * Scrolls the editor to the first difference between original and current content.
+	 */
 	scrollToFirstDiff() {
 		if (!this.activeDiffEditor) {
 			return
@@ -346,8 +466,17 @@ export class DiffViewProvider {
 		}
 	}
 
-	// close editor if open?
+	/**
+	 * Resets the provider state and cleans up resources.
+	 * This includes clearing timeouts and resetting all internal state variables.
+	 */
 	async reset() {
+		if (this.updateTimeout) {
+			clearTimeout(this.updateTimeout)
+		}
+		if (this.scrollTimeout) {
+			clearTimeout(this.scrollTimeout)
+		}
 		this.editType = undefined
 		this.isEditing = false
 		this.originalContent = undefined
@@ -358,5 +487,10 @@ export class DiffViewProvider {
 		this.activeLineController = undefined
 		this.streamedLines = []
 		this.preDiagnostics = []
+		this.updateMetrics = {
+			lastUpdateTime: 0,
+			updateCount: 0,
+			totalUpdateTime: 0
+		}
 	}
 }
