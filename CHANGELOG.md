@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.20
+
+### Patch Changes
+
+-   Make fuzzy diff matching configurable (and default to off)
+
 ## [2.2.19]
 
 -   Add experimental option to use a bigger browser (1280x800)
