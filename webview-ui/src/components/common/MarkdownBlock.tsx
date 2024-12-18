@@ -59,6 +59,7 @@ const StyledMarkdown = styled.div`
 		max-width: calc(100vw - 20px);
 		overflow-x: auto;
 		overflow-y: hidden;
+		white-space: pre-wrap;
 	}
 
 	pre > code {
