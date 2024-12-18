@@ -251,11 +251,24 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						}}>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
+							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
 							value={autoApprovalSettings.maxRequests.toString()}
 							onInput={(e) => {
-								const value = parseInt((e.target as HTMLInputElement).value)
+								const input = e.target as HTMLInputElement
+								// Remove any non-numeric characters
+								input.value = input.value.replace(/[^0-9]/g, "")
+								const value = parseInt(input.value)
 								if (!isNaN(value) && value > 0) {
 									updateMaxRequests(value)
+								}
+							}}
+							onKeyDown={(e) => {
+								// Prevent non-numeric keys (except for backspace, delete, arrows)
+								if (
+									!/^\d$/.test(e.key) &&
+									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+								) {
+									e.preventDefault()
 								}
 							}}
 							style={{ flex: 1 }}
