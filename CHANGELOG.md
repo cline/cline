@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.19
+
+### Patch Changes
+
+-   Add experimental option to use a bigger browser (1280x800)
+
 ## [2.2.18]
 
 -   More targeted styling fix for Gemini chats
