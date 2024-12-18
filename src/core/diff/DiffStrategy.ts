@@ -6,10 +6,10 @@ import { SearchReplaceDiffStrategy } from './strategies/search-replace'
  * @param model The name of the model being used (e.g., 'gpt-4', 'claude-3-opus')
  * @returns The appropriate diff strategy for the model
  */
-export function getDiffStrategy(model: string): DiffStrategy {
-    // For now, return SearchReplaceDiffStrategy for all models (with a fuzzy threshold of 0.9)
+export function getDiffStrategy(model: string, fuzzyMatchThreshold?: number): DiffStrategy {
+    // For now, return SearchReplaceDiffStrategy for all models
     // This architecture allows for future optimizations based on model capabilities
-    return new SearchReplaceDiffStrategy(0.9)
+    return new SearchReplaceDiffStrategy(fuzzyMatchThreshold ?? 1.0)
 }
 
 export type { DiffStrategy }

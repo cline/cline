@@ -248,7 +248,7 @@ describe('Cline', () => {
         // Setup mock API configuration
         mockApiConfig = {
             apiProvider: 'anthropic',
-            apiModelId: 'claude-3-sonnet'
+            apiModelId: 'claude-3-5-sonnet-20241022'
         };
 
         // Mock provider methods
@@ -278,20 +278,77 @@ describe('Cline', () => {
                 mockProvider,
                 mockApiConfig,
                 'custom instructions',
-                false, // diffEnabled
-                'test task', // task
-                undefined, // images
-                undefined  // historyItem
+                false,
+                0.95, // 95% threshold
+                'test task'
             );
 
             expect(cline.customInstructions).toBe('custom instructions');
+            expect(cline.diffEnabled).toBe(false);
+        });
+
+        it('should use default fuzzy match threshold when not provided', () => {
+            const cline = new Cline(
+                mockProvider,
+                mockApiConfig,
+                'custom instructions',
+                true,
+                undefined,
+                'test task'
+            );
+
+            expect(cline.diffEnabled).toBe(true);
+            // The diff strategy should be created with default threshold (1.0)
+            expect(cline.diffStrategy).toBeDefined();
+        });
+
+        it('should use provided fuzzy match threshold', () => {
+            const getDiffStrategySpy = jest.spyOn(require('../diff/DiffStrategy'), 'getDiffStrategy');
+            
+            const cline = new Cline(
+                mockProvider,
+                mockApiConfig,
+                'custom instructions',
+                true,
+                0.9, // 90% threshold
+                'test task'
+            );
+
+            expect(cline.diffEnabled).toBe(true);
+            expect(cline.diffStrategy).toBeDefined();
+            expect(getDiffStrategySpy).toHaveBeenCalledWith('claude-3-5-sonnet-20241022', 0.9);
+            
+            getDiffStrategySpy.mockRestore();
+        });
+
+        it('should pass default threshold to diff strategy when not provided', () => {
+            const getDiffStrategySpy = jest.spyOn(require('../diff/DiffStrategy'), 'getDiffStrategy');
+            
+            const cline = new Cline(
+                mockProvider,
+                mockApiConfig,
+                'custom instructions',
+                true,
+                undefined,
+                'test task'
+            );
+
+            expect(cline.diffEnabled).toBe(true);
+            expect(cline.diffStrategy).toBeDefined();
+            expect(getDiffStrategySpy).toHaveBeenCalledWith('claude-3-5-sonnet-20241022', 1.0);
+            
+            getDiffStrategySpy.mockRestore();
         });
 
         it('should require either task or historyItem', () => {
             expect(() => {
                 new Cline(
                     mockProvider,
-                    mockApiConfig
+                    mockApiConfig,
+                    undefined, // customInstructions
+                    false, // diffEnabled
+                    undefined, // fuzzyMatchThreshold
+                    undefined // task
                 );
             }).toThrow('Either historyItem or task/images must be provided');
         });
