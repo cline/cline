@@ -1,9 +1,9 @@
 name: Changeset Release
-run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Ready for Review' }}
+run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Update Changelog' }}
 
 on:
   pull_request:
-    types: [closed, opened, synchronize, labeled]
+    types: [closed, opened, labeled]
 
 env:
   REPO_PATH: ${{ github.repository }}
@@ -76,15 +76,65 @@ jobs:
           token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
           fetch-depth: 0
           ref: ${{ env.GIT_REF }}
-      # Auto-approve PR
+
+      # Get current and previous versions to edit changelog entry
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(git show HEAD:package.json | jq -r '.version')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          PREV_VERSION=$(git show origin/main:package.json | jq -r '.version')
+          echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION"
+          echo "prev_version=$PREV_VERSION"
+
+      # Update CHANGELOG.md with proper format
+      - name: Update Changelog Format
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'changelog-ready') }}
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          PREV_VERSION: ${{ steps.get_version.outputs.prev_version }}
+        run: python .github/scripts/overwrite_changeset_changelog.py
+
+      # Commit and push changelog updates
+      - name: Push Changelog updates
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'changelog-ready') }}
+        run: |
+          git config user.name "R00-B0T"
+          git config user.email github-actions@github.com
+          git status
+          echo "Running git add and commit..."
+          git add CHANGELOG.md
+          git commit -m "Updating CHANGELOG.md format"
+          echo "--------------------------------------------------------------------------------"
+          echo "Pushing to remote..."
+          echo "--------------------------------------------------------------------------------"
+          git push
+
+      # Add label to indicate changelog has been formatted
+      - name: Add changelog-ready label
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'changelog-ready') }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['changelog-ready']
+            });
+
+      # Auto-approve PR only after it has been labeled
       - name: Auto approve PR
+        if: contains(github.event.pull_request.labels.*.name, 'changelog-ready')
         uses: hmarr/auto-approve-action@v4
         with:
           review-message: "I'm approving since it's a bump version PR"
       
       # Auto-merge PR
       - name: Automerge on PR
-        if: false # Needs enablePullRequestAutoMerge in repo settings to work
+        if: false # Needs enablePullRequestAutoMerge in repo settings to work contains(github.event.pull_request.labels.*.name, 'changelog-ready')
         run: gh pr merge --auto --merge ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
