@@ -49,6 +49,7 @@ import { formatResponse } from "./prompts/responses"
 import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
+import { showSystemNotification } from "../integrations/notifications"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1018,6 +1019,15 @@ export class Cline {
 					return true
 				}
 
+				const showNotificationForApprovalIfAutoApprovalEnabled = (message: string) => {
+					if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+						showSystemNotification({
+							subtitle: "Approval Required",
+							message,
+						})
+					}
+				}
+
 				const handleError = async (action: string, error: Error) => {
 					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 					await this.say(
@@ -1195,6 +1205,10 @@ export class Cline {
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
+									)
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
@@ -1278,6 +1292,9 @@ export class Cline {
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to read ${path.basename(absolutePath)}`,
+									)
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1331,6 +1348,9 @@ export class Cline {
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to view directory ${path.basename(absolutePath)}/`,
+									)
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1381,6 +1401,9 @@ export class Cline {
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
+									)
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1438,6 +1461,9 @@ export class Cline {
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to search files in ${path.basename(absolutePath)}/`,
+									)
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1514,6 +1540,9 @@ export class Cline {
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
 									} else {
+										showNotificationForApprovalIfAutoApprovalEnabled(
+											`Cline wants to use a browser and launch ${url}`,
+										)
 										const didApprove = await askApproval("browser_action_launch", url)
 										if (!didApprove) {
 											break
@@ -1654,10 +1683,16 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 
+								let didAutoApprove = false
+
 								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									didAutoApprove = true
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to execute a command: ${command}`,
+									)
 									const didApprove = await askApproval(
 										"command",
 										command +
@@ -1668,7 +1703,22 @@ export class Cline {
 									}
 								}
 
+								let timeoutId: NodeJS.Timeout | undefined
+								if (didAutoApprove && this.autoApprovalSettings.enableNotifications) {
+									// if the command was auto-approved, and it's long running we need to notify the user after some time has passed without proceeding
+									timeoutId = setTimeout(() => {
+										showSystemNotification({
+											subtitle: "Command is still running",
+											message:
+												"An auto-approved command has been running for 30s, and may need your attention.",
+										})
+									}, 30_000)
+								}
+
 								const [userRejected, result] = await this.executeCommandTool(command)
+								if (timeoutId) {
+									clearTimeout(timeoutId)
+								}
 								if (userRejected) {
 									this.didRejectTool = true
 								}
@@ -1751,6 +1801,9 @@ export class Cline {
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to use ${tool_name} on ${server_name}`,
+									)
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
 										break
@@ -1832,6 +1885,9 @@ export class Cline {
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to access ${uri} on ${server_name}`,
+									)
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
 										break
@@ -1879,6 +1935,17 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
+								if (
+									this.autoApprovalSettings.enabled &&
+									this.autoApprovalSettings.enableNotifications
+								) {
+									showSystemNotification({
+										subtitle: "Cline has a question...",
+										message: question.replace(/\n/g, " "),
+									})
+								}
+
 								const { text, images } = await this.ask("followup", question, false)
 								await this.say("user_feedback", text ?? "", images)
 								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
@@ -1963,6 +2030,16 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 
+								if (
+									this.autoApprovalSettings.enabled &&
+									this.autoApprovalSettings.enableNotifications
+								) {
+									showSystemNotification({
+										subtitle: "Task Completed",
+										message: result.replace(/\n/g, " "),
+									})
+								}
+
 								let commandResult: ToolResponse | undefined
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
@@ -2017,7 +2094,7 @@ export class Cline {
 								break
 							}
 						} catch (error) {
-							await handleError("inspecting site", error)
+							await handleError("attempting completion", error)
 							break
 						}
 					}
@@ -2065,6 +2142,12 @@ export class Cline {
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
+			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+				showSystemNotification({
+					subtitle: "Error",
+					message: "Cline is having trouble. Would you like to continue the task?",
+				})
+			}
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
@@ -2089,6 +2172,12 @@ export class Cline {
 			this.autoApprovalSettings.enabled &&
 			this.consecutiveAutoApprovedRequestsCount >= this.autoApprovalSettings.maxRequests
 		) {
+			if (this.autoApprovalSettings.enableNotifications) {
+				showSystemNotification({
+					subtitle: "Max Requests Reached",
+					message: `Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests.`,
+				})
+			}
 			await this.ask(
 				"auto_approval_max_req_reached",
 				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
