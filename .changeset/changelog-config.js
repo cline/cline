@@ -3,16 +3,21 @@ const getReleaseLine = async (changeset) => {
     .split('\n')
     .map(l => l.trim())
     .filter(Boolean);
-  return `-   ${firstLine}`;
+  return `- ${firstLine}`;
 };
 
 const getDependencyReleaseLine = async () => {
   return '';
 };
 
+const getReleaseSummary = async (release) => {
+  return `## [${release.newVersion}]\n\n`;
+};
+
 const changelogFunctions = {
   getReleaseLine,
   getDependencyReleaseLine,
+  getReleaseSummary,
 };
 
 module.exports = changelogFunctions;

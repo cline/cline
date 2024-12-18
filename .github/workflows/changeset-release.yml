@@ -1,5 +1,5 @@
 name: Changeset Release
-run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Approve & Merge' }}
+run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Ready for Review' }}
 
 on:
   pull_request:
@@ -84,6 +84,7 @@ jobs:
       
       # Auto-merge PR
       - name: Automerge on PR
-        run: gh pr merge --merge ${{ github.event.pull_request.number }}
+        if: false # Needs enablePullRequestAutoMerge in repo settings to work
+        run: gh pr merge --auto --merge ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
