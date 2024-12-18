@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.2.17",
+  "version": "2.2.18",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
