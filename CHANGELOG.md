@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.17
-
-### Patch Changes
+## [2.2.17]
 
 -   Improved regex for auto-execution of chained commands
 
