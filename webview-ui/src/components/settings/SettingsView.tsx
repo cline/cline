@@ -33,16 +33,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
-		browserLargeViewport = false,
+		browserLargeViewport,
 		setBrowserLargeViewport,
 		openRouterModels,
 		setAllowedCommands,
 		allowedCommands,
+		fuzzyMatchThreshold,
+		setFuzzyMatchThreshold,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
-
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
@@ -65,6 +66,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "browserLargeViewport", bool: browserLargeViewport })
+			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
 			onDone()
 		}
 	}
@@ -166,6 +168,35 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						When enabled, Cline will be able to edit files more quickly and will automatically reject truncated full-file writes. Works best with the latest Claude 3.5 Sonnet model.
 					</p>
+
+					{diffEnabled && (
+						<div style={{ marginTop: 10 }}>
+							<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+								<span style={{ fontWeight: "500", minWidth: '100px' }}>Match precision</span>
+								<input
+									type="range"
+									min="0.9"
+									max="1"
+									step="0.005"
+									value={fuzzyMatchThreshold ?? 1.0}
+									onChange={(e) => {
+										setFuzzyMatchThreshold(parseFloat(e.target.value));
+									}}
+									style={{
+										flexGrow: 1,
+										accentColor: 'var(--vscode-button-background)',
+										height: '2px'
+									}}
+								/>
+								<span style={{ minWidth: '35px', textAlign: 'left' }}>
+									{Math.round((fuzzyMatchThreshold || 1) * 100)}%
+								</span>
+							</div>
+							<p style={{ fontSize: "12px", marginBottom: 10, color: "var(--vscode-descriptionForeground)" }}>
+								This slider controls how precisely code sections must match when applying diffs. Lower values allow more flexible matching but increase the risk of incorrect replacements. Use values below 100% with extreme caution.
+							</p>
+						</div>
+					)}
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
@@ -351,7 +382,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						{soundEnabled && (
 							<div style={{ marginLeft: 0 }}>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-									<span style={{ fontWeight: "500", minWidth: '50px' }}>Volume</span>
+									<span style={{ fontWeight: "500", minWidth: '100px' }}>Volume</span>
 									<input
 										type="range"
 										min="0"

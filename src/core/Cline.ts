@@ -67,6 +67,7 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
+	diffEnabled: boolean = false
 
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -97,10 +98,11 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		customInstructions?: string,
-		diffEnabled?: boolean,
-		task?: string,
-		images?: string[],
-		historyItem?: HistoryItem,
+		enableDiff?: boolean,
+		fuzzyMatchThreshold?: number,
+		task?: string | undefined,
+		images?: string[] | undefined,
+		historyItem?: HistoryItem | undefined,
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
@@ -109,8 +111,9 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		if (diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id)
+		this.diffEnabled = enableDiff ?? false
+		if (this.diffEnabled && this.api.getModel().id) {
+			this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold ?? 1.0)
 		}
 		if (historyItem) {
 			this.taskId = historyItem.id

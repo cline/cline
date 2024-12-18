@@ -58,7 +58,9 @@ export class SearchReplaceDiffStrategy implements DiffStrategy {
     private bufferLines: number;
 
     constructor(fuzzyThreshold?: number, bufferLines?: number) {
-        // Default to exact matching (1.0) unless fuzzy threshold specified
+        // Use provided threshold or default to exact matching (1.0)
+        // Note: fuzzyThreshold is inverted in UI (0% = 1.0, 10% = 0.9)
+        // so we use it directly here
         this.fuzzyThreshold = fuzzyThreshold ?? 1.0;
         this.bufferLines = bufferLines ?? BUFFER_LINES;
     }

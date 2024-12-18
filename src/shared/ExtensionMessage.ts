@@ -54,6 +54,7 @@ export interface ExtensionState {
 	soundVolume?: number
 	diffEnabled?: boolean
 	browserLargeViewport?: boolean
+	fuzzyMatchThreshold?: number
 }
 
 export interface ClineMessage {

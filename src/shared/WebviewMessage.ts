@@ -39,6 +39,7 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
+		| "fuzzyMatchThreshold"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
