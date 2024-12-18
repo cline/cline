@@ -208,9 +208,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 						}}>
-						Auto-approve allows Cline to perform the following actions without asking for permission. This
-						is potentially dangerous and could lead to unwanted system modifications. Please use with
-						caution and only enable if you understand the risks.
+						Auto-approve allows Cline to perform the following actions without asking for permission. Please
+						use with caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
