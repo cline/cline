@@ -50,6 +50,19 @@ async function showWindowsNotification(options: NotificationOptions): Promise<vo
 	}
 }
 
+async function showLinuxNotification(options: NotificationOptions): Promise<void> {
+	const { title = "", subtitle = "", message } = options
+
+	// Combine subtitle and message if subtitle exists
+	const fullMessage = subtitle ? `${subtitle}\n${message}` : message
+
+	try {
+		await execa("notify-send", [title, fullMessage])
+	} catch (error) {
+		throw new Error(`Failed to show Linux notification: ${error}`)
+	}
+}
+
 export async function showSystemNotification(options: NotificationOptions): Promise<void> {
 	try {
 		const { title = "Cline", message } = options
@@ -64,6 +77,9 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 				break
 			case "win32":
 				await showWindowsNotification({ ...options, title })
+				break
+			case "linux":
+				await showLinuxNotification({ ...options, title })
 				break
 			default:
 				throw new Error("Unsupported platform")
