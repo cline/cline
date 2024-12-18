@@ -1,5 +1,5 @@
 import { ToolConfiguration } from "@aws-sdk/client-bedrock-runtime";
-import { BedrockConverseModelId, bedrockConverseDefaultModelId } from "../../shared/api";
+import { BedrockConverseModelId, bedrockConverseDefaultModelId, bedrockConverseModels } from "../../shared/api";
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -29,6 +29,8 @@ interface ConversionOptions {
   max_tokens?: number;
   stop?: string[];
   toolConfig?: ToolConfiguration;
+  awsUseCrossRegionInference?: boolean;
+  awsRegion?: string;
 }
 
 export function convertToBedrock(
@@ -57,17 +59,46 @@ export function convertToBedrock(
     }
   }
 
-  return {
-    modelId: modelId || bedrockConverseDefaultModelId,
+  const finalModelId = modelId || bedrockConverseDefaultModelId;
+  const modelInfo = bedrockConverseModels[finalModelId];
+
+  const request: BedrockConverseRequest = {
+    modelId: finalModelId,
     messages: bedrockMessages,
-    ...(options && {
-      inferenceConfiguration: {
+  };
+
+  if (options) {
+    // Only include inferenceConfiguration if:
+    // 1. The model supports inference profiles AND
+    // 2. Cross-region inference is enabled (which also controls inference profiles)
+    if (modelInfo.supportsInferenceProfile && options.awsUseCrossRegionInference) {
+      request.inferenceConfiguration = {
         temperature: options.temperature,
         topP: options.top_p,
         maxTokens: options.max_tokens,
         stopSequences: options.stop,
-      },
-      ...(options.toolConfig && { toolConfig: options.toolConfig }),
-    }),
-  };
+      };
+
+      // Only modify modelId for cross-region inference if the model supports it
+      if (options.awsRegion) {
+        let regionPrefix = options.awsRegion.slice(0, 3);
+        switch (regionPrefix) {
+          case "us-":
+            request.modelId = `us.${finalModelId}`;
+            break;
+          case "eu-":
+            request.modelId = `eu.${finalModelId}`;
+            break;
+          // cross region inference is not supported in other regions, keep default model ID
+        }
+      }
+    }
+
+    // Include toolConfig if provided
+    if (options.toolConfig) {
+      request.toolConfig = options.toolConfig;
+    }
+  }
+
+  return request;
 }
