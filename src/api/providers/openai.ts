@@ -62,9 +62,15 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		// Use user-specified context window if provided, otherwise use default
+		const contextWindow = this.options.openAiContextWindow ?? openAiModelInfoSaneDefaults.contextWindow
+
 		return {
 			id: this.options.openAiModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			info: {
+				...openAiModelInfoSaneDefaults,
+				contextWindow,
+			},
 		}
 	}
 }
