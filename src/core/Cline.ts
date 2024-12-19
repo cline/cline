@@ -1125,11 +1125,12 @@ export class Cline {
 								this.diffViewProvider.scrollToFirstDiff()
 
 								// Check for code omissions before proceeding
-								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent)) {
+								const predictedLineCount = parseInt(block.params.line_count ?? "0")
+								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
 									if (this.diffStrategy) {
 										await this.diffViewProvider.revertChanges()
 										pushToolResult(formatResponse.toolError(
-											"Content appears to be truncated. Found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file."
+											`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`
 										))
 										break
 									} else {
