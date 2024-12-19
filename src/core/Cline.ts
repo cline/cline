@@ -1041,6 +1041,7 @@ export class Cline {
 					case "write_to_file": {
 						const relPath: string | undefined = block.params.path
 						let newContent: string | undefined = block.params.content
+						let predictedLineCount: number | undefined = parseInt(block.params.line_count ?? "0")
 						if (!relPath || !newContent) {
 							// checking for newContent ensure relPath is complete
 							// wait so we can determine if it's a new file or editing an existing file
@@ -1109,6 +1110,12 @@ export class Cline {
 									await this.diffViewProvider.reset()
 									break
 								}
+								if (!predictedLineCount) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "line_count"))
+									await this.diffViewProvider.reset()
+									break
+								}
 								this.consecutiveMistakeCount = 0
 
 								// if isEditingFile false, that means we have the full contents of the file already.
@@ -1125,12 +1132,11 @@ export class Cline {
 								this.diffViewProvider.scrollToFirstDiff()
 
 								// Check for code omissions before proceeding
-								const predictedLineCount = parseInt(block.params.line_count ?? "0")
 								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
 									if (this.diffStrategy) {
 										await this.diffViewProvider.revertChanges()
 										pushToolResult(formatResponse.toolError(
-											`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`
+											`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`
 										))
 										break
 									} else {
