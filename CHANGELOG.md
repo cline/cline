@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.22]
+
+-   Add gemini-2.0-flash-thinking-exp-1219
+
 ## [2.2.21]
 
 -   Take predicted file length into account when detecting omissions
