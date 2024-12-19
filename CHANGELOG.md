@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.22
-
-### Patch Changes
+## [2.2.22]
 
 -   Add gemini-2.0-flash-thinking-exp-1219
 
