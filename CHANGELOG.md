@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.21
-
-### Patch Changes
+## [2.2.21]
 
 -   Take predicted file length into account when detecting omissions
 
