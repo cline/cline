@@ -794,6 +794,35 @@ export const ChatRowContent = ({
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
 					)
+				case "diff_error":
+					return (
+						<>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									padding: 8,
+									borderRadius: 3,
+									fontSize: 12,
+								}}>
+								<div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+									<i
+										className="codicon codicon-error"
+										style={{
+											marginRight: 8,
+											fontSize: 18,
+											color: "#FFA500",
+										}}></i>
+									<span style={{ fontWeight: 500, color: "#FFA500" }}>Diff Edit Failed</span>
+								</div>
+								<div>
+									This usually happens when the model uses search patterns that don't match anything
+									in the file. Retrying...
+								</div>
+							</div>
+						</>
+					)
 				case "completion_result":
 					return (
 						<>

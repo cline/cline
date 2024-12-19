@@ -1113,14 +1113,9 @@ export class Cline {
 										!block.partial,
 									)
 								} catch (error) {
-									await this.say(
-										"error",
-										`Failed to apply changes to ${relPath}. The model's diff instructions could not be processed correctly. This usually happens when the search patterns don't match the file content exactly.`,
-									)
+									await this.say("diff_error", relPath)
 									pushToolResult(
-										formatResponse.toolError(
-											`Error writing file: ${JSON.stringify(serializeError(error))}`,
-										),
+										formatResponse.toolError(`Error writing file: ${(error as Error)?.message}`),
 									)
 									await this.diffViewProvider.revertChanges()
 									await this.diffViewProvider.reset()

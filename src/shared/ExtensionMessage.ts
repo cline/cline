@@ -92,6 +92,7 @@ export type ClineSay =
 	| "mcp_server_request_started"
 	| "mcp_server_response"
 	| "use_mcp_server"
+	| "diff_error"
 
 export interface ClineSayTool {
 	tool:
