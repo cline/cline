@@ -385,7 +385,7 @@ export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-ex
 export const geminiModels = {
 	"gemini-2.0-flash-thinking-exp-1219": {
 		maxTokens: 8192,
-		contextWindow: 1_048_576,
+		contextWindow: 32_767,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
