@@ -63,12 +63,14 @@ Description: Request to write full content to a file at the specified path. If t
 Parameters:
 - path: (required) The path of the file to write to (relative to the current working directory ${cwd.toPosix()})
 - content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified. Do NOT include the line numbers in the content though, just the actual content of the file.
+- line_count: (required) The number of lines in the file. Make sure to compute this based on the actual content of the file, not the number of lines in the content you're providing.
 Usage:
 <write_to_file>
 <path>File path here</path>
 <content>
 Your file content here
 </content>
+<line_count>total number of lines in the file, including empty lines</line_count>
 </write_to_file>
 
 ${diffStrategy ? diffStrategy.getToolDescription(cwd.toPosix()) : ""}
@@ -224,6 +226,7 @@ Your final result description here
   "version": "1.0.0"
 }
 </content>
+<line_count>14</line_count>
 </write_to_file>
 
 ## Example 3: Requesting to use an MCP tool
