@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.21
+
+### Patch Changes
+
+-   Take predicted file length into account when detecting omissions
+
 ## [2.2.20]
 
 -   Make fuzzy diff matching configurable (and default to off)
