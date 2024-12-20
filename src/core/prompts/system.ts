@@ -91,6 +91,7 @@ Parameters:
      * Break large SEARCH/REPLACE blocks into a series of smaller blocks that each change a small portion of the file.
      * Include just the changing lines, and a few surrounding lines if needed for uniqueness.
      * Do not include long runs of unchanging lines in SEARCH/REPLACE blocks.
+     * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
