@@ -1,3 +1,5 @@
+// Half-works to simplify the format but needs 'overwrite_changeset_changelog.py' in GHA to finish formatting
+
 const getReleaseLine = async (changeset) => {
   const [firstLine] = changeset.summary
     .split('\n')
@@ -10,14 +12,9 @@ const getDependencyReleaseLine = async () => {
   return '';
 };
 
-const getReleaseSummary = async (release) => {
-  return `## [${release.newVersion}]\n\n`;
-};
-
 const changelogFunctions = {
   getReleaseLine,
   getDependencyReleaseLine,
-  getReleaseSummary,
 };
 
 module.exports = changelogFunctions;
