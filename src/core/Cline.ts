@@ -672,6 +672,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
+		this.diffViewProvider.revertChanges()
 	}
 
 	// Tools
