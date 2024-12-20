@@ -1,5 +1,11 @@
 # Change Log
 
+## [3.0.2]
+
+- Adds block anchor matching for more reliable diff file edits (if 3+ lines, first and last line are used as anchors to search for)
+- Improves diff edit error handling
+- Adds new Gemini models
+
 ## [3.0.0]
 
 - Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
