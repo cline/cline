@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream, ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiHandler } from "../src/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../src/shared/api"
+import { convertToOpenAiMessages } from "../src/api/transform/openai-format"
+import { ApiStreamChunk, ApiStreamUsageChunk } from "../src/api/transform/stream"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
@@ -27,13 +27,13 @@ export class OpenRouterHandler implements ApiHandler {
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
-				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
-				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
+				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline", // Optional, for including your app on openrouter.ai rankings.
+				"X-Title": "Roo-Cline", // Optional. Shows in rankings on openrouter.ai.
 			},
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): AsyncGenerator<ApiStreamChunk> {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -105,6 +105,7 @@ export class OpenRouterHandler implements ApiHandler {
 				maxTokens = 8_192
 				break
 		}
+		// https://openrouter.ai/docs/transforms
 		let fullResponseText = "";
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
@@ -136,7 +137,7 @@ export class OpenRouterHandler implements ApiHandler {
 				yield {
 					type: "text",
 					text: delta.content,
-				}
+				} as ApiStreamChunk;
 			}
 			// if (chunk.usage) {
 			// 	yield {
@@ -168,13 +169,13 @@ export class OpenRouterHandler implements ApiHandler {
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
 				fullResponseText
-			} as OpenRouterApiStreamUsageChunk
+			} as OpenRouterApiStreamUsageChunk;
 		} catch (error) {
 			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
 		}
-	}
 
+	}
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
