@@ -300,6 +300,15 @@ describe('ClineProvider', () => {
         expect(state).toHaveProperty('diffEnabled')
     })
 
+    test('diffEnabled defaults to true when not set', async () => {
+        // Mock globalState.get to return undefined for diffEnabled
+        (mockContext.globalState.get as jest.Mock).mockReturnValue(undefined)
+        
+        const state = await provider.getState()
+        
+        expect(state.diffEnabled).toBe(true)
+    })
+
     test('updates sound utility when sound setting changes', async () => {
         provider.resolveWebviewView(mockWebviewView)
 
