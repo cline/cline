@@ -170,13 +170,11 @@ function blockAnchorFallbackMatch(
  *    incremental chunk (with `isFinal` indicating the last chunk), the final reconstructed
  *    file content is produced.
  *
- * 2. Exact Matching with Fallback:
- *    - For each SEARCH block, the exact text must appear in the original file after
- *      `lastProcessedIndex`. If it does, that portion of the original file will be replaced.
- *    - If no exact match is found using a plain `indexOf`, we fall back to a line-by-line
- *      comparison that ignores leading/trailing whitespace. This is useful if the AI-generated
- *      search content differs slightly in indentation or spacing from the original code.
- *    - If neither exact nor trimmed line-based match is found, an error is thrown.
+ * 2. Matching Strategy (in order of attempt):
+ *    a. Exact Match: First attempts to find the exact SEARCH block text in the original file
+ *    b. Line-Trimmed Match: Falls back to line-by-line comparison ignoring leading/trailing whitespace
+ *    c. Block Anchor Match: For blocks of 3+ lines, tries to match using first/last lines as anchors
+ *    If all matching strategies fail, an error is thrown.
  *
  * 3. Empty SEARCH Section:
  *    - If SEARCH is empty and the original file is empty, this indicates creating a new file
@@ -207,7 +205,7 @@ function blockAnchorFallbackMatch(
  *    - Trailing newlines are not forcibly added. The code tries to output exactly what is specified.
  *
  * Errors:
- * - If the search block cannot be matched exactly or with the line-trimmed fallback approach,
+ * - If the search block cannot be matched using any of the available matching strategies,
  *   an error is thrown.
  */
 export async function constructNewFileContent(
