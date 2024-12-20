@@ -276,7 +276,9 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("edit")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to edit this file:" : "Cline edited this file:"}
+								{message.type === "ask"
+									? "Cline wants to edit this file:"
+									: "Cline is editing this file:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -296,7 +298,7 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to create a new file:"
-									: "Cline created a new file:"}
+									: "Cline is creating a new file:"}
 							</span>
 						</div>
 						<CodeAccordian
