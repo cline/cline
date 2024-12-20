@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.24
+
+### Patch Changes
+
+-   Default diff editing to on for new installs
+
 ## [2.2.23]
 
 -   Fix context window for gemini-2.0-flash-thinking-exp-1219 (thanks @student20880)
