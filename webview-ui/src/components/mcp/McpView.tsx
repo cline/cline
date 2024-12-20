@@ -119,7 +119,10 @@ const McpView = ({ onDone }: McpViewProps) => {
 						community-made servers
 					</VSCodeLink>{" "}
 					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest
-					npm docs").
+					npm docs").{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
 				</div>
 
 				{/* Server List */}
