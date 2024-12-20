@@ -9,6 +9,56 @@ import * as vscode from "vscode"
 import { ClineProvider } from "../webview/ClineProvider"
 
 /**
+ * Gets a comma-separated list of MCP server names, or "(None running currently)" if none
+ */
+function getMcpHubServerNames(mcpHub: McpHub): string {
+  return mcpHub.getServers().map(server => server.name).join(", ") || "(None running currently)"
+}
+
+/**
+ * Generates a formatted string describing the status of connected MCP servers
+ */
+function getMcpHubServerStatus(mcpHub: McpHub): string {
+  if (mcpHub.getServers().length === 0) {
+    return "(No MCP servers currently connected)"
+  }
+
+  return mcpHub.getServers()
+    .filter(server => server.status === "connected")
+    .map(server => {
+      const tools = server.tools
+        ?.map(tool => {
+          const schemaStr = tool.inputSchema
+            ? `    Input Schema:
+    ${JSON.stringify(tool.inputSchema, null, 2).split("\n").join("\n    ")}`
+            : ""
+
+          return `- ${tool.name}: ${tool.description}\n${schemaStr}`
+        })
+        .join("\n\n")
+
+      const templates = server.resourceTemplates
+        ?.map(template => `- ${template.uriTemplate} (${template.name}): ${template.description}`)
+        .join("\n")
+
+      const resources = server.resources
+        ?.map(resource => `- ${resource.uri} (${resource.name}): ${resource.description}`)
+        .join("\n")
+
+      const config = JSON.parse(server.config)
+
+      return (
+        `## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+        (tools ? `\n\n### Available Tools\n${tools}` : "") +
+        (templates ? `\n\n### Resource Templates\n${templates}` : "") +
+        (resources ? `\n\n### Direct Resources\n${resources}` : "")
+      )
+    })
+    .join("\n\n")
+}
+
+
+/**
  * Helper function to evaluate expressions with named modules
  */
 function evaluateExpression(expr: string, context: Record<string, any>): any {
@@ -33,21 +83,48 @@ function getVSCodeUserDir(): string {
  * Entry point used by Cline to construct its behavior.
  */
 export const SYSTEM_PROMPT = async (providerRef: WeakRef<ClineProvider>, variables: Record<string, any>) => {
+  // Resolve any promise values needed for templates
+  const mcpServersPath = await variables.mcpHub?.getMcpServersPath()
+  const mcpSettingsFilePath = await variables.mcpHub?.getMcpSettingsFilePath()
+
   const eval_context = {
     // imports
     os,
     osName,
     defaultShell,
 
+    // Helper functions
+    getMcpHubServerStatus,
+    getMcpHubServerNames,
+
+    // Resolved MCP values
+    mcpServersPath,
+    mcpSettingsFilePath,
+
     // All template variables
     ...variables
   }
   
   /**
-   * Processes template literals in instruction files
+   * Processes template literals in instruction files.
+   * 
+   * Template Format:
+   * - ${ expr } - Will be evaluated and replaced with the result
+   *   Example: ${ await mcpHub.getMcpServersPath() }
+   * 
+   * - \${expr} - Will be skipped (not evaluated)
+   *   Example: `console.log(\${value})`
+   * 
+   * This allows template expressions to be used for dynamic content while preserving
+   * template literals in code examples. The key differences are:
+   * 1. Template expressions use a space after ${
+   * 2. Code examples escape the $ with a backslash
+   * 
+   * The negative lookbehind (?<!\\) in the regex ensures we only match unescaped ${
+   * expressions, leaving escaped ones untouched.
    */
   function interpolateTemplate(template: string): string {
-    return template.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+    return template.replace(/(?<!\\)\$\{([^}]+)\}/g, (match, expr) => {
       try {
         const result = evaluateExpression(expr.trim(), eval_context)
         return String(result)
