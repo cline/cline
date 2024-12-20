@@ -972,7 +972,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts),
 			soundEnabled: soundEnabled ?? false,
-			diffEnabled: diffEnabled ?? false,
+			diffEnabled: diffEnabled ?? true,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -1166,7 +1166,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			allowedCommands,
 			soundEnabled: soundEnabled ?? false,
-			diffEnabled: diffEnabled ?? false,
+			diffEnabled: diffEnabled ?? true,
 			soundVolume,
 			browserLargeViewport: browserLargeViewport ?? false,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
