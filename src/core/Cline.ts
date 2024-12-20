@@ -389,6 +389,19 @@ export class Cline {
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
+	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay) {
+		const lastMessage = this.clineMessages.at(-1)
+		if (
+			lastMessage?.partial &&
+			lastMessage.type === type &&
+			(lastMessage.ask === askOrSay || lastMessage.say === askOrSay)
+		) {
+			this.clineMessages.pop()
+			await this.saveClineMessages()
+			await this.providerRef.deref()?.postStateToWebview()
+		}
+	}
+
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
@@ -1164,8 +1177,10 @@ export class Cline {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								// update editor
@@ -1223,6 +1238,7 @@ export class Cline {
 								} satisfies ClineSayTool)
 
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 
@@ -1233,6 +1249,7 @@ export class Cline {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
@@ -1295,8 +1312,10 @@ export class Cline {
 									content: undefined,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
@@ -1313,12 +1332,14 @@ export class Cline {
 									content: absolutePath,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to read ${path.basename(absolutePath)}`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1349,8 +1370,10 @@ export class Cline {
 									content: "",
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
@@ -1369,12 +1392,14 @@ export class Cline {
 									content: result,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view directory ${path.basename(absolutePath)}/`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1401,8 +1426,10 @@ export class Cline {
 									content: "",
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
@@ -1422,12 +1449,14 @@ export class Cline {
 									content: result,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1458,8 +1487,10 @@ export class Cline {
 									content: "",
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
@@ -1482,12 +1513,14 @@ export class Cline {
 									content: results,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to search files in ${path.basename(absolutePath)}/`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										break
@@ -1521,6 +1554,7 @@ export class Cline {
 							if (block.partial) {
 								if (action === "launch") {
 									if (this.shouldAutoApproveTool(block.name)) {
+										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say(
 											"browser_action_launch",
 											removeClosingTag("url", url),
@@ -1528,6 +1562,7 @@ export class Cline {
 											block.partial,
 										)
 									} else {
+										this.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
 										await this.ask(
 											"browser_action_launch",
 											removeClosingTag("url", url),
@@ -1561,12 +1596,14 @@ export class Cline {
 									this.consecutiveMistakeCount = 0
 
 									if (this.shouldAutoApproveTool(block.name)) {
+										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
 									} else {
 										showNotificationForApprovalIfAutoApprovalEnabled(
 											`Cline wants to use a browser and launch ${url}`,
 										)
+										this.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
 										const didApprove = await askApproval("browser_action_launch", url)
 										if (!didApprove) {
 											break
@@ -1681,6 +1718,7 @@ export class Cline {
 									// 	block.partial,
 									// ).catch(() => {})
 								} else {
+									// don't need to remove last partial since we couldn't have streamed a say
 									await this.ask(
 										"command",
 										removeClosingTag("command", command),
@@ -1711,6 +1749,7 @@ export class Cline {
 								let didAutoApprove = false
 
 								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 									didAutoApprove = true
@@ -1718,6 +1757,7 @@ export class Cline {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to execute a command: ${command}`,
 									)
+									// this.removeLastPartialMessageIfExistsWithType("say", "command")
 									const didApprove = await askApproval(
 										"command",
 										command +
@@ -1769,8 +1809,10 @@ export class Cline {
 								} satisfies ClineAskUseMcpServer)
 
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
@@ -1823,12 +1865,14 @@ export class Cline {
 								} satisfies ClineAskUseMcpServer)
 
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to use ${tool_name} on ${server_name}`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
 										break
@@ -1878,8 +1922,10 @@ export class Cline {
 								} satisfies ClineAskUseMcpServer)
 
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
@@ -1907,12 +1953,14 @@ export class Cline {
 								} satisfies ClineAskUseMcpServer)
 
 								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to access ${uri} on ${server_name}`,
 									)
+									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
 										break
