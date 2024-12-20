@@ -242,7 +242,8 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 32_767,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: false,  // Disabling as Gemini API doesn't support prompt caching yet
+		supportsComputerUse: true,   // Keeping computer use enabled
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -250,7 +251,8 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: false,  // Disabling as Gemini API doesn't support prompt caching yet
+		supportsComputerUse: true,   // Keeping computer use enabled
 		inputPrice: 0,
 		outputPrice: 0,
 	},
