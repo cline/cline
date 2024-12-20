@@ -25,6 +25,11 @@ Parameters:
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
+  5. SEARCH and REPLACE must be DIFFERENT
+     * If search and replace are the same, then no change will be made
+  6. Generate ALL SEARCH/REPLACE blocks necessary for ALL changes to the single file for the current change
+     * If, after creating one or more SEARCH/REPLACE blocks you discover that others are needed, continue to emit additional blocks and complete the entire change set
+     * If you run out of output tokens, then proceed with additional SEARCH/REPLACE blocks in a later response when I confirm the first set
 Usage:
 <replace_in_file>
 <path>File path here</path>
