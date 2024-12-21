@@ -72,26 +72,31 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 					// Split data by newlines
 					let lines = data ? data.split("\n") : []
-					// Remove non-human readable characters from the first line
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-						lines[0] = lines[0].slice(1)
-					}
-					// Remove everything up to the first alphanumeric character for first two lines
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					}
+					
+					// Process each line
+					lines = lines.map((line, index) => {
+						// Remove non-ASCII and non-human readable characters
+						line = line.replace(/[^\x20-\x7E]/g, "")
+						
+						// For first line or second line only
+						if (index <= 1) {
+							// Check if first two characters are the same (only for first line)
+							if (index === 0 && line.length >= 2 && line[0] === line[1]) {
+								line = line.slice(1)
+							}
+							// Remove everything up to the first alphanumeric character
+							line = line.replace(/^[^a-zA-Z0-9]*/, "")
+						}
+						return line
+					})
+					
 					// Join lines back
 					data = lines.join("\n")
 					isFirstChunk = false
 				} else {
 					data = stripAnsi(data)
+					// Remove non-ASCII and non-human readable characters from non-first chunks too
+					data = data.split("\n").map(line => line.replace(/[^\x20-\x7E]/g, "")).join("\n")
 				}
 
 				// first few chunks could be the command being echoed back, so we must ignore
@@ -186,12 +191,23 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private emitIfEol(chunk: string) {
 		this.buffer += chunk
 		let lineEndIndex: number
+		
+		// Normalize line endings to \n
+		this.buffer = this.buffer.replace(/\r\n/g, '\n');
+		
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
-			// Remove \r if present (for Windows-style line endings)
-			// if (line.endsWith("\r")) {
-			// 	line = line.slice(0, -1)
-			// }
+			// Get the line without the line ending
+			let line = this.buffer.slice(0, lineEndIndex)
+			
+			// Remove any standalone \r characters that might remain
+			line = line.replace(/\r/g, '')
+			
+			// Remove non-ASCII and control characters, except newlines
+			line = line.replace(/[\x00-\x09\x0B-\x1F\x7F-\uFFFF]/g, '')
+			
+			// Trim any whitespace
+			line = line.trim()
+			
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
@@ -221,16 +237,27 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		return this.removeLastLineArtifacts(unretrieved)
 	}
 
-	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)
-	// This modification will remove '%', '$', '#', or '>' followed by optional whitespace
+	// Sanitize terminal output by removing special characters and terminal artifacts
 	removeLastLineArtifacts(output: string) {
-		const lines = output.trimEnd().split("\n")
+		// Normalize line endings first
+		output = output.replace(/\r\n/g, '\n');
+		
+		// Split into lines
+		const lines = output.split('\n');
+		
 		if (lines.length > 0) {
-			const lastLine = lines[lines.length - 1]
-			// Remove prompt characters and trailing whitespace from the last line
-			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
+			lines.forEach((line, index) => {
+				// Process each line to clean up terminal output
+				lines[index] = line
+					.replace(/\r/g, '') // Remove any remaining \r characters
+					.replace(/[%$#>]\s*$/, '') // Remove prompt characters
+					.replace(/[\x00-\x09\x0B-\x1F\x7F-\uFFFF]/g, '') // Remove non-ASCII and control characters
+					.trim(); // Remove any remaining whitespace
+			});
 		}
-		return lines.join("\n").trimEnd()
+		
+		// Filter out empty lines and join with Unix-style line endings
+		return lines.filter(line => line.length > 0).join('\n').trimEnd();
 	}
 }
 
