@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.25
-
-### Patch Changes
+## [2.2.25]
 
 -   Add a preferred language dropdown
 
