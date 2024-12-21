@@ -3,6 +3,5 @@ dist
 node_modules
 .vscode-test/
 *.vsix
-RooOpenRouterHandling/
 
 .DS_Store
