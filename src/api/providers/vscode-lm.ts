@@ -262,80 +262,63 @@ export class VsCodeLmHandler implements ApiHandler {
 
         try {
 
-            // Count input tokens for all current messages, including the system prompt.
-            // TODO: Determine if system prompt should be included in token count since there is no "system" role.
             let totalInputTokens: number = 0;
+            let totalOutputTokens: number = 0;
+
+            // Count input tokens first
             const systemTokens: number = await this.client.countTokens(systemPrompt, this.currentRequestCancellation.token);
             totalInputTokens += systemTokens;
 
             for (const message of vsCodeLmMessages) {
+                
                 const tokens: number = await this.client.countTokens(message, this.currentRequestCancellation.token);
                 totalInputTokens += tokens;
             }
 
-            yield {
-                type: "usage",
-                inputTokens: totalInputTokens,
-                outputTokens: 0,
-                totalCost: calculateApiCost(
-                    this.getModel().info,
-                    totalInputTokens,
-                    0
-                )
-            };
-
+            // Stream text chunks without interrupting for usage reporting
             for await (const chunk of response.stream) {
 
                 if (chunk instanceof vscode.LanguageModelTextPart) {
 
-                    // Count tokens for this chunk
-                    const outputTokens: number = await this.client.countTokens(
+                    // Count tokens but don't yield usage yet
+                    const chunkTokens: number = await this.client.countTokens(
                         chunk.value,
                         this.currentRequestCancellation.token
                     );
+
+                    totalOutputTokens += chunkTokens;
 
                     yield {
                         type: "text",
                         text: chunk.value,
                     };
-
-                    // Report updated usage after each chunk
-                    yield {
-                        type: "usage",
-                        inputTokens: 0,
-                        outputTokens,
-                        totalCost: calculateApiCost(
-                            this.getModel().info,
-                            0,
-                            outputTokens
-                        )
-                    };
                 }
-
-                // TODO: Decide wether to implement this or not.
-                // if (chunk instanceof vscode.LanguageModelToolCallPart) {
-                //     yield {
-                //         type: "tool_call",
-                //         name: chunk.name,
-                //         callId: chunk.callId,
-                //         input: chunk.input
-                //     };
-                // }
             }
-        }
-        catch (error) {
+
+            // Report final usage once after all chunks are processed
+            yield {
+                type: "usage",
+                inputTokens: totalInputTokens,
+                outputTokens: totalOutputTokens,
+                totalCost: calculateApiCost(
+                    this.getModel().info,
+                    totalInputTokens,
+                    totalOutputTokens
+                )
+            };
+        } 
+        catch (error: unknown) {
 
             // Clean up cancellation token
             if (this.currentRequestCancellation) {
+
                 this.currentRequestCancellation.dispose();
                 this.currentRequestCancellation = null;
             }
 
             // Extract error details if available
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
-            const errorCode = error instanceof vscode.CancellationError ? "cancelled" :
-                (error as any)?.code || "unknown";
-
+            const errorCode = error instanceof vscode.CancellationError ? "cancelled" : ((error as any)?.code || "unknown");
             throw new Error(`Cline <Language Model API>: Response stream error [${errorCode}]: ${errorMessage}`);
         }
     }
@@ -366,25 +349,9 @@ export class VsCodeLmHandler implements ApiHandler {
         return { vendor: parts[0], family: parts[1] };
     }
 
-    /**
-     * Retrieves the model information for the current language model client.
-     * 
-     * @throws {Error} When the client has not been initialized.
-     * @returns {Object} An object containing:
-     *   - id: The unique identifier of the model client
-     *   - info: ModelInfo object containing:
-     *     - maxTokens: Maximum number of tokens supported (-1 if undefined)
-     *     - contextWindow: Maximum number of input tokens supported
-     *     - supportsImages: Whether the model supports image inputs
-     *     - supportsPromptCache: Whether the model supports prompt caching
-     *     - inputPrice: Cost per input token
-     *     - outputPrice: Cost per output token
-     * @remarks
-     * Returns information about the current model client or selector-based defaults.
-     * For initialized clients, returns actual model capabilities.
-     * For uninitialized clients, returns selector-based identification with default info.
-     */
     getModel(): { id: string; info: ModelInfo; } {
+
+        console.log("GET MODEL CALLED!!!");
 
         if (this.client) {
 

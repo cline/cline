@@ -70,9 +70,9 @@ function asObjectSafe(value: any): object {
  * - Non-tool messages are processed after tool results
  * 
  * For assistant messages:
- * - Combines non-tool messages into a single text content
- * - Processes tool use messages and attaches them to the assistant message
- * - Images are currently handled with a placeholder
+ * - Converts each non-tool message into individual text content blocks
+ * - Processes tool use messages and attaches them as tool call parts
+ * - Images are currently handled with a placeholder message block
  * 
  * @example
  * ```typescript
@@ -89,6 +89,7 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
 
     for (const anthropicMessage of anthropicMessages) {
 
+        // Handle simple string messages
         if (typeof anthropicMessage.content === "string") {
 
             vsCodeLmMessages.push(
@@ -100,6 +101,7 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
             continue;
         }
 
+        // Handle complex message structures
         switch (anthropicMessage.role) {
 
             case "user": {
@@ -119,72 +121,62 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
                             acc.nonToolMessages.push(part);
                         }
 
+                        // TODO: This information is from the openai provider, determine wether this is actually true.
                         // The user cannot send tool_use messages, so that case is not handled here.
-
                         return acc;
                     },
                     { nonToolMessages: [], toolMessages: [] },
                 );
 
-                // Process tool result messages FIRST since they must follow the tool use messages
-                // TODO: Wait until upstream image support arrives.
-                let toolResultImages: Anthropic.Messages.ImageBlockParam[] = [];
+                // Process tool messages first since they must follow the tool use messages, 
+                // then process non-tool messages after
+                const contentParts = [
 
-                toolMessages.forEach((toolMessage) => {
+                    // Convert tool messages to ToolResultParts
+                    ...toolMessages.map((toolMessage) => {
 
-                    // The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
-                    let content: string;
+                        // Process tool result content into TextParts
+                        const toolContentParts: vscode.LanguageModelTextPart[] = (
 
-                    if (typeof toolMessage.content === "string") {
+                            typeof toolMessage.content === "string"
+                                ? [new vscode.LanguageModelTextPart(toolMessage.content)]
+                                : (
+                                    toolMessage.content?.map((part) => {
 
-                        content = toolMessage.content;
-                    }
-                    else {
+                                        if (part.type === "image") {
+                                            
+                                            return new vscode.LanguageModelTextPart(
+                                                `[Image (${part.source?.type || 'Unknown source-type'}): ${part.source?.media_type || 'unknown media-type'} not supported by VSCode LM API]`
+                                            );
+                                        }
+                                        return new vscode.LanguageModelTextPart(part.text);
+                                    })
+                                    ?? [new vscode.LanguageModelTextPart("")]
+                                )
+                        );
 
-                        content = toolMessage.content
-                            ?.map((part) => {
+                        return new vscode.LanguageModelToolResultPart(
+                            toolMessage.tool_use_id,
+                            toolContentParts
+                        );
+                    }),
 
-                                if (part.type === "image") {
-
-                                    toolResultImages.push(part);
-                                    return `[Image (${part.source?.type || 'Unknown source-type'}): ${part.source?.media_type || 'unknown media-type'} not supported by VSCode LM API]`;
-                                }
-
-                                return part.text;
-                            })
-                            .join("\n") ?? "";
-                    }
-
-                    vsCodeLmMessages.push(
-                        vscode.LanguageModelChatMessage.User([
-                            new vscode.LanguageModelToolResultPart(toolMessage.tool_use_id, [
-                                new vscode.LanguageModelTextPart(content)
-                            ])
-                        ])
-                    );
-                });
-
-                // Process non-tool messages
-                if (nonToolMessages.length > 0) {
-
-                    const messages: vscode.LanguageModelChatMessage[] = nonToolMessages.map((part) => {
+                    // Convert non-tool messages to TextParts after tool messages
+                    ...nonToolMessages.map((part) => {
 
                         if (part.type === "image") {
 
                             // VSCode LM API currently does not support sending images in messages
-                            toolResultImages.push(part);
-
-                            return vscode.LanguageModelChatMessage.User(
+                            return new vscode.LanguageModelTextPart(
                                 `[Image (${part.source?.type || 'Unknown source-type'}): ${part.source?.media_type || 'unknown media-type'} not supported by VSCode LM API]`
                             );
                         }
+                        return new vscode.LanguageModelTextPart(part.text);
+                    })
+                ];
 
-                        return vscode.LanguageModelChatMessage.User(part.text);
-                    });
-
-                    vsCodeLmMessages.push(...messages);
-                }
-
+                // Add single user message with all content parts
+                vsCodeLmMessages.push(vscode.LanguageModelChatMessage.User(contentParts));
                 break;
             }
 
@@ -205,6 +197,7 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
                             acc.nonToolMessages.push(part);
                         }
 
+                        // TODO: This information is from the openai provider, determine wether this is actually true.
                         // The assistant cannot send tool_result messages, so that case is not handled here.
 
                         return acc;
@@ -212,40 +205,34 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
                     { nonToolMessages: [], toolMessages: [] },
                 );
 
-                // Process non-tool messages
-                let content: string | undefined;
+                // Process tool messages first since they must follow the tool use messages, 
+                // then process non-tool messages after
+                const contentParts = [
 
-                if (nonToolMessages.length > 0) {
+                    // Convert tool messages to ToolCallParts first
+                    ...toolMessages.map((toolMessage) =>
+                        new vscode.LanguageModelToolCallPart(
+                            toolMessage.id,
+                            toolMessage.name,
+                            asObjectSafe(toolMessage.input)
+                        )
+                    ),
 
-                    content = nonToolMessages
-                        .map((part) => {
+                    // Convert non-tool messages to TextParts after tool messages
+                    ...nonToolMessages.map((part) => {
 
-                            if (part.type === "image") {
+                        if (part.type === "image") {
 
-                                // VSCode LM API currently does not support image generation
-                                return "[Image generation not supported by VSCode LM API]";
-                            }
+                            // VSCode LM API currently does not support image generation
+                            return new vscode.LanguageModelTextPart("[Image generation not supported by VSCode LM API]");
+                        }
+                        
+                        return new vscode.LanguageModelTextPart(part.text);
+                    })
+                ];
 
-                            return part.text;
-                        })
-                        .join("\n");
-                }
-
-                vsCodeLmMessages.push(
-                    vscode.LanguageModelChatMessage.Assistant([
-                        new vscode.LanguageModelTextPart(content || ""),
-                        ...(
-                            toolMessages.map(
-                                (toolMessage) => new vscode.LanguageModelToolCallPart(
-                                    toolMessage.id,
-                                    toolMessage.name,
-                                    asObjectSafe(toolMessage.input)
-                                )
-                            )
-                        ),
-                    ])
-                );
-
+                // Add the assistant message to the list of messages
+                vsCodeLmMessages.push(vscode.LanguageModelChatMessage.Assistant(contentParts));
                 break;
             }
         }
