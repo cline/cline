@@ -110,6 +110,7 @@ export class OpenRouterHandler implements ApiHandler {
 		// Add function calling for supported models
 		const modelId = this.getModel().id;
 		const modelInfo = this.getModel().info;
+		const normalizedModelId = modelId.replace('google/', '');
 		const tools = modelInfo.supportsComputerUse ? [{
 			type: 'function',
 			function: {
@@ -226,10 +227,11 @@ export class OpenRouterHandler implements ApiHandler {
 		let modelInfo = this.options.openRouterModelInfo || openRouterDefaultModelInfo
 		
 		// Enable computer use for supported models regardless of provided modelInfo
+		const normalizedModelId = modelId?.replace('google/', '');
 		const shouldSupportComputerUse =
 			// Specific Gemini 2.0 models that support computer use
-			modelId === "google/gemini-2.0-flash-thinking-exp-1219" ||
-			modelId === "google/gemini-2.0-flash-exp" ||
+			normalizedModelId === "gemini-2.0-flash-thinking-exp-1219" ||
+			normalizedModelId === "gemini-2.0-flash-exp" ||
 			// Anthropic models that support computer use
 			(modelId?.toLowerCase().includes('anthropic') && modelId?.toLowerCase().includes('claude-3')) ||
 			// Preserve existing computer use support from model info

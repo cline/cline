@@ -5,6 +5,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream, ApiStreamChunk, ApiStreamToolCallChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { convertOpenAiToolsToGemini } from "../transform/openrouter-gemini-format"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
@@ -106,11 +107,15 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 		let fullResponseText = "";
-		// Add function calling for Gemini models
+		// Add function calling for supported models
 		const modelId = this.getModel().id;
 		const modelInfo = this.getModel().info;
-		const tools = modelInfo.supportsComputerUse ? [{
-			type: 'function',
+		const normalizedModelId = modelId.replace('google/', '');
+		const isGeminiModel = normalizedModelId.includes("gemini-2.0-flash");
+
+		// Define the base OpenAI function tool
+		const openAiTool = modelInfo.supportsComputerUse ? [{
+			type: 'function' as const,
 			function: {
 				name: "browser_action",
 				description: "Interact with a Puppeteer-controlled browser",
@@ -139,6 +144,11 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			}
 		}] : undefined;
+
+		// For Gemini models, convert the OpenAI tool format to Gemini format
+		const tools = isGeminiModel && openAiTool ? 
+			convertOpenAiToolsToGemini(openAiTool) : 
+			openAiTool;
 
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
@@ -225,10 +235,11 @@ export class OpenRouterHandler implements ApiHandler {
 		let modelInfo = this.options.openRouterModelInfo || openRouterDefaultModelInfo
 		
 		// Enable computer use for supported models regardless of provided modelInfo
+		const normalizedModelId = modelId?.replace('google/', '');
 		const shouldSupportComputerUse =
 			// Specific Gemini 2.0 models that support computer use
-			modelId === "gemini-2.0-flash-thinking-exp-1219" ||
-			modelId === "gemini-2.0-flash-exp" ||
+			normalizedModelId === "gemini-2.0-flash-thinking-exp-1219" ||
+			normalizedModelId === "gemini-2.0-flash-exp" ||
 			// Anthropic models that support computer use
 			(modelId?.toLowerCase().includes('anthropic') && modelId?.toLowerCase().includes('claude-3')) ||
 			// Preserve existing computer use support from model info
