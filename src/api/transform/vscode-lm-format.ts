@@ -48,8 +48,7 @@ function asObjectSafe(value: any): object {
     }
     catch (error) {
 
-        // TODO: Maybe log this somewhere?
-
+        console.warn('Cline <Language Model API>: Failed to parse object:', error);
         return {};
     }
 }
@@ -128,6 +127,7 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
                 );
 
                 // Process tool result messages FIRST since they must follow the tool use messages
+                // TODO: Wait until upstream image support arrives.
                 let toolResultImages: Anthropic.Messages.ImageBlockParam[] = [];
 
                 toolMessages.forEach((toolMessage) => {
@@ -147,7 +147,7 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
                                 if (part.type === "image") {
 
                                     toolResultImages.push(part);
-                                    return "(see following user message for image)";
+                                    return `[Image (${part.source?.type || 'Unknown source-type'}): ${part.source?.media_type || 'unknown media-type'} not supported by VSCode LM API]`;
                                 }
 
                                 return part.text;
@@ -171,10 +171,12 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
 
                         if (part.type === "image") {
 
-                            // TODO: Determine wether it is possible to send images as part of the user message.
-
+                            // VSCode LM API currently does not support sending images in messages
                             toolResultImages.push(part);
-                            return vscode.LanguageModelChatMessage.User("(see following user message for image)");
+
+                            return vscode.LanguageModelChatMessage.User(
+                                `[Image (${part.source?.type || 'Unknown source-type'}): ${part.source?.media_type || 'unknown media-type'} not supported by VSCode LM API]`
+                            );
                         }
 
                         return vscode.LanguageModelChatMessage.User(part.text);
@@ -220,8 +222,8 @@ export function convertToVsCodeLmMessages(anthropicMessages: Anthropic.Messages.
 
                             if (part.type === "image") {
 
-                                // TODO: Determine wether it is possible to send images as part of the assistant message.
-                                return "<IMAGE PLACEHOLDER>";
+                                // VSCode LM API currently does not support image generation
+                                return "[Image generation not supported by VSCode LM API]";
                             }
 
                             return part.text;
@@ -286,14 +288,8 @@ export function convertToAnthropicRole(vsCodeLmMessageRole: vscode.LanguageModel
  * - Converts message content parts to Anthropic content blocks
  * - Sets default values for stop_reason and stop_sequence
  * - Initializes usage metrics (tokens) to 0
- * 
- * Currently handles:
- * - Text content (LanguageModelTextPart)
- * - Tool calls (LanguageModelToolCallPart)
- * 
- * Note: Tool results (LanguageModelToolResultPart) handling is not yet implemented.
  */
-export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelChatMessage): Anthropic.Messages.Message {
+export async function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelChatMessage): Promise<Anthropic.Messages.Message> {
 
     const anthropicRole: string | null = convertToAnthropicRole(vsCodeLmMessage.role);
     if (anthropicRole !== "assistant") {
@@ -328,20 +324,17 @@ export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelC
                         };
                     }
 
-                    // TODO: Determine how to handle tool results, if necessary.
-                    // if (part instanceof LanguageModelToolResultPart) {}
-
                     return null;
                 })
                 .filter(
                     (part): part is Anthropic.ContentBlock => part !== null
                 )
         ),
-        stop_reason: (() => { return null; })(), // The stop reason is not stored in the message.
+        stop_reason: ((): null => null)(), // The stop reason is not stored in the message.
         stop_sequence: null, // which custom stop_sequence was generated, if any (not applicable if you don't use stop_sequence)
         usage: {
-            input_tokens: 0, // TODO: Calculate the number of tokens used in the input for display purposes in the Cline UI.
-            output_tokens: 0, // TODO: Calculate the number of tokens used in the input for display purposes in the Cline UI.
+            input_tokens: 0, // Token counting requires client instance which isn't available here
+            output_tokens: 0, // Output tokens not applicable for stored messages
         }
     };
 }
