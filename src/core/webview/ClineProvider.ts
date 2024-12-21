@@ -699,6 +699,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
 							break
+						case "google/gemini-2.0-flash-thinking-exp-1219":
+						case "google/gemini-2.0-flash-exp":
+							modelInfo.supportsComputerUse = true
+							break
 						case "anthropic/claude-3-5-haiku":
 						case "anthropic/claude-3-5-haiku:beta":
 						case "anthropic/claude-3-5-haiku-20241022":

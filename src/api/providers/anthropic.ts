@@ -22,9 +22,44 @@ export class AnthropicHandler implements ApiHandler {
 		})
 	}
 
+	private getTools(): Anthropic.Messages.Tool[] {
+		const modelInfo = this.getModel().info
+		if (!modelInfo.supportsComputerUse) {
+			return []
+		}
+
+		return [{
+			name: "browser_action",
+			description: "Interact with a Puppeteer-controlled browser",
+			input_schema: {
+				type: "object",
+				properties: {
+					action: {
+						type: "string",
+						description: "The action to perform (launch, click, type, scroll_down, scroll_up, close)"
+					},
+					url: {
+						type: "string",
+						description: "The URL to launch the browser at (for launch action)"
+					},
+					coordinate: {
+						type: "string",
+						description: "The x,y coordinates for click action (e.g. '450,300')"
+					},
+					text: {
+						type: "string",
+						description: "The text to type (for type action)"
+					}
+				},
+				required: ["action"]
+			}
+		}]
+	}
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 		const modelId = this.getModel().id
+		const tools = this.getTools()
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-5-sonnet-20241022":

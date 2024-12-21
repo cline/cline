@@ -60,12 +60,12 @@ export class GeminiHandler implements ApiHandler {
 			generationConfig: {
 				temperature: 0,
 			},
-			tools: tools
+			tools: tools.length > 0 ? tools : undefined
 		})
 
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
-			tools: tools
+			tools: tools.length > 0 ? tools : undefined
 		})
 
 		let responseText = ""
