@@ -222,8 +222,22 @@ export class OpenRouterHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
+		let modelInfo = this.options.openRouterModelInfo
+		
 		if (modelId && modelInfo) {
+			// Enable computer use for supported models
+			const shouldSupportComputerUse =
+				// Gemini 2.0 models
+				(modelId.toLowerCase().includes('gemini') && modelId.toLowerCase().includes('2.0')) ||
+				// Anthropic models that support computer use
+				(modelId.toLowerCase().includes('anthropic') && modelId.toLowerCase().includes('claude-3')) ||
+				// Preserve existing computer use support from model info
+				modelInfo.supportsComputerUse === true;
+
+			modelInfo = {
+				...modelInfo,
+				supportsComputerUse: shouldSupportComputerUse
+			}
 			return { id: modelId, info: modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
