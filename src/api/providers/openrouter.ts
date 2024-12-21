@@ -222,24 +222,26 @@ export class OpenRouterHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
-		let modelInfo = this.options.openRouterModelInfo
+		let modelInfo = this.options.openRouterModelInfo || openRouterDefaultModelInfo
 		
-		if (modelId && modelInfo) {
-			// Enable computer use for supported models
-			const shouldSupportComputerUse =
-				// Gemini 2.0 models
-				(modelId.toLowerCase().includes('gemini') && modelId.toLowerCase().includes('2.0')) ||
-				// Anthropic models that support computer use
-				(modelId.toLowerCase().includes('anthropic') && modelId.toLowerCase().includes('claude-3')) ||
-				// Preserve existing computer use support from model info
-				modelInfo.supportsComputerUse === true;
+		// Enable computer use for supported models regardless of provided modelInfo
+		const shouldSupportComputerUse =
+			// Specific Gemini 2.0 models that support computer use
+			modelId === "gemini-2.0-flash-thinking-exp-1219" ||
+			modelId === "gemini-2.0-flash-exp" ||
+			// Anthropic models that support computer use
+			(modelId?.toLowerCase().includes('anthropic') && modelId?.toLowerCase().includes('claude-3')) ||
+			// Preserve existing computer use support from model info
+			modelInfo.supportsComputerUse === true;
 
-			modelInfo = {
-				...modelInfo,
-				supportsComputerUse: shouldSupportComputerUse
-			}
-			return { id: modelId, info: modelInfo }
+		modelInfo = {
+			...modelInfo,
+			supportsComputerUse: shouldSupportComputerUse
 		}
-		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+		
+		return {
+			id: modelId || openRouterDefaultModelId,
+			info: modelInfo
+		}
 	}
 }
