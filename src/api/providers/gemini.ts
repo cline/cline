@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenerativeAI, Tool, SchemaType } from "@google/generative-ai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { convertAnthropicMessageToGemini, convertGeminiResponseToAnthropic } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 export class GeminiHandler implements ApiHandler {
@@ -17,31 +17,73 @@ export class GeminiHandler implements ApiHandler {
 		this.client = new GoogleGenerativeAI(options.geminiApiKey)
 	}
 
+	private getTools(): Tool[] {
+		const modelInfo = this.getModel().info
+		if (!modelInfo.supportsComputerUse) {
+			return []
+		}
+
+		return [{
+			functionDeclarations: [{
+				name: "browser_action",
+				description: "Interact with a Puppeteer-controlled browser",
+				parameters: {
+					type: SchemaType.OBJECT,
+					properties: {
+						action: {
+							type: SchemaType.STRING,
+							description: "The action to perform (launch, click, type, scroll_down, scroll_up, close)"
+						},
+						url: {
+							type: SchemaType.STRING,
+							description: "The URL to launch the browser at (for launch action)"
+						},
+						coordinate: {
+							type: SchemaType.STRING,
+							description: "The x,y coordinates for click action (e.g. '450,300')"
+						},
+						text: {
+							type: SchemaType.STRING,
+							description: "The text to type (for type action)"
+						}
+					},
+					required: ["action"]
+				}
+			}]
+		}]
+	}
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.client.getGenerativeModel({
 			model: this.getModel().id,
 			systemInstruction: systemPrompt,
+			tools: this.getTools()
 		})
+
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
-				// maxOutputTokens: this.getModel().info.maxTokens,
 				temperature: 0,
 			},
 		})
 
+		let responseText = ""
 		for await (const chunk of result.stream) {
+			const text = chunk.text()
+			responseText += text
 			yield {
 				type: "text",
-				text: chunk.text(),
+				text,
 			}
 		}
 
 		const response = await result.response
+		const anthropicMessage = convertGeminiResponseToAnthropic(response)
+
 		yield {
 			type: "usage",
-			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
-			outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			inputTokens: anthropicMessage.usage.input_tokens,
+			outputTokens: anthropicMessage.usage.output_tokens,
 		}
 	}
 
