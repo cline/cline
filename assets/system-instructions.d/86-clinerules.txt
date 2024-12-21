@@ -1,0 +1,7 @@
+// @condition: ${ruleFileContent}
+
+# .clinerules
+
+The following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})
+
+${ruleFileContent}

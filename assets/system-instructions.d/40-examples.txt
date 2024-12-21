@@ -1,0 +1,85 @@
+# Tool Use Examples
+
+## Example 1: Requesting to execute a command
+
+<execute_command>
+<command>npm run dev</command>
+<requires_approval>false</requires_approval>
+</execute_command>
+
+## Example 2: Requesting to use an MCP tool
+
+<use_mcp_tool>
+<server_name>weather-server</server_name>
+<tool_name>get_forecast</tool_name>
+<arguments>
+{
+  "city": "San Francisco",
+  "days": 5
+}
+</arguments>
+</use_mcp_tool>
+
+## Example 3: Requesting to access an MCP resource
+
+<access_mcp_resource>
+<server_name>weather-server</server_name>
+<uri>weather://san-francisco/current</uri>
+</access_mcp_resource>
+
+## Example 4: Requesting to create a new file
+
+<write_to_file>
+<path>src/frontend-config.json</path>
+<content>
+{
+  "apiEndpoint": "https://api.example.com",
+  "theme": {
+    "primaryColor": "#007bff",
+    "secondaryColor": "#6c757d",
+    "fontFamily": "Arial, sans-serif"
+  },
+  "features": {
+    "darkMode": true,
+    "notifications": true,
+    "analytics": false
+  },
+  "version": "1.0.0"
+}
+</content>
+</write_to_file>
+
+## Example 5: Requesting to make targeted edits to a file
+
+<replace_in_file>
+<path>src/components/App.tsx</path>
+<diff>
+<<<<<<< SEARCH
+import React from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+function handleSubmit() {
+  saveData();
+  setLoading(false);
+}
+
+=======
+>>>>>>> REPLACE
+
+<<<<<<< SEARCH
+return (
+  <div>
+=======
+function handleSubmit() {
+  saveData();
+  setLoading(false);
+}
+
+return (
+  <div>
+>>>>>>> REPLACE
+</diff>
+</replace_in_file>

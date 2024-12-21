@@ -458,6 +458,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "resetState":
 						await this.resetState()
 						break
+					case "copySystemPrompt":
+						if (this.cline) {
+							await this.cline.copySystemPromptToClipboard()
+						} else {
+							// Create temporary Cline instance just to get system prompt
+							const { apiConfiguration, customInstructions, autoApprovalSettings } = await this.getState()
+							const tempCline = new Cline(this, apiConfiguration, autoApprovalSettings, customInstructions, "", [])
+							await tempCline.copySystemPromptToClipboard()
+							tempCline.abortTask() // Clean up the temporary instance
+						}
+						break
 					case "requestOllamaModels":
 						const ollamaModels = await this.getOllamaModels(message.text)
 						this.postMessageToWebview({ type: "ollamaModels", ollamaModels })
