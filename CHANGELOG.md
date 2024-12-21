@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.25
+
+### Patch Changes
+
+-   Add a preferred language dropdown
+
 ## [2.2.24]
 
 -   Default diff editing to on for new installs
