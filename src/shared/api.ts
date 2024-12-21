@@ -1,3 +1,5 @@
+import * as vscode from "vscode";
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -8,6 +10,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+    | "vscode-lm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -33,6 +36,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
+    vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
