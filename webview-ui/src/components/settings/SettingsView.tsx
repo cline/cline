@@ -40,6 +40,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		allowedCommands,
 		fuzzyMatchThreshold,
 		setFuzzyMatchThreshold,
+		preferredLanguage,
+		setPreferredLanguage,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -67,6 +69,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "browserLargeViewport", bool: browserLargeViewport })
 			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
+			vscode.postMessage({ type: "preferredLanguage", text: preferredLanguage })
 			onDone()
 		}
 	}
@@ -136,6 +139,42 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
+					<div style={{ marginBottom: 15 }}>
+						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Preferred Language</label>
+						<select
+							value={preferredLanguage}
+							onChange={(e) => setPreferredLanguage(e.target.value)}
+							style={{
+								width: "100%",
+								padding: "4px 8px",
+								backgroundColor: "var(--vscode-input-background)",
+								color: "var(--vscode-input-foreground)",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: "2px",
+								height: "28px"
+							}}>
+							<option value="English">English</option>
+							<option value="Spanish">Spanish - Español</option>
+							<option value="French">French - Français</option>
+							<option value="German">German - Deutsch</option>
+							<option value="Italian">Italian - Italiano</option>
+							<option value="Portuguese">Portuguese - Português</option>
+							<option value="Chinese">Chinese - 中文</option>
+							<option value="Japanese">Japanese - 日本語</option>
+							<option value="Korean">Korean - 한국어</option>
+							<option value="Russian">Russian - Русский</option>
+							<option value="Arabic">Arabic - العربية</option>
+							<option value="Hindi">Hindi - हिन्दी</option>
+						</select>
+						<p style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+							Select the language that Cline should use for communication.
+						</p>
+					</div>
+
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}

@@ -40,6 +40,7 @@ export interface WebviewMessage {
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
 		| "fuzzyMatchThreshold"
+		| "preferredLanguage"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

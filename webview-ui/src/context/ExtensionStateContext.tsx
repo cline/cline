@@ -33,6 +33,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setDiffEnabled: (value: boolean) => void
 	setBrowserLargeViewport: (value: boolean) => void
 	setFuzzyMatchThreshold: (value: number) => void
+	preferredLanguage: string
+	setPreferredLanguage: (value: string) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -48,6 +50,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		soundVolume: 0.5,
 		diffEnabled: false,
 		fuzzyMatchThreshold: 1.0,
+		preferredLanguage: 'English',
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -153,6 +156,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
 		setBrowserLargeViewport: (value) => setState((prevState) => ({ ...prevState, browserLargeViewport: value })),
 		setFuzzyMatchThreshold: (value) => setState((prevState) => ({ ...prevState, fuzzyMatchThreshold: value })),
+		setPreferredLanguage: (value) => setState((prevState) => ({ ...prevState, preferredLanguage: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
