@@ -30,18 +30,29 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage";
 import { useExtensionState } from "../../context/ExtensionStateContext";
 import { vscode } from "../../utils/vscode";
+import * as vscodeTypes from "vscode";
 import VSCodeButtonLink from "../common/VSCodeButtonLink";
 import OpenRouterModelPicker, {
     ModelDescriptionMarkdown,
     OPENROUTER_MODEL_PICKER_Z_INDEX,
 } from "./OpenRouterModelPicker";
-import { isVsCodeLmModelSelectorEqual, parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "../../utils/vscodeLm";
-import * as vscodeTypes from "vscode";
+import { parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "../../../../src/shared/vsCodeSelectorUtils";
 
 interface ApiOptionsProps {
     showModelOptions: boolean;
     apiErrorMessage?: string;
     modelIdErrorMessage?: string;
+}
+
+declare module "vscode" {
+
+    interface LanguageModelChatSelector {
+
+        vendor?: string;
+        family?: string;
+        version?: string;
+        id?: string;
+    }
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {

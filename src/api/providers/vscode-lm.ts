@@ -1,10 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import * as vscode from 'vscode';
+
 import { ApiHandler } from "../";
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api";
+
+import { calculateApiCost } from "../../utils/cost";
+
 import { ApiStream } from "../transform/stream";
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format";
-import { calculateApiCost } from "../../utils/cost";
+
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils";
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api";
 
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
@@ -156,27 +161,39 @@ export class VsCodeLmHandler implements ApiHandler {
         this.disposable = null;
         this.currentRequestCancellation = null;
 
-        // Listen for model changes and reset client
-        this.disposable = vscode.workspace.onDidChangeConfiguration(event => {
+        try {
 
-            if (event.affectsConfiguration('lm')) {
+            // Listen for model changes and reset client
+            this.disposable = vscode.workspace.onDidChangeConfiguration(event => {
 
-                this.client = null;
+                if (event.affectsConfiguration('lm')) {
 
-                // Cancel any ongoing request when configuration changes
-                if (this.currentRequestCancellation) {
+                    try {
 
-                    this.currentRequestCancellation.cancel();
-                    this.currentRequestCancellation.dispose();
-                    this.currentRequestCancellation = null;
+                        this.client = null;
+                        this.ensureCleanState();
+                    }
+                    catch (error) {
+
+                        console.error('Error during configuration change cleanup:', error);
+                    }
                 }
-            }
-        });
+            });
+        }
+        catch (error) {
+
+            // Ensure cleanup if constructor fails
+            this.dispose();
+
+            throw new Error(
+                `Cline <Language Model API>: Failed to initialize handler: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
     }
 
     /**
      * Creates a language model chat client based on the provided selector.
-     * 
+     *
      * @param selector - Selector criteria to filter language model chat instances
      * @returns Promise resolving to the first matching language model chat instance
      * @throws Error when no matching models are found with the given selector
@@ -199,7 +216,7 @@ export class VsCodeLmHandler implements ApiHandler {
 
     /**
      * Creates and streams a message using the VS Code Language Model API.
-     * 
+     *
      * @param systemPrompt - The system prompt to initialize the conversation context
      * @param messages - An array of message parameters following the Anthropic message format
      * 
@@ -227,66 +244,109 @@ export class VsCodeLmHandler implements ApiHandler {
         }
     }
 
-    async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+    private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
 
-        // Cancel any ongoing request before starting a new one
+        if (!this.client || !this.currentRequestCancellation) {
+
+            return 0;
+        }
+
+        try {
+
+            return await this.client.countTokens(text, this.currentRequestCancellation.token);
+        }
+        catch (error) {
+
+            console.warn('Token counting failed:', error);
+            return 0; // Fallback to prevent stream interruption
+        }
+    }
+
+    private async calculateTotalInputTokens(systemPrompt: string, vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {
+
+        const systemTokens: number = await this.countTokens(systemPrompt);
+
+        const messageTokens: number[] = await Promise.all(
+            vsCodeLmMessages.map(msg => this.countTokens(msg))
+        );
+
+        return systemTokens + messageTokens.reduce(
+            (sum: number, tokens: number): number => sum + tokens, 0
+        );
+    }
+
+    private ensureCleanState(): void {
+
         if (this.currentRequestCancellation) {
 
             this.currentRequestCancellation.cancel();
             this.currentRequestCancellation.dispose();
             this.currentRequestCancellation = null;
         }
+    }
+
+    private async getClient(): Promise<vscode.LanguageModelChat> {
 
         if (!this.client) {
 
             if (!this.options.vsCodeLmModelSelector) {
 
-                throw new Error("Cline <Language Model API>: The 'vsCodeLmModelSelector' option is required for the 'vscode-lm' provider.");
+                throw new Error(
+                    "Cline <Language Model API>: The 'vsCodeLmModelSelector' option is required for the 'vscode-lm' provider."
+                );
             }
 
-            this.client = await this.createClient(this.options.vsCodeLmModelSelector);
+            try {
+
+                this.client = await this.createClient(this.options.vsCodeLmModelSelector);
+            }
+            catch (error) {
+
+                throw new Error(
+                    `Cline <Language Model API>: Failed to create client: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
+            }
         }
 
+        return this.client;
+    }
+
+    async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+
+        // Ensure clean state before starting a new request
+        this.ensureCleanState();
+        const client: vscode.LanguageModelChat = await this.getClient();
+
+        // Convert Anthropic messages to VS Code LM messages
         const vsCodeLmMessages: vscode.LanguageModelChatMessage[] = [
             vscode.LanguageModelChatMessage.Assistant(systemPrompt),
             ...convertToVsCodeLmMessages(messages),
         ];
 
+        // Initialize cancellation token for the request
         this.currentRequestCancellation = new vscode.CancellationTokenSource();
 
-        const response: vscode.LanguageModelChatResponse = await this.client.sendRequest(
-            vsCodeLmMessages,
-            { justification: `Cline would like to use '${this.client.name}', Click 'Allow' to proceed.` },
-            this.currentRequestCancellation.token
-        );
+        // Calculate input tokens before starting the stream
+        const totalInputTokens: number = await this.calculateTotalInputTokens(systemPrompt, vsCodeLmMessages);
+
+        // Accumulate the text and count at the end of the stream to reduce token counting overhead.
+        let accumulatedText: string = '';
 
         try {
 
-            let totalInputTokens: number = 0;
-            let totalOutputTokens: number = 0;
+            // Create the response stream
+            const response: vscode.LanguageModelChatResponse = await client.sendRequest(
+                vsCodeLmMessages,
+                { justification: `Cline would like to use '${client.name}' from '${client.vendor}', Click 'Allow' to proceed.` },
+                this.currentRequestCancellation.token
+            );
 
-            // Count input tokens first
-            const systemTokens: number = await this.client.countTokens(systemPrompt, this.currentRequestCancellation.token);
-            totalInputTokens += systemTokens;
-
-            for (const message of vsCodeLmMessages) {
-                
-                const tokens: number = await this.client.countTokens(message, this.currentRequestCancellation.token);
-                totalInputTokens += tokens;
-            }
-
-            // Stream text chunks without interrupting for usage reporting
+            // Consume the stream and yield text chunks
             for await (const chunk of response.stream) {
 
                 if (chunk instanceof vscode.LanguageModelTextPart) {
 
-                    // Count tokens but don't yield usage yet
-                    const chunkTokens: number = await this.client.countTokens(
-                        chunk.value,
-                        this.currentRequestCancellation.token
-                    );
-
-                    totalOutputTokens += chunkTokens;
+                    accumulatedText += chunk.value;
 
                     yield {
                         type: "text",
@@ -295,7 +355,10 @@ export class VsCodeLmHandler implements ApiHandler {
                 }
             }
 
-            // Report final usage once after all chunks are processed
+            // Count tokens in the accumulated text after stream completion
+            const totalOutputTokens: number = await this.countTokens(accumulatedText);
+
+            // Report final usage after stream completion
             yield {
                 type: "usage",
                 inputTokens: totalInputTokens,
@@ -306,64 +369,37 @@ export class VsCodeLmHandler implements ApiHandler {
                     totalOutputTokens
                 )
             };
-        } 
+        }
         catch (error: unknown) {
 
-            // Clean up cancellation token
-            if (this.currentRequestCancellation) {
+            this.ensureCleanState();
 
-                this.currentRequestCancellation.dispose();
-                this.currentRequestCancellation = null;
+            if (error instanceof vscode.CancellationError) {
+
+                throw new Error("Cline <Language Model API>: Request cancelled by user");
             }
 
-            // Extract error details if available
-            const errorMessage = error instanceof Error ? error.message : "Unknown error";
-            const errorCode = error instanceof vscode.CancellationError ? "cancelled" : ((error as any)?.code || "unknown");
-            throw new Error(`Cline <Language Model API>: Response stream error [${errorCode}]: ${errorMessage}`);
+            const errorMessage: string = error instanceof Error ? error.message : "Unknown error";
+            throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`);
         }
     }
 
-    stringifyVsCodeLmModelSelector(selector: vscode.LanguageModelChatSelector): string {
-
-        if (!selector.vendor || !selector.family) {
-
-            return selector.id || "";
-        }
-
-        return `${selector.vendor} / ${selector.family}`;
-    }
-
-    parseVsCodeLmModelSelector(stringifiedSelector: string): vscode.LanguageModelChatSelector {
-
-        if (!stringifiedSelector.includes(" / ")) {
-
-            return { id: stringifiedSelector };
-        }
-
-        const parts: string[] = stringifiedSelector.split(" / ");
-        if (parts.length !== 2) {
-
-            return { id: stringifiedSelector };
-        }
-
-        return { vendor: parts[0], family: parts[1] };
-    }
-
+    // TODO: I'd really like to change this method signature to async so that this provider (and possibly others like it) can ensure the correct model data is returned.
     getModel(): { id: string; info: ModelInfo; } {
-
-        console.log("GET MODEL CALLED!!!");
 
         if (this.client) {
 
-            const modelId: string = this.client.id || `${this.client.vendor}/${this.client.family}`;
+            const modelId: string = (
+                this.client.id || [this.client.vendor, this.client.family].filter(Boolean).join(SELECTOR_SEPARATOR)
+            );
 
             return {
                 id: modelId,
                 info: {
-                    maxTokens: this.client.maxInputTokens, // Use maxInputTokens as the practical limit
-                    contextWindow: this.client.maxInputTokens,
-                    supportsImages: false, // VSCode LM API currently doesn't support image inputs
-                    supportsPromptCache: true, // VSCode LM API caches prompts internally
+                    maxTokens: -1,
+                    contextWindow: Math.max(0, this.client.maxInputTokens),
+                    supportsImages: false,
+                    supportsPromptCache: true,
                     inputPrice: 0,
                     outputPrice: 0,
                 },
@@ -373,8 +409,8 @@ export class VsCodeLmHandler implements ApiHandler {
         return {
             id: (
                 this.options.vsCodeLmModelSelector
-                    ? this.stringifyVsCodeLmModelSelector(this.options.vsCodeLmModelSelector)
-                    : ""
+                    ? stringifyVsCodeLmModelSelector(this.options.vsCodeLmModelSelector)
+                    : "vscode-lm"
             ),
             info: openAiModelInfoSaneDefaults,
         };
