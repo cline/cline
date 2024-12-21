@@ -54,17 +54,18 @@ export class GeminiHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const tools = this.getTools()
 		const model = this.client.getGenerativeModel({
 			model: this.getModel().id,
-			systemInstruction: systemPrompt,
-			tools: this.getTools()
+			generationConfig: {
+				temperature: 0,
+			},
+			tools: tools
 		})
 
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
-			generationConfig: {
-				temperature: 0,
-			},
+			tools: tools
 		})
 
 		let responseText = ""
