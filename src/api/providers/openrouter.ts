@@ -4,7 +4,7 @@ import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream, ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiStream, ApiStreamChunk, ApiStreamToolCallChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
@@ -106,12 +106,47 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 		let fullResponseText = "";
+		// Add function calling for Gemini models
+		const modelId = this.getModel().id;
+		const modelInfo = this.getModel().info;
+		const tools = modelInfo.supportsComputerUse ? [{
+			type: 'function',
+			function: {
+				name: "browser_action",
+				description: "Interact with a Puppeteer-controlled browser",
+				parameters: {
+					type: "object",
+					properties: {
+						action: {
+							type: "string",
+							description: "The action to perform (launch, click, type, scroll_down, scroll_up, close)",
+							enum: ["launch", "click", "type", "scroll_down", "scroll_up", "close"]
+						},
+						url: {
+							type: "string",
+							description: "The URL to launch the browser at (for launch action)"
+						},
+						coordinate: {
+							type: "string",
+							description: "The x,y coordinates for click action (e.g. '450,300')"
+						},
+						text: {
+							type: "string",
+							description: "The text to type (for type action)"
+						}
+					},
+					required: ["action"]
+				}
+			}
+		}] : undefined;
+
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
+			model: modelId,
 			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
+			tools: tools,
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
 			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] })
 		} as OpenRouterChatCompletionParams);
@@ -138,13 +173,23 @@ export class OpenRouterHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
-			// if (chunk.usage) {
-			// 	yield {
-			// 		type: "usage",
-			// 		inputTokens: chunk.usage.prompt_tokens || 0,
-			// 		outputTokens: chunk.usage.completion_tokens || 0,
-			// 	}
-			// }
+			// Handle tool calls in the streaming response
+			if (delta?.tool_calls) {
+				for (const toolCall of delta.tool_calls) {
+					if (toolCall.type === 'function' && toolCall.function && toolCall.function.name) {
+						try {
+							const args = JSON.parse(toolCall.function.arguments || '{}');
+							yield {
+								type: "tool_call",
+								name: toolCall.function.name,
+								args: args
+							} satisfies ApiStreamToolCallChunk;
+						} catch (error) {
+							console.error('Error parsing tool call arguments:', error);
+						}
+					}
+				}
+			}
 		}
 
 		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
