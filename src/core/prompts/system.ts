@@ -772,9 +772,17 @@ async function loadRuleFiles(cwd: string): Promise<string> {
     return combinedRules
 }
 
-export async function addCustomInstructions(customInstructions: string, cwd: string): Promise<string> {
+export async function addCustomInstructions(customInstructions: string, cwd: string, preferredLanguage?: string): Promise<string> {
     const ruleFileContent = await loadRuleFiles(cwd)
-    const allInstructions = [customInstructions.trim()]
+    const allInstructions = []
+
+    if (preferredLanguage) {
+        allInstructions.push(`You should always speak and think in the ${preferredLanguage} language.`)
+    }
+    
+    if (customInstructions.trim()) {
+        allInstructions.push(customInstructions.trim())
+    }
 
     if (ruleFileContent && ruleFileContent.trim()) {
         allInstructions.push(ruleFileContent.trim())

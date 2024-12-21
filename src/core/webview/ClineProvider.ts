@@ -71,6 +71,7 @@ type GlobalStateKey =
 	| "alwaysAllowMcp"
 	| "browserLargeViewport"
 	| "fuzzyMatchThreshold"
+	| "preferredLanguage" // Language setting for Cline's communication
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -622,6 +623,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("fuzzyMatchThreshold", message.value)
 						await this.postStateToWebview()
 						break
+					case "preferredLanguage":
+						await this.updateGlobalState("preferredLanguage", message.text)
+						await this.postStateToWebview()
+						break
 				}
 			},
 			null,
@@ -951,6 +956,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			soundVolume,
 			browserLargeViewport,
+			preferredLanguage,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -977,6 +983,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
 			browserLargeViewport: browserLargeViewport ?? false,
+			preferredLanguage: preferredLanguage ?? 'English',
 		}
 	}
 
@@ -1072,6 +1079,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume,
 			browserLargeViewport,
 			fuzzyMatchThreshold,
+			preferredLanguage,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1112,6 +1120,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 			this.getGlobalState("browserLargeViewport") as Promise<boolean | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
+			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1170,6 +1179,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume,
 			browserLargeViewport: browserLargeViewport ?? false,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
+			preferredLanguage: preferredLanguage ?? (() => {
+				// Get VSCode's locale setting
+				const vscodeLang = vscode.env.language;
+				// Map VSCode locale to our supported languages
+				const langMap: { [key: string]: string } = {
+					'en': 'English',
+					'es': 'Spanish',
+					'fr': 'French',
+					'de': 'German',
+					'it': 'Italian',
+					'pt': 'Portuguese',
+					'zh': 'Chinese',
+					'ja': 'Japanese',
+					'ko': 'Korean',
+					'ru': 'Russian',
+					'ar': 'Arabic',
+					'hi': 'Hindi'
+				};
+				// Return mapped language or default to English
+				return langMap[vscodeLang.split('-')[0]] ?? 'English';
+			})(),
 		}
 	}
 

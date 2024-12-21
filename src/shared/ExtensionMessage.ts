@@ -55,6 +55,7 @@ export interface ExtensionState {
 	diffEnabled?: boolean
 	browserLargeViewport?: boolean
 	fuzzyMatchThreshold?: number
+	preferredLanguage: string
 }
 
 export interface ClineMessage {

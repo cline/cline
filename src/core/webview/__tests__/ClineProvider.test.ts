@@ -73,7 +73,8 @@ jest.mock('vscode', () => ({
         onDidCloseTextDocument: jest.fn(() => ({ dispose: jest.fn() }))
     },
     env: {
-        uriScheme: 'vscode'
+        uriScheme: 'vscode',
+        language: 'en'
     }
 }))
 
@@ -235,6 +236,7 @@ describe('ClineProvider', () => {
         
         const mockState: ExtensionState = {
             version: '1.0.0',
+            preferredLanguage: 'English',
             clineMessages: [],
             taskHistory: [],
             shouldShowAnnouncement: false,
@@ -248,7 +250,7 @@ describe('ClineProvider', () => {
             alwaysAllowBrowser: false,
             uriScheme: 'vscode',
             soundEnabled: false,
-            diffEnabled: false
+            diffEnabled: false,
         }
         
         const message: ExtensionMessage = { 
@@ -299,6 +301,22 @@ describe('ClineProvider', () => {
         expect(state).toHaveProperty('soundEnabled')
         expect(state).toHaveProperty('diffEnabled')
     })
+
+    test('preferredLanguage defaults to VSCode language when not set', async () => {
+        // Mock VSCode language as Spanish
+        (vscode.env as any).language = 'es-ES';
+        
+        const state = await provider.getState();
+        expect(state.preferredLanguage).toBe('Spanish');
+    });
+
+    test('preferredLanguage defaults to English for unsupported VSCode language', async () => {
+        // Mock VSCode language as an unsupported language
+        (vscode.env as any).language = 'unsupported-LANG';
+        
+        const state = await provider.getState();
+        expect(state.preferredLanguage).toBe('English');
+    });
 
     test('diffEnabled defaults to true when not set', async () => {
         // Mock globalState.get to return undefined for diffEnabled

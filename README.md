@@ -13,6 +13,7 @@ A fork of Cline, an autonomous coding agent, tweaked for more speed and flexibil
 - Option to use a larger 1280x800 browser
 - Quick prompt copying from history
 - OpenRouter compression support
+- Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for newer Gemini models (gemini-exp-1206, gemini-2.0-flash-exp, gemini-2.0-flash-thinking-exp-1219) and Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Runs alongside the original Cline
 
