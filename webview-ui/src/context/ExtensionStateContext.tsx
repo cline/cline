@@ -57,6 +57,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							config.awsRegion,
 							config.vertexProjectId,
 							config.openAiApiKey,
+							config.ollamaApiKey,
 							config.ollamaModelId,
 							config.lmStudioModelId,
 							config.geminiApiKey,

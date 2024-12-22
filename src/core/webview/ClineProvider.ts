@@ -39,6 +39,7 @@ type SecretKey =
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
+	| "ollamaApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -373,6 +374,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiModelId,
 								ollamaModelId,
 								ollamaBaseUrl,
+								ollamaApiKey,
 								lmStudioModelId,
 								lmStudioBaseUrl,
 								anthropicBaseUrl,
@@ -398,6 +400,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.storeSecret("ollamaApiKey", ollamaApiKey)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
 							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
@@ -1074,6 +1077,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiApiKey",
 			"geminiApiKey",
 			"openAiNativeApiKey",
+			"ollamaApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

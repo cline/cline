@@ -28,6 +28,7 @@ export interface ApiHandlerOptions {
 	openAiModelId?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	ollamaApiKey?: string
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string

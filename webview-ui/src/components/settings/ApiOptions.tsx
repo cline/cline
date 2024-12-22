@@ -549,6 +549,22 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
+						value={apiConfiguration?.ollamaApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("ollamaApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>(optional) API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+					</p>
+					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("ollamaModelId")}
