@@ -28,6 +28,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
 
+	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
+		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
+
 	toolResult: (
 		text: string,
 		images?: string[],

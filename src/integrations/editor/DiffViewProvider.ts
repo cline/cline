@@ -148,10 +148,17 @@ export class DiffViewProvider {
 		}
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
-		const editedContent = updatedDocument.getText()
+
+		// get the contents before save operation which may do auto-formatting
+		const preSaveContent = updatedDocument.getText()
+
 		if (updatedDocument.isDirty) {
 			await updatedDocument.save()
 		}
+
+		// await delay(100)
+		// get text after save in case there is any auto-formatting done by the editor
+		const postSaveContent = updatedDocument.getText()
 
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
 		await this.closeAllDiffViews()
@@ -186,20 +193,21 @@ export class DiffViewProvider {
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedEditedContent = editedContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
 		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
-		if (normalizedEditedContent !== normalizedNewContent) {
-			// user made changes before approving edit
+		if (normalizedPreSaveContent !== normalizedNewContent) {
+			// user made changes before approving edit. let the model know about user made changes (not including post-save auto-formatting changes)
 			const userEdits = formatResponse.createPrettyPatch(
 				this.relPath.toPosix(),
 				normalizedNewContent,
-				normalizedEditedContent,
+				normalizedPreSaveContent,
 			)
-			return { newProblemsMessage, userEdits, finalContent: normalizedEditedContent }
+			return { newProblemsMessage, userEdits, finalContent: normalizedPostSaveContent }
 		} else {
 			// no changes to cline's edits
-			return { newProblemsMessage, userEdits: undefined, finalContent: normalizedEditedContent }
+			return { newProblemsMessage, userEdits: undefined, finalContent: normalizedPostSaveContent }
 		}
 	}
 
