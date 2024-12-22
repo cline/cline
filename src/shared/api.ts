@@ -313,33 +313,41 @@ export const openAiNativeModels = {
 		maxTokens: 32_768,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 15,
 		outputPrice: 60,
+		cacheWritesPrice: 15, // Same as input price
+		cacheReadsPrice: 7.5, // 0.5x input price
 	},
 	"o1-mini": {
 		maxTokens: 65_536,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3,
 		outputPrice: 12,
+		cacheWritesPrice: 3, // Same as input price
+		cacheReadsPrice: 1.5, // 0.5x input price
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 5,
 		outputPrice: 15,
+		cacheWritesPrice: 5, // Same as input price
+		cacheReadsPrice: 2.5, // 0.5x input price
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		cacheWritesPrice: 0.15, // Same as input price
+		cacheReadsPrice: 0.075, // 0.5x input price
 	},
 } as const satisfies Record<string, ModelInfo>
 
