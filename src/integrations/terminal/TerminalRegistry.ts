@@ -14,6 +14,10 @@ export class TerminalRegistry {
 	private static nextTerminalId = 1
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined): TerminalInfo {
+		const freeTerminal = this.getFreeTerminal(cwd?.toString() || "")
+		if (freeTerminal) {
+			return freeTerminal
+		}
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Cline",
@@ -57,5 +61,14 @@ export class TerminalRegistry {
 	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)
 	private static isTerminalClosed(terminal: vscode.Terminal): boolean {
 		return terminal.exitStatus !== undefined
+	}
+
+	static getFreeTerminal(cwd: string): TerminalInfo | undefined {
+		return this.terminals.find((t) => {
+			const tmp = t.terminal.creationOptions
+			if (!tmp) {
+				return false
+			}
+			return !t.busy && (tmp as vscode.TerminalOptions).cwd === cwd})
 	}
 }

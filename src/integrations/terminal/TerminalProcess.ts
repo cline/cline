@@ -170,15 +170,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("continue")
 		} else {
 			terminal.sendText(command, true)
-			// For terminals without shell integration, we can't know when the command completes
-			// So we'll just emit the continue event after a delay
 			this.emit("completed")
 			this.emit("continue")
 			this.emit("no_shell_integration")
-			// setTimeout(() => {
-			// 	console.log(`Emitting continue after delay for terminal`)
-			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
-			// }, 500) // Adjust this delay as needed
 		}
 	}
 
