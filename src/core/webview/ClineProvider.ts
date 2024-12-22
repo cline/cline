@@ -1185,18 +1185,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				// Map VSCode locale to our supported languages
 				const langMap: { [key: string]: string } = {
 					'en': 'English',
-					'es': 'Spanish',
+					'ar': 'Arabic',
+					'pt-br': 'Brazilian Portuguese',
+					'cs': 'Czech',
 					'fr': 'French',
 					'de': 'German',
+					'hi': 'Hindi',
+					'hu': 'Hungarian',
 					'it': 'Italian',
-					'pt': 'Portuguese',
-					'zh-tw': 'Traditional Chinese',
-					'zh-cn': 'Simplified Chinese',
 					'ja': 'Japanese',
 					'ko': 'Korean',
+					'pl': 'Polish',
+					'pt': 'Portuguese',
 					'ru': 'Russian',
-					'ar': 'Arabic',
-					'hi': 'Hindi'
+					'zh-cn': 'Simplified Chinese',
+					'es': 'Spanish',
+					'zh-tw': 'Traditional Chinese',
+					'tr': 'Turkish'
 				};
 				// Return mapped language or default to English
 				return langMap[vscodeLang.split('-')[0]] ?? 'English';
