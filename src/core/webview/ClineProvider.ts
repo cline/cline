@@ -62,7 +62,7 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
-  | "deepSeekBaseUrl"
+	| "deepSeekBaseUrl"
 	
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
