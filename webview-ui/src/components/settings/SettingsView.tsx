@@ -159,7 +159,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							<option value="German">German - Deutsch</option>
 							<option value="Italian">Italian - Italiano</option>
 							<option value="Portuguese">Portuguese - Português</option>
-							<option value="Chinese">Chinese - 中文</option>
+							<option value="Traditional Chinese">Traditional Chinese - 繁體中文</option>
+							<option value="Simplified Chinese">Simplified Chinese - 简体中文</option>
 							<option value="Japanese">Japanese - 日本語</option>
 							<option value="Korean">Korean - 한국어</option>
 							<option value="Russian">Russian - Русский</option>
