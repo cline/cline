@@ -192,21 +192,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.buffer += chunk
 		let lineEndIndex: number
 		
-		// Normalize line endings to \n
+        // Normalize line endings to \n
 		this.buffer = this.buffer.replace(/\r\n/g, '\n');
-		
+
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			// Get the line without the line ending
-			let line = this.buffer.slice(0, lineEndIndex)
-			
-			// Remove any standalone \r characters that might remain
-			line = line.replace(/\r/g, '')
-			
-			// Remove non-ASCII and control characters, except newlines
-			line = line.replace(/[\x00-\x09\x0B-\x1F\x7F-\uFFFF]/g, '')
-			
-			// Trim any whitespace
-			line = line.trim()
+			let line = this.buffer
+                .slice(0, lineEndIndex) // Get the line without the line ending
+                .replace(/\r/g, '') // Remove any standalone \r characters that might remain
+                .replace(/[\x00-\x09\x0B-\x1F\x7F-\uFFFF]/g, '') // Remove non-ASCII and control characters, except newlines
+                .trim() // Trim any whitespace
 			
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
