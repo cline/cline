@@ -934,6 +934,15 @@ export class Cline {
 						}
 					}
 				}
+
+				if (!block.partial) {
+					// gemini models add this artifact to the end of text content:
+					const TOOL_CODE_SUFFIX = "```tool_code"
+					if (content?.trimEnd().endsWith(TOOL_CODE_SUFFIX)) {
+						content = content.trimEnd().slice(0, -TOOL_CODE_SUFFIX.length)
+					}
+				}
+
 				await this.say("text", content, undefined, block.partial)
 				break
 			}
