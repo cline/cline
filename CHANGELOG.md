@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.26
-
-### Patch Changes
+## [2.2.26]
 
 -   Tweaks to preferred language (thanks @yongjer)
 
