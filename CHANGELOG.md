@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.26]
+
+-   Tweaks to preferred language (thanks @yongjer)
+
 ## [2.2.25]
 
 -   Add a preferred language dropdown
