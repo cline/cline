@@ -936,10 +936,12 @@ export class Cline {
 				}
 
 				if (!block.partial) {
-					// gemini models add this artifact to the end of text content:
-					const TOOL_CODE_SUFFIX = "```tool_code"
-					if (content?.trimEnd().endsWith(TOOL_CODE_SUFFIX)) {
-						content = content.trimEnd().slice(0, -TOOL_CODE_SUFFIX.length)
+					// Some models add code block artifacts (around the tool calls) which show up at the end of text content
+					// matches ``` with atleast one char after the last backtick, at the end of the string
+					const match = content?.trimEnd().match(/```[a-zA-Z0-9_-]+$/)
+					if (match) {
+						const matchLength = match[0].length
+						content = content.trimEnd().slice(0, -matchLength)
 					}
 				}
 
