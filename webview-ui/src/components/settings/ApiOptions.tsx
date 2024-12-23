@@ -632,6 +632,26 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 						</div>
 
+						{selectedProvider === "openai-native" && selectedModelId === "o1" && (
+							<div className="dropdown-container" style={{ marginTop: 5 }}>
+								<label htmlFor="reasoning-effort">
+									<span style={{ fontWeight: 500 }}>Reasoning Effort</span>
+								</label>
+								<VSCodeDropdown
+									id="reasoning-effort"
+									value={apiConfiguration?.reasoningEffort || "medium"}
+									onChange={handleInputChange("reasoningEffort")}
+									style={{ width: "100%" }}>
+									<VSCodeOption value="low">Low (Faster responses, less reasoning)</VSCodeOption>
+									<VSCodeOption value="medium">Medium (Default)</VSCodeOption>
+									<VSCodeOption value="high">High (More thorough reasoning)</VSCodeOption>
+								</VSCodeDropdown>
+								<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+									Controls the model's reasoning depth. Lower values result in faster responses and fewer tokens used on reasoning.
+								</p>
+							</div>
+						)}
+
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
