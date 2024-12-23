@@ -46,7 +46,12 @@
 	"activationEvents": [],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"viewsContainers": {
+	  "languages": [{
+	    "id": "vixs",
+	    "extensions": [".vixs"],
+	    "aliases": ["VIXS", "vixs"]
+	  }],
+	  "viewsContainers": {
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",

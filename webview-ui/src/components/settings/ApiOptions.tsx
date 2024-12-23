@@ -774,31 +774,13 @@ const ModelInfoSupportsItem = ({
 	supportsLabel,
 	doesNotSupportLabel,
 }: ModelInfoSupportsItemProps) => {
-	// Create tooltip content for prompt caching
-	const tooltipContent = supportsLabel === "Supports prompt caching" && isSupported
-		? "Prompt caching is automatically enabled for prompts >= 1024 tokens. Static content (like system prompts) is placed at the beginning to maximize cache hits. Cache hits can reduce latency by up to 80% and costs by up to 50% for long prompts.\n\n" +
-		  "Pricing varies by provider:\n" +
-		  "<a href='https://platform.openai.com/docs/guides/prompt-caching' style='color: inherit'>OpenAI</a> (direct & via <a href='https://openrouter.ai/docs/prompt-caching' style='color: inherit'>OpenRouter</a>):\n" +
-		  "- Cache writes: no cost\n" +
-		  "- Cache reads: 0.5x input price\n\n" +
-		  "<a href='https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching' style='color: inherit'>Anthropic</a> (direct & via OpenRouter):\n" +
-		  "- Cache writes: 1.25x input price\n" +
-		  "- Cache reads: 0.1x input price\n" +
-		  "- Limited to 4 cache points, expires in 5 minutes\n\n" +
-		  "DeepSeek (via OpenRouter):\n" +
-		  "- Cache writes: normal price\n" +
-		  "- Cache reads: 0.1x input price\n\n" +
-		  "Note: When using OpenRouter, prompt caching is automatically enabled for supported models and providers. Cache hits are tracked in the generation details available in OpenRouter's Activity page."
-		: undefined;
-
 	return (
 		<span
 			style={{
 				fontWeight: 500,
 				color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
-				cursor: tooltipContent ? 'help' : 'default',
-			}}
-			title={tooltipContent}>
+				display: 'inline-block',
+			}}>
 			<i
 				className={`codicon codicon-${isSupported ? "check" : "x"}`}
 				style={{
