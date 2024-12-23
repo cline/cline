@@ -7,7 +7,6 @@ on:
 
 env:
   REPO_PATH: ${{ github.repository }}
-  GIT_REF: ${{ github.event.pull_request.head.sha }}
 
 jobs:
   # Job 1: Create version bump PR when changesets are merged to main
@@ -26,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.GIT_REF }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -58,7 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
 
   # Job 2: Process version bump PR created by R00-B0T
-  changeset-pr-approve-merge:
+  changeset-pr-edit-approve:
     name: Auto approve and merge Bump version PRs
     runs-on: ubuntu-latest
     permissions:
@@ -70,12 +69,28 @@ jobs:
         github.actor == 'R00-B0T' &&
         contains(github.event.pull_request.title, 'Changeset version bump')
     steps:
+      - name: Determine checkout ref
+        id: checkout-ref
+        run: |
+          echo "Event action: ${{ github.event.action }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Head ref: ${{ github.head_ref }}"
+          echo "PR SHA: ${{ github.event.pull_request.head.sha }}"
+
+          if [[ "${{ github.event.action }}" == "opened" && "${{ github.actor }}" == "R00-B0T" ]]; then
+            echo "Using branch ref: ${{ github.head_ref }}"  
+            echo "git_ref=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "Using SHA ref: ${{ github.event.pull_request.head.sha }}"
+            echo "git_ref=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
           fetch-depth: 0
-          ref: ${{ env.GIT_REF }}
+          ref: ${{ steps.checkout-ref.outputs.git_ref }}
 
       # Get current and previous versions to edit changelog entry
       - name: Get version
@@ -102,10 +117,10 @@ jobs:
         run: |
           git config user.name "R00-B0T"
           git config user.email github-actions@github.com
-          git status
           echo "Running git add and commit..."
           git add CHANGELOG.md
           git commit -m "Updating CHANGELOG.md format"
+          git status
           echo "--------------------------------------------------------------------------------"
           echo "Pushing to remote..."
           echo "--------------------------------------------------------------------------------"
