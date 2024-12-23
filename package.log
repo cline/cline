@@ -1,0 +1,15 @@
+/Users/zhangzeyu/.nvm/versions/node/v16.20.2/lib/node_modules/@vscode/vsce/node_modules/undici/lib/web/fetch/response.js:528
+  ReadableStream
+  ^
+
+ReferenceError: ReadableStream is not defined
+    at Object.<anonymous> (/Users/zhangzeyu/.nvm/versions/node/v16.20.2/lib/node_modules/@vscode/vsce/node_modules/undici/lib/web/fetch/response.js:528:3)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/Users/zhangzeyu/.nvm/versions/node/v16.20.2/lib/node_modules/@vscode/vsce/node_modules/undici/lib/web/fetch/index.js:11:5)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)

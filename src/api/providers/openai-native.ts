@@ -24,9 +24,26 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.getModel().id) {
+			case "o1": {
+				// o1 supports system messages like gpt-4o but doesn't support streaming or temperature
+				const response = await this.client.chat.completions.create({
+					model: this.getModel().id,
+					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				})
+				yield {
+					type: "text",
+					text: response.choices[0]?.message.content || "",
+				}
+				yield {
+					type: "usage",
+					inputTokens: response.usage?.prompt_tokens || 0,
+					outputTokens: response.usage?.completion_tokens || 0,
+				}
+				break
+			}
 			case "o1-preview":
 			case "o1-mini": {
-				// o1 doesnt support streaming, non-1 temp, or system prompt
+				// o1-preview and o1-mini don't support streaming, non-1 temp, or system prompt
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
