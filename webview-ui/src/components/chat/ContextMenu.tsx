@@ -129,7 +129,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						style={{
 							padding: "8px 12px",
 							cursor: isOptionSelectable(option) ? "pointer" : "default",
-							color: 
+							color:
 								index === selectedIndex && isOptionSelectable(option)
 									? "var(--vscode-quickInputList-focusForeground)"
 									: "",
