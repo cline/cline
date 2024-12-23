@@ -33,7 +33,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
-	reasoningEffort?: 'low' | 'medium' | 'high' // o1 model parameter
+	reasoningEffort?: "low" | "medium" | "high" // o1 model parameter
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

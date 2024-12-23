@@ -646,8 +646,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 									<VSCodeOption value="medium">Medium (Default)</VSCodeOption>
 									<VSCodeOption value="high">High (More thorough reasoning)</VSCodeOption>
 								</VSCodeDropdown>
-								<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
-									Controls the model's reasoning depth. Lower values result in faster responses and fewer tokens used on reasoning.
+								<p
+									style={{
+										fontSize: "12px",
+										marginTop: 3,
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Controls the model's reasoning depth. Lower values result in faster responses and
+									fewer tokens used on reasoning.
 								</p>
 							</div>
 						)}

@@ -15,7 +15,7 @@ import { ApiStream } from "../transform/stream"
 type O1ChatCompletionParams = {
 	model: string
 	messages: OpenAI.Chat.ChatCompletionMessageParam[]
-	reasoning_effort?: 'low' | 'medium' | 'high'
+	reasoning_effort?: "low" | "medium" | "high"
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
