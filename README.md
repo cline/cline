@@ -10,6 +10,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Quick prompt copying from history
 - OpenRouter compression support
 - Includes current time in the system prompt
+- Uses a file system watcher to more reliably watch for file system changes
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Runs alongside the original Cline
