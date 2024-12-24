@@ -13,7 +13,7 @@ import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 
-declare const vscode: any;
+import { vscode } from "../../utils/vscode"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -44,8 +44,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths } = useExtensionState()
+		const { filePaths, apiConfiguration } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+
+		// Handle enhanced prompt response
+		useEffect(() => {
+			const messageHandler = (event: MessageEvent) => {
+				const message = event.data
+				if (message.type === 'enhancedPrompt' && message.text) {
+					setInputValue(message.text)
+				}
+			}
+			window.addEventListener('message', messageHandler)
+			return () => window.removeEventListener('message', messageHandler)
+		}, [setInputValue])
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -59,6 +71,63 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+
+		const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false)
+		
+		const handleEnhancePrompt = useCallback(() => {
+		    if (!textAreaDisabled) {
+		        const trimmedInput = inputValue.trim()
+		        if (trimmedInput) {
+		            setIsEnhancingPrompt(true)
+		            const message = {
+		                type: "enhancePrompt" as const,
+		                text: trimmedInput,
+		            }
+		            vscode.postMessage(message)
+		        } else {
+		            const promptDescription = "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
+		            setInputValue(promptDescription)
+		        }
+		    }
+		}, [inputValue, textAreaDisabled, setInputValue])
+		
+		useEffect(() => {
+		    const messageHandler = (event: MessageEvent) => {
+		        const message = event.data
+		        if (message.type === 'enhancedPrompt') {
+		            setInputValue(message.text)
+		            setIsEnhancingPrompt(false)
+		        }
+		    }
+		    window.addEventListener('message', messageHandler)
+		    return () => window.removeEventListener('message', messageHandler)
+		}, [setInputValue])
+
+		// Handle enhanced prompt response
+		useEffect(() => {
+		    const messageHandler = (event: MessageEvent) => {
+		        const message = event.data
+		        if (message.type === 'enhancedPrompt') {
+		            setInputValue(message.text)
+		        }
+		    }
+		    window.addEventListener('message', messageHandler)
+		    return () => {
+		        window.removeEventListener('message', messageHandler)
+		    }
+		}, [setInputValue])
+
+		// Handle enhanced prompt response
+		useEffect(() => {
+		    const messageHandler = (event: MessageEvent) => {
+		        const message = event.data
+		        if (message.type === 'enhancedPrompt' && message.text) {
+		            setInputValue(message.text)
+		        }
+		    }
+		    window.addEventListener('message', messageHandler)
+		    return () => window.removeEventListener('message', messageHandler)
+		}, [setInputValue])
 
 		const queryItems = useMemo(() => {
 			return [
@@ -423,68 +492,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 
 		return (
-			<div
-				style={{
-					padding: "10px 15px",
-					opacity: textAreaDisabled ? 0.5 : 1,
-					position: "relative",
-					display: "flex",
-				}}
-				onDrop={async (e) => {
-					console.log("onDrop called")
-					e.preventDefault()
-					const files = Array.from(e.dataTransfer.files)
-					const text = e.dataTransfer.getData("text")
-					if (text) {
-						const newValue =
-							inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
-						setInputValue(newValue)
-						const newCursorPosition = cursorPosition + text.length
-						setCursorPosition(newCursorPosition)
-						setIntendedCursorPosition(newCursorPosition)
-						return
-					}
-					const acceptedTypes = ["png", "jpeg", "webp"]
-					const imageFiles = files.filter((file) => {
-						const [type, subtype] = file.type.split("/")
-						return type === "image" && acceptedTypes.includes(subtype)
-					})
-					if (!shouldDisableImages && imageFiles.length > 0) {
-						const imagePromises = imageFiles.map((file) => {
-							return new Promise<string | null>((resolve) => {
-								const reader = new FileReader()
-								reader.onloadend = () => {
-									if (reader.error) {
-										console.error("Error reading file:", reader.error)
-										resolve(null)
-									} else {
-										const result = reader.result
-										console.log("File read successfully", result)
-										resolve(typeof result === "string" ? result : null)
-									}
+			<div style={{
+				padding: "10px 15px",
+				opacity: textAreaDisabled ? 0.5 : 1,
+				position: "relative",
+				display: "flex",
+			}}
+			onDrop={async (e) => {
+				e.preventDefault()
+				const files = Array.from(e.dataTransfer.files)
+				const text = e.dataTransfer.getData("text")
+				if (text) {
+					const newValue =
+						inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+					setInputValue(newValue)
+					const newCursorPosition = cursorPosition + text.length
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition)
+					return
+				}
+				const acceptedTypes = ["png", "jpeg", "webp"]
+				const imageFiles = files.filter((file) => {
+					const [type, subtype] = file.type.split("/")
+					return type === "image" && acceptedTypes.includes(subtype)
+				})
+				if (!shouldDisableImages && imageFiles.length > 0) {
+					const imagePromises = imageFiles.map((file) => {
+						return new Promise<string | null>((resolve) => {
+							const reader = new FileReader()
+							reader.onloadend = () => {
+								if (reader.error) {
+									console.error("Error reading file:", reader.error)
+									resolve(null)
+								} else {
+									const result = reader.result
+									resolve(typeof result === "string" ? result : null)
 								}
-								reader.readAsDataURL(file)
-							})
-						})
-						const imageDataArray = await Promise.all(imagePromises)
-						const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-						if (dataUrls.length > 0) {
-							setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
-							if (typeof vscode !== 'undefined') {
-								vscode.postMessage({
-									type: 'draggedImages',
-									dataUrls: dataUrls
-								})
 							}
-						} else {
-							console.warn("No valid images were processed")
+							reader.readAsDataURL(file)
+						})
+					})
+					const imageDataArray = await Promise.all(imagePromises)
+					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+					if (dataUrls.length > 0) {
+						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+						if (typeof vscode !== 'undefined') {
+							vscode.postMessage({
+								type: 'draggedImages',
+								dataUrls: dataUrls
+							})
 						}
+					} else {
+						console.warn("No valid images were processed")
 					}
-				}}
-				onDragOver={(e) => {
-					e.preventDefault()
-				}}
-			>
+				}
+			}}
+			onDragOver={(e) => {
+				e.preventDefault()
+			}}>
 				{showContextMenu && (
 					<div ref={contextMenuContainerRef}>
 						<ContextMenu
@@ -533,7 +598,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						borderTop: 0,
 						borderColor: "transparent",
 						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-						padding: "9px 49px 3px 9px",
+						padding: "9px 9px 25px 9px",
 					}}
 				/>
 				<DynamicTextArea
@@ -588,11 +653,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						borderTop: 0,
 						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 						borderColor: "transparent",
+						padding: "9px 9px 25px 9px",
 						// borderRight: "54px solid transparent",
 						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-						padding: "9px 49px 3px 9px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 						zIndex: 1,
@@ -609,45 +674,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							paddingTop: 4,
 							bottom: 14,
 							left: 22,
-							right: 67, // (54 + 9) + 4 extra padding
+							right: 67,
 							zIndex: 2,
 						}}
 					/>
 				)}
-				<div
-					style={{
-						position: "absolute",
-						right: 28,
-						display: "flex",
-						alignItems: "flex-end",
-						height: textAreaBaseHeight || 31,
-						bottom: 18,
-						zIndex: 2,
-					}}>
-					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
-						<div
-							className={`input-icon-button ${
-								shouldDisableImages ? "disabled" : ""
-							} codicon codicon-device-camera`}
-							onClick={() => {
-								if (!shouldDisableImages) {
-									onSelectImages()
-								}
-							}}
-							style={{
-								marginRight: 5.5,
-								fontSize: 16.5,
-							}}
-						/>
-						<div
-							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
-							onClick={() => {
-								if (!textAreaDisabled) {
-									onSend()
-								}
-							}}
-							style={{ fontSize: 15 }}></div>
-					</div>
+				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 2, justifyContent: "flex-end" }}>
+				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+				    {apiConfiguration?.apiProvider === "openrouter" && (
+				      <div style={{ display: "flex", alignItems: "center" }}>
+				        {isEnhancingPrompt && <span style={{ marginRight: 10, color: "var(--vscode-input-foreground)", opacity: 0.5 }}>Enhancing prompt...</span>}
+				        <span
+				          role="button"
+				          aria-label="enhance prompt"
+				          data-testid="enhance-prompt-button"
+				          className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
+				          onClick={() => !textAreaDisabled && handleEnhancePrompt()}
+				          style={{ fontSize: 16.5 }}
+				        />
+				      </div>
+				    )}
+				    <span className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`} onClick={() => !shouldDisableImages && onSelectImages()} style={{ fontSize: 16.5 }} />
+				    <span className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`} onClick={() => !textAreaDisabled && onSend()} style={{ fontSize: 15 }} />
+				  </span>
 				</div>
 			</div>
 		)

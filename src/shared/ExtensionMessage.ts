@@ -19,6 +19,7 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "openAiModels"
 		| "mcpServers"
+		| "enhancedPrompt"
 	text?: string
 	action?:
 		| "chatButtonClicked"
