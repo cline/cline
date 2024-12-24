@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.27]
+
+-   Add the current time to the system prompt and improve browser screenshot quality (thanks @libertyteeth!)
+
 ## [2.2.26]
 
 -   Tweaks to preferred language (thanks @yongjer)
