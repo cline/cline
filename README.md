@@ -77,9 +77,6 @@ Once your merge is successful:
 
 </details>
 
-## Stay Updated!
-Subscribe to our [Github releases](https://github.com/RooVetGit/Roo-Cline/releases) to keep up with the latest updates! You can also view our [CHANGELOG.md](Roo-Cline/CHANGELOG.md) for more details.
-
 ---
 
 # Cline (prev. Claude Dev) – [#1 on OpenRouter](https://openrouter.ai/)
