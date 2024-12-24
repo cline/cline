@@ -134,6 +134,7 @@ export class BrowserSession {
 		let screenshotBase64 = await this.page.screenshot({
 			...options,
 			type: "webp",
+			quality: 100, // Set maximum quality to prevent compression artifacts
 		})
 		let screenshot = `data:image/webp;base64,${screenshotBase64}`
 
