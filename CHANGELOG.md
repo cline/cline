@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.27
-
-### Patch Changes
+## [2.2.27]
 
 -   Add the current time to the system prompt and improve browser screenshot quality (thanks @libertyteeth!)
 
