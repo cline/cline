@@ -519,6 +519,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
 						break
+					case "refreshOpenAiModels":
+						const { apiConfiguration } = await this.getState()
+						const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
+						this.postMessageToWebview({ type: "openAiModels", openAiModels })
+						break
 					case "openImage":
 						openImage(message.text!)
 						break
@@ -691,6 +696,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/v1/models`)
+			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
+			const models = [...new Set<string>(modelsArray)]
+			return models
+		} catch (error) {
+			return []
+		}
+	}
+
+	// OpenAi
+
+	async getOpenAiModels(baseUrl?: string, apiKey?: string) {
+		try {
+			if (!baseUrl) {
+				return []
+			}
+
+			if (!URL.canParse(baseUrl)) {
+				return []
+			}
+
+			const config: Record<string, any> = {}
+			if (apiKey) {
+				config["headers"] = { Authorization: `Bearer ${apiKey}` }
+			}
+
+			const response = await axios.get(`${baseUrl}/models`, config)
 			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
