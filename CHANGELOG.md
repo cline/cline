@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.28
+
+### Patch Changes
+
+-   Use createFileSystemWatcher to more reliably update list of files to @-mention
+
 ## [2.2.27]
 
 -   Add the current time to the system prompt and improve browser screenshot quality (thanks @libertyteeth!)
