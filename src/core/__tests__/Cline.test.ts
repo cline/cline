@@ -353,4 +353,68 @@ describe('Cline', () => {
             }).toThrow('Either historyItem or task/images must be provided');
         });
     });
+
+    describe('getEnvironmentDetails', () => {
+        let originalDate: DateConstructor;
+        let mockDate: Date;
+
+        beforeEach(() => {
+            originalDate = global.Date;
+            const fixedTime = new Date('2024-01-01T12:00:00Z');
+            mockDate = new Date(fixedTime);
+            mockDate.getTimezoneOffset = jest.fn().mockReturnValue(420); // UTC-7
+
+            class MockDate extends Date {
+                constructor() {
+                    super();
+                    return mockDate;
+                }
+                static override now() {
+                    return mockDate.getTime();
+                }
+            }
+            
+            global.Date = MockDate as DateConstructor;
+
+            // Create a proper mock of Intl.DateTimeFormat
+            const mockDateTimeFormat = {
+                resolvedOptions: () => ({
+                    timeZone: 'America/Los_Angeles'
+                }),
+                format: () => '1/1/2024, 5:00:00 AM'
+            };
+
+            const MockDateTimeFormat = function(this: any) {
+                return mockDateTimeFormat;
+            } as any;
+
+            MockDateTimeFormat.prototype = mockDateTimeFormat;
+            MockDateTimeFormat.supportedLocalesOf = jest.fn().mockReturnValue(['en-US']);
+
+            global.Intl.DateTimeFormat = MockDateTimeFormat;
+        });
+
+        afterEach(() => {
+            global.Date = originalDate;
+        });
+
+        it('should include timezone information in environment details', async () => {
+            const cline = new Cline(
+                mockProvider,
+                mockApiConfig,
+                undefined,
+                false,
+                undefined,
+                'test task'
+            );
+
+            const details = await cline['getEnvironmentDetails'](false);
+            
+            // Verify timezone information is present and formatted correctly
+            expect(details).toContain('America/Los_Angeles');
+            expect(details).toMatch(/UTC-7:00/); // Fixed offset for America/Los_Angeles
+            expect(details).toContain('# Current Time');
+            expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/); // Full time string format
+        });
+    });
 });
