@@ -2,7 +2,7 @@
 
 A fork of Cline, an autonomous coding agent, with some additional experimental features. It’s been mainly writing itself recently, with a light touch of human guidance here and there.
 
-## Features
+## Experimental Features
 
 - Drag and drop images into chats
 - Sound effects for feedback
@@ -12,6 +12,8 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Includes current time in the system prompt
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
+- Per-tool MCP auto-approval
+- Enable/disable MCP servers
 - Runs alongside the original Cline
 
 ## Disclaimer
