@@ -121,13 +121,16 @@ jest.mock('vscode', () => {
                 name: 'mock-workspace',
                 index: 0
             }],
-            onDidCreateFiles: jest.fn(() => mockDisposable),
-            onDidDeleteFiles: jest.fn(() => mockDisposable),
-            onDidRenameFiles: jest.fn(() => mockDisposable),
-            onDidSaveTextDocument: jest.fn(() => mockDisposable),
-            onDidChangeTextDocument: jest.fn(() => mockDisposable),
-            onDidOpenTextDocument: jest.fn(() => mockDisposable),
-            onDidCloseTextDocument: jest.fn(() => mockDisposable)
+            createFileSystemWatcher: jest.fn(() => ({
+                onDidCreate: jest.fn(() => mockDisposable),
+                onDidDelete: jest.fn(() => mockDisposable),
+                onDidChange: jest.fn(() => mockDisposable),
+                dispose: jest.fn()
+            })),
+            fs: {
+                stat: jest.fn().mockResolvedValue({ type: 1 }) // FileType.File = 1
+            },
+            onDidSaveTextDocument: jest.fn(() => mockDisposable)
         },
         env: {
             uriScheme: 'vscode',
