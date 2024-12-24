@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.28
-
-### Patch Changes
+## [2.2.28]
 
 -   Use createFileSystemWatcher to more reliably update list of files to @-mention
 
