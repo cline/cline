@@ -5,6 +5,7 @@ updates:
       directory: "/"
       schedule:
           interval: "weekly"
+      # Group all updates into a single PR
       groups:
           all-dependencies:
               patterns:
