@@ -5,6 +5,10 @@ updates:
       directory: "/"
       schedule:
           interval: "weekly"
+      groups:
+          all-dependencies:
+              patterns:
+                  - "*"
       ignore:
           # Ignore all non-security updates (security vulnerabilities bypass these ignore rules)
           - dependency-name: "*"
@@ -18,6 +22,10 @@ updates:
       directory: "/webview-ui"
       schedule:
           interval: "weekly"
+      groups:
+          all-dependencies:
+              patterns:
+                  - "*"
       ignore:
           # Ignore CRA and related packages that often have false positives
           - dependency-name: "react-scripts"
