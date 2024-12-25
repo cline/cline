@@ -34,8 +34,11 @@ function getAllFiles(dir) {
 		if (fs.statSync(filePath).isDirectory()) {
 			files = files.concat(getAllFiles(filePath))
 		} else {
-			const withoutExtension = path.join(dir, path.parse(file).name)
-			files.push(withoutExtension)
+			// Skip test files
+			if (!file.endsWith(".test.ts")) {
+				const withoutExtension = path.join(dir, path.parse(file).name)
+				files.push(withoutExtension)
+			}
 		}
 	})
 	return files

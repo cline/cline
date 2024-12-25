@@ -1,0 +1,14 @@
+{
+	// This separate tsconfig is necessary because VS Code's test runner requires CommonJS modules,
+	// while our main project uses ES Modules (ESM). This config inherits most settings from the base
+	// tsconfig.json but overrides the module system for test files only. This doesn't affect how
+	// tests interact with the main codebase - it only changes how the test files themselves are
+	// compiled to make them compatible with VS Code's test runner.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"types": ["node", "mocha", "should", "vscode"]
+	},
+	"include": ["src/**/*.test.ts"]
+}
