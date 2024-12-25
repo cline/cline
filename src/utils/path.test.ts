@@ -1,48 +1,53 @@
-import * as assert from "assert"
-import * as path from "path"
+import { describe, it } from "mocha"
 import * as os from "os"
+import * as path from "path"
+import "should"
 import { arePathsEqual, getReadablePath } from "./path"
 
-suite("Path Utils", () => {
-	test("arePathsEqual handles undefined paths", () => {
-		assert.strictEqual(arePathsEqual(undefined, undefined), true)
-		assert.strictEqual(arePathsEqual("foo", undefined), false)
-		assert.strictEqual(arePathsEqual(undefined, "foo"), false)
+describe("Path Utilities", () => {
+	describe("arePathsEqual", () => {
+		it("should handle undefined paths", () => {
+			arePathsEqual(undefined, undefined).should.be.true()
+			arePathsEqual("foo", undefined).should.be.false()
+			arePathsEqual(undefined, "foo").should.be.false()
+		})
+
+		it("should handle case sensitivity based on platform", () => {
+			if (process.platform === "win32") {
+				arePathsEqual("FOO/BAR", "foo/bar").should.be.true()
+			} else {
+				arePathsEqual("FOO/BAR", "foo/bar").should.be.false()
+			}
+		})
+
+		it("should handle normalized paths", () => {
+			arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir").should.be.true()
+			arePathsEqual("/tmp/./dir", "/tmp/../dir").should.be.false()
+		})
 	})
 
-	test("arePathsEqual handles case sensitivity based on platform", () => {
-		if (process.platform === "win32") {
-			assert.strictEqual(arePathsEqual("FOO/BAR", "foo/bar"), true)
-		} else {
-			assert.strictEqual(arePathsEqual("FOO/BAR", "foo/bar"), false)
-		}
-	})
+	describe("getReadablePath", () => {
+		it("should handle desktop path", () => {
+			const desktop = path.join(os.homedir(), "Desktop")
+			const testPath = path.join(desktop, "test.txt")
+			getReadablePath(desktop, "test.txt").should.equal(testPath.replace(/\\/g, "/"))
+		})
 
-	test("arePathsEqual handles normalized paths", () => {
-		assert.strictEqual(arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir"), true)
-		assert.strictEqual(arePathsEqual("/tmp/./dir", "/tmp/../dir"), false)
-	})
+		it("should show relative paths within cwd", () => {
+			const cwd = "/home/user/project"
+			const filePath = "/home/user/project/src/file.txt"
+			getReadablePath(cwd, filePath).should.equal("src/file.txt")
+		})
 
-	test("getReadablePath handles desktop path", () => {
-		const desktop = path.join(os.homedir(), "Desktop")
-		const testPath = path.join(desktop, "test.txt")
-		assert.strictEqual(getReadablePath(desktop, "test.txt"), testPath.replace(/\\/g, "/"))
-	})
+		it("should show basename when path equals cwd", () => {
+			const cwd = "/home/user/project"
+			getReadablePath(cwd, cwd).should.equal("project")
+		})
 
-	test("getReadablePath shows relative paths within cwd", () => {
-		const cwd = "/home/user/project"
-		const filePath = "/home/user/project/src/file.txt"
-		assert.strictEqual(getReadablePath(cwd, filePath), "src/file.txt")
-	})
-
-	test("getReadablePath shows basename when path equals cwd", () => {
-		const cwd = "/home/user/project"
-		assert.strictEqual(getReadablePath(cwd, cwd), "project")
-	})
-
-	test("getReadablePath shows absolute path when outside cwd", () => {
-		const cwd = "/home/user/project"
-		const filePath = "/home/user/other/file.txt"
-		assert.strictEqual(getReadablePath(cwd, filePath), filePath)
+		it("should show absolute path when outside cwd", () => {
+			const cwd = "/home/user/project"
+			const filePath = "/home/user/other/file.txt"
+			getReadablePath(cwd, filePath).should.equal(filePath)
+		})
 	})
 })

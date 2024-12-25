@@ -133,7 +133,7 @@
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
-        "compile-tests": "tsc -p ./tsconfig.test.json --outDir out",
+		"compile-tests": "tsc -p ./tsconfig.test.json --outDir out",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"check-types": "tsc --noEmit",
@@ -151,6 +151,7 @@
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
+		"@types/should": "^11.2.0",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
@@ -160,6 +161,7 @@
 		"eslint": "^8.57.0",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
+		"should": "^13.2.3",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
