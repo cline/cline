@@ -1,4 +1,4 @@
-# Cline API
+# Cline API Documentation
 
 The Cline extension exposes an API that can be used by other extensions. To use this API in your extension:
 
