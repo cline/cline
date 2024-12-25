@@ -1,8 +1,14 @@
 # Change Log
 
+## [3.0.4]
+
+- Fix bug where gemini models would add code block artifacts to the end of text content
+- Fix context mention menu visual issues on light themes
+
 ## [3.0.2]
 
-- Adds block anchor matching for more reliable diff file edits (if 3+ lines, first and last line are used as anchors to search for)
+- Adds block anchor matching for more reliable diff edits (if 3+ lines, first and last line are used as anchors to search for)
+- Add instruction to system prompt to use complete lines in diff edits to work properly with fallback strategies
 - Improves diff edit error handling
 - Adds new Gemini models
 

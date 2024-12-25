@@ -1,31 +1,11 @@
-name: Bug Report
+name: 🐛 Bug Report
 description: File a bug report
 labels: ["bug"]
 body:
-    - type: dropdown
-      id: provider
+    - type: markdown
       attributes:
-          label: Which API Provider are you using?
-          multiple: false
-          options:
-              - OpenRouter
-              - Anthropic
-              - Google Gemini
-              - GCP Vertex AI
-              - AWS Bedrock
-              - OpenAI
-              - OpenAI Compatible
-              - LM Studio
-              - Ollama
-      validations:
-          required: true
-    - type: input
-      id: model
-      attributes:
-          label: Which Model are you using?
-          description: Please specify the model you're using (e.g. Claude 3.5 Sonnet)
-      validations:
-          required: true
+          value: |
+              **Important:** All bug reports must be reproducible using Claude 3.5 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
     - type: textarea
       id: what-happened
       attributes:

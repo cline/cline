@@ -253,6 +253,14 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-1.5-flash-002": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -286,14 +294,6 @@ export const geminiModels = {
 		outputPrice: 0,
 	},
 	"gemini-1.5-pro-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-exp-1206": {
 		maxTokens: 8192,
 		contextWindow: 2_097_152,
 		supportsImages: true,
