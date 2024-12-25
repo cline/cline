@@ -148,6 +148,7 @@
 		"publish:marketplace": "vsce publish && ovsx publish"
 	},
 	"devDependencies": {
+		"@types/axios": "^0.9.36",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
@@ -174,7 +175,7 @@
 		"@types/pdf-parse": "^1.1.4",
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
-		"axios": "^1.7.4",
+		"axios": "^1.7.9",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"clone-deep": "^4.0.1",
