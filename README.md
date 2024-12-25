@@ -116,7 +116,7 @@ Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol),
 
 ## Contributing
 
-To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
+To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the #contributors channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
 
 <details>
 <summary>Local Development Instructions</summary>
