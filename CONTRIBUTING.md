@@ -25,42 +25,48 @@ If you're planning to work on a bigger feature, please create an issue first so 
 Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
 
 1. **Keep Pull Requests Focused**
-   - Limit PRs to a single feature or bug fix
-   - Split larger changes into smaller, related PRs
-   - Try and limit the PR to a single commit
+
+    - Limit PRs to a single feature or bug fix
+    - Split larger changes into smaller, related PRs
+    - Try and limit the PR to a single commit
 
 2. **Code Quality**
-   - Run `npm run lint` to ensure code follows our style guidelines
-   - Run `npm run format` to format your code with Prettier
-   - Address any ESLint warnings or errors before submitting
-   - Follow TypeScript best practices and maintain type safety
+
+    - Run `npm run lint` to ensure code follows our style guidelines
+    - Run `npm run format` to format your code with Prettier
+    - Address any ESLint warnings or errors before submitting
+    - Follow TypeScript best practices and maintain type safety
 
 3. **Testing**
-   - Add tests for new features
-   - Run `npm test` to ensure all tests pass
-   - Update existing tests if your changes affect them
-   - Include both unit tests and integration tests where appropriate
+
+    - Add tests for new features
+    - Run `npm test` to ensure all tests pass
+    - Update existing tests if your changes affect them
+    - Include both unit tests and integration tests where appropriate
 
 4. **Documentation**
-   - Update documentation for any changed functionality
-   - Update the README if your changes affect usage or setup
+
+    - Update documentation for any changed functionality
+    - Update the README if your changes affect usage or setup
 
 5. **Commit Guidelines**
-   - Write clear, descriptive commit messages
-   - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
-   - Reference relevant issues in commits using #issue-number
+
+    - Write clear, descriptive commit messages
+    - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
+    - Reference relevant issues in commits using #issue-number
 
 6. **Before Submitting**
-   - Rebase your branch on the latest main
-   - Ensure your branch builds successfully
-   - Double-check all tests are passing
-   - Review your changes for any debugging code or console logs
+
+    - Rebase your branch on the latest main
+    - Ensure your branch builds successfully
+    - Double-check all tests are passing
+    - Review your changes for any debugging code or console logs
 
 7. **Pull Request Description**
-   - Clearly describe what your changes do
-   - Include steps to test the changes
-   - List any breaking changes
-   - Add screenshots for UI changes
+    - Clearly describe what your changes do
+    - Include steps to test the changes
+    - List any breaking changes
+    - Add screenshots for UI changes
 
 ## Contribution Agreement
 
