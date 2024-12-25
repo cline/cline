@@ -1,0 +1,41 @@
+ name: "CodeQL"
+
+# When to run the analysis
+on:
+  pull_request:
+    branches: [ "main" ]  # Run on PRs to main
+  schedule:
+    - cron: '17 10 * * 1'  # Weekly scan for new vulnerabilities
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    # Permissions needed by CodeQL
+    permissions:
+      actions: read         # Read workflow
+      contents: read        # Read code
+      security-events: write  # Write security alerts
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Tell CodeQL what type of code to analyze
+        language: [ 'javascript-typescript' ]
+
+    steps:
+    # Get the code
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Set up CodeQL tools
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    # Run the actual analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
