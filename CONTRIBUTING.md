@@ -18,6 +18,8 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 
 See something that could be improved? Feel free to create a pull request directly! Whether it's fixing a typo or adding a cool new AI feature, we love surprises (the good kind, not the "undefined is not a function" kind).
 
+Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
+
 If you're planning to work on a bigger feature, please create an issue first so we can discuss whether it aligns with Cline's vision.
 
 ## 💻 Writing and Submitting Code
