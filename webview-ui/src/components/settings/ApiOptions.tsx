@@ -303,12 +303,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
 							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
 							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
 							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
 							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
 							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
 							{/* <VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption> */}
 							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
 							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
