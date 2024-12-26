@@ -45,7 +45,6 @@ class WorkspaceTracker {
 			}),
 		)
 
-		// Listen for file changes (which could include renames)
 		this.disposables.push(
 			watcher.onDidChange(async (uri) => {
 				await this.addFilePath(uri.fsPath)
@@ -53,7 +52,6 @@ class WorkspaceTracker {
 			}),
 		)
 
-		// Add the watcher itself to disposables
 		this.disposables.push(watcher)
 	}
 
