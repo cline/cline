@@ -42,6 +42,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setFuzzyMatchThreshold,
 		preferredLanguage,
 		setPreferredLanguage,
+		writeDelayMs,
+		setWriteDelayMs,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -70,6 +72,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "browserLargeViewport", bool: browserLargeViewport })
 			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
 			vscode.postMessage({ type: "preferredLanguage", text: preferredLanguage })
+			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
 			onDone()
 		}
 	}
@@ -277,6 +280,31 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
 							Automatically create and edit files without requiring approval
 						</p>
+						{alwaysAllowWrite && (
+							<div style={{ marginTop: 10 }}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+									<input
+										type="range"
+										min="0"
+										max="5000"
+										step="100"
+										value={writeDelayMs}
+										onChange={(e) => setWriteDelayMs(parseInt(e.target.value))}
+										style={{
+											flex: 1,
+											accentColor: 'var(--vscode-button-background)',
+											height: '2px'
+										}}
+									/>
+									<span style={{ minWidth: '45px', textAlign: 'left' }}>
+										{writeDelayMs}ms
+									</span>
+								</div>
+								<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+									Delay after writes to allow diagnostics to detect potential problems
+								</p>
+							</div>
+						)}
 					</div>
 
 					<div style={{ marginBottom: 5 }}>

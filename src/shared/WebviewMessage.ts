@@ -41,6 +41,7 @@ export interface WebviewMessage {
 		| "toggleMcpServer"
 		| "fuzzyMatchThreshold"
 		| "preferredLanguage"
+		| "writeDelayMs"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

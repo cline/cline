@@ -37,7 +37,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands, writeDelayMs } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -831,10 +831,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// Only proceed if we have an ask and buttons are enabled
 		if (!clineAsk || !enableButtons) return
 
-		if (isAutoApproved(lastMessage)) {
-			handlePrimaryButtonClick()
+		const autoApprove = async () => {
+			if (isAutoApproved(lastMessage)) {
+				// Add delay for write operations
+				if (alwaysAllowWrite && isWriteToolAction(lastMessage)) {
+					await new Promise(resolve => setTimeout(resolve, writeDelayMs))
+				}
+				handlePrimaryButtonClick()
+			}
 		}
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers, isAutoApproved, lastMessage])
+		autoApprove()
+	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers, isAutoApproved, lastMessage, writeDelayMs, isWriteToolAction])
 
 	return (
 		<div
