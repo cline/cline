@@ -1,10 +1,11 @@
 # Change Log
 
-## [3.0.5]
+## [3.0.6]
 
 - Fix bug where some files would be missing in the `@` context mention menu
 - Add Bedrock support in additional regions
 - Diff edit improvements
+- Add OpenRouter's middle-out transform for models that don't use prompt caching (prevents context window limit errors, but cannot be applied to models like Claude since it would continuously break the cache)
 
 ## [3.0.4]
 
