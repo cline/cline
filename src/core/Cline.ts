@@ -1140,7 +1140,13 @@ export class Cline {
 								} catch (error) {
 									await this.say("diff_error", relPath)
 									pushToolResult(
-										formatResponse.toolError(`Error writing file: ${(error as Error)?.message}`),
+										formatResponse.toolError(
+											`${(error as Error)?.message}\n\n` +
+												`This is likely due to character mismatches between the SEARCH block and the actual file.\n\n` +
+												`The file was reverted to its original state:\n\n` +
+												`<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
+												`Try again with a more precise SEARCH block.\n(If you keep running into this error, you may use the write_to_file tool as a workaround.)`,
+										),
 									)
 									await this.diffViewProvider.revertChanges()
 									await this.diffViewProvider.reset()
