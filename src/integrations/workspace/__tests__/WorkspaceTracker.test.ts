@@ -12,7 +12,6 @@ const mockDispose = jest.fn()
 const mockWatcher = {
     onDidCreate: mockOnDidCreate.mockReturnValue({ dispose: mockDispose }),
     onDidDelete: mockOnDidDelete.mockReturnValue({ dispose: mockDispose }),
-    onDidChange: mockOnDidChange.mockReturnValue({ dispose: mockDispose }),
     dispose: mockDispose
 }
 
@@ -83,16 +82,6 @@ describe("WorkspaceTracker", () => {
         expect(mockProvider.postMessageToWebview).toHaveBeenLastCalledWith({
             type: "workspaceUpdated",
             filePaths: []
-        })
-    })
-
-    it("should handle file change events", async () => {
-        const [[callback]] = mockOnDidChange.mock.calls
-        await callback({ fsPath: "/test/workspace/changed.ts" })
-
-        expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
-            type: "workspaceUpdated",
-            filePaths: ["changed.ts"]
         })
     })
 
