@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.29]
+
+-   Add configurable delay after auto-writes to allow diagnostics to catch up
+
 ## [2.2.28]
 
 -   Use createFileSystemWatcher to more reliably update list of files to @-mention
