@@ -63,7 +63,7 @@ type GlobalStateKey =
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
 	| "deepSeekBaseUrl"
-	
+
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -929,7 +929,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
-      autoApprovalSettings,
+			autoApprovalSettings,
 			deepSeekApiKey,
 			deepSeekBaseUrl,
 		] = await Promise.all([

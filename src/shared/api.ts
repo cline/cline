@@ -71,7 +71,8 @@ export const deepSeekModels = {
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.014,
-		description: "DeepSeek V2.5 model with strong general capabilities and code abilities. Supports function calling and context caching.",
+		description:
+			"DeepSeek V2.5 model with strong general capabilities and code abilities. Supports function calling and context caching.",
 	},
 } as const satisfies Record<string, ModelInfo>
 

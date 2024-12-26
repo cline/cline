@@ -1,12 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import {
-	ApiHandlerOptions,
-	DeepSeekModelId,
-	deepSeekModels,
-	deepSeekDefaultModelId,
-	ModelInfo,
-} from "../../shared/api"
+import { ApiHandlerOptions, DeepSeekModelId, deepSeekModels, deepSeekDefaultModelId, ModelInfo } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -27,10 +21,10 @@ export class DeepSeekHandler implements ApiHandler {
 			throw new Error("API key is required for DeepSeek")
 		}
 		this.options = options
-		
+
 		const baseUrl = this.options.deepSeekBaseUrl || "https://api.deepseek.com"
 		this.isBeta = baseUrl.includes("/beta")
-		
+
 		this.client = new OpenAI({
 			baseURL: baseUrl + "/v1",
 			apiKey: this.options.deepSeekApiKey,

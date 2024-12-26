@@ -192,45 +192,48 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-{selectedProvider === "deepseek" && (
-	<div>
-		<VSCodeTextField
-			value={apiConfiguration?.deepSeekApiKey || ""}
-			style={{ width: "100%" }}
-			type="password"
-			onInput={handleInputChange("deepSeekApiKey")}
-			placeholder="Enter API Key...">
-			<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
-		</VSCodeTextField>
+			{selectedProvider === "deepseek" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.deepSeekApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("deepSeekApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
+					</VSCodeTextField>
 
-		<VSCodeCheckbox
-			checked={apiConfiguration?.deepSeekBaseUrl?.includes("/beta") || false}
-			onChange={(e: any) => {
-				const isChecked = e.target.checked === true
-				setApiConfiguration({
-					...apiConfiguration,
-					deepSeekBaseUrl: isChecked ? "https://api.deepseek.com/beta" : "https://api.deepseek.com",
-				})
-			}}>
-			Use beta endpoint (8K token limit)
-		</VSCodeCheckbox>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.deepSeekBaseUrl?.includes("/beta") || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({
+								...apiConfiguration,
+								deepSeekBaseUrl: isChecked
+									? "https://api.deepseek.com/beta"
+									: "https://api.deepseek.com",
+							})
+						}}>
+						Use beta endpoint (8K token limit)
+					</VSCodeCheckbox>
 
-		<p style={{
-			fontSize: "12px",
-			marginTop: 3,
-			color: "var(--vscode-descriptionForeground)",
-		}}>
-			This key is stored locally and only used to make API requests from this extension.
-			{!apiConfiguration?.deepSeekApiKey && (
-				<VSCodeLink
-					href="https://platform.deepseek.com"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					You can get a DeepSeek API key by signing up here.
-				</VSCodeLink>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.deepSeekApiKey && (
+							<VSCodeLink
+								href="https://platform.deepseek.com"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								You can get a DeepSeek API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
 			)}
-		</p>
-	</div>
-)}
 
 			{selectedProvider === "openai-native" && (
 				<div>
