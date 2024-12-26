@@ -248,9 +248,13 @@ describe('ClineProvider', () => {
             alwaysAllowWrite: false,
             alwaysAllowExecute: false,
             alwaysAllowBrowser: false,
+            alwaysAllowMcp: false,
             uriScheme: 'vscode',
             soundEnabled: false,
             diffEnabled: false,
+            writeDelayMs: 1000,
+            browserLargeViewport: false,
+            fuzzyMatchThreshold: 1.0,
         }
         
         const message: ExtensionMessage = { 
@@ -300,6 +304,7 @@ describe('ClineProvider', () => {
         expect(state).toHaveProperty('taskHistory')
         expect(state).toHaveProperty('soundEnabled')
         expect(state).toHaveProperty('diffEnabled')
+        expect(state).toHaveProperty('writeDelayMs')
     })
 
     test('preferredLanguage defaults to VSCode language when not set', async () => {
@@ -308,7 +313,7 @@ describe('ClineProvider', () => {
         
         const state = await provider.getState();
         expect(state.preferredLanguage).toBe('Spanish');
-    });
+    })
 
     test('preferredLanguage defaults to English for unsupported VSCode language', async () => {
         // Mock VSCode language as an unsupported language
@@ -316,7 +321,7 @@ describe('ClineProvider', () => {
         
         const state = await provider.getState();
         expect(state.preferredLanguage).toBe('English');
-    });
+    })
 
     test('diffEnabled defaults to true when not set', async () => {
         // Mock globalState.get to return undefined for diffEnabled
@@ -325,6 +330,29 @@ describe('ClineProvider', () => {
         const state = await provider.getState()
         
         expect(state.diffEnabled).toBe(true)
+    })
+
+    test('writeDelayMs defaults to 1000ms', async () => {
+        // Mock globalState.get to return undefined for writeDelayMs
+        (mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'writeDelayMs') {
+                return undefined
+            }
+            return null
+        })
+        
+        const state = await provider.getState()
+        expect(state.writeDelayMs).toBe(1000)
+    })
+
+    test('handles writeDelayMs message', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+        
+        await messageHandler({ type: 'writeDelayMs', value: 2000 })
+        
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('writeDelayMs', 2000)
+        expect(mockPostMessage).toHaveBeenCalled()
     })
 
     test('updates sound utility when sound setting changes', async () => {
