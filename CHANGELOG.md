@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.29
-
-### Patch Changes
+## [2.2.29]
 
 -   Add configurable delay after auto-writes to allow diagnostics to catch up
 
