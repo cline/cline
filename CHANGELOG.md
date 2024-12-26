@@ -1,5 +1,11 @@
 # Change Log
 
+## [3.0.5]
+
+- Fix bug where some files would be missing in the `@` context mention menu
+- Add Bedrock support in additional regions
+- Diff edit improvements
+
 ## [3.0.4]
 
 - Fix bug where gemini models would add code block artifacts to the end of text content
