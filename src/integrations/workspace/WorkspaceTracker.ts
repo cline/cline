@@ -45,13 +45,6 @@ class WorkspaceTracker {
 			}),
 		)
 
-		this.disposables.push(
-			watcher.onDidChange(async (uri) => {
-				await this.addFilePath(uri.fsPath)
-				this.workspaceDidUpdate()
-			}),
-		)
-
 		this.disposables.push(watcher)
 	}
 
