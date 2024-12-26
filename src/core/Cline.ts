@@ -1142,7 +1142,7 @@ export class Cline {
 									pushToolResult(
 										formatResponse.toolError(
 											`${(error as Error)?.message}\n\n` +
-												`This is likely due to character mismatches between the SEARCH block and the actual file.\n\n` +
+												`This is likely because the SEARCH block content doesn't match exactly with what's in the file.\n\n` +
 												`The file was reverted to its original state:\n\n` +
 												`<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
 												`Try again with a more precise SEARCH block.\n(If you keep running into this error, you may use the write_to_file tool as a workaround.)`,
