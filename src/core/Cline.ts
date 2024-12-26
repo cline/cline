@@ -934,6 +934,17 @@ export class Cline {
 						}
 					}
 				}
+
+				if (!block.partial) {
+					// Some models add code block artifacts (around the tool calls) which show up at the end of text content
+					// matches ``` with atleast one char after the last backtick, at the end of the string
+					const match = content?.trimEnd().match(/```[a-zA-Z0-9_-]+$/)
+					if (match) {
+						const matchLength = match[0].length
+						content = content.trimEnd().slice(0, -matchLength)
+					}
+				}
+
 				await this.say("text", content, undefined, block.partial)
 				break
 			}

@@ -1,31 +1,11 @@
-name: Bug Report
+name: 🐛 Bug Report
 description: File a bug report
 labels: ["bug"]
 body:
-    - type: dropdown
-      id: provider
+    - type: markdown
       attributes:
-          label: Which API Provider are you using?
-          multiple: false
-          options:
-              - OpenRouter
-              - Anthropic
-              - Google Gemini
-              - GCP Vertex AI
-              - AWS Bedrock
-              - OpenAI
-              - OpenAI Compatible
-              - LM Studio
-              - Ollama
-      validations:
-          required: true
-    - type: input
-      id: model
-      attributes:
-          label: Which Model are you using?
-          description: Please specify the model you're using (e.g. Claude 3.5 Sonnet)
-      validations:
-          required: true
+          value: |
+              **Important:** All bug reports must be reproducible using Claude 3.5 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
     - type: textarea
       id: what-happened
       attributes:
@@ -51,6 +31,22 @@ body:
           label: Relevant API REQUEST output
           description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
           render: shell
+    - type: input
+      id: operating-system
+      attributes:
+          label: Operating System
+          description: What operating system are you using?
+          placeholder: "e.g., Windows 11, macOS Sonoma, Ubuntu 22.04"
+      validations:
+          required: true
+    - type: input
+      id: cline-version
+      attributes:
+          label: Cline Version
+          description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
+          placeholder: "e.g., 1.2.3"
+      validations:
+          required: true
     - type: textarea
       id: additional-context
       attributes:
