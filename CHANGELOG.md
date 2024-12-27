@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.0.7]
+
+- Revert to using batched file watcher to fix crash when many files would be created at once
+
 ## [3.0.6]
 
 - Fix bug where some files would be missing in the `@` context mention menu
