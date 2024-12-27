@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.30
-
-### Patch Changes
+## [2.2.30]
 
 -   Fix bug with auto-approving commands
 
