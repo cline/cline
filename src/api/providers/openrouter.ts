@@ -95,12 +95,18 @@ export class OpenRouterHandler implements ApiHandler {
 				maxTokens = 8_192
 				break
 		}
+
+		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
+		const shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
+
+		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
+			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		})
 
 		let genId: string | undefined

@@ -31,6 +31,22 @@ body:
           label: Relevant API REQUEST output
           description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
           render: shell
+    - type: input
+      id: operating-system
+      attributes:
+          label: Operating System
+          description: What operating system are you using?
+          placeholder: "e.g., Windows 11, macOS Sonoma, Ubuntu 22.04"
+      validations:
+          required: true
+    - type: input
+      id: cline-version
+      attributes:
+          label: Cline Version
+          description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
+          placeholder: "e.g., 1.2.3"
+      validations:
+          required: true
     - type: textarea
       id: additional-context
       attributes:
