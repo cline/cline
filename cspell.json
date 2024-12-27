@@ -1,0 +1,19 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "clinerules",
+        "Ollama",
+        "saoudrizwan",
+        "openrouter",
+        "popout",
+        "modelcontextprotocol",
+        "isbinaryfile",
+        "wasms"
+    ],
+    "ignorePaths": [
+        "node_modules/**",
+        "dist/**",
+        "*.lock"
+    ]
+}
