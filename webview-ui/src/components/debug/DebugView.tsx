@@ -9,32 +9,79 @@ interface ApiStatusDisplayProps {
   apiKey?: string;
   openRouterApiKey?: string;
   openAiApiKey?: string;
+  provider?: string;
+  baseUrl?: string;
+  modelId?: string;
+  error?: string;
 }
 
-const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({ apiKey, openRouterApiKey, openAiApiKey }) => {
+const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
+  apiKey,
+  openRouterApiKey,
+  openAiApiKey,
+  provider,
+  baseUrl,
+  modelId,
+  error
+}) => {
   const isConnected = !!(apiKey || openRouterApiKey || openAiApiKey);
   return (
     <div style={{
       marginBottom: "4px",
       display: "flex",
-      alignItems: "center",
-      gap: "4px"
+      flexDirection: "column",
+      gap: "4px",
+      backgroundColor: error ? "var(--vscode-inputValidation-errorBackground)" : undefined,
+      border: error ? "1px solid var(--vscode-inputValidation-errorBorder)" : undefined,
+      borderRadius: "4px",
+      padding: error ? "8px" : undefined
     }}>
-      <span>API Status:</span>
-      <span style={{
-        color: isConnected ?
-          "var(--vscode-testing-iconPassed)" :
-          "var(--vscode-testing-iconFailed)"
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "4px"
       }}>
-        {isConnected ? "Connected" : "Not Connected"}
-      </span>
-      <span style={{
-        color: isConnected ?
-          "var(--vscode-testing-iconPassed)" :
-          "var(--vscode-testing-iconFailed)"
+        <span>API Status:</span>
+        <span style={{
+          color: isConnected && !error ?
+            "var(--vscode-testing-iconPassed)" :
+            "var(--vscode-testing-iconFailed)"
+        }}>
+          {isConnected && !error ? "Connected" : "Not Connected"}
+        </span>
+        <span style={{
+          color: isConnected && !error ?
+            "var(--vscode-testing-iconPassed)" :
+            "var(--vscode-testing-iconFailed)"
+        }}>
+          {isConnected && !error ? "✓" : "✗"}
+        </span>
+      </div>
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "2px",
+        fontSize: "11px",
+        marginLeft: "4px",
+        opacity: error ? 1 : 0.8
       }}>
-        {isConnected ? "✓" : "✗"}
-      </span>
+        {provider && <div>Provider: {provider}</div>}
+        {baseUrl && <div>Base URL: {baseUrl}</div>}
+        {modelId && <div>Model ID: {modelId}</div>}
+      </div>
+      {error && (
+        <div style={{
+          fontSize: "11px",
+          marginTop: "4px",
+          padding: "4px 8px",
+          backgroundColor: "var(--vscode-inputValidation-errorBackground)",
+          border: "1px solid var(--vscode-inputValidation-errorBorder)",
+          borderRadius: "4px",
+          color: "var(--vscode-errorForeground)"
+        }}>
+          <span style={{ fontWeight: "500" }}>Error:</span> {error}
+        </div>
+      )}
     </div>
   );
 };
@@ -65,25 +112,26 @@ interface PullRequestForm {
   };
   screenshots: string;
   additionalNotes: string;
+  commitName: string;
 }
 
-interface ApiProviderStatus {
-  isConnected: boolean;
-  provider: string;
-  baseUrl?: string;
-  modelId?: string;
-  error?: string;
-}
+//interface ApiProviderStatus {
+//  isConnected: boolean;
+//  provider: string;
+ // baseUrl?: string;
+ // modelId?: string;
+ // error?: string;
+//}
 
-interface IProviderSetting {
-  enabled: boolean;
-  baseUrl?: string;
-}
+//interface IProviderSetting {
+//  enabled: boolean;
+ // baseUrl?: string;
+//}
 
-interface IProvider {
-  name: string;
-  settings: IProviderSetting;
-}
+//interface IProvider {
+ // name: string;
+//  settings: IProviderSetting;
+//}
 
 interface SystemInfo {
   os: string;
@@ -111,7 +159,12 @@ interface IProviderConfig {
 
 interface CommitData {
   commit: string;
-  version?: string;
+  version: string;
+  commitName?: string;
+}
+
+function generateTicketNumber(): string {
+  return `CLINE-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 }
 
 interface DebugViewProps {
@@ -142,6 +195,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
     },
     screenshots: '',
     additionalNotes: '',
+    commitName: '',
   });
 
   const handlePrFormChange = useCallback((field: keyof PullRequestForm, value: string) => {
@@ -422,21 +476,38 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   }, [isCheckingUpdate, isLatestBranch, version]);
 
   const handleCopyToClipboard = useCallback(() => {
+    const commitName = prForm.commitName || generateTicketNumber();
     const debugInfo = {
       System: systemInfo,
-      Providers: activeProviders.map((provider) => ({
-        name: provider.name,
-        enabled: provider.enabled,
-        isLocal: provider.isLocal,
-        running: provider.isRunning,
-        error: provider.error,
-        lastChecked: provider.lastChecked,
-        responseTime: provider.responseTime,
-        url: provider.url,
-      })),
+      Providers: {
+        Local: activeProviders.map((provider) => ({
+          name: provider.name,
+          enabled: provider.enabled,
+          isLocal: provider.isLocal,
+          running: provider.isRunning,
+          error: provider.error,
+          lastChecked: provider.lastChecked,
+          responseTime: provider.responseTime,
+          url: provider.url,
+        })),
+        Cloud: apiConfiguration ? {
+          activeProvider: apiConfiguration.apiProvider,
+          baseUrl: apiConfiguration.apiProvider === "anthropic" ? apiConfiguration.anthropicBaseUrl :
+                  apiConfiguration.apiProvider === "openai" ? apiConfiguration.openAiBaseUrl :
+                  undefined,
+          modelId: apiConfiguration.openRouterModelId || apiConfiguration.openAiModelId,
+          error: apiConfiguration.error,
+          hasKey: !!(apiConfiguration.apiKey || apiConfiguration.openRouterApiKey || apiConfiguration.openAiApiKey),
+        } : null
+      },
       Version: {
-        version: `v${version}`,
+        clineVersion: "3.0",
+        displayVersion: `v${version}`,
         branch: isLatestBranch ? 'main' : 'stable',
+        commit: {
+          name: commitName,
+          timestamp: new Date().toISOString()
+        }
       },
       Timestamp: new Date().toISOString(),
     };
@@ -448,7 +519,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
       .catch(error => {
         toast.error(`Failed to copy: ${(error as Error).message}`);
       });
-  }, [activeProviders, systemInfo, isLatestBranch, version]);
+  }, [activeProviders, systemInfo, isLatestBranch, version, apiConfiguration, prForm.commitName]);
 
   return (
     <React.Fragment>
@@ -476,6 +547,36 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: "12px" }}>
+          {/* Bug Report Pre-Checklist */}
+          <div style={{ marginBottom: "24px" }}>
+            <h4 style={{ margin: "0 0 12px 0", fontSize: "13px" }}>Bug Report Pre-Checklist</h4>
+            <div style={{
+              backgroundColor: "var(--vscode-textBlockQuote-background)",
+              padding: "12px",
+              borderRadius: "4px",
+              marginBottom: "8px"
+            }}>
+              <p style={{
+                margin: "0 0 8px 0",
+                fontSize: "12px",
+                fontStyle: "italic"
+              }}>
+                All boxes must be unchecked to proceed with creating a new issue. These are common scenarios that do not need to be reported.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <VSCodeCheckbox>
+                  Some LLMs struggle with multiple function calls and complex prompting that Cline requires to work. Did this error have to deal with troubleshooting the Cline Prompting?
+                </VSCodeCheckbox>
+                <VSCodeCheckbox>
+                  Does the error relate to computer usage not being turned on for other models? Cline gives complex prompts to other LLMs, that are not Anthropic models, which give them instructions and the ability to use the computer.
+                </VSCodeCheckbox>
+                <VSCodeCheckbox>
+                  Did your issue have to deal with adding a prompt cache for other API providers? Many API Providers have automated cache enabled and optimized on their end so please be sure to check how the provider utilize prompt cache in their API Documentation before submitting an issue regarding prompt cache.
+                </VSCodeCheckbox>
+              </div>
+            </div>
+          </div>
+
           {/* Pull Request Form Section */}
           <div style={{ marginBottom: "24px" }}>
             <h4 style={{ margin: "0 0 12px 0", fontSize: "13px" }}>Pull Request Form</h4>
@@ -622,50 +723,15 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                             apiKey={apiConfiguration?.apiKey}
                             openRouterApiKey={apiConfiguration?.openRouterApiKey}
                             openAiApiKey={apiConfiguration?.openAiApiKey}
+                            provider={apiConfiguration?.apiProvider}
+                            baseUrl={
+                              apiConfiguration?.apiProvider === "anthropic" ? apiConfiguration?.anthropicBaseUrl :
+                              apiConfiguration?.apiProvider === "openai" ? apiConfiguration?.openAiBaseUrl :
+                              undefined
+                            }
+                            modelId={apiConfiguration?.openRouterModelId}
+                            error={apiConfiguration?.error}
                           />
-                          {apiConfiguration.apiProvider === "anthropic" && apiConfiguration?.anthropicBaseUrl && (
-                            <div>Base URL: {apiConfiguration.anthropicBaseUrl}</div>
-                          )}
-                          {apiConfiguration.apiProvider === "openrouter" && (
-                            <>
-                              {apiConfiguration.openRouterModelId && <div>Model: {apiConfiguration.openRouterModelId}</div>}
-                            </>
-                          )}
-                          {apiConfiguration.apiProvider === "openai" && apiConfiguration?.openAiBaseUrl && (
-                            <div>Base URL: {apiConfiguration.openAiBaseUrl}</div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {apiConfiguration?.apiProvider === "openrouter" && (
-                      <div style={{ marginBottom: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                          <div style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            backgroundColor: apiConfiguration.openRouterApiKey ? "var(--vscode-testing-iconPassed)" : "var(--vscode-testing-iconFailed)"
-                          }} />
-                          <span>OpenRouter</span>
-                        </div>
-                        <div style={{ fontSize: "11px", marginLeft: "16px" }}>
-                          {apiConfiguration.openRouterModelId && <div>Model: {apiConfiguration.openRouterModelId}</div>}
-                        </div>
-                      </div>
-                    )}
-                    {apiConfiguration?.apiProvider === "openai" && (
-                      <div style={{ marginBottom: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                          <div style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            backgroundColor: apiConfiguration.openAiApiKey ? "var(--vscode-testing-iconPassed)" : "var(--vscode-testing-iconFailed)"
-                          }} />
-                          <span>OpenAI</span>
-                        </div>
-                        <div style={{ fontSize: "11px", marginLeft: "16px" }}>
-                          {apiConfiguration.openAiBaseUrl && <div>URL: {apiConfiguration.openAiBaseUrl}</div>}
                         </div>
                       </div>
                     )}
@@ -704,6 +770,16 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Commit Name</h5>
+              <VSCodeTextArea
+                value={prForm.commitName}
+                onChange={(e) => handlePrFormChange('commitName', (e.target as HTMLTextAreaElement).value)}
+                placeholder="Enter a commit name (optional - will generate ticket number if empty)"
+                style={{ width: "100%", minHeight: "40px" }}
+              />
             </div>
 
             <div style={{ marginBottom: "16px" }}>
