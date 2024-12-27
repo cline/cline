@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.31
-
-### Patch Changes
+## [2.2.31]
 
 -   Improved logic for auto-approving chained commands
 
