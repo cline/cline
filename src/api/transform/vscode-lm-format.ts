@@ -317,11 +317,13 @@ export async function convertToAnthropicMessage(vsCodeLmMessage: vscode.Language
                     (part): part is Anthropic.ContentBlock => part !== null
                 )
         ),
-        stop_reason: ((): null => null)(), // The stop reason is not stored in the message.
-        stop_sequence: null, // which custom stop_sequence was generated, if any (not applicable if you don't use stop_sequence)
+        stop_reason: ((): null => null)(),
+        stop_sequence: null,
         usage: {
-            input_tokens: 0, // Token counting requires client instance which isn't available here
-            output_tokens: 0, // Output tokens not applicable for stored messages
+            // TODO: Ideally the __tokenCount should be stored in the message history and retrieved from there.
+            // However, this function currently isn't used anywhere at all, so this is a low priority.
+            input_tokens: (vsCodeLmMessage as any).__tokenCount?.inputTokens || 0,
+            output_tokens: (vsCodeLmMessage as any).__tokenCount?.outputTokens || 0
         }
     };
 }
