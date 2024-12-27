@@ -1,11 +1,44 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react";
 import React, { useCallback, useEffect, useState } from 'react';
+import { useExtensionState } from "../../context/ExtensionStateContext";
 import { useSettings } from './useSettings';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Types and interfaces moved to top
+interface ApiStatusDisplayProps {
+  apiKey?: string;
+  openRouterApiKey?: string;
+  openAiApiKey?: string;
+}
+
+const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({ apiKey, openRouterApiKey, openAiApiKey }) => {
+  const isConnected = !!(apiKey || openRouterApiKey || openAiApiKey);
+  return (
+    <div style={{
+      marginBottom: "4px",
+      display: "flex",
+      alignItems: "center",
+      gap: "4px"
+    }}>
+      <span>API Status:</span>
+      <span style={{
+        color: isConnected ?
+          "var(--vscode-testing-iconPassed)" :
+          "var(--vscode-testing-iconFailed)"
+      }}>
+        {isConnected ? "Connected" : "Not Connected"}
+      </span>
+      <span style={{
+        color: isConnected ?
+          "var(--vscode-testing-iconPassed)" :
+          "var(--vscode-testing-iconFailed)"
+      }}>
+        {isConnected ? "✓" : "✗"}
+      </span>
+    </div>
+  );
+};
+
 interface ProviderStatus {
   name: string;
   enabled: boolean;
@@ -15,6 +48,41 @@ interface ProviderStatus {
   lastChecked: Date;
   responseTime?: number;
   url: string | null;
+}
+
+interface PullRequestForm {
+  description: string;
+  typeOfChange: {
+    bugFix: boolean;
+    newFeature: boolean;
+    breakingChange: boolean;
+    documentation: boolean;
+  };
+  preFlightChecklist: {
+    singleFeature: boolean;
+    testsPassing: boolean;
+    reviewedGuidelines: boolean;
+  };
+  screenshots: string;
+  additionalNotes: string;
+}
+
+interface ApiProviderStatus {
+  isConnected: boolean;
+  provider: string;
+  baseUrl?: string;
+  modelId?: string;
+  error?: string;
+}
+
+interface IProviderSetting {
+  enabled: boolean;
+  baseUrl?: string;
+}
+
+interface IProvider {
+  name: string;
+  settings: IProviderSetting;
 }
 
 interface SystemInfo {
@@ -46,13 +114,62 @@ interface CommitData {
   version?: string;
 }
 
-const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
-  const { version } = useExtensionState();
+interface DebugViewProps {
+  onDone: () => void;
+}
+
+const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
+  const { version, apiConfiguration } = useExtensionState();
   const { providers, isLatestBranch } = useSettings();
   const [activeProviders, setActiveProviders] = useState<ProviderStatus[]>([]);
   const [updateMessage, setUpdateMessage] = useState<string>('');
   const [systemInfo] = useState<SystemInfo>(getSystemInfo());
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  // Pull Request Form State
+  const [prForm, setPrForm] = useState<PullRequestForm>({
+    description: '',
+    typeOfChange: {
+      bugFix: false,
+      newFeature: false,
+      breakingChange: false,
+      documentation: false,
+    },
+    preFlightChecklist: {
+      singleFeature: false,
+      testsPassing: false,
+      reviewedGuidelines: false,
+    },
+    screenshots: '',
+    additionalNotes: '',
+  });
+
+  const handlePrFormChange = useCallback((field: keyof PullRequestForm, value: string) => {
+    setPrForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  }, []);
+
+  const handleTypeOfChangeToggle = useCallback((field: keyof typeof prForm.typeOfChange) => {
+    setPrForm(prev => ({
+      ...prev,
+      typeOfChange: {
+        ...prev.typeOfChange,
+        [field]: !prev.typeOfChange[field]
+      }
+    }));
+  }, []);
+
+  const handlePreFlightToggle = useCallback((field: keyof typeof prForm.preFlightChecklist) => {
+    setPrForm(prev => ({
+      ...prev,
+      preFlightChecklist: {
+        ...prev.preFlightChecklist,
+        [field]: !prev.preFlightChecklist[field]
+      }
+    }));
+  }, []);
 
   // Constants
   const GITHUB_URLS = {
@@ -60,7 +177,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     fork: 'https://github.com/viasky657/clineOpenAIAPIPromptCache',
     commitJson: (branch: string) =>
       `https://raw.githubusercontent.com/cline/cline/${branch}/package.json`,
-  };
+  } as const;
 
   const LOCAL_PROVIDERS = ['Ollama', 'LMStudio', 'OpenAILike'];
 
@@ -126,7 +243,6 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
       memory: getMemoryInfo(),
       cores: navigator.hardwareConcurrency || 0,
       deviceType: getDeviceType(),
-      //add new fields below if needed:
       colorDepth: `${window.screen.colorDepth}-bit`,
       pixelRatio: window.devicePixelRatio,
       online: navigator.onLine,
@@ -135,7 +251,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     };
   }
 
-  const checkProviderStatus = async (url: string | null, providerName: string): Promise<ProviderStatus> => {
+  const checkProviderStatus = useCallback(async (url: string | null, providerName: string): Promise<ProviderStatus> => {
     if (!url) {
       console.log(`[Debug] No URL provided for ${providerName}`);
       return {
@@ -224,20 +340,21 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         url,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         name: providerName,
         enabled: false,
         isLocal: true,
         isRunning: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         lastChecked: new Date(),
         responseTime: performance.now() - startTime,
         url,
       };
     }
-  };
+  }, []);
 
-  const updateProviderStatuses = async () => {
+  const updateProviderStatuses = useCallback(async () => {
     if (!providers) return;
 
     try {
@@ -261,13 +378,13 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     } catch (error) {
       console.error('[Debug] Failed to update provider statuses:', error);
     }
-  };
+  }, [checkProviderStatus, providers]);
 
   useEffect(() => {
     updateProviderStatuses();
     const interval = setInterval(updateProviderStatuses, 30000);
     return () => clearInterval(interval);
-  }, [providers]);
+  }, [updateProviderStatuses]);
 
   const handleCheckForUpdate = useCallback(async () => {
     if (isCheckingUpdate) return;
@@ -296,7 +413,8 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         setUpdateMessage(`You are on the latest version (v${version}) from the ${branchToCheck} branch`);
       }
     } catch (error) {
-      setUpdateMessage('Failed to check for updates');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check for updates';
+      setUpdateMessage(errorMessage);
       console.error('[Debug] Update check failed:', error);
     } finally {
       setIsCheckingUpdate(false);
@@ -328,7 +446,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         toast.success('Debug information copied to clipboard!');
       })
       .catch(error => {
-        toast.error(`Failed to copy: ${error.message}`);
+        toast.error(`Failed to copy: ${(error as Error).message}`);
       });
   }, [activeProviders, systemInfo, isLatestBranch, version]);
 
@@ -358,11 +476,253 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: "12px" }}>
+          {/* Pull Request Form Section */}
+          <div style={{ marginBottom: "24px" }}>
+            <h4 style={{ margin: "0 0 12px 0", fontSize: "13px" }}>Pull Request Form</h4>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Description</h5>
+              <VSCodeTextArea
+                value={prForm.description}
+                onChange={(e) => handlePrFormChange('description', (e.target as HTMLTextAreaElement).value)}
+                placeholder="Describe your changes in detail. What problem does this PR solve?"
+                style={{ width: "100%", minHeight: "80px" }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Type of Change</h5>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <VSCodeCheckbox
+                  checked={prForm.typeOfChange.bugFix}
+                  onChange={() => handleTypeOfChangeToggle('bugFix')}
+                >
+                  🐛 Bug fix (non-breaking change which fixes an issue)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.typeOfChange.newFeature}
+                  onChange={() => handleTypeOfChangeToggle('newFeature')}
+                >
+                  ✨ New feature (non-breaking change which adds functionality)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.typeOfChange.breakingChange}
+                  onChange={() => handleTypeOfChangeToggle('breakingChange')}
+                >
+                  💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.typeOfChange.documentation}
+                  onChange={() => handleTypeOfChangeToggle('documentation')}
+                >
+                  📚 Documentation update
+                </VSCodeCheckbox>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Pre-flight Checklist</h5>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.singleFeature}
+                  onChange={() => handlePreFlightToggle('singleFeature')}
+                >
+                  Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.testsPassing}
+                  onChange={() => handlePreFlightToggle('testsPassing')}
+                >
+                  Tests are passing (`npm test`) and code is formatted and linted (`npm run format && npm run lint`)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.reviewedGuidelines}
+                  onChange={() => handlePreFlightToggle('reviewedGuidelines')}
+                >
+                  I have reviewed contributor guidelines
+                </VSCodeCheckbox>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Screenshots</h5>
+              <VSCodeTextArea
+                value={prForm.screenshots}
+                onChange={(e) => handlePrFormChange('screenshots', (e.target as HTMLTextAreaElement).value)}
+                placeholder="For UI changes, add screenshots here"
+                style={{ width: "100%", minHeight: "80px" }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>API Status</h5>
+
+              {/* Local API Providers */}
+              <div style={{ marginBottom: "12px" }}>
+                <h6 style={{ margin: "0 0 4px 8px", fontSize: "11px", opacity: 0.8 }}>Local Providers</h6>
+                <div style={{
+                  backgroundColor: "var(--vscode-textBlockQuote-background)",
+                  padding: "8px",
+                  borderRadius: "4px"
+                }}>
+                  {activeProviders.map((provider) => (
+                    <div key={provider.name} style={{ marginBottom: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        <div style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          backgroundColor: provider.isRunning ?
+                            "var(--vscode-testing-iconPassed)" :
+                            "var(--vscode-testing-iconFailed)"
+                        }} />
+                        <span style={{ fontSize: "12px" }}>{provider.name}</span>
+                      </div>
+                      {provider.error && (
+                        <div style={{
+                          fontSize: "11px",
+                          color: "var(--vscode-errorForeground)",
+                          marginLeft: "16px"
+                        }}>
+                          Error: {provider.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {activeProviders.length === 0 && (
+                    <div style={{ fontSize: "12px", opacity: 0.8 }}>
+                      No local providers configured
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cloud API Providers */}
+              <div>
+                <h6 style={{ margin: "0 0 4px 8px", fontSize: "11px", opacity: 0.8 }}>Cloud Providers</h6>
+                <div style={{
+                  backgroundColor: "var(--vscode-textBlockQuote-background)",
+                  padding: "8px",
+                  borderRadius: "4px"
+                }}>
+                  <div style={{ fontSize: "12px" }}>
+                    {apiConfiguration && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <div style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            backgroundColor: "var(--vscode-testing-iconPassed)"
+                          }} />
+                          <span>Active Provider: {apiConfiguration.apiProvider}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", marginLeft: "16px" }}>
+                          <ApiStatusDisplay
+                            apiKey={apiConfiguration?.apiKey}
+                            openRouterApiKey={apiConfiguration?.openRouterApiKey}
+                            openAiApiKey={apiConfiguration?.openAiApiKey}
+                          />
+                          {apiConfiguration.apiProvider === "anthropic" && apiConfiguration?.anthropicBaseUrl && (
+                            <div>Base URL: {apiConfiguration.anthropicBaseUrl}</div>
+                          )}
+                          {apiConfiguration.apiProvider === "openrouter" && (
+                            <>
+                              {apiConfiguration.openRouterModelId && <div>Model: {apiConfiguration.openRouterModelId}</div>}
+                            </>
+                          )}
+                          {apiConfiguration.apiProvider === "openai" && apiConfiguration?.openAiBaseUrl && (
+                            <div>Base URL: {apiConfiguration.openAiBaseUrl}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {apiConfiguration?.apiProvider === "openrouter" && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <div style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            backgroundColor: apiConfiguration.openRouterApiKey ? "var(--vscode-testing-iconPassed)" : "var(--vscode-testing-iconFailed)"
+                          }} />
+                          <span>OpenRouter</span>
+                        </div>
+                        <div style={{ fontSize: "11px", marginLeft: "16px" }}>
+                          {apiConfiguration.openRouterModelId && <div>Model: {apiConfiguration.openRouterModelId}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {apiConfiguration?.apiProvider === "openai" && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <div style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            backgroundColor: apiConfiguration.openAiApiKey ? "var(--vscode-testing-iconPassed)" : "var(--vscode-testing-iconFailed)"
+                          }} />
+                          <span>OpenAI</span>
+                        </div>
+                        <div style={{ fontSize: "11px", marginLeft: "16px" }}>
+                          {apiConfiguration.openAiBaseUrl && <div>URL: {apiConfiguration.openAiBaseUrl}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {providers && Object.entries(providers as Record<string, IProviderConfig>)
+                      .map(([key, provider]) => {
+                        if (!provider.name || LOCAL_PROVIDERS.includes(provider.name) ||
+                            provider.name === 'Anthropic' || provider.name === 'OpenRouter' || provider.name === 'OpenAI') {
+                          return null;
+                        }
+                        return (
+                          <div key={key} style={{ marginBottom: "8px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                              <div style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "50%",
+                                backgroundColor: provider.settings.enabled ?
+                                  "var(--vscode-testing-iconPassed)" :
+                                  "var(--vscode-charts-grey)"
+                              }} />
+                              <span>{provider.name}</span>
+                            </div>
+                            {provider.settings.baseUrl && (
+                              <div style={{ fontSize: "11px", opacity: 0.8, marginLeft: "16px" }}>
+                                URL: {provider.settings.baseUrl}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {!apiConfiguration && !providers && (
+                      <div style={{ opacity: 0.8 }}>
+                        No cloud providers configured
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Additional Notes</h5>
+              <VSCodeTextArea
+                value={prForm.additionalNotes}
+                onChange={(e) => handlePrFormChange('additionalNotes', (e.target as HTMLTextAreaElement).value)}
+                placeholder="Add any additional notes for reviewers"
+                style={{ width: "100%", minHeight: "80px" }}
+              />
+            </div>
+          </div>
+
+          {/* Debug Info Section */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
             <VSCodeButton onClick={handleCopyToClipboard}>
               Copy Debug Info
             </VSCodeButton>
-            <VSCodeButton 
+            <VSCodeButton
               onClick={handleCheckForUpdate}
               disabled={isCheckingUpdate}
             >
@@ -375,8 +735,8 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
               padding: "8px",
               marginBottom: "12px",
               backgroundColor: "var(--vscode-textBlockQuote-background)",
-              border: updateMessage.includes('Update available') ? 
-                "1px solid var(--vscode-notificationsWarningIcon-foreground)" : 
+              border: updateMessage.includes('Update available') ?
+                "1px solid var(--vscode-notificationsWarningIcon-foreground)" :
                 "1px solid var(--vscode-panel-border)",
               borderRadius: "4px",
             }}>
@@ -424,7 +784,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
               {activeProviders.map((provider, index) => (
                 <div key={provider.name} style={{
                   padding: "8px",
-                  borderBottom: index < activeProviders.length - 1 ? 
+                  borderBottom: index < activeProviders.length - 1 ?
                     "1px solid var(--vscode-panel-border)" : "none",
                 }}>
                   <div style={{
@@ -440,7 +800,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
                         borderRadius: "50%",
                         backgroundColor: !provider.enabled ? "var(--vscode-charts-grey)" :
                           provider.isRunning ? "var(--vscode-testing-iconPassed)" :
-                          "var(--vscode-testing-iconFailed)",
+                            "var(--vscode-testing-iconFailed)",
                       }} />
                       <div>
                         <div style={{ fontSize: "12px", fontWeight: "500" }}>{provider.name}</div>
@@ -453,7 +813,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
                       <span style={{
                         padding: "2px 6px",
                         borderRadius: "10px",
-                        backgroundColor: provider.enabled ? 
+                        backgroundColor: provider.enabled ?
                           "var(--vscode-testing-iconPassed)" : "var(--vscode-charts-grey)",
                         opacity: 0.2,
                       }}>
@@ -488,7 +848,7 @@ const DebugView: React.FC<{ onDone: () => void }> = ({ onDone }) => {
               {activeProviders.length === 0 && (
                 <div style={{
                   padding: "12px",
-                  textAlign: "center",
+                  textAlign:"center",
                   fontSize: "12px",
                   opacity: 0.8,
                 }}>
