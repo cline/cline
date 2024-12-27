@@ -1902,24 +1902,79 @@ export class Cline {
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
+								// Log the result (need to check if images get passed to this point)
+								if (toolResult?.content) {
+									for (const item of toolResult.content) {
+										console.log(item)
+									}
+								}
+
 								// TODO: add progress indicator and ability to parse images and non-text responses
-								const toolResultPretty =
-									(toolResult?.isError ? "Error:\n" : "") +
-										toolResult?.content
-											.map((item) => {
-												if (item.type === "text") {
-													return item.text
-												}
-												if (item.type === "resource") {
-													const { blob, ...rest } = item.resource
-													return JSON.stringify(rest, null, 2)
-												}
-												return ""
-											})
-											.filter(Boolean)
-											.join("\n\n") || "(No response)"
-								await this.say("mcp_server_response", toolResultPretty)
-								pushToolResult(formatResponse.toolResult(toolResultPretty))
+								// const toolResultImages: string[] = []
+								// const toolResultPretty =
+								// 	(toolResult?.isError ? "Error:\n" : "") +
+								// 		toolResult?.content
+								// 			.map((item) => {
+								// 				if (item.type === "text") {
+								// 					return item.text
+								// 				}
+								// 				if (item.type === "resource") {
+								// 					const { blob, ...rest } = item.resource
+								// 					return JSON.stringify(rest, null, 2)
+								// 				}
+								// 				if (item.type === "image") {
+								// 					toolResultImages.push(`data:${item.mimeType};base64,${item.data}`)
+								// 				}
+								// 				return ""
+								// 			})
+								// 			.filter(Boolean)
+								// 			.join("\n\n") || "(No response)"
+	
+								// In order to return response text & images in correct order, we fragment message content
+								// TODO: Make it so we can "say" array of Anthropic messages to avoid this complex logic
+								var img_acc = []
+								var text_acc = [toolResult?.isError ? "Error:\n" : ""]
+								async function forwardResponseBlock(
+									client: Cline,
+									textBlocks : string[],
+									imageBlocks : string[],
+								) {
+									const text = textBlocks.join("\n\n") || "(No response)"
+
+									console.log(text, imageBlocks)
+
+									await client.say("mcp_server_response", text, imageBlocks)
+									pushToolResult(formatResponse.toolResult(text, imageBlocks))
+								}
+
+								for (const item of toolResult?.content || []) {
+									if (item.type === "text") {
+										if (img_acc.length > 0) {
+											await forwardResponseBlock(this, text_acc, img_acc)
+											img_acc = []
+											text_acc = []
+										}
+										text_acc.push(item.text)
+									}
+									if (item.type === "resource") {
+										if (img_acc.length > 0) {
+											await forwardResponseBlock(this, text_acc, img_acc)
+											img_acc = []
+											text_acc = []
+										}
+										text_acc.push(JSON.stringify(item.resource, null, 2))
+									}
+									if (item.type === "image") {
+										img_acc.push(`data:${item.mimeType};base64,${item.data}`)
+									}
+								}
+
+								if (img_acc.length > 0 || text_acc.length > 0) {
+									await forwardResponseBlock(this, text_acc, img_acc)
+								}
+
+								// await this.say("mcp_server_response", toolResultPretty, toolResultImages)
+								// pushToolResult(formatResponse.toolResult(toolResultPretty, toolResultImages))
 								break
 							}
 						} catch (error) {
