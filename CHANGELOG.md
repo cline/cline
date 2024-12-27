@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.30
+
+### Patch Changes
+
+-   Fix bug with auto-approving commands
+
 ## [2.2.29]
 
 -   Add configurable delay after auto-writes to allow diagnostics to catch up
