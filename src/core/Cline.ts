@@ -1902,13 +1902,6 @@ export class Cline {
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
-								// Log the result (need to check if images get passed to this point)
-								if (toolResult?.content) {
-									for (const item of toolResult.content) {
-										console.log(item)
-									}
-								}
-
 								// In order to return response text & images in correct order, we fragment message content
 								// TODO: Make it so we can "say" array of Anthropic messages to avoid this complex logic
 								// TODO: add progress indicator and ability to parse images and non-text responses
