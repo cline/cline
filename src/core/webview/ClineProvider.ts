@@ -407,7 +407,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
+								try {
+									this.cline.api = buildApiHandler(message.apiConfiguration)
+									// Clear any previous error if connection succeeds
+									message.apiConfiguration.error = undefined;
+								} catch (error) {
+									// Capture provider initialization errors
+									message.apiConfiguration.error = error instanceof Error ? error.message : 'Failed to initialize API provider';
+									console.error('API provider initialization error:', error);
+								}
 							}
 						}
 						await this.postStateToWebview()

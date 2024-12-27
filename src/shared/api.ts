@@ -36,7 +36,8 @@ export interface ApiHandlerOptions {
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
-	apiProvider?: ApiProvider
+	apiProvider?: ApiProvider;
+	error?: string;
 }
 
 // Models
