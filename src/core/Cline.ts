@@ -1909,29 +1909,9 @@ export class Cline {
 									}
 								}
 
-								// TODO: add progress indicator and ability to parse images and non-text responses
-								// const toolResultImages: string[] = []
-								// const toolResultPretty =
-								// 	(toolResult?.isError ? "Error:\n" : "") +
-								// 		toolResult?.content
-								// 			.map((item) => {
-								// 				if (item.type === "text") {
-								// 					return item.text
-								// 				}
-								// 				if (item.type === "resource") {
-								// 					const { blob, ...rest } = item.resource
-								// 					return JSON.stringify(rest, null, 2)
-								// 				}
-								// 				if (item.type === "image") {
-								// 					toolResultImages.push(`data:${item.mimeType};base64,${item.data}`)
-								// 				}
-								// 				return ""
-								// 			})
-								// 			.filter(Boolean)
-								// 			.join("\n\n") || "(No response)"
-	
 								// In order to return response text & images in correct order, we fragment message content
 								// TODO: Make it so we can "say" array of Anthropic messages to avoid this complex logic
+								// TODO: add progress indicator and ability to parse images and non-text responses
 								var img_acc = []
 								var text_acc = [toolResult?.isError ? "Error:\n" : ""]
 								async function forwardResponseBlock(
@@ -1972,9 +1952,6 @@ export class Cline {
 								if (img_acc.length > 0 || text_acc.length > 0) {
 									await forwardResponseBlock(this, text_acc, img_acc)
 								}
-
-								// await this.say("mcp_server_response", toolResultPretty, toolResultImages)
-								// pushToolResult(formatResponse.toolResult(toolResultPretty, toolResultImages))
 								break
 							}
 						} catch (error) {
