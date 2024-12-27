@@ -247,54 +247,108 @@ describe('ChatView - Auto Approval Tests', () => {
     })
   })
 
-  it('auto-approves write tools when alwaysAllowWrite is enabled', async () => {
-    render(
-      <ExtensionStateContextProvider>
-        <ChatView 
-          isHidden={false}
-          showAnnouncement={false}
-          hideAnnouncement={() => {}}
-          showHistoryView={() => {}}
-        />
-      </ExtensionStateContextProvider>
-    )
+  describe('Write Tool Auto-Approval Tests', () => {
+    it('auto-approves write tools when alwaysAllowWrite is enabled and message is a tool request', async () => {
+      render(
+        <ExtensionStateContextProvider>
+          <ChatView
+            isHidden={false}
+            showAnnouncement={false}
+            hideAnnouncement={() => {}}
+            showHistoryView={() => {}}
+          />
+        </ExtensionStateContextProvider>
+      )
 
-    // First hydrate state with initial task
-    mockPostMessage({
-      alwaysAllowWrite: true,
-      clineMessages: [
-        {
-          type: 'say',
-          say: 'task',
-          ts: Date.now() - 2000,
-          text: 'Initial task'
-        }
-      ]
+      // First hydrate state with initial task
+      mockPostMessage({
+        alwaysAllowWrite: true,
+        clineMessages: [
+          {
+            type: 'say',
+            say: 'task',
+            ts: Date.now() - 2000,
+            text: 'Initial task'
+          }
+        ]
+      })
+
+      // Then send the write tool ask message
+      mockPostMessage({
+        alwaysAllowWrite: true,
+        clineMessages: [
+          {
+            type: 'say',
+            say: 'task',
+            ts: Date.now() - 2000,
+            text: 'Initial task'
+          },
+          {
+            type: 'ask',
+            ask: 'tool',
+            ts: Date.now(),
+            text: JSON.stringify({ tool: 'editedExistingFile', path: 'test.txt' }),
+            partial: false
+          }
+        ]
+      })
+
+      // Wait for the auto-approval message
+      await waitFor(() => {
+        expect(vscode.postMessage).toHaveBeenCalledWith({
+          type: 'askResponse',
+          askResponse: 'yesButtonClicked'
+        })
+      })
     })
 
-    // Then send the write tool ask message
-    mockPostMessage({
-      alwaysAllowWrite: true,
-      clineMessages: [
-        {
-          type: 'say',
-          say: 'task',
-          ts: Date.now() - 2000,
-          text: 'Initial task'
-        },
-        {
-          type: 'ask',
-          ask: 'tool',
-          ts: Date.now(),
-          text: JSON.stringify({ tool: 'editedExistingFile', path: 'test.txt' }),
-          partial: false
-        }
-      ]
-    })
+    it('does not auto-approve write operations when alwaysAllowWrite is enabled but message is not a tool request', () => {
+      render(
+        <ExtensionStateContextProvider>
+          <ChatView
+            isHidden={false}
+            showAnnouncement={false}
+            hideAnnouncement={() => {}}
+            showHistoryView={() => {}}
+          />
+        </ExtensionStateContextProvider>
+      )
 
-    // Wait for the auto-approval message
-    await waitFor(() => {
-      expect(vscode.postMessage).toHaveBeenCalledWith({
+      // First hydrate state with initial task
+      mockPostMessage({
+        alwaysAllowWrite: true,
+        clineMessages: [
+          {
+            type: 'say',
+            say: 'task',
+            ts: Date.now() - 2000,
+            text: 'Initial task'
+          }
+        ]
+      })
+
+      // Then send a non-tool write operation message
+      mockPostMessage({
+        alwaysAllowWrite: true,
+        clineMessages: [
+          {
+            type: 'say',
+            say: 'task',
+            ts: Date.now() - 2000,
+            text: 'Initial task'
+          },
+          {
+            type: 'ask',
+            ask: 'write_operation',
+            ts: Date.now(),
+            text: JSON.stringify({ path: 'test.txt', content: 'test content' }),
+            partial: false
+          }
+        ]
+      })
+
+      // Verify no auto-approval message was sent
+      expect(vscode.postMessage).not.toHaveBeenCalledWith({
         type: 'askResponse',
         askResponse: 'yesButtonClicked'
       })

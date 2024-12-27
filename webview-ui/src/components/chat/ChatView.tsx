@@ -834,7 +834,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const autoApprove = async () => {
 			if (isAutoApproved(lastMessage)) {
 				// Add delay for write operations
-				if (alwaysAllowWrite && isWriteToolAction(lastMessage)) {
+				if (lastMessage?.ask === "tool" && isWriteToolAction(lastMessage)) {
 					await new Promise(resolve => setTimeout(resolve, writeDelayMs))
 				}
 				handlePrimaryButtonClick()
