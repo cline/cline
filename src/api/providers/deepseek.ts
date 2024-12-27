@@ -1,6 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, DeepSeekModelId, deepSeekModels, deepSeekDefaultModelId, ModelInfo } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	DeepSeekModelId,
+	deepSeekModels,
+	deepSeekDefaultModelId,
+	ModelInfo,
+	getDeepSeekPricing,
+} from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -14,8 +21,6 @@ interface DeepSeekCompletionUsage extends OpenAI.CompletionUsage {
 export class DeepSeekHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
-	private isBeta: boolean
-
 	constructor(options: ApiHandlerOptions) {
 		if (!options.deepSeekApiKey) {
 			throw new Error("API key is required for DeepSeek")
@@ -23,8 +28,6 @@ export class DeepSeekHandler implements ApiHandler {
 		this.options = options
 
 		const baseUrl = this.options.deepSeekBaseUrl || "https://api.deepseek.com"
-		this.isBeta = baseUrl.includes("/beta")
-
 		this.client = new OpenAI({
 			baseURL: baseUrl + "/v1",
 			apiKey: this.options.deepSeekApiKey,
@@ -40,7 +43,7 @@ export class DeepSeekHandler implements ApiHandler {
 		const stream = await this.client.chat.completions.create({
 			model: "deepseek-chat", // Always use deepseek-chat as the model ID
 			messages: openAiMessages,
-			max_tokens: this.isBeta ? 8192 : 4096, // Set max tokens based on endpoint
+			max_tokens: 8192,
 			temperature: 0,
 			stream: true,
 		})
@@ -70,10 +73,23 @@ export class DeepSeekHandler implements ApiHandler {
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
+		const pricing = getDeepSeekPricing()
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId
-			return { id, info: deepSeekModels[id] }
+			return {
+				id,
+				info: {
+					...deepSeekModels[id],
+					...pricing,
+				},
+			}
 		}
-		return { id: deepSeekDefaultModelId, info: deepSeekModels[deepSeekDefaultModelId] }
+		return {
+			id: deepSeekDefaultModelId,
+			info: {
+				...deepSeekModels[deepSeekDefaultModelId],
+				...pricing,
+			},
+		}
 	}
 }

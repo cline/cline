@@ -57,22 +57,45 @@ export interface ModelInfo {
 	description?: string
 }
 
+// DeepSeek pricing transition date: 2025-02-08 16:00 UTC
+const DEEPSEEK_PRICE_TRANSITION = new Date("2025-02-08T16:00:00Z")
+
+export function getDeepSeekPricing(): {
+	inputPrice: number
+	outputPrice: number
+	cacheWritesPrice: number
+	cacheReadsPrice: number
+} {
+	const now = new Date()
+	if (now < DEEPSEEK_PRICE_TRANSITION) {
+		return {
+			inputPrice: 0.14,
+			outputPrice: 0.28,
+			cacheWritesPrice: 0.14,
+			cacheReadsPrice: 0.014,
+		}
+	}
+	return {
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		cacheWritesPrice: 0.27,
+		cacheReadsPrice: 0.07,
+	}
+}
+
 // DeepSeek
 export type DeepSeekModelId = keyof typeof deepSeekModels
 export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
 	"deepseek-chat": {
-		maxTokens: 4096,
+		maxTokens: 8192,
 		contextWindow: 64_000,
 		supportsImages: false,
 		supportsComputerUse: false,
 		supportsPromptCache: true,
-		inputPrice: 0.14,
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.014,
+		...getDeepSeekPricing(),
 		description:
-			"DeepSeek V2.5 model with strong general capabilities and code abilities. Supports function calling and context caching.",
+			"DeepSeek V3 model with strong general capabilities and code abilities. Supports function calling and context caching.",
 	},
 } as const satisfies Record<string, ModelInfo>
 

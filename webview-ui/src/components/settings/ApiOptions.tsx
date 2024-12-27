@@ -203,20 +203,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
 					</VSCodeTextField>
 
-					<VSCodeCheckbox
-						checked={apiConfiguration?.deepSeekBaseUrl?.includes("/beta") || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setApiConfiguration({
-								...apiConfiguration,
-								deepSeekBaseUrl: isChecked
-									? "https://api.deepseek.com/beta"
-									: "https://api.deepseek.com",
-							})
-						}}>
-						Use beta endpoint (8K token limit)
-					</VSCodeCheckbox>
-
 					<p
 						style={{
 							fontSize: "12px",
@@ -783,6 +769,12 @@ export const ModelInfoView = ({
 			<span key="outputPrice">
 				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
 				tokens
+			</span>
+		),
+		selectedModelId === "deepseek-chat" && (
+			<span key="pricingTransition" style={{ color: "var(--vscode-charts-green)", fontStyle: "italic" }}>
+				<span style={{ fontWeight: 500 }}>Note:</span> Discounted pricing available until 2025-02-08 16:00 UTC.
+				After that, regular pricing will apply.
 			</span>
 		),
 		isGemini && (
