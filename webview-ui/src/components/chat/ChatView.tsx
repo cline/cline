@@ -26,6 +26,7 @@ import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
 import { AudioType } from "../../../../src/shared/WebviewMessage"
+import { validateCommand } from "../../utils/command-validation"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -515,23 +516,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return false
 	}, [mcpServers])
 
-	const isAllowedCommand = useCallback((message: ClineMessage | undefined) => {
-		if (message?.type === "ask") {
-			const command = message.text
-			if (!command) {
-				return true
-			}
-
-			// Split command by chaining operators
-			const commands = command.split(/&&|\|\||;|(?<!"[^"]*)\|(?![^"]*")|\$\(|`/).map(cmd => cmd.trim())
-
-			// Check if all individual commands are allowed
-			return commands.every((cmd) => {
-				const trimmedCommand = cmd.toLowerCase()
-				return allowedCommands?.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
-			})
-		}
-		return false
+	// Check if a command message is allowed
+	const isAllowedCommand = useCallback((message: ClineMessage | undefined): boolean => {
+		if (message?.type !== "ask") return false
+		return validateCommand(message.text || '', allowedCommands || [])
 	}, [allowedCommands])
 
 	const isAutoApproved = useCallback(

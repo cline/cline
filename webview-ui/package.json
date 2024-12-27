@@ -23,6 +23,7 @@
 		"react-virtuoso": "^4.7.13",
 		"rehype-highlight": "^7.0.0",
 		"rewire": "^7.0.0",
+		"shell-quote": "^1.8.2",
 		"styled-components": "^6.1.13",
 		"typescript": "^4.9.5",
 		"web-vitals": "^2.1.4"
@@ -54,6 +55,7 @@
 	},
 	"devDependencies": {
 		"@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+		"@types/shell-quote": "^1.7.5",
 		"@types/vscode-webview": "^1.57.5",
 		"eslint": "^8.57.0"
 	},
