@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react";
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useExtensionState } from "../../context/ExtensionStateContext";
 import { useSettings } from './useSettings';
 import { ToastContainer, toast } from 'react-toastify';
@@ -157,11 +157,11 @@ interface IProviderConfig {
   };
 }
 
-interface CommitData {
-  commit: string;
-  version: string;
-  commitName?: string;
-}
+//interface CommitData {
+ // commit: string;
+//  version: string;
+ // commitName?: string;
+//}
 
 function generateTicketNumber(): string {
   return `CLINE-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
@@ -175,6 +175,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   const { version, apiConfiguration } = useExtensionState();
   const { providers, isLatestBranch } = useSettings();
   const [activeProviders, setActiveProviders] = useState<ProviderStatus[]>([]);
+  const LOCAL_PROVIDERS = useMemo(() => ['Ollama', 'LMStudio', 'OpenAILike'], []);
   const [updateMessage, setUpdateMessage] = useState<string>('');
   const [systemInfo] = useState<SystemInfo>(getSystemInfo());
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -213,7 +214,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
         [field]: !prev.typeOfChange[field]
       }
     }));
-  }, []);
+  }, [prForm]);
 
   const handlePreFlightToggle = useCallback((field: keyof typeof prForm.preFlightChecklist) => {
     setPrForm(prev => ({
@@ -223,19 +224,9 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
         [field]: !prev.preFlightChecklist[field]
       }
     }));
-  }, []);
+  }, [prForm]);
 
-  // Constants
-  const GITHUB_URLS = {
-    original: 'https://github.com/cline/cline',
-    fork: 'https://github.com/viasky657/clineOpenAIAPIPromptCache',
-    commitJson: (branch: string) =>
-      `https://raw.githubusercontent.com/cline/cline/${branch}/package.json`,
-  } as const;
-
-  const LOCAL_PROVIDERS = ['Ollama', 'LMStudio', 'OpenAILike'];
-
-  // Helper Functions
+// Helper Functions
   function getSystemInfo(): SystemInfo {
     const formatBytes = (bytes: number): string => {
       if (bytes === 0) return '0 Bytes';
@@ -432,7 +423,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
     } catch (error) {
       console.error('[Debug] Failed to update provider statuses:', error);
     }
-  }, [checkProviderStatus, providers]);
+  }, [checkProviderStatus, providers, LOCAL_PROVIDERS]);
 
   useEffect(() => {
     updateProviderStatuses();
@@ -448,7 +439,8 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
       setUpdateMessage('Checking for updates...');
 
       const branchToCheck = isLatestBranch ? 'main' : 'stable';
-      const localCommitResponse = await fetch(GITHUB_URLS.commitJson(branchToCheck));
+      const commitJsonUrl = `https://raw.githubusercontent.com/cline/cline/${branchToCheck}/package.json`;
+      const localCommitResponse = await fetch(commitJsonUrl);
 
       if (!localCommitResponse.ok) {
         throw new Error('Failed to fetch version info');
