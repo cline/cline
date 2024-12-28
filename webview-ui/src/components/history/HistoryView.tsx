@@ -137,7 +137,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 17px 10px 20px",
 					}}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<div style={{ display: "flex", gap: "10px" }}>
+						<VSCodeButton
+							onClick={() => {
+								vscode.postMessage({
+									type: "confirmClearAllHistory",
+									text: "Are you sure you want to clear all history? This action cannot be undone."
+								})
+							}}
+						>
+							Clear all
+						</VSCodeButton>
+						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					</div>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
 					<div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

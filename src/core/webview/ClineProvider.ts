@@ -496,6 +496,52 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
+					case "confirmClearAllHistory": {
+						const confirm = await vscode.window.showWarningMessage(
+							message.text!,
+							{ modal: true },
+							"Yes",
+							"No"
+						);
+						if (confirm === "Yes") {
+							// Clear current task if exists
+							if (this.cline) {
+								await this.clearTask();
+							}
+
+							// Get all task IDs from history
+							const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || [];
+							const taskIds = taskHistory.map(item => item.id);
+
+							// Delete each task's files
+							const tasksDir = path.join(this.context.globalStorageUri.fsPath, "tasks");
+							try {
+								for (const id of taskIds) {
+									const taskDir = path.join(tasksDir, id);
+									if (await fileExistsAtPath(taskDir)) {
+										// Delete task files
+										const apiHistoryPath = path.join(taskDir, GlobalFileNames.apiConversationHistory);
+										const uiMessagesPath = path.join(taskDir, GlobalFileNames.uiMessages);
+										if (await fileExistsAtPath(apiHistoryPath)) {
+											await fs.unlink(apiHistoryPath);
+										}
+										if (await fileExistsAtPath(uiMessagesPath)) {
+											await fs.unlink(uiMessagesPath);
+										}
+										// Delete task directory
+										await fs.rmdir(taskDir);
+									}
+								}
+							} catch (error) {
+								console.error("Error deleting task files:", error);
+							}
+
+							// Clear history state
+							await this.updateGlobalState("taskHistory", []);
+							await this.postStateToWebview();
+						}
+						break;
+					}
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
