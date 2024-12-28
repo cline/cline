@@ -252,11 +252,11 @@ export async function constructNewFileContent(
 			inReplace = true
 
 			// Remove trailing linebreak for adding the === marker
-			if (currentSearchContent.endsWith("\r\n")) {
-				currentSearchContent = currentSearchContent.slice(0, -2)
-			} else if (currentSearchContent.endsWith("\n")) {
-				currentSearchContent = currentSearchContent.slice(0, -1)
-			}
+			// if (currentSearchContent.endsWith("\r\n")) {
+			// 	currentSearchContent = currentSearchContent.slice(0, -2)
+			// } else if (currentSearchContent.endsWith("\n")) {
+			// 	currentSearchContent = currentSearchContent.slice(0, -1)
+			// }
 
 			if (!currentSearchContent) {
 				// Empty search block
@@ -319,12 +319,12 @@ export async function constructNewFileContent(
 		if (line === ">>>>>>> REPLACE") {
 			// Finished one replace block
 
-			// Remove the artificially added linebreak in the last line of the REPLACE block
-			if (result.endsWith("\r\n")) {
-				result = result.slice(0, -2)
-			} else if (result.endsWith("\n")) {
-				result = result.slice(0, -1)
-			}
+			// // Remove the artificially added linebreak in the last line of the REPLACE block
+			// if (result.endsWith("\r\n")) {
+			// 	result = result.slice(0, -2)
+			// } else if (result.endsWith("\n")) {
+			// 	result = result.slice(0, -1)
+			// }
 
 			// Advance lastProcessedIndex to after the matched section
 			lastProcessedIndex = searchEndIndex
