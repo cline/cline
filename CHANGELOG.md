@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.32
+
+### Patch Changes
+
+-   More efficient workspace tracker
+
 ## [2.2.31]
 
 -   Improved logic for auto-approving chained commands
