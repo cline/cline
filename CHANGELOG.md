@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.0.9]
+
+- Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
+
 ## [3.0.8]
 
 - Mitigate DeepSeek v3 diff edit errors by adding 'auto-formatting considerations' to system prompt, encouraging model to use updated file contents as reference point for SEARCH blocks
