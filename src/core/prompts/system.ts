@@ -788,7 +788,17 @@ You have access to two tools for working with files: **write_to_file** and **rep
   - The changes are so extensive that using replace_in_file would be more complex or risky
   - You need to completely reorganize or restructure a file
   - The file is relatively small and the changes affect most of its content
-  - You're generating boilerplate or template files 
+  - You're generating boilerplate or template files
+
+# Auto-formatting Considerations
+
+- After using either write_to_file or replace_in_file, the user's editor may automatically format the file
+- This auto-formatting may modify the file structure, for example:
+  - Breaking single lines into multiple lines
+  - Adjusting indentation
+  - Standardizing spacing and line endings
+- The tool response will include the final state of the file after any auto-formatting
+- Use this final state as your reference point for any subsequent edits. This is particularly important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.
 
 # Workflow Tips
 
