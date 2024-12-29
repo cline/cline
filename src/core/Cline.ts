@@ -1909,8 +1909,8 @@ export class Cline {
 								var text_acc = [toolResult?.isError ? "Error:\n" : ""]
 								async function forwardResponseBlock(
 									client: Cline,
-									textBlocks : string[],
-									imageBlocks : string[],
+									textBlocks: string[],
+									imageBlocks: string[],
 								) {
 									const text = textBlocks.join("\n\n") || "(No response)"
 
