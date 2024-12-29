@@ -9,6 +9,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
+import { DeepSeekHandler } from "./providers/deepseek"
 import { ApiStream } from "./transform/stream"
 
 export interface SingleCompletionHandler {
@@ -41,6 +42,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "deepseek":
+			return new DeepSeekHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
