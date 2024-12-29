@@ -1,3 +1,4 @@
+
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react";
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useExtensionState } from "../../context/ExtensionStateContext";
@@ -12,14 +13,26 @@ interface ApiMetrics {
   totalCost?: number;
 }
 
+const ApiStatusDisplayComponent: React.FC<{ metrics: ApiMetrics | undefined }> = ({ metrics }) => {
+  return (
+    <>
+      <div>Tokens In: {metrics?.totalTokensIn || 0}</div>
+      <div>Tokens Out: {metrics?.totalTokensOut || 0}</div>
+      <div>Cache Writes: {metrics?.totalCacheWrites || 0}</div>
+      <div>Cache Reads: {metrics?.totalCacheReads || 0}</div>
+      <div>Total Cost: ${metrics?.totalCost?.toFixed(4) || '0.0000'}</div>
+    </>
+  );
+};
+
 const ApiStatusDisplay: React.FC = () => {
   const { apiConfiguration, clineMessages, openRouterModels } = useExtensionState();
   const metrics = useMemo(() => {
-    if (!clineMessages.length) return {};
+    if (!clineMessages.length) return undefined;
     const lastApiReqIndex = clineMessages.findIndex(m => m.say === "api_req_started");
-    if (lastApiReqIndex === -1) return {};
+    if (lastApiReqIndex === -1) return undefined;
     const lastApiReq = clineMessages[lastApiReqIndex];
-    if (!lastApiReq.text) return {};
+    if (!lastApiReq.text) return undefined;
     try {
       const info = JSON.parse(lastApiReq.text);
       return {
@@ -30,7 +43,7 @@ const ApiStatusDisplay: React.FC = () => {
         totalCost: info.cost
       };
     } catch {
-      return {};
+      return undefined;
     }
   }, [clineMessages]);
 
@@ -61,86 +74,10 @@ const ApiStatusDisplay: React.FC = () => {
           <div>Prompt Cache: {modelCapabilities.supportsPromptCache ? 'Enabled' : 'Disabled'}</div>
         </>
       )}
-      {apiConfiguration?.apiProvider && (
-        <>
-          <div>Tokens In: {metrics.totalTokensIn || 0}</div>
-          <div>Tokens Out: {metrics.totalTokensOut || 0}</div>
-          <div>Cache Writes: {metrics.totalCacheWrites || 0}</div>
-          <div>Cache Reads: {metrics.totalCacheReads || 0}</div>
-          <div>Total Cost: ${metrics.totalCost?.toFixed(4) || '0.0000'}</div>
-        </>
-      )}
+      {apiConfiguration?.apiProvider && metrics && <ApiStatusDisplayComponent metrics={metrics} />}
     </div>
   );
 };
-
-export default ApiStatusDisplay;
-import { ApiConfiguration, ApiProvider } from "../../../src/shared/api";
-import { ClineApiReqInfo, ExtensionState } from "../../../src/shared/ExtensionMessage";
-import { ApiConfiguration, ApiProvider } from "../../../src/shared/api";
-import { ClineApiReqInfo } from "../../../src/shared/ExtensionMessage";
-
-interface ApiConfiguration {
-  apiKey?: string;
-  openRouterApiKey?: string;
-  openAiApiKey?: string;
-  apiProvider?: string;
-  anthropicBaseUrl?: string;
-  openAiBaseUrl?: string;
-  openRouterModelId?: string;
-  error?: string;
-  metrics?: {
-    totalTokensIn?: number;
-    totalTokensOut?: number;
-    totalCacheWrites?: number;
-    totalCacheReads?: number;
-    totalCost?: number;
-  };
-}
-
-interface ApiMetrics {
-  tokensIn?: number;
-  tokensOut?: number;
-  cacheWrites?: number;
-  cacheReads?: number;
-  cost?: number;
-}
-
-interface ApiReqInfo {
-  request?: string;
-  tokensIn?: number;
-  tokensOut?: number;
-  cacheWrites?: number;
-  cacheReads?: number;
-  cost?: number;
-  cancelReason?: 'streaming_failed' | 'user_cancelled';
-  streamingFailedMessage?: string;
-}
-
-// Parse metrics from API request info
-const getMetricsFromApiReqInfo = (text?: string): ApiMetrics => {
-  try {
-    if (!text) return {};
-    const info: ApiReqInfo = JSON.parse(text);
-    return {
-      tokensIn: info.tokensIn,
-      tokensOut: info.tokensOut,
-      cacheWrites: info.cacheWrites,
-      cacheReads: info.cacheReads,
-      cost: info.cost
-    };
-  } catch {
-    return {};
-  }
-};
-
-interface ApiMetrics {
-  totalTokensIn?: number;
-  totalTokensOut?: number;
-  totalCacheWrites?: number;
-  totalCacheReads?: number;
-  totalCost?: number;
-}
 
 interface ApiStatusDisplayProps {
   apiKey?: string;
@@ -153,7 +90,7 @@ interface ApiStatusDisplayProps {
   metrics?: ApiMetrics;
 }
 
-const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
+const ApiStatusDisplay2: React.FC<ApiStatusDisplayProps> = ({
   apiKey,
   openRouterApiKey,
   openAiApiKey,
@@ -165,7 +102,7 @@ const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
 }) => {
   const { openRouterModels } = useExtensionState();
   const isConnected = !!(apiKey || openRouterApiKey || openAiApiKey);
-  
+
   const modelCapabilities = useMemo(() => {
     if (!provider) return null;
     const modelInfo = modelId ? openRouterModels[modelId] : null;
@@ -174,7 +111,7 @@ const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
       supportsPromptCache: modelInfo?.supportsPromptCache ?? false
     };
   }, [provider, modelId, openRouterModels]);
-  
+
   return (
     <div style={{
       marginBottom: "4px",
@@ -224,13 +161,13 @@ const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
             <div>Prompt Cache: {modelCapabilities.supportsPromptCache ? "Enabled" : "Disabled"}</div>
           </>
         )}
-        {isConnected && (
+        {isConnected && metrics && (
           <>
-            <div>Tokens In: {metrics?.totalTokensIn || 0}</div>
-            <div>Tokens Out: {metrics?.totalTokensOut || 0}</div>
-            <div>Cache Writes: {metrics?.totalCacheWrites || 0}</div>
-            <div>Cache Reads: {metrics?.totalCacheReads || 0}</div>
-            <div>Total Cost: ${metrics?.totalCost?.toFixed(4) || '0.0000'}</div>
+            <div>Tokens In: {metrics.totalTokensIn || 0}</div>
+            <div>Tokens Out: {metrics.totalTokensOut || 0}</div>
+            <div>Cache Writes: {metrics.totalCacheWrites || 0}</div>
+            <div>Cache Reads: {metrics.totalCacheReads || 0}</div>
+            <div>Total Cost: ${metrics.totalCost?.toFixed(4) || '0.0000'}</div>
           </>
         )}
       </div>
@@ -852,7 +789,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                           <span>Active Provider: {apiConfiguration.apiProvider}</span>
                         </div>
                         <div style={{ fontSize: "11px", marginLeft: "16px" }}>
-                          <ApiStatusDisplay
+                          <ApiStatusDisplay2
                             apiKey={apiConfiguration?.apiKey}
                             openRouterApiKey={apiConfiguration?.openRouterApiKey}
                             openAiApiKey={apiConfiguration?.openAiApiKey}
@@ -864,13 +801,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                             }
                             modelId={apiConfiguration?.openRouterModelId}
                             error={apiConfiguration?.error}
-                            metrics={{
-                              totalTokensIn: apiConfiguration?.metrics?.totalTokensIn,
-                              totalTokensOut: apiConfiguration?.metrics?.totalTokensOut,
-                              totalCacheWrites: apiConfiguration?.metrics?.totalCacheWrites,
-                              totalCacheReads: apiConfiguration?.metrics?.totalCacheReads,
-                              totalCost: apiConfiguration?.metrics?.totalCost
-                            }}
+                            metrics={apiConfiguration?.metrics}
                           />
                         </div>
                       </div>
@@ -953,18 +884,33 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
               backgroundColor: "var(--vscode-textBlockQuote-background)",
               borderRadius: "4px",
             }}>
-                {Object.entries(systemInfo).map(([key, value]) => (
-                  <div key={key} style={{ fontSize: "12px" }}>
-                    <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
-                    </div>
-                    <div>{String(value)}</div>
+              {Object.entries(systemInfo).map(([key, value]) => (
+                <div key={key} style={{ fontSize: "12px" }}>
+                  <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
                   </div>
-                ))}
-              />
+                  <div>{String(value)}</div>
+                </div>
+              ))}
+              git pull upstream main</code></li>
+                    <li>Install dependencies: <code>pnpm install</code></li>
+                    <li>Restart the application</li>
+                  </ol>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
+          <div style={{ marginBottom: "16px" }}>
+            <h4 style={{ margin: "0 0 8px 0", fontSize: "13px" }}>System Information</h4>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: "8px",
+              padding: "8px",
+              backgroundColor: "var(--vscode-textBlockQuote-background)",
+              borderRadius: "4px",
+            }}>
               {Object.entries(systemInfo).map(([key, value]) => (
                 <div key={key} style={{ fontSize: "12px" }}>
                   <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
