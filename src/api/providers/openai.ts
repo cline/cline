@@ -11,7 +11,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
 export class OpenAiHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
@@ -38,11 +38,15 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
+		const modelInfo = this.getModel().info
 		const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
+		}
+		if (this.options.includeMaxTokens) {
+			requestOptions.max_tokens = modelInfo.maxTokens
 		}
 
 		if (this.options.includeStreamOptions ?? true) {

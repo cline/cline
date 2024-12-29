@@ -42,6 +42,7 @@ export interface ApiHandlerOptions {
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
 	deepSeekModelId?: string
+	includeMaxTokens?: boolean
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

@@ -137,7 +137,13 @@ describe('DeepSeekHandler', () => {
         expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
             messages: [
                 { role: 'system', content: systemPrompt },
-                { role: 'user', content: 'part 1part 2' }
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'part 1' },
+                        { type: 'text', text: 'part 2' }
+                    ]
+                }
             ]
         }))
     })
