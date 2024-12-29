@@ -522,9 +522,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.refreshOpenRouterModels()
 						break
 					case "refreshOpenAiModels":
-						const { apiConfiguration } = await this.getState()
-						const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
-						this.postMessageToWebview({ type: "openAiModels", openAiModels })
+						if (message?.values?.baseUrl && message?.values?.apiKey) {
+							const openAiModels = await this.getOpenAiModels(message?.values?.baseUrl, message?.values?.apiKey)
+							this.postMessageToWebview({ type: "openAiModels", openAiModels })
+						}	
 						break
 					case "openImage":
 						openImage(message.text!)

@@ -26,7 +26,16 @@ const OpenAiModelPicker: React.FC = () => {
 	}
 
 	useEffect(() => {
-		vscode.postMessage({ type: "refreshOpenAiModels" })
+		if (!apiConfiguration?.openAiBaseUrl || !apiConfiguration?.openAiApiKey) {
+			return
+		}
+
+		vscode.postMessage({
+			type: "refreshOpenAiModels", values: {
+				baseUrl: apiConfiguration?.openAiBaseUrl,
+				apiKey: apiConfiguration?.openAiApiKey
+			}
+		})
 	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey])
 
 	useEffect(() => {
