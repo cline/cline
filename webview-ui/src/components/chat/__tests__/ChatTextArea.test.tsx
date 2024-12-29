@@ -1,5 +1,3 @@
-/* eslint-disable import/first */
-import React from 'react';
 import { render, fireEvent, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ChatTextArea from '../ChatTextArea';
