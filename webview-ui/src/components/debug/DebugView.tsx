@@ -855,7 +855,6 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                 value={prForm.additionalNotes}
                 onChange={(e) => handlePrFormChange('additionalNotes', (e.target as HTMLTextAreaElement).value)}
                 placeholder="Add any additional notes for reviewers"
-                ```typescript
                 style={{ width: "100%", minHeight: "80px" }}
               />
             </div>
@@ -1035,4 +1034,4 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
 };
 
 export default DebugView;
-```
+
