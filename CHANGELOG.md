@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.34]
+
+-   Add the DeepSeek provider
+
 ## [2.2.33]
 
 -   "Enhance prompt" button (OpenRouter models only for now)
