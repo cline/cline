@@ -6,6 +6,7 @@ export interface TextContent {
 	type: "text"
 	content: string
 	partial: boolean
+	context?: string // Added context retention logic
 }
 
 export const toolUseNames = [
@@ -55,6 +56,7 @@ export interface ToolUse {
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
 	partial: boolean
+	context?: string // Added context retention logic
 }
 
 export interface ExecuteCommandToolUse extends ToolUse {

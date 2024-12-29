@@ -8,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 export class LmStudioHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -52,5 +53,9 @@ export class LmStudioHandler implements ApiHandler {
 			id: this.options.lmStudioModelId || "",
 			info: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

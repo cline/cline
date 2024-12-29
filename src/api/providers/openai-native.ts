@@ -14,6 +14,7 @@ import { ApiStream } from "../transform/stream"
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -81,5 +82,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			return { id, info: openAiNativeModels[id] }
 		}
 		return { id: openAiNativeDefaultModelId, info: openAiNativeModels[openAiNativeDefaultModelId] }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

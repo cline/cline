@@ -8,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -45,5 +46,9 @@ export class OllamaHandler implements ApiHandler {
 			id: this.options.ollamaModelId || "",
 			info: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

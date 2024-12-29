@@ -8,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 export class VertexHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicVertex
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -82,5 +83,9 @@ export class VertexHandler implements ApiHandler {
 			return { id, info: vertexModels[id] }
 		}
 		return { id: vertexDefaultModelId, info: vertexModels[vertexDefaultModelId] }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

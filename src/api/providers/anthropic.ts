@@ -13,6 +13,7 @@ import { ApiStream } from "../transform/stream"
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -172,5 +173,9 @@ export class AnthropicHandler implements ApiHandler {
 			return { id, info: anthropicModels[id] }
 		}
 		return { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }
