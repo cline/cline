@@ -20,64 +20,36 @@ export class DeepSeekHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		// Convert messages to simple format that DeepSeek expects
-		const formattedMessages = messages.map(msg => {
+		const modelInfo = deepSeekModels[this.options.deepSeekModelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
+
+		// Format all messages
+		const messagesToInclude: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: 'system' as const, content: systemPrompt }
+		]
+
+		// Add the rest of the messages
+		for (const msg of messages) {
+			let messageContent = ""
 			if (typeof msg.content === "string") {
-				return { role: msg.role, content: msg.content }
-			}
-			// For array content, concatenate text parts
-			return {
-				role: msg.role,
-				content: msg.content.reduce((acc, part) => {
+				messageContent = msg.content
+			} else if (Array.isArray(msg.content)) {
+				messageContent = msg.content.reduce((acc, part) => {
 					if (part.type === "text") {
 						return acc + part.text
 					}
 					return acc
 				}, "")
 			}
-		})
-
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...formattedMessages,
-		]
-		const modelInfo = deepSeekModels[this.options.deepSeekModelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
-		
-		const contextWindow = modelInfo.contextWindow || 64_000
-		const getTokenCount = (content: string) => Math.ceil(content.length * 0.3)
-
-		// Always keep system prompt
-		const systemMsg = openAiMessages[0]
-		let availableTokens = contextWindow - getTokenCount(typeof systemMsg.content === 'string' ? systemMsg.content : '')
-		
-		// Start with most recent messages and work backwards
-		const userMessages = openAiMessages.slice(1).reverse()
-		const includedMessages = []
-		let truncated = false
-
-		for (const msg of userMessages) {
-			const content = typeof msg.content === 'string' ? msg.content : ''
-			const tokens = getTokenCount(content)
 			
-			if (tokens <= availableTokens) {
-				includedMessages.unshift(msg)
-				availableTokens -= tokens
-			} else {
-				truncated = true
-				break
-			}
-		}
-
-		if (truncated) {
-			yield {
-				type: 'text',
-				text: '(Note: Some earlier messages were truncated to fit within the model\'s context window)\n\n'
-			}
+			messagesToInclude.push({
+				role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+				content: messageContent
+			})
 		}
 
 		const requestOptions: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
 			model: this.options.deepSeekModelId ?? "deepseek-chat",
-			messages: [systemMsg, ...includedMessages],
+			messages: messagesToInclude,
 			temperature: 0,
 			stream: true,
 			max_tokens: modelInfo.maxTokens,
@@ -87,22 +59,30 @@ export class DeepSeekHandler implements ApiHandler {
 			requestOptions.stream_options = { include_usage: true }
 		}
 
-		const stream = await this.client.chat.completions.create(requestOptions)
-		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
-			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
+		let totalInputTokens = 0;
+		let totalOutputTokens = 0;
+
+		try {
+			const stream = await this.client.chat.completions.create(requestOptions)
+			for await (const chunk of stream) {
+				const delta = chunk.choices[0]?.delta
+				if (delta?.content) {
+					yield {
+						type: "text",
+						text: delta.content,
+					}
+				}
+				if (chunk.usage) {
+					yield {
+						type: "usage",
+						inputTokens: chunk.usage.prompt_tokens || 0,
+						outputTokens: chunk.usage.completion_tokens || 0,
+					}
 				}
 			}
-			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-				}
-			}
+		} catch (error) {
+			console.error("DeepSeek API Error:", error)
+			throw error
 		}
 	}
 
