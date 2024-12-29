@@ -249,6 +249,14 @@ interface DebugViewProps {
   onDone: () => void;
 }
 
+declare global {
+  interface Window {
+    acquireVsCodeApi: () => any;
+  }
+}
+
+const vscode = window.acquireVsCodeApi();
+
 const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   const { version, apiConfiguration } = useExtensionState();
   const [activeProviders, setActiveProviders] = useState<ProviderStatus[]>([]);
@@ -276,6 +284,21 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
     additionalNotes: '',
     commitName: '',
   });
+
+  useEffect(() => {
+    const messageHandler = (event: MessageEvent) => {
+      const message = event.data;
+      if (message.type === 'openDebugView') {
+        console.log('[DebugView] Received openDebugView message');
+        // No need to set state here as the parent likely controls visibility
+      }
+    };
+
+    window.addEventListener('message', messageHandler);
+    return () => {
+      window.removeEventListener('message', messageHandler);
+    };
+  }, []);
 
   const handlePrFormChange = useCallback((field: keyof PullRequestForm, value: string) => {
     setPrForm(prev => ({
@@ -832,6 +855,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                 value={prForm.additionalNotes}
                 onChange={(e) => handlePrFormChange('additionalNotes', (e.target as HTMLTextAreaElement).value)}
                 placeholder="Add any additional notes for reviewers"
+                ```typescript
                 style={{ width: "100%", minHeight: "80px" }}
               />
             </div>
@@ -1011,3 +1035,4 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
 };
 
 export default DebugView;
+```
