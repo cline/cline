@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.34
-
-### Patch Changes
+## [2.2.34]
 
 -   Add the DeepSeek provider
 
