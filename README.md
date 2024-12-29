@@ -7,7 +7,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Drag and drop images into chats
 - "Enhance prompt" button (OpenRouter models only for now)
 - Sound effects for feedback
-- Option to use a larger 1280x800 browser
+- Option to use browsers of different sizes and adjust screenshot quality
 - Quick prompt copying from history
 - OpenRouter compression support
 - Includes current time in the system prompt

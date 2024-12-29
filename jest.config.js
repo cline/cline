@@ -29,6 +29,9 @@ module.exports = {
     transformIgnorePatterns: [
         'node_modules/(?!(@modelcontextprotocol|delay|p-wait-for|globby|serialize-error|strip-ansi|default-shell|os-name)/)'
     ],
+    modulePathIgnorePatterns: [
+        '.vscode-test'
+    ],
     setupFiles: [],
     globals: {
         'ts-jest': {

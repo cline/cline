@@ -71,7 +71,8 @@ type GlobalStateKey =
 	| "soundVolume"
 	| "diffEnabled"
 	| "alwaysAllowMcp"
-	| "browserLargeViewport"
+	| "browserViewportSize"
+	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
 	| "preferredLanguage" // Language setting for Cline's communication
 	| "writeDelayMs"
@@ -624,9 +625,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("diffEnabled", diffEnabled)
 						await this.postStateToWebview()
 						break
-					case "browserLargeViewport":
-						const browserLargeViewport = message.bool ?? false
-						await this.updateGlobalState("browserLargeViewport", browserLargeViewport)
+					case "browserViewportSize":
+						const browserViewportSize = message.text ?? "900x600"
+						await this.updateGlobalState("browserViewportSize", browserViewportSize)
 						await this.postStateToWebview()
 						break
 					case "fuzzyMatchThreshold":
@@ -639,6 +640,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "writeDelayMs":
 						await this.updateGlobalState("writeDelayMs", message.value)
+						await this.postStateToWebview()
+						break
+					case "screenshotQuality":
+						await this.updateGlobalState("screenshotQuality", message.value)
 						await this.postStateToWebview()
 						break
 					case "enhancePrompt":
@@ -1015,7 +1020,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			taskHistory,
 			soundVolume,
-			browserLargeViewport,
+			browserViewportSize,
+			screenshotQuality,
 			preferredLanguage,
 			writeDelayMs,
 		} = await this.getState()
@@ -1043,7 +1049,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
-			browserLargeViewport: browserLargeViewport ?? false,
+			browserViewportSize: browserViewportSize ?? "900x600",
+			screenshotQuality: screenshotQuality ?? 75,
 			preferredLanguage: preferredLanguage ?? 'English',
 			writeDelayMs: writeDelayMs ?? 1000,
 		}
@@ -1140,10 +1147,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			soundVolume,
-			browserLargeViewport,
+			browserViewportSize,
 			fuzzyMatchThreshold,
 			preferredLanguage,
 			writeDelayMs,
+			screenshotQuality,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1183,10 +1191,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
-			this.getGlobalState("browserLargeViewport") as Promise<boolean | undefined>,
+			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
 			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
 			this.getGlobalState("writeDelayMs") as Promise<number | undefined>,
+			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1244,7 +1253,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			soundVolume,
-			browserLargeViewport: browserLargeViewport ?? false,
+			browserViewportSize: browserViewportSize ?? "900x600",
+			screenshotQuality: screenshotQuality ?? 75,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			writeDelayMs: writeDelayMs ?? 1000,
 			preferredLanguage: preferredLanguage ?? (() => {
