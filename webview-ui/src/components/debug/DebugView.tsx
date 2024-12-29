@@ -279,6 +279,9 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
       singleFeature: false,
       testsPassing: false,
       reviewedGuidelines: false,
+      PromptCacheIssue: false,
+      extensionwebviewUIIssue: false, 
+      computerusageIssue: false,
     },
     screenshots: '',
     additionalNotes: '',
@@ -722,6 +725,24 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                   onChange={() => handlePreFlightToggle('singleFeature')}
                 >
                   Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.}
+                  onChange={() => handlePreFlightToggle('PromptCacheIssue')}
+                >
+                  The prompt cache is handled by different API Providers sometimes on their end automatically, so even if an API provider does not say in this extension that it supports prompt cache. Please be sure to check the API provider's API documentation to be sure that the prompt cache is supported on their end before filing an issue. Please check this if you have done so. 
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.testsPassing}
+                  onChange={() => handlePreFlightToggle('extensionwebviewUIIssue')}
+                >
+                  The webview folder cannot natively retrieve API provider information and other information directly from the source and core of this program extension due to the way typescript works. If your webview component is having trouble with retrieving information from the backend, please be sure to check if it is calling this data through the extension file and not directly through the source file before filing an issue. Please check this box if you have checked this potential solution to the error before submitting your issue. 
+                </VSCodeCheckbox>
+                <VSCodeCheckbox
+                  checked={prForm.preFlightChecklist.testsPassing}
+                  onChange={() => handlePreFlightToggle('computerusageIssue')}
+                >
+                  Computer usage is a tool call for a LLM to use the computer terminal and other features. Claude is designed to handle multiple tool calls but other LLMs do not natively support this. The other LLMs instead are given a prompt from the prompt.ts file in the program (along with some other prompts for diff handling) to tell them how to use the tools. This may cause errors from the LLMs since they are not trained to handle complex prompts. Please be sure to check that any failure from the LLM to use a tool is not from an LLM that is not designed to handle multiple tool calls before submitting an issue. Please check this if you have already checked the model documentation before submitting an issue. 
                 </VSCodeCheckbox>
                 <VSCodeCheckbox
                   checked={prForm.preFlightChecklist.testsPassing}
