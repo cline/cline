@@ -13,6 +13,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Includes current time in the system prompt
 - Uses a file system watcher to more reliably watch for file system changes
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
+- Support for DeepSeek V3
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
