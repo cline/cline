@@ -1,9 +1,146 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react";
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useExtensionState } from "../../context/ExtensionStateContext";
-import { useSettings } from './useSettings';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+interface ApiMetrics {
+  totalTokensIn?: number;
+  totalTokensOut?: number;
+  totalCacheWrites?: number;
+  totalCacheReads?: number;
+  totalCost?: number;
+}
+
+const ApiStatusDisplay: React.FC = () => {
+  const { apiConfiguration, clineMessages, openRouterModels } = useExtensionState();
+  const metrics = useMemo(() => {
+    if (!clineMessages.length) return {};
+    const lastApiReqIndex = clineMessages.findIndex(m => m.say === "api_req_started");
+    if (lastApiReqIndex === -1) return {};
+    const lastApiReq = clineMessages[lastApiReqIndex];
+    if (!lastApiReq.text) return {};
+    try {
+      const info = JSON.parse(lastApiReq.text);
+      return {
+        totalTokensIn: info.tokensIn,
+        totalTokensOut: info.tokensOut,
+        totalCacheWrites: info.cacheWrites,
+        totalCacheReads: info.cacheReads,
+        totalCost: info.cost
+      };
+    } catch {
+      return {};
+    }
+  }, [clineMessages]);
+
+  const modelCapabilities = useMemo(() => {
+    if (!apiConfiguration?.apiProvider) return null;
+    const modelId = apiConfiguration.openRouterModelId;
+    const modelInfo = modelId ? openRouterModels[modelId] : null;
+    return {
+      supportsComputerUse: modelInfo?.supportsComputerUse ?? false,
+      supportsPromptCache: modelInfo?.supportsPromptCache ?? false
+    };
+  }, [apiConfiguration, openRouterModels]);
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '16px',
+      backgroundColor: 'var(--vscode-editor-background)',
+      color: 'var(--vscode-editor-foreground)',
+      borderRadius: '4px'
+    }}>
+      <div>Provider: {apiConfiguration?.apiProvider || 'Not Connected'}</div>
+      {modelCapabilities && (
+        <>
+          <div>Computer Usage: {modelCapabilities.supportsComputerUse ? 'Enabled' : 'Disabled'}</div>
+          <div>Prompt Cache: {modelCapabilities.supportsPromptCache ? 'Enabled' : 'Disabled'}</div>
+        </>
+      )}
+      {apiConfiguration?.apiProvider && (
+        <>
+          <div>Tokens In: {metrics.totalTokensIn || 0}</div>
+          <div>Tokens Out: {metrics.totalTokensOut || 0}</div>
+          <div>Cache Writes: {metrics.totalCacheWrites || 0}</div>
+          <div>Cache Reads: {metrics.totalCacheReads || 0}</div>
+          <div>Total Cost: ${metrics.totalCost?.toFixed(4) || '0.0000'}</div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ApiStatusDisplay;
+import { ApiConfiguration, ApiProvider } from "../../../src/shared/api";
+import { ClineApiReqInfo, ExtensionState } from "../../../src/shared/ExtensionMessage";
+import { ApiConfiguration, ApiProvider } from "../../../src/shared/api";
+import { ClineApiReqInfo } from "../../../src/shared/ExtensionMessage";
+
+interface ApiConfiguration {
+  apiKey?: string;
+  openRouterApiKey?: string;
+  openAiApiKey?: string;
+  apiProvider?: string;
+  anthropicBaseUrl?: string;
+  openAiBaseUrl?: string;
+  openRouterModelId?: string;
+  error?: string;
+  metrics?: {
+    totalTokensIn?: number;
+    totalTokensOut?: number;
+    totalCacheWrites?: number;
+    totalCacheReads?: number;
+    totalCost?: number;
+  };
+}
+
+interface ApiMetrics {
+  tokensIn?: number;
+  tokensOut?: number;
+  cacheWrites?: number;
+  cacheReads?: number;
+  cost?: number;
+}
+
+interface ApiReqInfo {
+  request?: string;
+  tokensIn?: number;
+  tokensOut?: number;
+  cacheWrites?: number;
+  cacheReads?: number;
+  cost?: number;
+  cancelReason?: 'streaming_failed' | 'user_cancelled';
+  streamingFailedMessage?: string;
+}
+
+// Parse metrics from API request info
+const getMetricsFromApiReqInfo = (text?: string): ApiMetrics => {
+  try {
+    if (!text) return {};
+    const info: ApiReqInfo = JSON.parse(text);
+    return {
+      tokensIn: info.tokensIn,
+      tokensOut: info.tokensOut,
+      cacheWrites: info.cacheWrites,
+      cacheReads: info.cacheReads,
+      cost: info.cost
+    };
+  } catch {
+    return {};
+  }
+};
+
+interface ApiMetrics {
+  totalTokensIn?: number;
+  totalTokensOut?: number;
+  totalCacheWrites?: number;
+  totalCacheReads?: number;
+  totalCost?: number;
+}
 
 interface ApiStatusDisplayProps {
   apiKey?: string;
@@ -13,6 +150,7 @@ interface ApiStatusDisplayProps {
   baseUrl?: string;
   modelId?: string;
   error?: string;
+  metrics?: ApiMetrics;
 }
 
 const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
@@ -22,9 +160,21 @@ const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
   provider,
   baseUrl,
   modelId,
-  error
+  error,
+  metrics
 }) => {
+  const { openRouterModels } = useExtensionState();
   const isConnected = !!(apiKey || openRouterApiKey || openAiApiKey);
+  
+  const modelCapabilities = useMemo(() => {
+    if (!provider) return null;
+    const modelInfo = modelId ? openRouterModels[modelId] : null;
+    return {
+      supportsComputerUse: modelInfo?.supportsComputerUse ?? false,
+      supportsPromptCache: modelInfo?.supportsPromptCache ?? false
+    };
+  }, [provider, modelId, openRouterModels]);
+  
   return (
     <div style={{
       marginBottom: "4px",
@@ -68,6 +218,21 @@ const ApiStatusDisplay: React.FC<ApiStatusDisplayProps> = ({
         {provider && <div>Provider: {provider}</div>}
         {baseUrl && <div>Base URL: {baseUrl}</div>}
         {modelId && <div>Model ID: {modelId}</div>}
+        {isConnected && modelCapabilities && (
+          <>
+            <div>Computer Usage: {modelCapabilities.supportsComputerUse ? "Enabled" : "Disabled"}</div>
+            <div>Prompt Cache: {modelCapabilities.supportsPromptCache ? "Enabled" : "Disabled"}</div>
+          </>
+        )}
+        {isConnected && (
+          <>
+            <div>Tokens In: {metrics?.totalTokensIn || 0}</div>
+            <div>Tokens Out: {metrics?.totalTokensOut || 0}</div>
+            <div>Cache Writes: {metrics?.totalCacheWrites || 0}</div>
+            <div>Cache Reads: {metrics?.totalCacheReads || 0}</div>
+            <div>Total Cost: ${metrics?.totalCost?.toFixed(4) || '0.0000'}</div>
+          </>
+        )}
       </div>
       {error && (
         <div style={{
@@ -115,24 +280,6 @@ interface PullRequestForm {
   commitName: string;
 }
 
-//interface ApiProviderStatus {
-//  isConnected: boolean;
-//  provider: string;
- // baseUrl?: string;
- // modelId?: string;
- // error?: string;
-//}
-
-//interface IProviderSetting {
-//  enabled: boolean;
- // baseUrl?: string;
-//}
-
-//interface IProvider {
- // name: string;
-//  settings: IProviderSetting;
-//}
-
 interface SystemInfo {
   os: string;
   browser: string;
@@ -157,12 +304,6 @@ interface IProviderConfig {
   };
 }
 
-//interface CommitData {
- // commit: string;
-//  version: string;
- // commitName?: string;
-//}
-
 function generateTicketNumber(): string {
   return `CLINE-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 }
@@ -173,12 +314,12 @@ interface DebugViewProps {
 
 const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   const { version, apiConfiguration } = useExtensionState();
-  const { providers, isLatestBranch } = useSettings();
   const [activeProviders, setActiveProviders] = useState<ProviderStatus[]>([]);
   const LOCAL_PROVIDERS = useMemo(() => ['Ollama', 'LMStudio', 'OpenAILike'], []);
   const [updateMessage, setUpdateMessage] = useState<string>('');
   const [systemInfo] = useState<SystemInfo>(getSystemInfo());
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isLatestBranch, setIsLatestBranch] = useState(false);
 
   // Pull Request Form State
   const [prForm, setPrForm] = useState<PullRequestForm>({
@@ -226,7 +367,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
     }));
   }, [prForm]);
 
-// Helper Functions
+  // Helper Functions
   function getSystemInfo(): SystemInfo {
     const formatBytes = (bytes: number): string => {
       if (bytes === 0) return '0 Bytes';
@@ -400,30 +541,30 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   }, []);
 
   const updateProviderStatuses = useCallback(async () => {
-    if (!providers) return;
-
     try {
-      const entries = Object.entries(providers) as [string, IProviderConfig][];
+      const providers = LOCAL_PROVIDERS.map(name => ({
+        name,
+        settings: {
+          enabled: true,
+          baseUrl: process.env[`REACT_APP_${name.toUpperCase()}_URL`] || null
+        }
+      }));
+
       const statuses = await Promise.all(
-        entries
-          .filter(([, provider]) => LOCAL_PROVIDERS.includes(provider.name))
-          .map(async ([, provider]) => {
-            const envVarName = `REACT_APP_${provider.name.toUpperCase()}_URL`;
-            let settingsUrl = provider.settings.baseUrl;
-            if (settingsUrl?.trim().length === 0) settingsUrl = undefined;
-            const url = settingsUrl || process.env[envVarName] || null;
-            const status = await checkProviderStatus(url, provider.name);
-            return {
-              ...status,
-              enabled: provider.settings.enabled ?? false,
-            };
-          }),
+        providers.map(async (provider) => {
+          const url = provider.settings.baseUrl;
+          const status = await checkProviderStatus(url, provider.name);
+          return {
+            ...status,
+            enabled: provider.settings.enabled ?? false,
+          };
+        }),
       );
       setActiveProviders(statuses);
     } catch (error) {
       console.error('[Debug] Failed to update provider statuses:', error);
     }
-  }, [checkProviderStatus, providers, LOCAL_PROVIDERS]);
+  }, [checkProviderStatus, LOCAL_PROVIDERS]);
 
   useEffect(() => {
     updateProviderStatuses();
@@ -723,38 +864,18 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                             }
                             modelId={apiConfiguration?.openRouterModelId}
                             error={apiConfiguration?.error}
+                            metrics={{
+                              totalTokensIn: apiConfiguration?.metrics?.totalTokensIn,
+                              totalTokensOut: apiConfiguration?.metrics?.totalTokensOut,
+                              totalCacheWrites: apiConfiguration?.metrics?.totalCacheWrites,
+                              totalCacheReads: apiConfiguration?.metrics?.totalCacheReads,
+                              totalCost: apiConfiguration?.metrics?.totalCost
+                            }}
                           />
                         </div>
                       </div>
                     )}
-                    {providers && Object.entries(providers as Record<string, IProviderConfig>)
-                      .map(([key, provider]) => {
-                        if (!provider.name || LOCAL_PROVIDERS.includes(provider.name) ||
-                            provider.name === 'Anthropic' || provider.name === 'OpenRouter' || provider.name === 'OpenAI') {
-                          return null;
-                        }
-                        return (
-                          <div key={key} style={{ marginBottom: "8px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                              <div style={{
-                                width: "8px",
-                                height: "8px",
-                                borderRadius: "50%",
-                                backgroundColor: provider.settings.enabled ?
-                                  "var(--vscode-testing-iconPassed)" :
-                                  "var(--vscode-charts-grey)"
-                              }} />
-                              <span>{provider.name}</span>
-                            </div>
-                            {provider.settings.baseUrl && (
-                              <div style={{ fontSize: "11px", opacity: 0.8, marginLeft: "16px" }}>
-                                URL: {provider.settings.baseUrl}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    {!apiConfiguration && !providers && (
+                    {!apiConfiguration && (
                       <div style={{ opacity: 0.8 }}>
                         No cloud providers configured
                       </div>
@@ -832,6 +953,18 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
               backgroundColor: "var(--vscode-textBlockQuote-background)",
               borderRadius: "4px",
             }}>
+                {Object.entries(systemInfo).map(([key, value]) => (
+                  <div key={key} style={{ fontSize: "12px" }}>
+                    <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
+                      {key.replace(/([A-Z])/g, ' $1').trim()}
+                    </div>
+                    <div>{String(value)}</div>
+                  </div>
+                ))}
+              />
+            </div>
+          </div>
+
               {Object.entries(systemInfo).map(([key, value]) => (
                 <div key={key} style={{ fontSize: "12px" }}>
                   <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
