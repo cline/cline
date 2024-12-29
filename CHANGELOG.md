@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.33
+
+### Patch Changes
+
+-   -   "Enhance prompt" button (OpenRouter models only for now)
+
 ## [2.2.32]
 
 -   More efficient workspace tracker
