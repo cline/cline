@@ -53,11 +53,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const message = event.data
 				if (message.type === 'enhancedPrompt' && message.text) {
 					setInputValue(message.text)
+					setIsEnhancingPrompt(false)
 				}
 			}
 			window.addEventListener('message', messageHandler)
 			return () => window.removeEventListener('message', messageHandler)
 		}, [setInputValue])
+
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -90,44 +92,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		        }
 		    }
 		}, [inputValue, textAreaDisabled, setInputValue])
-		
-		useEffect(() => {
-		    const messageHandler = (event: MessageEvent) => {
-		        const message = event.data
-		        if (message.type === 'enhancedPrompt') {
-		            setInputValue(message.text)
-		            setIsEnhancingPrompt(false)
-		        }
-		    }
-		    window.addEventListener('message', messageHandler)
-		    return () => window.removeEventListener('message', messageHandler)
-		}, [setInputValue])
-
-		// Handle enhanced prompt response
-		useEffect(() => {
-		    const messageHandler = (event: MessageEvent) => {
-		        const message = event.data
-		        if (message.type === 'enhancedPrompt') {
-		            setInputValue(message.text)
-		        }
-		    }
-		    window.addEventListener('message', messageHandler)
-		    return () => {
-		        window.removeEventListener('message', messageHandler)
-		    }
-		}, [setInputValue])
-
-		// Handle enhanced prompt response
-		useEffect(() => {
-		    const messageHandler = (event: MessageEvent) => {
-		        const message = event.data
-		        if (message.type === 'enhancedPrompt' && message.text) {
-		            setInputValue(message.text)
-		        }
-		    }
-		    window.addEventListener('message', messageHandler)
-		    return () => window.removeEventListener('message', messageHandler)
-		}, [setInputValue])
 
 		const queryItems = useMemo(() => {
 			return [
