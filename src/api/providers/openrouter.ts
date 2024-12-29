@@ -10,6 +10,7 @@ import delay from "delay"
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -42,7 +43,6 @@ export class OpenRouterHandler implements ApiHandler {
 			case "anthropic/claude-3-5-haiku-20241022":
 			case "anthropic/claude-3-5-haiku-20241022:beta":
 			case "anthropic/claude-3-haiku":
-			case "anthropic/claude-3-haiku:beta":
 			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
 				openAiMessages[0] = {
@@ -173,5 +173,9 @@ export class OpenRouterHandler implements ApiHandler {
 			return { id: modelId, info: modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

@@ -8,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -108,5 +109,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			return { id, info: bedrockModels[id] }
 		}
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }

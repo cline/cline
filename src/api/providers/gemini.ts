@@ -8,6 +8,7 @@ import { ApiStream } from "../transform/stream"
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenerativeAI
+	private context: any[] = [] // Add context retention logic
 
 	constructor(options: ApiHandlerOptions) {
 		if (!options.geminiApiKey) {
@@ -52,5 +53,9 @@ export class GeminiHandler implements ApiHandler {
 			return { id, info: geminiModels[id] }
 		}
 		return { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
+	}
+
+	manageContext(context: any): void {
+		this.context.push(context)
 	}
 }
