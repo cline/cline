@@ -2,7 +2,8 @@
 
 ## [2.2.33]
 
--   -   "Enhance prompt" button (OpenRouter models only for now)
+-   "Enhance prompt" button (OpenRouter models only for now)
+-   Support listing models for OpenAI compatible providers (thanks @samhvw8!)
 
 ## [2.2.32]
 
