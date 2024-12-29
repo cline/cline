@@ -1,6 +1,6 @@
-
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useState, useEffect } from "react"
+import { useExtensionState } from "../context/ExtensionStateContext" // Import the hook
 
 export const TAB_NAVBAR_HEIGHT = 24
 const BUTTON_MARGIN_RIGHT = "3px"
@@ -89,38 +89,23 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 	)
 }
 
-declare global {
-	interface Window {
-		acquireVsCodeApi: () => any;
-		initialVscodeTheme: string;
-	}
-}
-
-const vscode = window.acquireVsCodeApi();
-
 const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onDebugClick }: TabNavbarProps) => {
+	const { theme } = useExtensionState() // Get the theme from the context
 	const [tooltip, setTooltip] = useState<TooltipProps>({
 		text: "",
 		isVisible: false,
 		position: { x: 0, y: 0 },
 		align: "center",
 	})
-	const [isDarkTheme, setIsDarkTheme] = useState(window.initialVscodeTheme?.includes('dark') || window.initialVscodeTheme?.includes('black'));
+	const [isDarkTheme, setIsDarkTheme] = useState(false);
 
 	useEffect(() => {
-		const handleThemeChange = (event: any) => {
-			const message = event.data;
-			if (message.type === 'theme') {
-				setIsDarkTheme(message.theme.includes('dark') || message.theme.includes('black'));
-			}
-		};
-
-		window.addEventListener('message', handleThemeChange);
-
-		return () => {
-			window.removeEventListener('message', handleThemeChange);
-		};
-	}, []);
+		if (theme) {
+			// Check if the theme object indicates a dark theme
+			const isDark = Object.keys(theme).some(key => key.toLowerCase().includes('dark') || key.toLowerCase().includes('black'));
+			setIsDarkTheme(isDark);
+		}
+	}, [theme]);
 
 	const showTooltip = (text: string, event: React.MouseEvent, align: "left" | "center" | "right" = "center") => {
 		const rect = event.currentTarget.getBoundingClientRect()
