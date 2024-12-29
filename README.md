@@ -14,6 +14,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Uses a file system watcher to more reliably watch for file system changes
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
+- Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
 - Enable/disable MCP servers
 - Configurable delay after auto-writes to allow diagnostics to detect potential problems
