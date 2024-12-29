@@ -89,6 +89,14 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 	)
 }
 
+declare global {
+	interface Window {
+		acquireVsCodeApi: () => any;
+	}
+}
+
+const vscode = window.acquireVsCodeApi();
+
 const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onDebugClick }: TabNavbarProps) => {
 	const { theme } = useExtensionState() // Get the theme from the context
 	const [tooltip, setTooltip] = useState<TooltipProps>({
@@ -130,6 +138,11 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onDebugClick 
 		marginRight: LAST_BUTTON_MARGIN_RIGHT,
 	}
 
+	const handleDebugClick = () => {
+		vscode.postMessage({ type: 'openDebugView' });
+		onDebugClick(); // Still call the provided handler if needed for local state changes
+	};
+
 	return (
 		<>
 			<div
@@ -163,7 +176,7 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onDebugClick 
 				</VSCodeButton>
 				<VSCodeButton
 					appearance="icon"
-					onClick={onDebugClick}
+					onClick={handleDebugClick}
 					style={buttonStyle}
 					onMouseEnter={(e) => showTooltip("Debug", e, "center")}
 					onMouseLeave={hideTooltip}
