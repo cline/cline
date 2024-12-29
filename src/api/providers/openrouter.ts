@@ -4,7 +4,7 @@ import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream, ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
@@ -17,10 +17,7 @@ interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
     fullResponseText: string;
 }
 
-// Interface for providers that support single completions
-export interface SingleCompletionHandler {
-    completePrompt(prompt: string): Promise<string>
-}
+import { SingleCompletionHandler } from ".."
 
 export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions

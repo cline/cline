@@ -1,6 +1,6 @@
 import { ApiConfiguration } from "../shared/api"
 import { buildApiHandler } from "../api"
-import { OpenRouterHandler, SingleCompletionHandler } from "../api/providers/openrouter"
+import { OpenRouterHandler } from "../api/providers/openrouter"
 
 /**
  * Enhances a prompt using the OpenRouter API without creating a full Cline instance or task history.
