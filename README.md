@@ -5,6 +5,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 ## Experimental Features
 
 - Drag and drop images into chats
+- "Enhance prompt" button (OpenRouter models only for now)
 - Sound effects for feedback
 - Option to use a larger 1280x800 browser
 - Quick prompt copying from history

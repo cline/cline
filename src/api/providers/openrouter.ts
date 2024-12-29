@@ -8,7 +8,7 @@ import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
 
 // Add custom interface for OpenRouter params
-interface OpenRouterChatCompletionParams extends OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
     transforms?: string[];
 }
 
@@ -17,7 +17,9 @@ interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
     fullResponseText: string;
 }
 
-export class OpenRouterHandler implements ApiHandler {
+import { SingleCompletionHandler } from ".."
+
+export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
@@ -183,5 +185,29 @@ export class OpenRouterHandler implements ApiHandler {
 			return { id: modelId, info: modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const response = await this.client.chat.completions.create({
+				model: this.getModel().id,
+				messages: [{ role: "user", content: prompt }],
+				temperature: 0,
+				stream: false
+			})
+
+			if ("error" in response) {
+				const error = response.error as { message?: string; code?: number }
+				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+			}
+
+			const completion = response as OpenAI.Chat.ChatCompletion
+			return completion.choices[0]?.message?.content || ""
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`OpenRouter completion error: ${error.message}`)
+			}
+			throw error
+		}
 	}
 }

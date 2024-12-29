@@ -18,6 +18,12 @@
    - Keep the documentation in sync with the codebase
    - Add examples where appropriate
 
+4. Lint Rules:
+   - Never disable any lint rules without explicit user approval
+   - If a lint rule needs to be disabled, ask the user first and explain why
+   - Prefer fixing the underlying issue over disabling the lint rule
+   - Document any approved lint rule disabling with a comment explaining the reason
+
 # Adding a New Setting
 
 To add a new setting that persists its state, follow these steps:
