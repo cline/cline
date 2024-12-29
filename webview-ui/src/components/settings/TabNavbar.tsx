@@ -1,5 +1,6 @@
+
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 
 export const TAB_NAVBAR_HEIGHT = 24
 const BUTTON_MARGIN_RIGHT = "3px"
@@ -9,6 +10,7 @@ type TabNavbarProps = {
 	onPlusClick: () => void
 	onHistoryClick: () => void
 	onSettingsClick: () => void
+	onDebugClick: () => void // Added debug click handler
 }
 
 type TooltipProps = {
@@ -87,13 +89,38 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 	)
 }
 
-const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarProps) => {
+declare global {
+	interface Window {
+		acquireVsCodeApi: () => any;
+		initialVscodeTheme: string;
+	}
+}
+
+const vscode = window.acquireVsCodeApi();
+
+const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onDebugClick }: TabNavbarProps) => {
 	const [tooltip, setTooltip] = useState<TooltipProps>({
 		text: "",
 		isVisible: false,
 		position: { x: 0, y: 0 },
 		align: "center",
 	})
+	const [isDarkTheme, setIsDarkTheme] = useState(window.initialVscodeTheme?.includes('dark') || window.initialVscodeTheme?.includes('black'));
+
+	useEffect(() => {
+		const handleThemeChange = (event: any) => {
+			const message = event.data;
+			if (message.type === 'theme') {
+				setIsDarkTheme(message.theme.includes('dark') || message.theme.includes('black'));
+			}
+		};
+
+		window.addEventListener('message', handleThemeChange);
+
+		return () => {
+			window.removeEventListener('message', handleThemeChange);
+		};
+	}, []);
 
 	const showTooltip = (text: string, event: React.MouseEvent, align: "left" | "center" | "right" = "center") => {
 		const rect = event.currentTarget.getBoundingClientRect()
@@ -148,6 +175,19 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarPr
 					onMouseLeave={hideTooltip}
 					onMouseMove={(e) => showTooltip("History", e, "center")}>
 					<span className="codicon codicon-history"></span>
+				</VSCodeButton>
+				<VSCodeButton
+					appearance="icon"
+					onClick={onDebugClick}
+					style={buttonStyle}
+					onMouseEnter={(e) => showTooltip("Debug", e, "center")}
+					onMouseLeave={hideTooltip}
+					onMouseMove={(e) => showTooltip("Debug", e, "center")}>
+					{isDarkTheme ? (
+						<img src="assets/icons/debug_panel_dark.png" alt="Debug Dark" style={{ maxHeight: '16px', maxWidth: '16px' }} />
+					) : (
+						<img src="assets/icons/debug_panel_light.png" alt="Debug Light" style={{ maxHeight: '16px', maxWidth: '16px' }} />
+					)}
 				</VSCodeButton>
 				<VSCodeButton
 					appearance="icon"
