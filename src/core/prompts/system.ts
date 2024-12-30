@@ -87,6 +87,7 @@ Parameters:
   2. SEARCH/REPLACE blocks will ONLY replace the first match occurrence.
      * Including multiple unique SEARCH/REPLACE blocks if you need to make multiple changes.
      * Include *just* enough lines in each SEARCH section to uniquely match each set of lines that need to change.
+     * When using multiple SEARCH/REPLACE blocks, list them in the order they appear in the file.
   3. Keep SEARCH/REPLACE blocks concise:
      * Break large SEARCH/REPLACE blocks into a series of smaller blocks that each change a small portion of the file.
      * Include just the changing lines, and a few surrounding lines if needed for uniqueness.
@@ -788,7 +789,22 @@ You have access to two tools for working with files: **write_to_file** and **rep
   - The changes are so extensive that using replace_in_file would be more complex or risky
   - You need to completely reorganize or restructure a file
   - The file is relatively small and the changes affect most of its content
-  - You're generating boilerplate or template files 
+  - You're generating boilerplate or template files
+
+# Auto-formatting Considerations
+
+- After using either write_to_file or replace_in_file, the user's editor may automatically format the file
+- This auto-formatting may modify the file contents, for example:
+  - Breaking single lines into multiple lines (e.g. long function declarations, object literals, array definitions)
+  - Adjusting indentation to match project style (e.g. 2 spaces vs 4 spaces vs tabs)
+  - Standardizing spacing and line endings (e.g. removing extra whitespace, ensuring consistent newlines)
+  - Converting single quotes to double quotes (or vice versa based on project preferences)
+  - Organizing imports (e.g. sorting, grouping by type)
+  - Adding/removing trailing commas in objects and arrays
+  - Enforcing consistent brace style (e.g. same-line vs new-line)
+  - Standardizing semicolon usage (adding or removing based on style)
+- The write_to_file and replace_in_file tool responses will include the final state of the file after any auto-formatting
+- Use this final state as your reference point for any subsequent edits. This is ESPECIALLY important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.
 
 # Workflow Tips
 
@@ -845,6 +861,8 @@ RULES
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
 - Before executing commands, check the "Actively Running Terminals" section in environment_details. If present, consider how these active processes might impact your task. For example, if a local development server is already running, you wouldn't need to start it again. If no active terminals are listed, proceed with command execution as normal.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
+- When using the replace_in_file tool, you must include complete lines in your SEARCH blocks, not partial lines. The system requires exact line matches and cannot match partial lines. For example, if you want to match a line containing "const x = 5;", your SEARCH block must include the entire line, not just "x = 5" or other fragments.
+- When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 	supportsComputerUse
 		? " Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser."

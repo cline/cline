@@ -251,6 +251,13 @@ export async function constructNewFileContent(
 			inSearch = false
 			inReplace = true
 
+			// Remove trailing linebreak for adding the === marker
+			// if (currentSearchContent.endsWith("\r\n")) {
+			// 	currentSearchContent = currentSearchContent.slice(0, -2)
+			// } else if (currentSearchContent.endsWith("\n")) {
+			// 	currentSearchContent = currentSearchContent.slice(0, -1)
+			// }
+
 			if (!currentSearchContent) {
 				// Empty search block
 				if (originalContent.length === 0) {
@@ -311,6 +318,14 @@ export async function constructNewFileContent(
 
 		if (line === ">>>>>>> REPLACE") {
 			// Finished one replace block
+
+			// // Remove the artificially added linebreak in the last line of the REPLACE block
+			// if (result.endsWith("\r\n")) {
+			// 	result = result.slice(0, -2)
+			// } else if (result.endsWith("\n")) {
+			// 	result = result.slice(0, -1)
+			// }
+
 			// Advance lastProcessedIndex to after the matched section
 			lastProcessedIndex = searchEndIndex
 
@@ -325,6 +340,8 @@ export async function constructNewFileContent(
 		}
 
 		// Accumulate content for search or replace
+		// (currentReplaceContent is not being used for anything right now since we directly append to result.)
+		// (We artificially add a linebreak since we split on \n at the beginning. In order to not include a trailing linebreak in the final search/result blocks we need to remove it before using them. This allows for partial line matches to be correctly identified.)
 		if (inSearch) {
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {

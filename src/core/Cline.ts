@@ -50,6 +50,8 @@ import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showSystemNotification } from "../integrations/notifications"
+import { removeInvalidChars } from "../utils/string"
+import { fixModelHtmlEscaping } from "../utils/string"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1131,6 +1133,11 @@ export class Cline {
 							// Construct newContent from diff
 							let newContent: string
 							if (diff) {
+								if (!this.api.getModel().id.includes("claude")) {
+									// deepseek models tend to use unescaped html entities in diffs
+									diff = fixModelHtmlEscaping(diff)
+									diff = removeInvalidChars(diff)
+								}
 								try {
 									newContent = await constructNewFileContent(
 										diff,
@@ -1163,23 +1170,15 @@ export class Cline {
 								if (newContent.endsWith("```")) {
 									newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 								}
+
+								if (!this.api.getModel().id.includes("claude")) {
+									// it seems not just llama models are doing this, but also gemini and potentially others
+									newContent = fixModelHtmlEscaping(newContent)
+									newContent = removeInvalidChars(newContent)
+								}
 							} else {
 								// can't happen, since we already checked for content/diff above. but need to do this for type error
 								break
-							}
-
-							if (!this.api.getModel().id.includes("claude")) {
-								// it seems not just llama models are doing this, but also gemini and potentially others
-								if (
-									newContent.includes("&gt;") ||
-									newContent.includes("&lt;") ||
-									newContent.includes("&quot;")
-								) {
-									newContent = newContent
-										.replace(/&gt;/g, ">")
-										.replace(/&lt;/g, "<")
-										.replace(/&quot;/g, '"')
-								}
 							}
 
 							newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
@@ -1294,7 +1293,7 @@ export class Cline {
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
 											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`4. If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including the user's edits and any auto-formatting done by the system).\n` +
+											`4. IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including both user edits and any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n` +
 											`${newProblemsMessage}`,
 									)
 								} else {
@@ -1302,7 +1301,7 @@ export class Cline {
 										`The content was successfully saved to ${relPath.toPosix()}.\n\n` +
 											`Here is the full, updated content of the file:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`Please note: If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including any auto-formatting done by the system).\n\n` +
+											`IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n\n` +
 											`${newProblemsMessage}`,
 									)
 								}
