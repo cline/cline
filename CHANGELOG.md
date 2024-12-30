@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.35
-
-### Patch Changes
+## [2.2.35]
 
 -   Allow selection of multiple browser viewport sizes and adjusting screenshot quality
 
