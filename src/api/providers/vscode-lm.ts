@@ -11,10 +11,6 @@ import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format";
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils";
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api";
 
-// Limit token cache size to prevent unbounded growth
-// TODO: Should be configurable (either trough the webview, or the user options) if this caching system works as expected
-export const MAX_TOKEN_COUNT_CACHE_SIZE: number = 1000 as const;
-
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
 // This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
 // Extracted from https://github.com/microsoft/vscode/blob/131ee0ef660d600cd0a7e6058375b281553abe20/src/vscode-dts/vscode.d.ts
@@ -100,18 +96,12 @@ export class VsCodeLmHandler implements ApiHandler {
     private configurationWatcher: vscode.Disposable | null;
     private currentRequestCancellation: vscode.CancellationTokenSource | null;
 
-    // Use WeakMap for caching to prevent memory leaks
-    private tokenCountCache: Map<string, number>;
-    private tokenCountCacheSize: number = 0;
-
     constructor(options: ApiHandlerOptions) {
 
         this.options = options;
         this.client = null;
         this.configurationWatcher = null;
         this.currentRequestCancellation = null;
-        this.tokenCountCache = new Map<string, number>();
-
         try {
 
             // Set up configuration change listener with proper error boundary
@@ -123,8 +113,6 @@ export class VsCodeLmHandler implements ApiHandler {
                         if (event.affectsConfiguration('lm')) {
     
                             this.releaseCurrentCancellation();
-                            this.clearTokenCache();
-                            
                             this.client = null;
                         }
                     }
@@ -153,8 +141,6 @@ export class VsCodeLmHandler implements ApiHandler {
 
         // Clean up resources in a deterministic order
         this.releaseCurrentCancellation();
-        this.clearTokenCache();
-
         if (this.configurationWatcher) {
 
             this.configurationWatcher.dispose();
@@ -162,12 +148,6 @@ export class VsCodeLmHandler implements ApiHandler {
         }
 
         this.client = null; // Release client reference
-    }
-
-    private getTokenCountCacheKey(message: vscode.LanguageModelChatMessage): string {
-        
-        // There is no message ID or hash available, so we use a dirty string representation
-        return `${message.role}:${JSON.stringify(message.content)}`;
     }
 
     private releaseCurrentCancellation(): void {
@@ -178,12 +158,6 @@ export class VsCodeLmHandler implements ApiHandler {
             this.currentRequestCancellation.dispose();
             this.currentRequestCancellation = null;
         }
-    }
-
-    private clearTokenCache(): void {
-
-        this.tokenCountCache.clear();
-        this.tokenCountCacheSize = 0;
     }
 
     private async selectBestModel(selector: vscode.LanguageModelChatSelector): Promise<vscode.LanguageModelChat> {
@@ -243,45 +217,11 @@ export class VsCodeLmHandler implements ApiHandler {
     
         try {
 
-            // Check cache for LanguageModelChatMessage
-            if (text instanceof vscode.LanguageModelChatMessage) {
-
-                const cacheKey: string = this.getTokenCountCacheKey(text);
-                const cached: number | undefined = this.tokenCountCache.get(cacheKey);
-
-                if (cached !== undefined) {
-                    
-                    // Move the accessed key to the end to maintain LRU order
-                    this.tokenCountCache.delete(cacheKey);
-                    this.tokenCountCache.set(cacheKey, cached);
-                    return cached;
-                }
-            }
-    
             // Count tokens
             const tokenCount: number = await this.client.countTokens(
                 text,
                 this.currentRequestCancellation.token
             );
-    
-            // Cache result if applicable and within size limits
-            if (text instanceof vscode.LanguageModelChatMessage) {
-
-                const cacheKey: string = this.getTokenCountCacheKey(text);
-
-                // Sliding window cache eviction strategy
-                if (this.tokenCountCacheSize >= MAX_TOKEN_COUNT_CACHE_SIZE) {
-
-                    // Remove the first (least recently used) item
-                    const firstKey = this.tokenCountCache.keys().next().value;
-                    this.tokenCountCache.delete(firstKey);
-                    this.tokenCountCacheSize--;
-                }
-
-                // Add the new item
-                this.tokenCountCache.set(cacheKey, tokenCount);
-                this.tokenCountCacheSize++;
-            }
     
             return tokenCount;
         }
