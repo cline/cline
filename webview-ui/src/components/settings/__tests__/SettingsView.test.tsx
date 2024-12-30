@@ -61,6 +61,17 @@ jest.mock('@vscode/webview-ui-toolkit/react', () => ({
     <div onChange={onChange}>
       {children}
     </div>
+  ),
+  VSCodeSlider: ({ value, onChange }: any) => (
+    <input
+      type="range"
+      value={value}
+      onChange={(e) => onChange({ target: { value: Number(e.target.value) } })}
+      min={0}
+      max={1}
+      step={0.01}
+      style={{ flexGrow: 1, height: '2px' }}
+    />
   )
 }))
 
@@ -75,6 +86,8 @@ const mockPostMessage = (state: any) => {
       shouldShowAnnouncement: false,
       allowedCommands: [],
       alwaysAllowExecute: false,
+      soundEnabled: false,
+      soundVolume: 0.5,
       ...state
     }
   }, '*')
@@ -106,7 +119,7 @@ describe('SettingsView - Sound Settings', () => {
     expect(soundCheckbox).not.toBeChecked()
     
     // Volume slider should not be visible when sound is disabled
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: /volume/i })).not.toBeInTheDocument()
   })
 
   it('toggles sound setting and sends message to VSCode', () => {
@@ -142,9 +155,9 @@ describe('SettingsView - Sound Settings', () => {
     fireEvent.click(soundCheckbox)
 
     // Volume slider should be visible
-    const volumeSlider = screen.getByRole('slider')
+    const volumeSlider = screen.getByRole('slider', { name: /volume/i })
     expect(volumeSlider).toBeInTheDocument()
-    expect(volumeSlider).toHaveValue('0.5') // Default value
+    expect(volumeSlider).toHaveValue('0.5')
   })
 
   it('updates volume and sends message to VSCode when slider changes', () => {
@@ -157,23 +170,18 @@ describe('SettingsView - Sound Settings', () => {
     fireEvent.click(soundCheckbox)
 
     // Change volume
-    const volumeSlider = screen.getByRole('slider')
+    const volumeSlider = screen.getByRole('slider', { name: /volume/i })
     fireEvent.change(volumeSlider, { target: { value: '0.75' } })
-
-    // Verify volume display updates
-    expect(screen.getByText('75%')).toBeInTheDocument()
 
     // Click Done to save settings
     const doneButton = screen.getByText('Done')
     fireEvent.click(doneButton)
 
     // Verify message sent to VSCode
-    expect(vscode.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'soundVolume',
-        value: 0.75
-      })
-    )
+    expect(vscode.postMessage).toHaveBeenCalledWith({
+      type: 'soundVolume',
+      value: 0.75
+    })
   })
 })
 

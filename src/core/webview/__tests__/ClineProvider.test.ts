@@ -253,7 +253,7 @@ describe('ClineProvider', () => {
             soundEnabled: false,
             diffEnabled: false,
             writeDelayMs: 1000,
-            browserLargeViewport: false,
+            browserViewportSize: "900x600",
             fuzzyMatchThreshold: 1.0,
         }
         
