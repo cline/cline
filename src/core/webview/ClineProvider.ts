@@ -642,6 +642,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("writeDelayMs", message.value)
 						await this.postStateToWebview()
 						break
+					case "deleteMessage": {
+						const answer = await vscode.window.showInformationMessage(
+							"Are you sure you want to delete this message and all subsequent messages?",
+							{ modal: true },
+							"Yes",
+							"No"
+						)
+						if (answer === "Yes" && this.cline && typeof message.value === 'number' && message.value) {
+							const timeCutoff = message.value - 1000; // 1 second buffer before the message to delete
+							const messageIndex = this.cline.clineMessages.findIndex(msg =>  msg.ts && msg.ts >= timeCutoff)
+							const apiConversationHistoryIndex = this.cline.apiConversationHistory.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
+							if (messageIndex !== -1) {
+								const { historyItem } = await this.getTaskWithId(this.cline.taskId)
+								await this.cline.overwriteClineMessages(this.cline.clineMessages.slice(0, messageIndex))
+								if (apiConversationHistoryIndex !== -1) {
+									await this.cline.overwriteApiConversationHistory(this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex))
+								}
+								await this.initClineWithHistoryItem(historyItem)
+							}
+						}
+						break
+					}
 					case "screenshotQuality":
 						await this.updateGlobalState("screenshotQuality", message.value)
 						await this.postStateToWebview()

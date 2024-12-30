@@ -47,6 +47,7 @@ export interface WebviewMessage {
 		| "enhancePrompt"
 		| "enhancedPrompt"
 		| "draggedImages"
+		| "deleteMessage"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

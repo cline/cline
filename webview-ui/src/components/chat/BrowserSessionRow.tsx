@@ -20,6 +20,7 @@ interface BrowserSessionRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	isStreaming: boolean
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
@@ -408,6 +409,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
+	isStreaming: boolean
 }
 
 const BrowserSessionRowContent = ({
@@ -417,6 +419,7 @@ const BrowserSessionRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
+	isStreaming,
 }: BrowserSessionRowContentProps) => {
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -443,6 +446,7 @@ const BrowserSessionRowContent = ({
 								}}
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
+								isStreaming={isStreaming}
 							/>
 						</div>
 					)

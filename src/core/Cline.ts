@@ -70,7 +70,7 @@ export class Cline {
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
 
-	apiConversationHistory: Anthropic.MessageParam[] = []
+	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
@@ -165,11 +165,12 @@ export class Cline {
 	}
 
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
+		const messageWithTs = { ...message, ts: Date.now() }
+		this.apiConversationHistory.push(messageWithTs)
 		await this.saveApiConversationHistory()
 	}
 
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
 		this.apiConversationHistory = newHistory
 		await this.saveApiConversationHistory()
 	}
@@ -205,7 +206,7 @@ export class Cline {
 		await this.saveClineMessages()
 	}
 
-	private async overwriteClineMessages(newMessages: ClineMessage[]) {
+	public async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
 	}
@@ -460,6 +461,11 @@ export class Cline {
 		await this.overwriteClineMessages(modifiedClineMessages)
 		this.clineMessages = await this.getSavedClineMessages()
 
+		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
+
+		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
+		await this.getSavedApiConversationHistory()
+
 		// Now present the cline messages to the user and ask if they want to resume
 
 		const lastClineMessage = this.clineMessages
@@ -492,11 +498,6 @@ export class Cline {
 			responseText = text
 			responseImages = images
 		}
-
-		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
-
-		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
-			await this.getSavedApiConversationHistory()
 
 		// v2.0 xml tags refactor caveat: since we don't use tools anymore, we need to replace all tool use blocks with a text block since the API disallows conversations with tool uses and no tool schema
 		const conversationWithoutToolBlocks = existingApiConversationHistory.map((message) => {
