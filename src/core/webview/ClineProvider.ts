@@ -1052,6 +1052,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			preferredLanguage,
 			writeDelayMs,
 			terminalOutputLineLimit,
+			fuzzyMatchThreshold,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -1082,6 +1083,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			preferredLanguage: preferredLanguage ?? 'English',
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 		}
 	}
 
