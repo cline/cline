@@ -673,21 +673,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		return undefined
 	}
-
 	async refreshApipieModels() {
 		const apipieModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.apipieModels)
 
 		try {
-			const response = await axios.get("https://apipie.ai/v1/models?subtype=chatx")
-			console.log("APIpie models fetched:", response.data)
-
+			const response = await axios.get("https://apipie.ai/v1/models?subtype=chatx,meta,code")
 			if (response.data?.object === "list" && Array.isArray(response.data.data)) {
-				const models = response.data.data
+				const models = response.data.data.filter((model: any) => model.max_response_tokens >= 8000)
 				await fs.writeFile(apipieModelsFilePath, JSON.stringify(models))
 				const apipieModelsRecord: Record<string, ModelInfo> = models.reduce(
 					(acc: Record<string, ModelInfo>, model: any) => {
 						acc[`${model.provider}/${model.id}`] = {
-							maxTokens: model.max_tokens,
+							maxTokens: model.maxTokens,
 							contextWindow: model.max_response_tokens,
 							supportsImages: false,
 							supportsPromptCache: false,
@@ -811,7 +808,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				console.error("Invalid response from OpenRouter API")
 			}
 			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-			console.log("OpenRouter models fetched and saved", models)
 		} catch (error) {
 			console.error("Error fetching OpenRouter models:", error)
 		}

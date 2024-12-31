@@ -61,8 +61,13 @@ export class ApipieHandler implements ApiHandler {
 			})
 			const models = await response.json()
 			this.modelInfo = models.data.find((m: ApipieModel) => {
-				if (m.available === 1 && m.subtype && m.subtype.includes("chatx")) {
-					m.model = `${m.provider}/${m.id}` // Combine provider and model
+				if (
+					m.available === 1 &&
+					m.subtype &&
+					m.subtype.split(",").some((sub) => ["chatx", "meta", "code"].includes(sub)) &&
+					m.max_response_tokens >= 8000
+				) {
+					m.model = `${m.provider}/${m.id}`
 					return `${m.provider}/${m.id}` === this.options.apiModelId
 				}
 				return false

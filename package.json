@@ -18,7 +18,7 @@
 	"publisher": "saoudrizwan",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/neuronic-ai/cline-apipie.git"
 	},
 	"homepage": "https://cline.bot",
 	"categories": [
