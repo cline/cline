@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.38
-
-### Patch Changes
+## [2.2.38]
 
 -   Add a setting to control the number of terminal output lines to pass to the model when executing commands
 
