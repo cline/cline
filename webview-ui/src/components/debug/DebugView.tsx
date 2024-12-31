@@ -122,7 +122,41 @@ declare global {
   }
 }
 
-//const vscode = window.acquireVsCodeApi();
+//const vscode = window.acquireVsCodeApi(); This currently does nothing but I left it in in case someone would like to import and use vscode api instead of react. 
+
+// Error boundary for catching JavaScript errors
+class DebugViewErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[DebugView] Error caught by boundary:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '20px',
+          color: 'var(--vscode-errorForeground)',
+          backgroundColor: 'var(--vscode-inputValidation-errorBackground)',
+          border: '1px solid var(--vscode-inputValidation-errorBorder)',
+          borderRadius: '4px'
+        }}>
+          <h3>JavaScript Error</h3>
+          <p>The debug view encountered an error. Please try refreshing the view.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   const { version, apiConfiguration, clineMessages } = useExtensionState();
@@ -219,72 +253,112 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
 
   // Helper Functions
   function getSystemInfo(): SystemInfo {
-    const formatBytes = (bytes: number): string => {
-      if (bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
+    try {
+      const formatBytes = (bytes: number): string => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      };
 
-    const getBrowserInfo = (): string => {
-      const ua = navigator.userAgent;
-      let browser = 'Unknown';
-      if (ua.includes('Firefox/')) browser = 'Firefox';
-      else if (ua.includes('Chrome/')) {
-        if (ua.includes('Edg/')) browser = 'Edge';
-        else if (ua.includes('OPR/')) browser = 'Opera';
-        else browser = 'Chrome';
-      } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
-        browser = 'Safari';
-      }
-      const match = ua.match(new RegExp(`${browser}\\/([\\d.]+)`));
-      const version = match ? ` ${match[1]}` : '';
-      return `${browser}${version}`;
-    };
+      const getBrowserInfo = (): string => {
+        try {
+          const ua = navigator.userAgent;
+          let browser = 'Unknown';
+          if (ua.includes('Firefox/')) browser = 'Firefox';
+          else if (ua.includes('Chrome/')) {
+            if (ua.includes('Edg/')) browser = 'Edge';
+            else if (ua.includes('OPR/')) browser = 'Opera';
+            else browser = 'Chrome';
+          } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+            browser = 'Safari';
+          }
+          const match = ua.match(new RegExp(`${browser}\\/([\\d.]+)`));
+          const version = match ? ` ${match[1]}` : '';
+          return `${browser}${version}`;
+        } catch (error) {
+          console.error('Error getting browser info:', error);
+          return 'Unknown';
+        }
+      };
 
-    const getOperatingSystem = (): string => {
-      const ua = navigator.userAgent;
-      if (ua.includes('Win')) return 'Windows';
-      if (ua.includes('Mac')) {
-        if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
-        return 'macOS';
-      }
-      if (ua.includes('Linux')) return 'Linux';
-      if (ua.includes('Android')) return 'Android';
-      return navigator.platform || 'Unknown';
-    };
+      const getOperatingSystem = (): string => {
+        try {
+          const ua = navigator.userAgent;
+          if (ua.includes('Win')) return 'Windows';
+          if (ua.includes('Mac')) {
+            if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+            return 'macOS';
+          }
+          if (ua.includes('Linux')) return 'Linux';
+          if (ua.includes('Android')) return 'Android';
+          return navigator.platform || 'Unknown';
+        } catch (error) {
+          console.error('Error getting OS info:', error);
+          return 'Unknown';
+        }
+      };
 
-    const getDeviceType = (): string => {
-      const ua = navigator.userAgent;
-      if (ua.includes('Mobile')) return 'Mobile';
-      if (ua.includes('Tablet')) return 'Tablet';
-      return 'Desktop';
-    };
+      const getDeviceType = (): string => {
+        try {
+          const ua = navigator.userAgent;
+          if (ua.includes('Mobile')) return 'Mobile';
+          if (ua.includes('Tablet')) return 'Tablet';
+          return 'Desktop';
+        } catch (error) {
+          console.error('Error getting device type:', error);
+          return 'Unknown';
+        }
+      };
 
-    const getMemoryInfo = (): string => {
-      if ('memory' in performance) {
-        const memory = (performance as any).memory;
-        return `${formatBytes(memory.jsHeapSizeLimit)} (Used: ${formatBytes(memory.usedJSHeapSize)})`;
-      }
-      return 'Not available';
-    };
+      const getMemoryInfo = (): string => {
+        try {
+          if ('memory' in performance) {
+            const memory = (performance as any).memory;
+            return `${formatBytes(memory.jsHeapSizeLimit)} (Used: ${formatBytes(memory.usedJSHeapSize)})`;
+          }
+          return 'Not available';
+        } catch (error) {
+          console.error('Error getting memory info:', error);
+          return 'Not available';
+        }
+      };
 
-    return {
-      os: getOperatingSystem(),
-      browser: getBrowserInfo(),
-      screen: `${window.screen.width}x${window.screen.height}`,
-      language: navigator.language,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      memory: getMemoryInfo(),
-      cores: navigator.hardwareConcurrency || 0,
-      deviceType: getDeviceType(),
-      colorDepth: `${window.screen.colorDepth}-bit`,
-      pixelRatio: window.devicePixelRatio,
-      online: navigator.onLine,
-      cookiesEnabled: navigator.cookieEnabled,
-      doNotTrack: navigator.doNotTrack === '1',
-    };
+      return {
+        os: getOperatingSystem(),
+        browser: getBrowserInfo(),
+        screen: window.screen ? `${window.screen.width}x${window.screen.height}` : 'Unknown',
+        language: navigator.language || 'Unknown',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
+        memory: getMemoryInfo(),
+        cores: navigator.hardwareConcurrency || 0,
+        deviceType: getDeviceType(),
+        colorDepth: window.screen ? `${window.screen.colorDepth}-bit` : 'Unknown',
+        pixelRatio: window.devicePixelRatio || 1,
+        online: navigator.onLine || false,
+        cookiesEnabled: navigator.cookieEnabled || false,
+        doNotTrack: navigator.doNotTrack === '1',
+      };
+    } catch (error) {
+      console.error('Error getting system info:', error);
+      // Return default values if there's an error
+      return {
+        os: 'Unknown',
+        browser: 'Unknown',
+        screen: 'Unknown',
+        language: 'Unknown',
+        timezone: 'Unknown',
+        memory: 'Not available',
+        cores: 0,
+        deviceType: 'Unknown',
+        colorDepth: 'Unknown',
+        pixelRatio: 1,
+        online: false,
+        cookiesEnabled: false,
+        doNotTrack: false,
+      };
+    }
   }
 
   const checkProviderStatus = useCallback(async (url: string | null, providerName: string): Promise<ProviderStatus> => {
@@ -842,7 +916,6 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                             "var(--vscode-testing-iconFailed)",
                       }} />
                       <div>
-                      ```typescript
                         <div style={{ fontSize: "12px", fontWeight: "500" }}>{provider.name}</div>
                         {provider.url && (
                           <div style={{ fontSize: "11px", opacity: 0.8 }}>{provider.url}</div>
@@ -903,4 +976,11 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
   );
 };
 
-export default DebugView;
+// Wrap DebugView with error boundary
+const WrappedDebugView: React.FC<DebugViewProps> = (props) => (
+  <DebugViewErrorBoundary>
+    <DebugView {...props} />
+  </DebugViewErrorBoundary>
+);
+
+export default WrappedDebugView;

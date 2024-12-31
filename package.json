@@ -46,12 +46,19 @@
 	"activationEvents": [],
 	"main": "./dist/extension.js",
 	"contributes": {
-	  "languages": [{
-	    "id": "vixs",
-	    "extensions": [".vixs"],
-	    "aliases": ["VIXS", "vixs"]
-	  }],
-	  "viewsContainers": {
+		"languages": [
+			{
+				"id": "vixs",
+				"extensions": [
+					".vixs"
+				],
+				"aliases": [
+					"VIXS",
+					"vixs"
+				]
+			}
+		],
+		"viewsContainers": {
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
@@ -179,6 +186,7 @@
 		"@types/pdf-parse": "^1.1.4",
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
+		"all": "^0.0.0",
 		"axios": "^1.7.4",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
