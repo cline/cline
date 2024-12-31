@@ -1,5 +1,10 @@
 # Change Log
 
+## [3.0.10]
+
+- Add DeepSeek provider to API Provider options
+- Fix context window limit errors for DeepSeek v3
+
 ## [3.0.9]
 
 - Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
