@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.36
+
+### Patch Changes
+
+-   Add a button to delete user messages
+
 ## [2.2.35]
 
 -   Allow selection of multiple browser viewport sizes and adjusting screenshot quality
