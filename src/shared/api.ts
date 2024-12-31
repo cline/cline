@@ -8,12 +8,15 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "apipie"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
+	apipieApiKey?: string
+	apipieModelProvider?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	awsAccessKey?: string
@@ -42,6 +45,8 @@ export type ApiConfiguration = ApiHandlerOptions & {
 // Models
 
 export interface ModelInfo {
+	model?: string
+	provider?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
@@ -157,6 +162,26 @@ export const bedrockModels = {
 		outputPrice: 1.25,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+export type ApipieModelId = keyof typeof apipieModels
+export const apipieDefaultModelId: ApipieModelId = "gpt-4o"
+export const apipieModels = {
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
+	"gpt-4o-mini": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		outputPrice: 0.6,
+	},
+}
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
@@ -338,7 +363,6 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0.15,
 		outputPrice: 0.6,
 	},
 } as const satisfies Record<string, ModelInfo>

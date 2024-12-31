@@ -1,14 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
+import { ApipieHandler } from "./providers/apipie"
 import { AwsBedrockHandler } from "./providers/bedrock"
+import { GeminiHandler } from "./providers/gemini"
+import { LmStudioHandler } from "./providers/lmstudio"
+import { OllamaHandler } from "./providers/ollama"
+import { OpenAiHandler } from "./providers/openai"
+import { OpenAiNativeHandler } from "./providers/openai-native"
 import { OpenRouterHandler } from "./providers/openrouter"
 import { VertexHandler } from "./providers/vertex"
-import { OpenAiHandler } from "./providers/openai"
-import { OllamaHandler } from "./providers/ollama"
-import { LmStudioHandler } from "./providers/lmstudio"
-import { GeminiHandler } from "./providers/gemini"
-import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
 
 export interface ApiHandler {
@@ -37,6 +38,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "apipie":
+			return new ApipieHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

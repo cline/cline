@@ -18,6 +18,7 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "apipieModels"
 		| "mcpServers"
 	text?: string
 	action?:
@@ -34,6 +35,7 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	apipieModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 }
 

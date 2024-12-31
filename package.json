@@ -1,7 +1,7 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline (prev. Claude Dev)",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "cline-apipie",
+	"displayName": "Cline APIpie",
+	"description": "Its Cline + APIpie.ai",
 	"version": "3.0.8",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
@@ -49,17 +49,17 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
+					"id": "cline-apipie-ActivityBar",
 					"title": "Cline",
 					"icon": "$(robot)"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"cline-apipie-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "cline-apipie.SidebarProvider",
 					"name": ""
 				}
 			]
@@ -101,27 +101,27 @@
 				{
 					"command": "cline.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-apipie.SidebarProvider"
 				},
 				{
 					"command": "cline.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-apipie.SidebarProvider"
 				},
 				{
 					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-apipie.SidebarProvider"
 				},
 				{
 					"command": "cline.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-apipie.SidebarProvider"
 				},
 				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-apipie.SidebarProvider"
 				}
 			]
 		}
@@ -148,6 +148,7 @@
 		"publish:marketplace": "vsce publish && ovsx publish"
 	},
 	"devDependencies": {
+		"@babel/plugin-proposal-private-property-in-object": "^7.21.11",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",

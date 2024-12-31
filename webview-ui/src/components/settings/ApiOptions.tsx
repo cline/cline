@@ -31,6 +31,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import ApipieModelPicker from "./ApipieModelPicker"
 import OpenRouterModelPicker, {
 	ModelDescriptionMarkdown,
 	OPENROUTER_MODEL_PICKER_Z_INDEX,
@@ -127,6 +128,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="apipie">APIpie</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
@@ -246,6 +248,41 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							<span style={{ color: "var(--vscode-charts-green)" }}>
 								(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter is recommended for high rate
 								limits, prompt caching, and wider selection of models.)
+							</span>
+						)} */}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "apipie" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.apipieApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("apipieApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>APIpie API Key</span>
+					</VSCodeTextField>
+					{!apiConfiguration?.apipieApiKey && (
+						<VSCodeButtonLink
+							href="https://apipie.ai/profile/api-keys"
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get APIpie API Key
+						</VSCodeButtonLink>
+					)}
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+						{/* {!apiConfiguration?.apipieApiKey && (
+							<span style={{ color: "var(--vscode-charts-green)" }}>
+								(<span style={{ fontWeight: 500 }}>Note:</span> APIpie is recommended for llm, image and voice generation 
+								 and additonal services like Pinecone and tools to fight hallucinations.)
 							</span>
 						)} */}
 					</p>
@@ -616,8 +653,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			)}
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
+			{selectedProvider === "apipie" && showModelOptions && <ApipieModelPicker />}
 
 			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "apipie" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -840,6 +879,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "apipie":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.apiModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:
