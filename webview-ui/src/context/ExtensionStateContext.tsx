@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
-import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
+import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -12,6 +12,9 @@ import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
+import {
+	checkExistKey
+} from "../../../src/shared/checkExistApiConfig"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -23,6 +26,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setShowAnnouncement: (value: boolean) => void
+	setCurrentApiConfigName: (value: string) => void
+	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -34,6 +39,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
+		currentApiConfigName: 'default',
+		listApiConfigMeta: [],
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -44,26 +51,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
+
+	const setListApiConfigMeta = useCallback((value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })), [setState])
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
 				setState(message.state!)
 				const config = message.state?.apiConfiguration
-				const hasKey = config
-					? [
-							config.apiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-						].some((key) => key !== undefined)
-					: false
+				const hasKey = checkExistKey(config)
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
 				break
@@ -104,8 +101,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
+			case "listApiConfig": {
+				setListApiConfigMeta(message.listApiConfig ?? [])
+				break
+			}
 		}
-	}, [])
+	}, [setListApiConfigMeta])
 
 	useEvent("message", handleMessage)
 
@@ -124,6 +125,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
+		setListApiConfigMeta
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
