@@ -504,7 +504,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
       .catch(error => {
         toast.error(`Failed to copy: ${(error as Error).message}`);
       });
-  }, [activeProviders, systemInfo, isLatestBranch, version, apiConfiguration, prForm]);
+  }, [activeProviders, systemInfo, isLatestBranch, version, apiConfiguration, prForm, metrics]);
 
   return (
     <React.Fragment>
