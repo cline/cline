@@ -39,12 +39,12 @@ export class DeepSeekHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: 0, //chunk.usage.prompt_tokens || 0, (deepseek reports total input AND cache reads/writes, see context caching: https://api-docs.deepseek.com/guides/kv_cache)
+					inputTokens: chunk.usage.prompt_tokens || 0, // (deepseek reports total input AND cache reads/writes, see context caching: https://api-docs.deepseek.com/guides/kv_cache) but we use this to do the truncation algo, so we can't report cache stats right now because of how deepseek api reports input AND the cache reads/writes, while anthropic reports them as separate tokens
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
+					// cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
 					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					// cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}
 		}
