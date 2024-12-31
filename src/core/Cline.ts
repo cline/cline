@@ -843,7 +843,7 @@ export class Cline {
 						maxAllowedSize = contextWindow - 27_000
 						break
 					case 128_000: // most models
-						maxAllowedSize = contextWindow - 40_000
+						maxAllowedSize = contextWindow - 30_000
 						break
 					case 200_000: // claude models
 						maxAllowedSize = contextWindow - 40_000
