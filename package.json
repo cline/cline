@@ -2,7 +2,7 @@
 	"name": "cline-apipie",
 	"displayName": "Cline APIpie",
 	"description": "Its Cline + APIpie.ai",
-	"version": "3.0.8",
+	"version": "3.0.81",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -30,6 +30,7 @@
 		"Testing"
 	],
 	"keywords": [
+		"apipie",
 		"cline",
 		"claude",
 		"dev",
@@ -50,8 +51,8 @@
 			"activitybar": [
 				{
 					"id": "cline-apipie-ActivityBar",
-					"title": "Cline",
-					"icon": "$(robot)"
+					"title": "Cline-APIpie",
+					"icon": "$(pie-chart)"
 				}
 			]
 		},
