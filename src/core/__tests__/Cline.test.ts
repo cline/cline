@@ -1,6 +1,7 @@
 import { Cline } from '../Cline';
 import { ClineProvider } from '../webview/ClineProvider';
 import { ApiConfiguration } from '../../shared/api';
+import { ApiStreamChunk } from '../../api/transform/stream';
 import * as vscode from 'vscode';
 
 // Mock all MCP-related modules
@@ -418,6 +419,85 @@ describe('Cline', () => {
             expect(details).toMatch(/UTC-7:00/); // Fixed offset for America/Los_Angeles
             expect(details).toContain('# Current Time');
             expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/); // Full time string format
+        });
+    
+        describe('API conversation handling', () => {
+            it('should clean conversation history before sending to API', async () => {
+                const cline = new Cline(
+                    mockProvider,
+                    mockApiConfig,
+                    undefined,
+                    false,
+                    undefined,
+                    'test task'
+                );
+    
+                // Mock the API's createMessage method to capture the conversation history
+                const createMessageSpy = jest.fn();
+                const mockStream = {
+                    async *[Symbol.asyncIterator]() {
+                        yield { type: 'text', text: '' };
+                    },
+                    async next() {
+                        return { done: true, value: undefined };
+                    },
+                    async return() {
+                        return { done: true, value: undefined };
+                    },
+                    async throw(e: any) {
+                        throw e;
+                    },
+                    async [Symbol.asyncDispose]() {
+                        // Cleanup
+                    }
+                } as AsyncGenerator<ApiStreamChunk>;
+                
+                jest.spyOn(cline.api, 'createMessage').mockImplementation((...args) => {
+                    createMessageSpy(...args);
+                    return mockStream;
+                });
+
+                // Add a message with extra properties to the conversation history
+                const messageWithExtra = {
+                    role: 'user' as const,
+                    content: [{ type: 'text' as const, text: 'test message' }],
+                    ts: Date.now(),
+                    extraProp: 'should be removed'
+                };
+                cline.apiConversationHistory = [messageWithExtra];
+
+                // Trigger an API request
+                await cline.recursivelyMakeClineRequests([
+                    { type: 'text', text: 'test request' }
+                ]);
+
+                // Get all calls to createMessage
+                const calls = createMessageSpy.mock.calls;
+                
+                // Find the call that includes our test message
+                const relevantCall = calls.find(call =>
+                    call[1]?.some((msg: any) =>
+                        msg.content?.[0]?.text === 'test message'
+                    )
+                );
+
+                // Verify the conversation history was cleaned in the relevant call
+                expect(relevantCall?.[1]).toEqual(
+                    expect.arrayContaining([
+                        {
+                            role: 'user',
+                            content: [{ type: 'text', text: 'test message' }]
+                        }
+                    ])
+                );
+
+                // Verify extra properties were removed
+                const passedMessage = relevantCall?.[1].find((msg: any) =>
+                    msg.content?.[0]?.text === 'test message'
+                );
+                expect(passedMessage).not.toHaveProperty('ts');
+                expect(passedMessage).not.toHaveProperty('extraProp');
+            });
         });
     });
 });
