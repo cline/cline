@@ -721,15 +721,31 @@ export class Cline {
 			}
 		}
 
-		let result = ""
+		let lines: string[] = []
 		process.on("line", (line) => {
-			result += line + "\n"
+			lines.push(line)
 			if (!didContinue) {
 				sendCommandOutput(line)
 			} else {
 				this.say("command_output", line)
 			}
 		})
+
+		const getFormattedOutput = async () => {
+			const { terminalOutputLineLimit } = await this.providerRef.deref()?.getState() ?? {}
+			const limit = terminalOutputLineLimit ?? 0
+			
+			if (limit > 0 && lines.length > limit) {
+				const beforeLimit = Math.floor(limit * 0.2) // 20% of lines before
+				const afterLimit = limit - beforeLimit // remaining 80% after
+				return [
+					...lines.slice(0, beforeLimit),
+					`\n[...${lines.length - limit} lines omitted...]\n`,
+					...lines.slice(-afterLimit)
+				].join('\n')
+			}
+			return lines.join('\n')
+		}
 
 		let completed = false
 		process.once("completed", () => {
@@ -749,7 +765,8 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		result = result.trim()
+		const output = await getFormattedOutput()
+		const result = output.trim()
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)

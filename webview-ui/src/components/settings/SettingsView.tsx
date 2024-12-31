@@ -46,6 +46,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setWriteDelayMs,
 		screenshotQuality,
 		setScreenshotQuality,
+		terminalOutputLineLimit,
+		setTerminalOutputLineLimit,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -76,6 +78,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "preferredLanguage", text: preferredLanguage })
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
 			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
+			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
 			onDone()
 		}
 	}
@@ -207,6 +210,31 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules and .cursorrules in the working directory are also included.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+						<span style={{ fontWeight: "500", minWidth: '150px' }}>Terminal output limit</span>
+						<input
+							type="range"
+							min="100"
+							max="5000"
+							step="100"
+							value={terminalOutputLineLimit ?? 500}
+							onChange={(e) => setTerminalOutputLineLimit(parseInt(e.target.value))}
+							style={{
+								flexGrow: 1,
+								accentColor: 'var(--vscode-button-background)',
+								height: '2px'
+							}}
+						/>
+						<span style={{ minWidth: '45px', textAlign: 'left' }}>
+							{terminalOutputLineLimit ?? 500}
+						</span>
+					</div>
+					<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+						Maximum number of lines to include in terminal output when executing commands. When exceeded lines will be removed from the middle, saving tokens.
 					</p>
 				</div>
 
@@ -431,7 +459,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 10 }}>
 						<div style={{ marginBottom: 15 }}>
 							<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Browser Settings</h3>
-							<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport Size</label>
+							<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport size</label>
 							<select
 								value={browserViewportSize}
 								onChange={(e) => setBrowserViewportSize(e.target.value)}
@@ -460,7 +488,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 						<div style={{ marginBottom: 15 }}>
 							<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-								<span style={{ fontWeight: "500", minWidth: '100px' }}>Screenshot Quality</span>
+								<span style={{ fontWeight: "500", minWidth: '100px' }}>Screenshot quality</span>
 								<input
 									type="range"
 									min="1"
