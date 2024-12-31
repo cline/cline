@@ -5,6 +5,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+// Define metrics interface for display purposes
 interface ApiMetrics {
   totalTokensIn?: number;
   totalTokensOut?: number;
@@ -25,28 +26,8 @@ const ApiStatusDisplayComponent: React.FC<{ metrics: ApiMetrics | undefined }> =
   );
 };
 
-const ApiStatusDisplay: React.FC = () => {
-  const { apiConfiguration, clineMessages, openRouterModels } = useExtensionState();
-  const metrics = useMemo(() => {
-    if (!clineMessages.length) return undefined;
-    const lastApiReqIndex = clineMessages.findIndex(m => m.say === "api_req_started");
-    if (lastApiReqIndex === -1) return undefined;
-    const lastApiReq = clineMessages[lastApiReqIndex];
-    if (!lastApiReq.text) return undefined;
-    try {
-      const info = JSON.parse(lastApiReq.text);
-      return {
-        totalTokensIn: info.tokensIn,
-        totalTokensOut: info.tokensOut,
-        totalCacheWrites: info.cacheWrites,
-        totalCacheReads: info.cacheReads,
-        totalCost: info.cost
-      };
-    } catch {
-      return undefined;
-    }
-  }, [clineMessages]);
-
+const ApiStatusDisplay: React.FC<{ metrics: ApiMetrics | undefined }> = ({ metrics }) => {
+  const { apiConfiguration, openRouterModels } = useExtensionState();
   const modelCapabilities = useMemo(() => {
     if (!apiConfiguration?.apiProvider) return null;
     const modelId = apiConfiguration.openRouterModelId;
@@ -79,115 +60,6 @@ const ApiStatusDisplay: React.FC = () => {
   );
 };
 
-interface ApiStatusDisplayProps {
-  apiKey?: string;
-  openRouterApiKey?: string;
-  openAiApiKey?: string;
-  provider?: string;
-  baseUrl?: string;
-  modelId?: string;
-  error?: string;
-  metrics?: ApiMetrics;
-}
-
-const ApiStatusDisplay2: React.FC<ApiStatusDisplayProps> = ({
-  apiKey,
-  openRouterApiKey,
-  openAiApiKey,
-  provider,
-  baseUrl,
-  modelId,
-  error,
-  metrics
-}) => {
-  const { openRouterModels } = useExtensionState();
-  const isConnected = !!(apiKey || openRouterApiKey || openAiApiKey);
-
-  const modelCapabilities = useMemo(() => {
-    if (!provider) return null;
-    const modelInfo = modelId ? openRouterModels[modelId] : null;
-    return {
-      supportsComputerUse: modelInfo?.supportsComputerUse ?? false,
-      supportsPromptCache: modelInfo?.supportsPromptCache ?? false
-    };
-  }, [provider, modelId, openRouterModels]);
-
-  return (
-    <div style={{
-      marginBottom: "4px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "4px",
-      backgroundColor: error ? "var(--vscode-inputValidation-errorBackground)" : undefined,
-      border: error ? "1px solid var(--vscode-inputValidation-errorBorder)" : undefined,
-      borderRadius: "4px",
-      padding: error ? "8px" : undefined
-    }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "4px"
-      }}>
-        <span>API Status:</span>
-        <span style={{
-          color: isConnected && !error ?
-            "var(--vscode-testing-iconPassed)" :
-            "var(--vscode-testing-iconFailed)"
-        }}>
-          {isConnected && !error ? "Connected" : "Not Connected"}
-        </span>
-        <span style={{
-          color: isConnected && !error ?
-            "var(--vscode-testing-iconPassed)" :
-            "var(--vscode-testing-iconFailed)"
-        }}>
-          {isConnected && !error ? "✓" : "✗"}
-        </span>
-      </div>
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "2px",
-        fontSize: "11px",
-        marginLeft: "4px",
-        opacity: error ? 1 : 0.8
-      }}>
-        {provider && <div>Provider: {provider}</div>}
-        {baseUrl && <div>Base URL: {baseUrl}</div>}
-        {modelId && <div>Model ID: {modelId}</div>}
-        {isConnected && modelCapabilities && (
-          <>
-            <div>Computer Usage: {modelCapabilities.supportsComputerUse ? "Enabled" : "Disabled"}</div>
-            <div>Prompt Cache: {modelCapabilities.supportsPromptCache ? "Enabled" : "Disabled"}</div>
-          </>
-        )}
-        {isConnected && metrics && (
-          <>
-            <div>Tokens In: {metrics.totalTokensIn || 0}</div>
-            <div>Tokens Out: {metrics.totalTokensOut || 0}</div>
-            <div>Cache Writes: {metrics.totalCacheWrites || 0}</div>
-            <div>Cache Reads: {metrics.totalCacheReads || 0}</div>
-            <div>Total Cost: ${metrics.totalCost?.toFixed(4) || '0.0000'}</div>
-          </>
-        )}
-      </div>
-      {error && (
-        <div style={{
-          fontSize: "11px",
-          marginTop: "4px",
-          padding: "4px 8px",
-          backgroundColor: "var(--vscode-inputValidation-errorBackground)",
-          border: "1px solid var(--vscode-inputValidation-errorBorder)",
-          borderRadius: "4px",
-          color: "var(--vscode-errorForeground)"
-        }}>
-          <span style={{ fontWeight: "500" }}>Error:</span> {error}
-        </div>
-      )}
-    </div>
-  );
-};
-
 interface ProviderStatus {
   name: string;
   enabled: boolean;
@@ -211,6 +83,9 @@ interface PullRequestForm {
     singleFeature: boolean;
     testsPassing: boolean;
     reviewedGuidelines: boolean;
+    PromptCacheIssue: boolean;
+    extensionwebviewUIIssue: boolean;
+    computerusageIssue: boolean;
   };
   screenshots: string;
   additionalNotes: string;
@@ -233,14 +108,6 @@ interface SystemInfo {
   doNotTrack: boolean;
 }
 
-interface IProviderConfig {
-  name: string;
-  settings: {
-    enabled: boolean;
-    baseUrl?: string;
-  };
-}
-
 function generateTicketNumber(): string {
   return `CLINE-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 }
@@ -255,16 +122,36 @@ declare global {
   }
 }
 
-const vscode = window.acquireVsCodeApi();
+//const vscode = window.acquireVsCodeApi();
 
 const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
-  const { version, apiConfiguration } = useExtensionState();
+  const { version, apiConfiguration, clineMessages } = useExtensionState();
   const [activeProviders, setActiveProviders] = useState<ProviderStatus[]>([]);
   const LOCAL_PROVIDERS = useMemo(() => ['Ollama', 'LMStudio', 'OpenAILike'], []);
   const [updateMessage, setUpdateMessage] = useState<string>('');
   const [systemInfo] = useState<SystemInfo>(getSystemInfo());
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [isLatestBranch, setIsLatestBranch] = useState(false);
+  const [isLatestBranch] = useState(false);
+
+  const metrics = useMemo(() => {
+    if (!clineMessages.length) return undefined;
+    const lastApiReqIndex = clineMessages.findIndex(m => m.say === "api_req_started");
+    if (lastApiReqIndex === -1) return undefined;
+    const lastApiReq = clineMessages[lastApiReqIndex];
+    if (!lastApiReq.text) return undefined;
+    try {
+      const info = JSON.parse(lastApiReq.text);
+      return {
+        totalTokensIn: info.tokensIn,
+        totalTokensOut: info.tokensOut,
+        totalCacheWrites: info.cacheWrites,
+        totalCacheReads: info.cacheReads,
+        totalCost: info.cost
+      };
+    } catch {
+      return undefined;
+    }
+  }, [clineMessages]);
 
   // Pull Request Form State
   const [prForm, setPrForm] = useState<PullRequestForm>({
@@ -280,7 +167,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
       testsPassing: false,
       reviewedGuidelines: false,
       PromptCacheIssue: false,
-      extensionwebviewUIIssue: false, 
+      extensionwebviewUIIssue: false,
       computerusageIssue: false,
     },
     screenshots: '',
@@ -593,9 +480,11 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                   undefined,
           modelId: apiConfiguration.openRouterModelId || apiConfiguration.openAiModelId,
           error: apiConfiguration.error,
-          hasKey: !!(apiConfiguration.apiKey || apiConfiguration.openRouterApiKey || apiConfiguration.openAiApiKey),
-        } : null
+          hasKey: !!(apiConfiguration.apiKey || apiConfiguration.openRouterApiKey || apiConfiguration.openAiApiKey)
+        } : null,
+        metrics: metrics // Use the metrics from the ApiStatusDisplay component
       },
+      PullRequestForm: prForm, // Include the Pull Request Form data
       Version: {
         clineVersion: "3.0",
         displayVersion: `v${version}`,
@@ -610,12 +499,12 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
 
     navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2))
       .then(() => {
-        toast.success('Debug information copied to clipboard!');
+        toast.success('Debug information (including Pull Request Form) copied to clipboard!');
       })
       .catch(error => {
         toast.error(`Failed to copy: ${(error as Error).message}`);
       });
-  }, [activeProviders, systemInfo, isLatestBranch, version, apiConfiguration, prForm.commitName]);
+  }, [activeProviders, systemInfo, isLatestBranch, version, apiConfiguration, prForm]);
 
   return (
     <React.Fragment>
@@ -727,22 +616,22 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                   Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
                 </VSCodeCheckbox>
                 <VSCodeCheckbox
-                  checked={prForm.preFlightChecklist.}
+                  checked={prForm.preFlightChecklist.PromptCacheIssue}
                   onChange={() => handlePreFlightToggle('PromptCacheIssue')}
                 >
-                  The prompt cache is handled by different API Providers sometimes on their end automatically, so even if an API provider does not say in this extension that it supports prompt cache. Please be sure to check the API provider's API documentation to be sure that the prompt cache is supported on their end before filing an issue. Please check this if you have done so. 
+                  The prompt cache is handled by different API Providers sometimes on their end automatically, so even if an API provider does not say in this extension that it supports prompt cache. Please be sure to check the API provider's API documentation to be sure that the prompt cache is supported on their end before filing an issue. Please check this if you have done so.
                 </VSCodeCheckbox>
                 <VSCodeCheckbox
-                  checked={prForm.preFlightChecklist.testsPassing}
+                  checked={prForm.preFlightChecklist.extensionwebviewUIIssue}
                   onChange={() => handlePreFlightToggle('extensionwebviewUIIssue')}
                 >
-                  The webview folder cannot natively retrieve API provider information and other information directly from the source and core of this program extension due to the way typescript works. If your webview component is having trouble with retrieving information from the backend, please be sure to check if it is calling this data through the extension file and not directly through the source file before filing an issue. Please check this box if you have checked this potential solution to the error before submitting your issue. 
+                  The webview folder cannot natively retrieve API provider information and other information directly from the source and core of this program extension due to the way typescript works. If your webview component is having trouble with retrieving information from the backend, please be sure to check if it is calling this data through the extension file and not directly through the source file before filing an issue. Please check this box if you have checked this potential solution to the error before submitting your issue.
                 </VSCodeCheckbox>
                 <VSCodeCheckbox
-                  checked={prForm.preFlightChecklist.testsPassing}
+                  checked={prForm.preFlightChecklist.computerusageIssue}
                   onChange={() => handlePreFlightToggle('computerusageIssue')}
                 >
-                  Computer usage is a tool call for a LLM to use the computer terminal and other features. Claude is designed to handle multiple tool calls but other LLMs do not natively support this. The other LLMs instead are given a prompt from the prompt.ts file in the program (along with some other prompts for diff handling) to tell them how to use the tools. This may cause errors from the LLMs since they are not trained to handle complex prompts. Please be sure to check that any failure from the LLM to use a tool is not from an LLM that is not designed to handle multiple tool calls before submitting an issue. Please check this if you have already checked the model documentation before submitting an issue. 
+                  Computer usage is a tool call for a LLM to use the computer terminal and other features. Claude is designed to handle multiple tool calls but other LLMs do not natively support this. The other LLMs instead are given a prompt from the prompt.ts file in the program (along with some other prompts for diff handling) to tell them how to use the tools. This may cause errors from the LLMs since they are not trained to handle complex prompts. Please be sure to check that any failure from the LLM to use a tool is not from an LLM that is not designed to handle multiple tool calls before submitting an issue. Please check this if you have already checked the model documentation before submitting an issue.
                 </VSCodeCheckbox>
                 <VSCodeCheckbox
                   checked={prForm.preFlightChecklist.testsPassing}
@@ -833,20 +722,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                           <span>Active Provider: {apiConfiguration.apiProvider}</span>
                         </div>
                         <div style={{ fontSize: "11px", marginLeft: "16px" }}>
-                          <ApiStatusDisplay2
-                            apiKey={apiConfiguration?.apiKey}
-                            openRouterApiKey={apiConfiguration?.openRouterApiKey}
-                            openAiApiKey={apiConfiguration?.openAiApiKey}
-                            provider={apiConfiguration?.apiProvider}
-                            baseUrl={
-                              apiConfiguration?.apiProvider === "anthropic" ? apiConfiguration?.anthropicBaseUrl :
-                              apiConfiguration?.apiProvider === "openai" ? apiConfiguration?.openAiBaseUrl :
-                              undefined
-                            }
-                            modelId={apiConfiguration?.openRouterModelId}
-                            error={apiConfiguration?.error}
-                            metrics={apiConfiguration?.metrics}
-                          />
+                          <ApiStatusDisplay metrics={metrics} />
                         </div>
                       </div>
                     )}
@@ -861,7 +737,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
             </div>
 
             <div style={{ marginBottom: "16px" }}>
-              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px" }}>Commit Name</h5>
+              <h5 style={{ margin: "0 0 8px 0", fontSize: "12px"}}>Commit Name</h5>
               <VSCodeTextArea
                 value={prForm.commitName}
                 onChange={(e) => handlePrFormChange('commitName', (e.target as HTMLTextAreaElement).value)}
@@ -936,36 +812,8 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                   <div>{String(value)}</div>
                 </div>
               ))}
-              git pull upstream main</code></li>
-                    <li>Install dependencies: <code>pnpm install</code></li>
-                    <li>Restart the application</li>
-                  </ol>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ marginBottom: "16px" }}>
-            <h4 style={{ margin: "0 0 8px 0", fontSize: "13px" }}>System Information</h4>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: "8px",
-              padding: "8px",
-              backgroundColor: "var(--vscode-textBlockQuote-background)",
-              borderRadius: "4px",
-            }}>
-              {Object.entries(systemInfo).map(([key, value]) => (
-                <div key={key} style={{ fontSize: "12px" }}>
-                  <div style={{ color: "var(--vscode-textPreformat-foreground)", marginBottom: "2px" }}>
-                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                  </div>
-                  <div>{String(value)}</div>
-                </div>
-              ))}
             </div>
           </div>
-
           <div>
             <h4 style={{ margin: "0 0 8px 0", fontSize: "13px" }}>Local LLM Status</h4>
             <div style={{
@@ -994,6 +842,7 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
                             "var(--vscode-testing-iconFailed)",
                       }} />
                       <div>
+                      ```typescript
                         <div style={{ fontSize: "12px", fontWeight: "500" }}>{provider.name}</div>
                         {provider.url && (
                           <div style={{ fontSize: "11px", opacity: 0.8 }}>{provider.url}</div>
@@ -1055,4 +904,3 @@ const DebugView: React.FC<DebugViewProps> = ({ onDone }) => {
 };
 
 export default DebugView;
-
