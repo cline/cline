@@ -807,7 +807,9 @@ export class Cline {
 			}
 		}
 
-		const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
+		// Convert to Anthropic.MessageParam by spreading only the API-required properties
+		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => ({ role, content }))
+		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
