@@ -787,6 +787,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						isLast={index === groupedMessages.length - 1}
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
+						isStreaming={isStreaming}
 						// Pass handlers for each message in the group
 						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
 						onToggleExpand={(messageTs: number) => {
@@ -809,10 +810,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
+					isStreaming={isStreaming}
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
+		[expandedRows, modifiedMessages, groupedMessages.length, handleRowHeightChange, isStreaming, toggleRowExpansion],
 	)
 
 	useEffect(() => {
