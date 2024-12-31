@@ -18,7 +18,7 @@ import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
-import { ApiConfiguration } from "../shared/api"
+import { ApiConfiguration, MessageParamWithTokenCount } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -70,7 +70,7 @@ export class Cline {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
-	apiConversationHistory: Anthropic.MessageParam[] = []
+	apiConversationHistory: MessageParamWithTokenCount[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
@@ -135,7 +135,7 @@ export class Cline {
 		return taskDir
 	}
 
-	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+	private async getSavedApiConversationHistory(): Promise<MessageParamWithTokenCount[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
@@ -144,12 +144,12 @@ export class Cline {
 		return []
 	}
 
-	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
+	private async addToApiConversationHistory(message: MessageParamWithTokenCount) {
 		this.apiConversationHistory.push(message)
 		await this.saveApiConversationHistory()
 	}
 
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+	private async overwriteApiConversationHistory(newHistory: MessageParamWithTokenCount[]) {
 		this.apiConversationHistory = newHistory
 		await this.saveApiConversationHistory()
 	}
@@ -488,7 +488,7 @@ export class Cline {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
-		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
+		let existingApiConversationHistory: MessageParamWithTokenCount[] =
 			await this.getSavedApiConversationHistory()
 
 		// v2.0 xml tags refactor caveat: since we don't use tools anymore, we need to replace all tool use blocks with a text block since the API disallows conversations with tool uses and no tool schema
@@ -533,7 +533,7 @@ export class Cline {
 		// if the last message is a user message, we can need to get the assistant message before it to see if it made tool calls, and if so, fill in the remaining tool responses with 'interrupted'
 
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
-		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[] // need to remove the last user message to replace with new modified user message
+		let modifiedApiConversationHistory: MessageParamWithTokenCount[] // need to remove the last user message to replace with new modified user message
 		if (existingApiConversationHistory.length > 0) {
 			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
 
@@ -559,7 +559,7 @@ export class Cline {
 					modifiedOldUserContent = []
 				}
 			} else if (lastMessage.role === "user") {
-				const previousAssistantMessage: Anthropic.Messages.MessageParam | undefined =
+				const previousAssistantMessage: MessageParamWithTokenCount | undefined =
 					existingApiConversationHistory[existingApiConversationHistory.length - 2]
 
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)

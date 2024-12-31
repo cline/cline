@@ -1,4 +1,9 @@
 import * as vscode from "vscode";
+import { Anthropic } from "@anthropic-ai/sdk";
+
+export type MessageParamWithTokenCount = Anthropic.Messages.MessageParam & {
+    tokenCount?: number;
+}
 
 export type ApiProvider =
 	| "anthropic"
