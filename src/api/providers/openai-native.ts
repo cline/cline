@@ -8,6 +8,7 @@ import {
 	OpenAiNativeModelId,
 	openAiNativeModels,
 } from "../../shared/api"
+import { structurePromptForCaching } from "../../utils/prompt-cache"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -27,9 +28,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1-preview":
 			case "o1-mini": {
 				// o1 doesnt support streaming, non-1 temp, or system prompt
+				// For o1 models, system prompt is sent as user message
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
-					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					messages: structurePromptForCaching(
+						"", // o1 doesn't support system prompts
+						[{ role: "user", content: systemPrompt }],
+						convertToOpenAiMessages(messages)
+					),
 				})
 				yield {
 					type: "text",
@@ -45,9 +51,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 			default: {
 				const stream = await this.client.chat.completions.create({
 					model: this.getModel().id,
-					// max_completion_tokens: this.getModel().info.maxTokens,
 					temperature: 0,
-					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					messages: structurePromptForCaching(
+						systemPrompt,
+						[], // No additional static messages
+						convertToOpenAiMessages(messages)
+					),
 					stream: true,
 					stream_options: { include_usage: true },
 				})

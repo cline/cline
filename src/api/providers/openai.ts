@@ -6,6 +6,7 @@ import {
 	ModelInfo,
 	openAiModelInfoSaneDefaults,
 } from "../../shared/api"
+import { structurePromptForCaching } from "../../utils/prompt-cache"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -32,10 +33,12 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		// Structure messages for optimal caching with system prompt at the beginning
+		const openAiMessages = structurePromptForCaching(
+			systemPrompt,
+			[], // No additional static messages
+			convertToOpenAiMessages(messages)
+		)
 		const stream = await this.client.chat.completions.create({
 			model: this.options.openAiModelId ?? "",
 			messages: openAiMessages,

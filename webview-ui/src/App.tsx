@@ -8,12 +8,14 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
+import DebugView from "./components/debug/DebugView"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showMcp, setShowMcp] = useState(false)
+	const [showDebug, setShowDebug] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
@@ -35,11 +37,19 @@ const AppContent = () => {
 						setShowSettings(false)
 						setShowHistory(false)
 						setShowMcp(true)
+						setShowDebug(false)
+						break
+					case "debugButtonClicked":
+						setShowSettings(false)
+						setShowHistory(false)
+						setShowMcp(false)
+						setShowDebug(true)
 						break
 					case "chatButtonClicked":
 						setShowSettings(false)
 						setShowHistory(false)
 						setShowMcp(false)
+						setShowDebug(false)
 						break
 				}
 				break
@@ -68,14 +78,16 @@ const AppContent = () => {
 					{showSettings && <SettingsView onDone={() => setShowSettings(false)} />}
 					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
 					{showMcp && <McpView onDone={() => setShowMcp(false)} />}
+					{showDebug && <DebugView onDone={() => setShowDebug(false)} />}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 					<ChatView
 						showHistoryView={() => {
 							setShowSettings(false)
 							setShowMcp(false)
+							setShowDebug(false)
 							setShowHistory(true)
 						}}
-						isHidden={showSettings || showHistory || showMcp}
+						isHidden={showSettings || showHistory || showMcp || showDebug}
 						showAnnouncement={showAnnouncement}
 						hideAnnouncement={() => {
 							setShowAnnouncement(false)

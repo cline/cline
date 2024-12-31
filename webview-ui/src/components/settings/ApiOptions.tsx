@@ -763,33 +763,38 @@ export const ModelInfoView = ({
 	)
 }
 
+interface ModelInfoSupportsItemProps extends React.HTMLAttributes<HTMLSpanElement> {
+	isSupported: boolean
+	supportsLabel: string
+	doesNotSupportLabel: string
+}
+
 const ModelInfoSupportsItem = ({
 	isSupported,
 	supportsLabel,
 	doesNotSupportLabel,
-}: {
-	isSupported: boolean
-	supportsLabel: string
-	doesNotSupportLabel: string
-}) => (
-	<span
-		style={{
-			fontWeight: 500,
-			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
-		}}>
-		<i
-			className={`codicon codicon-${isSupported ? "check" : "x"}`}
+}: ModelInfoSupportsItemProps) => {
+	return (
+		<span
 			style={{
-				marginRight: 4,
-				marginBottom: isSupported ? 1 : -1,
-				fontSize: isSupported ? 11 : 13,
-				fontWeight: 700,
-				display: "inline-block",
-				verticalAlign: "bottom",
-			}}></i>
-		{isSupported ? supportsLabel : doesNotSupportLabel}
-	</span>
-)
+				fontWeight: 500,
+				color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
+				display: 'inline-block',
+			}}>
+			<i
+				className={`codicon codicon-${isSupported ? "check" : "x"}`}
+				style={{
+					marginRight: 4,
+					marginBottom: isSupported ? 1 : -1,
+					fontSize: isSupported ? 11 : 13,
+					fontWeight: 700,
+					display: "inline-block",
+					verticalAlign: "bottom",
+				}}></i>
+			{isSupported ? supportsLabel : doesNotSupportLabel}
+		</span>
+	);
+}
 
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"

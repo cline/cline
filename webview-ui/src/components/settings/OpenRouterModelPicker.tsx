@@ -1,6 +1,6 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState, forwardRef } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
@@ -175,9 +175,11 @@ const OpenRouterModelPicker: React.FC = () => {
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => (
-								<DropdownItem
+								<StyledDropdownItem
 									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
+									ref={(el) => {
+                                        itemRefs.current[index] = el
+                                    }}
 									isSelected={index === selectedIndex}
 									onMouseEnter={() => setSelectedIndex(index)}
 									onClick={() => {
@@ -250,12 +252,19 @@ const DropdownList = styled.div`
 	border-bottom-right-radius: 3px;
 `
 
-const DropdownItem = styled.div<{ isSelected: boolean }>`
+interface DropdownItemProps {
+    isSelected: boolean;
+}
+
+const StyledDropdownItem = styled(
+    forwardRef<HTMLDivElement, DropdownItemProps & React.HTMLProps<HTMLDivElement>>((props, ref) => (
+        <div ref={ref} {...props} />
+    ))
+)`
 	padding: 5px 10px;
 	cursor: pointer;
 	word-break: break-all;
 	white-space: normal;
-
 	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 
 	&:hover {
