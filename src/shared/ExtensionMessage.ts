@@ -61,6 +61,7 @@ export interface ExtensionState {
 	fuzzyMatchThreshold?: number
 	preferredLanguage: string
 	writeDelayMs: number
+	terminalOutputLineLimit?: number
 }
 
 export interface ClineMessage {

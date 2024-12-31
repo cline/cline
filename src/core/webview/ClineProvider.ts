@@ -76,6 +76,7 @@ type GlobalStateKey =
 	| "fuzzyMatchThreshold"
 	| "preferredLanguage" // Language setting for Cline's communication
 	| "writeDelayMs"
+	| "terminalOutputLineLimit"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -642,6 +643,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("writeDelayMs", message.value)
 						await this.postStateToWebview()
 						break
+					case "terminalOutputLineLimit":
+						await this.updateGlobalState("terminalOutputLineLimit", message.value)
+						await this.postStateToWebview()
+						break
 					case "deleteMessage": {
 						const answer = await vscode.window.showInformationMessage(
 							"Are you sure you want to delete this message and all subsequent messages?",
@@ -1046,6 +1051,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality,
 			preferredLanguage,
 			writeDelayMs,
+			terminalOutputLineLimit,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -1075,6 +1081,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality: screenshotQuality ?? 75,
 			preferredLanguage: preferredLanguage ?? 'English',
 			writeDelayMs: writeDelayMs ?? 1000,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 		}
 	}
 
@@ -1174,6 +1181,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			preferredLanguage,
 			writeDelayMs,
 			screenshotQuality,
+			terminalOutputLineLimit,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1218,6 +1226,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
 			this.getGlobalState("writeDelayMs") as Promise<number | undefined>,
 			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
+			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1279,6 +1288,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality: screenshotQuality ?? 75,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			writeDelayMs: writeDelayMs ?? 1000,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			preferredLanguage: preferredLanguage ?? (() => {
 				// Get VSCode's locale setting
 				const vscodeLang = vscode.env.language;

@@ -48,6 +48,7 @@ export interface WebviewMessage {
 		| "enhancedPrompt"
 		| "draggedImages"
 		| "deleteMessage"
+		| "terminalOutputLineLimit"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
