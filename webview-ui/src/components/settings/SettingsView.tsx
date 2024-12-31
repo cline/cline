@@ -257,7 +257,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								<span style={{ fontWeight: "500", minWidth: '100px' }}>Match precision</span>
 								<input
 									type="range"
-									min="0.9"
+									min="0.8"
 									max="1"
 									step="0.005"
 									value={fuzzyMatchThreshold ?? 1.0}
