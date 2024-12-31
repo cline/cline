@@ -1,6 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useState, useEffect } from "react"
-import { useExtensionState } from "../context/ExtensionStateContext" // Import the hook
+import { useExtensionState } from "../../context/ExtensionStateContext" // Import the hook
 
 export const TAB_NAVBAR_HEIGHT = 24
 const BUTTON_MARGIN_RIGHT = "3px"
