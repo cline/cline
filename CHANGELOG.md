@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.37
+
+### Patch Changes
+
+-   Hotfix
+
 ## [2.2.36]
 
 -   Add a button to delete user messages
