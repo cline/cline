@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.37
-
-### Patch Changes
+## [2.2.37]
 
 -   Hotfix
 
