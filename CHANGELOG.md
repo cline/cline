@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 2.2.38
+
+### Patch Changes
+
+-   Add a setting to control the number of terminal output lines to pass to the model when executing commands
+
 ## [2.2.36 - 2.2.37]
 
 -   Add a button to delete user messages
