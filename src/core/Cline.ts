@@ -52,6 +52,7 @@ import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showSystemNotification } from "../integrations/notifications"
 import { removeInvalidChars } from "../utils/string"
 import { fixModelHtmlEscaping } from "../utils/string"
+import { OpenAiHandler } from "../api/providers/openai"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -831,8 +832,26 @@ export class Cline {
 					previousRequest.text,
 				)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow || 128_000
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+				let contextWindow = this.api.getModel().info.contextWindow || 128_000
+				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
+				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
+					contextWindow = 64_000
+				}
+				let maxAllowedSize: number
+				switch (contextWindow) {
+					case 64_000: // deepseek models
+						maxAllowedSize = contextWindow - 25_000
+						break
+					case 128_000: // most models
+						maxAllowedSize = contextWindow - 40_000
+						break
+					case 200_000: // claude models
+						maxAllowedSize = contextWindow - 40_000
+						break
+					default:
+						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
+				}
+
 				if (totalTokens >= maxAllowedSize) {
 					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
 					await this.overwriteApiConversationHistory(truncatedMessages)
