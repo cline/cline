@@ -52,6 +52,7 @@ type GlobalStateKey =
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
+	| "openAiContextWindow"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
@@ -231,7 +232,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 * are created and inserted into the webview HTML.
 	 *
 	 * @param webview A reference to the extension webview
-	 * @param extensionUri The URI of the directory containing the extension
 	 * @returns A template string literal containing the HTML that should be
 	 * rendered within the webview panel
 	 */
@@ -372,6 +372,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiBaseUrl,
 								openAiApiKey,
 								openAiModelId,
+								openAiContextWindow,
 								ollamaModelId,
 								ollamaBaseUrl,
 								lmStudioModelId,
@@ -398,6 +399,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
+							await this.updateGlobalState("openAiContextWindow", openAiContextWindow)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
@@ -903,7 +905,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
-	async getState() {
+async getState() {
 		const [
 			storedApiProvider,
 			apiModelId,
@@ -919,6 +921,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			openAiContextWindow,  // Add this line
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -949,6 +952,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("openAiContextWindow") as Promise<number | undefined>,  // Add this line
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
@@ -996,6 +1000,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiBaseUrl,
 				openAiApiKey,
 				openAiModelId,
+				openAiContextWindow,  // Add this line
 				ollamaModelId,
 				ollamaBaseUrl,
 				lmStudioModelId,
@@ -1099,5 +1104,5 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+		}
 	}
-}
