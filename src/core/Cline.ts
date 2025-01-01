@@ -1285,7 +1285,32 @@ export class Cline {
 										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									const didApprove = await askApproval("tool", completeMessage)
+									// const didApprove = await askApproval("tool", completeMessage)
+
+									// Need a more customized tool response for file edits to highlight the fact that the file was not updated (particularly important for deepseek)
+									let didApprove = true
+									const { response, text, images } = await this.ask("tool", completeMessage, false)
+									if (response !== "yesButtonClicked") {
+										const fileDeniedNote = fileExists
+											? "The file was not updated, and maintains its original contents."
+											: "The file was not created."
+										if (response === "messageResponse") {
+											await this.say("user_feedback", text, images)
+											pushToolResult(
+												formatResponse.toolResult(
+													`The user denied this operation. ${fileDeniedNote}\nThe user provided the following feedback:\n<feedback>\n${text}\n</feedback>`,
+													images,
+												),
+											)
+											this.didRejectTool = true
+											didApprove = false
+										} else {
+											pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
+											this.didRejectTool = true
+											didApprove = false
+										}
+									}
+
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
 										break
