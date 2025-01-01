@@ -98,6 +98,10 @@ export class OpenRouterHandler implements ApiHandler {
 
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
 		let shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
+		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
+		if (this.getModel().id === "deepseek/deepseek-chat") {
+			shouldApplyMiddleOutTransform = true
+		}
 
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
