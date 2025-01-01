@@ -141,10 +141,16 @@ export class DiffViewProvider {
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
+		autoFormattingEdits: string | undefined
 		finalContent: string | undefined
 	}> {
 		if (!this.relPath || !this.newContent || !this.activeDiffEditor) {
-			return { newProblemsMessage: undefined, userEdits: undefined, finalContent: undefined }
+			return {
+				newProblemsMessage: undefined,
+				userEdits: undefined,
+				autoFormattingEdits: undefined,
+				finalContent: undefined,
+			}
 		}
 		const absolutePath = path.resolve(this.cwd, this.relPath)
 		const updatedDocument = this.activeDiffEditor.document
@@ -197,18 +203,32 @@ export class DiffViewProvider {
 		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
 		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+
+		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
 			// user made changes before approving edit. let the model know about user made changes (not including post-save auto-formatting changes)
-			const userEdits = formatResponse.createPrettyPatch(
+			userEdits = formatResponse.createPrettyPatch(
 				this.relPath.toPosix(),
 				normalizedNewContent,
 				normalizedPreSaveContent,
 			)
-			return { newProblemsMessage, userEdits, finalContent: normalizedPostSaveContent }
+			// return { newProblemsMessage, userEdits, finalContent: normalizedPostSaveContent }
 		} else {
 			// no changes to cline's edits
-			return { newProblemsMessage, userEdits: undefined, finalContent: normalizedPostSaveContent }
+			// return { newProblemsMessage, userEdits: undefined, finalContent: normalizedPostSaveContent }
 		}
+
+		let autoFormattingEdits: string | undefined
+		if (normalizedPreSaveContent !== normalizedPostSaveContent) {
+			// auto-formatting was done by the editor
+			autoFormattingEdits = formatResponse.createPrettyPatch(
+				this.relPath.toPosix(),
+				normalizedPreSaveContent,
+				normalizedPostSaveContent,
+			)
+		}
+
+		return { newProblemsMessage, userEdits, autoFormattingEdits, finalContent: normalizedPostSaveContent }
 	}
 
 	async revertChanges(): Promise<void> {
