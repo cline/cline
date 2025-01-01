@@ -127,22 +127,6 @@ export class Cline {
 		}
 	}
 
-	async enhancePrompt(promptText: string): Promise<string> {
-		if (!promptText) {
-			throw new Error("No prompt text provided")
-		}
-
-		const prompt = `Generate an enhanced version of this prompt (reply with only the enhanced prompt, no bullet points): ${promptText}`
-		
-		// Check if the API handler supports completePrompt
-		if (this.api instanceof OpenRouterHandler) {
-			return this.api.completePrompt(prompt)
-		}
-
-		// Otherwise just return the prompt as is
-		return prompt;
-	}
-
 	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
