@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.0.12]
+
+- Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)
+
 ## [3.0.11]
 
 - Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
