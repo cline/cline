@@ -342,6 +342,7 @@ export async function constructNewFileContent(
 		// Accumulate content for search or replace
 		// (currentReplaceContent is not being used for anything right now since we directly append to result.)
 		// (We artificially add a linebreak since we split on \n at the beginning. In order to not include a trailing linebreak in the final search/result blocks we need to remove it before using them. This allows for partial line matches to be correctly identified.)
+		// NOTE: search/replace blocks must be arranged in the order they appear in the file due to how we build the content using lastProcessedIndex. We also cannot strip the trailing newline since for non-partial lines it would remove the linebreak from the original content. (If we remove end linebreak from search, then we'd also have to remove it from replace but we can't know if it's a partial line or not since the model may be using the line break to indicate the end of the block rather than as part of the search content.) We require the model to output full lines in order for our fallbacks to work as well.
 		if (inSearch) {
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {
