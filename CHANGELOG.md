@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.0.11]
+
+- Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
+
 ## [3.0.10]
 
 - Add DeepSeek provider to API Provider options
