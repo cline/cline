@@ -11,6 +11,7 @@ import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { VsCodeLmHandler } from "./providers/vscode-lm";
 import { ApiStream } from "./transform/stream"
+import { DeepSeekHandler } from "./providers/deepseek"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -38,6 +39,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "deepseek":
+			return new DeepSeekHandler(options)
         case "vscode-lm":
             return new VsCodeLmHandler(options)
 		default:

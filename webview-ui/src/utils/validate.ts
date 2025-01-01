@@ -33,6 +33,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "deepseek":
+				if (!apiConfiguration.deepSeekApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "openai":
 				if (
 					!apiConfiguration.openAiBaseUrl ||
