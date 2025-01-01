@@ -21,6 +21,6 @@ export async function enhancePrompt(apiConfiguration: ApiConfiguration, promptTe
         throw new Error("Expected OpenRouter handler")
     }
     
-    const prompt = `Generate an enhanced version of this prompt (reply with only the enhanced prompt, no other text or bullet points): ${promptText}`
+    const prompt = `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):\n\n${promptText}`
     return handler.completePrompt(prompt)
 }
