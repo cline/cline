@@ -44,7 +44,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.ant
 
 ### Use any API and Model
 
-Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
+Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API or use local models through LM Studio/Ollama, if the model supports all neccessary features. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available. However only certain models will work with Cline. 
 
 The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
 
@@ -113,6 +113,14 @@ Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol),
 **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
 
 **`@folder`:** Adds folder's files all at once to speed up your workflow even more
+
+
+## Supported models
+
+Cline requires a large context window (64k or above) and tool-use capabilities. For self-hosted models, you can increase the context window size by [creating a custom Modelfile](https://github.com/ollama/ollama/blob/main/docs/openai.md#setting-the-context-size) or using a model that has been pre-configured for Cline, such as [maryasov/qwen2.5-coder-cline](https://ollama.com/maryasov/qwen2.5-coder-cline) or [acidtib/qwen2.5-coder-cline](https://ollama.com/acidtib/qwen2.5-coder-cline).
+
+See [this discussion](https://github.com/cline/cline/discussions/241) for more details on using local models.
+
 
 ## Contributing
 
