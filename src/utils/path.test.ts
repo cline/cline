@@ -1,53 +1,53 @@
-import { describe, it } from "mocha"
+import { describe, test, expect } from "vitest"
 import * as os from "os"
 import * as path from "path"
-import "should"
 import { arePathsEqual, getReadablePath } from "./path"
 
 describe("Path Utilities", () => {
-	describe("arePathsEqual", () => {
-		it("should handle undefined paths", () => {
-			arePathsEqual(undefined, undefined).should.be.true()
-			arePathsEqual("foo", undefined).should.be.false()
-			arePathsEqual(undefined, "foo").should.be.false()
-		})
+  describe("arePathsEqual", () => {
+    test("should handle undefined paths", () => {
+      expect(arePathsEqual(undefined, undefined)).toBe(true)
+      expect(arePathsEqual("foo", undefined)).toBe(false)
+      expect(arePathsEqual(undefined, "foo")).toBe(false)
+    })
 
-		it("should handle case sensitivity based on platform", () => {
-			if (process.platform === "win32") {
-				arePathsEqual("FOO/BAR", "foo/bar").should.be.true()
-			} else {
-				arePathsEqual("FOO/BAR", "foo/bar").should.be.false()
-			}
-		})
+    test("should handle case sensitivity based on platform", () => {
+      if (process.platform === "win32") {
+        expect(arePathsEqual("FOO/BAR", "foo/bar")).toBe(true)
+      } else {
+        expect(arePathsEqual("FOO/BAR", "foo/bar")).toBe(false)
+      }
+    })
 
-		it("should handle normalized paths", () => {
-			arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir").should.be.true()
-			arePathsEqual("/tmp/./dir", "/tmp/../dir").should.be.false()
-		})
-	})
+    test("should handle normalized paths", () => {
+      expect(arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir")).toBe(true)
+      expect(arePathsEqual("/tmp/./dir", "/tmp/../dir")).toBe(false)
+    })
+  })
 
-	describe("getReadablePath", () => {
-		it("should handle desktop path", () => {
-			const desktop = path.join(os.homedir(), "Desktop")
-			const testPath = path.join(desktop, "test.txt")
-			getReadablePath(desktop, "test.txt").should.equal(testPath.replace(/\\/g, "/"))
-		})
+  describe("getReadablePath", () => {
+    test("should handle desktop path", () => {
+      const desktop = path.join(os.homedir(), "Desktop")
+      const testPath = path.join(desktop, "test.txt")
+      expect(getReadablePath(desktop, "test.txt")).toEqual(testPath.replace(/\\/g, "/"))
+    })
 
-		it("should show relative paths within cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/project/src/file.txt"
-			getReadablePath(cwd, filePath).should.equal("src/file.txt")
-		})
+    test("should show relative paths within cwd", () => {
+      const cwd = "/home/user/project"
+      const filePath = "/home/user/project/src/file.txt"
+      expect(getReadablePath(cwd, filePath)).toEqual("src/file.txt")
+    })
 
-		it("should show basename when path equals cwd", () => {
-			const cwd = "/home/user/project"
-			getReadablePath(cwd, cwd).should.equal("project")
-		})
+    test("should show basename when path equals cwd", () => {
+      const cwd = process.platform === "win32" ? "C:\\home\\user\\project" : "/home/user/project"
+      expect(getReadablePath(cwd, cwd)).toEqual("project")
+    })
 
-		it("should show absolute path when outside cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/other/file.txt"
-			getReadablePath(cwd, filePath).should.equal(filePath)
-		})
-	})
+    test("should show absolute path when outside cwd", () => {
+      const cwd = process.platform === "win32" ? "C:\\home\\user\\project" : "/home/user/project"
+      const filePath = process.platform === "win32" ? "C:\\home\\user\\other\\file.txt" : "/home/user/other/file.txt"
+      const expected = process.platform === "win32" ? "C:/home/user/other/file.txt" : "/home/user/other/file.txt"
+      expect(getReadablePath(cwd, filePath)).toEqual(expected)
+    })
+  })
 })

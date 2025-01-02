@@ -140,18 +140,19 @@
 		"lint": "eslint src --ext ts",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
-		"test": "vscode-test",
+		"test": "vitest",
+		"test:run": "vitest run",
+		"test:watch": "vitest watch",
+		"test:coverage": "vitest run --coverage",
+		"test:ci": "npm run lint && vitest run --coverage",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"start:webview": "cd webview-ui && npm run start",
 		"build:webview": "cd webview-ui && npm run build",
-		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish && ovsx publish"
 	},
 	"devDependencies": {
 		"@types/diff": "^5.2.1",
-		"@types/mocha": "^10.0.7",
-		"@types/node": "20.x",
-		"@types/should": "^11.2.0",
+		"@types/node": "^20.x",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
@@ -161,8 +162,10 @@
 		"eslint": "^8.57.0",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
-		"should": "^13.2.3",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^1.2.2",
+		"@vitest/coverage-v8": "^1.2.2",
+		"happy-dom": "^12.10.3"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",

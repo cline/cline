@@ -1,71 +1,84 @@
 import * as fs from "fs/promises"
-import { after, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, test, expect, vi } from "vitest"
 import * as os from "os"
 import * as path from "path"
-import "should"
 import { createDirectoriesForFile, fileExistsAtPath } from "./fs"
 
+vi.mock("fs/promises", () => ({
+  mkdir: vi.fn(),
+  writeFile: vi.fn(),
+  rm: vi.fn(),
+  access: vi.fn().mockImplementation((path) => {
+    if (path.includes("existing")) {
+      return Promise.resolve();
+    }
+    return Promise.reject(new Error("File not found"));
+  }),
+}));
+
 describe("Filesystem Utilities", () => {
-	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
+  const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
 
-	// Clean up after tests
-	after(async () => {
-		try {
-			await fs.rm(tmpDir, { recursive: true, force: true })
-		} catch {
-			// Ignore cleanup errors
-		}
-	})
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
 
-	describe("fileExistsAtPath", () => {
-		it("should return true for existing paths", async () => {
-			await fs.mkdir(tmpDir, { recursive: true })
-			const testFile = path.join(tmpDir, "test.txt")
-			await fs.writeFile(testFile, "test")
+  afterEach(async () => {
+    try {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    } catch {
+      // Ignore cleanup errors
+    }
+  })
 
-			const exists = await fileExistsAtPath(testFile)
-			exists.should.be.true()
-		})
+  describe("fileExistsAtPath", () => {
+    test("should return true for existing paths", async () => {
+      const testFile = path.join(tmpDir, "test.txt")
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined);
 
-		it("should return false for non-existing paths", async () => {
-			const nonExistentPath = path.join(tmpDir, "does-not-exist.txt")
-			const exists = await fileExistsAtPath(nonExistentPath)
-			exists.should.be.false()
-		})
-	})
+      const exists = await fileExistsAtPath(testFile)
+      expect(exists).toBe(true)
+      expect(fs.access).toHaveBeenCalledWith(testFile)
+    })
 
-	describe("createDirectoriesForFile", () => {
-		it("should create all necessary directories", async () => {
-			const deepPath = path.join(tmpDir, "deep", "nested", "dir", "file.txt")
-			const createdDirs = await createDirectoriesForFile(deepPath)
+    test("should return false for non-existing paths", async () => {
+      const nonExistentPath = path.join(tmpDir, "does-not-exist.txt")
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error("File not found"));
 
-			// Verify directories were created
-			createdDirs.length.should.be.greaterThan(0)
-			for (const dir of createdDirs) {
-				const exists = await fileExistsAtPath(dir)
-				exists.should.be.true()
-			}
-		})
+      const exists = await fileExistsAtPath(nonExistentPath)
+      expect(exists).toBe(false)
+      expect(fs.access).toHaveBeenCalledWith(nonExistentPath)
+    })
+  })
 
-		it("should handle existing directories", async () => {
-			const existingDir = path.join(tmpDir, "existing")
-			await fs.mkdir(existingDir, { recursive: true })
+  describe("createDirectoriesForFile", () => {
+    test("should create all necessary directories", async () => {
+      const deepPath = path.join(tmpDir, "deep", "nested", "dir", "file.txt")
+      vi.mocked(fs.mkdir).mockResolvedValueOnce(undefined);
 
-			const filePath = path.join(existingDir, "file.txt")
-			const createdDirs = await createDirectoriesForFile(filePath)
+      const createdDirs = await createDirectoriesForFile(deepPath)
+      expect(createdDirs.length).toBeGreaterThan(0)
+      expect(fs.mkdir).toHaveBeenCalledWith(path.dirname(deepPath), { recursive: true })
+    })
 
-			// Should not create any new directories
-			createdDirs.length.should.equal(0)
-		})
+    test("should handle existing directories", async () => {
+      const existingDir = path.join(tmpDir, "existing")
+      const filePath = path.join(existingDir, "file.txt")
+      vi.mocked(fs.access).mockResolvedValueOnce(undefined);
 
-		it("should normalize paths", async () => {
-			const unnormalizedPath = path.join(tmpDir, "a", "..", "b", ".", "file.txt")
-			const createdDirs = await createDirectoriesForFile(unnormalizedPath)
+      const createdDirs = await createDirectoriesForFile(filePath)
+      expect(createdDirs.length).toBe(0)
+      expect(fs.mkdir).not.toHaveBeenCalled()
+    })
 
-			// Should create only the necessary directory
-			createdDirs.length.should.equal(1)
-			const exists = await fileExistsAtPath(path.join(tmpDir, "b"))
-			exists.should.be.true()
-		})
-	})
+    test("should normalize paths", async () => {
+      const unnormalizedPath = path.join(tmpDir, "a", "..", "b", ".", "file.txt")
+      const normalizedPath = path.join(tmpDir, "b", "file.txt")
+      vi.mocked(fs.mkdir).mockResolvedValueOnce(undefined);
+
+      const createdDirs = await createDirectoriesForFile(unnormalizedPath)
+      expect(createdDirs.length).toBe(1)
+      expect(fs.mkdir).toHaveBeenCalledWith(path.dirname(normalizedPath), { recursive: true })
+    })
+  })
 })

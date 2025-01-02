@@ -21,12 +21,12 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Cline")
-	context.subscriptions.push(outputChannel)
+  outputChannel = vscode.window.createOutputChannel('Cline')
+  context.subscriptions.push(outputChannel)
 
-	outputChannel.appendLine("Cline extension activated")
+  outputChannel.appendLine("Cline extension activated")
 
-	const sidebarProvider = new ClineProvider(context, outputChannel)
+  const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
