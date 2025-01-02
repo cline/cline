@@ -10,6 +10,7 @@ import {
 	SchemaType,
 	TextPart,
 } from "@google/generative-ai"
+import { Content as VertexContent, Part as VertexPart } from "@google-cloud/vertexai"
 
 export function convertAnthropicContentToGemini(
 	content:
@@ -191,5 +192,95 @@ export function convertGeminiResponseToAnthropic(
 			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
 			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
 		},
+	}
+}
+
+
+// Convert Anthropic messages to Vertex AI Gemini format
+export function convertAnthropicContentToVertexGemini(
+	content:
+		| string
+		| Array<
+				| Anthropic.Messages.TextBlockParam
+				| Anthropic.Messages.ImageBlockParam
+				| Anthropic.Messages.ToolUseBlockParam
+				| Anthropic.Messages.ToolResultBlockParam
+		  >,
+): VertexPart[] {
+	if (typeof content === "string") {
+		return [{ text: content } as VertexPart]
+	}
+	return content.flatMap((block): VertexPart | VertexPart[] => {
+		switch (block.type) {
+			case "text":
+				return { text: block.text } as VertexPart
+			case "image":
+				if (block.source.type !== "base64") {
+					throw new Error("Unsupported image source type")
+				}
+				return {
+					inlineData: {
+						data: block.source.data,
+						mimeType: block.source.media_type,
+					},
+				} as VertexPart
+			case "tool_use":
+				return {
+					functionCall: {
+						name: block.name,
+						args: block.input,
+					},
+				} as VertexPart
+			case "tool_result":
+				const name = block.tool_use_id.split("-")[0]
+				if (!block.content) {
+					return []
+				}
+				if (typeof block.content === "string") {
+					return {
+						functionResponse: {
+							name,
+							response: {
+								name,
+								content: block.content,
+							},
+						},
+					} as VertexPart
+				} else {
+					const textParts = block.content.filter((part) => part.type === "text")
+					const imageParts = block.content.filter((part) => part.type === "image")
+					const text = textParts.length > 0 ? textParts.map((part) => part.text).join("\n\n") : ""
+					const imageText = imageParts.length > 0 ? "\n\n(See next part for image)" : ""
+					return [
+						{
+							functionResponse: {
+								name,
+								response: {
+									name,
+									content: text + imageText,
+								},
+							},
+						} as VertexPart,
+						...imageParts.map(
+							(part) =>
+								({
+									inlineData: {
+										data: part.source.data,
+										mimeType: part.source.media_type,
+									},
+								}) as VertexPart,
+						),
+					]
+				}
+			default:
+				throw new Error(`Unsupported content block type: ${(block as any).type}`)
+		}
+	})
+}
+
+export function convertAnthropicMessageToVertexGemini(message: Anthropic.Messages.MessageParam): VertexContent {
+	return {
+		role: message.role === "assistant" ? "model" : "user",
+		parts: convertAnthropicContentToVertexGemini(message.content),
 	}
 }
