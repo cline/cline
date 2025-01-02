@@ -795,9 +795,8 @@ You have access to two tools for working with files: **write_to_file** and **rep
 
 - After using either write_to_file or replace_in_file, the user's editor may automatically format the file
 - This auto-formatting may modify the file contents, for example:
-  - Breaking single lines into multiple lines (e.g. long function declarations, object literals, array definitions)
+  - Breaking single lines into multiple lines
   - Adjusting indentation to match project style (e.g. 2 spaces vs 4 spaces vs tabs)
-  - Standardizing spacing and line endings (e.g. removing extra whitespace, ensuring consistent newlines)
   - Converting single quotes to double quotes (or vice versa based on project preferences)
   - Organizing imports (e.g. sorting, grouping by type)
   - Adding/removing trailing commas in objects and arrays

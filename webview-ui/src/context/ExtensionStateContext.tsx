@@ -61,6 +61,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							config.lmStudioModelId,
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
+							config.deepSeekApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)

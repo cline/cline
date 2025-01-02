@@ -1,5 +1,18 @@
 # Change Log
 
+## [3.0.12]
+
+- Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)
+
+## [3.0.11]
+
+- Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
+
+## [3.0.10]
+
+- Add DeepSeek provider to API Provider options
+- Fix context window limit errors for DeepSeek v3
+
 ## [3.0.9]
 
 - Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
