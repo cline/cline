@@ -1,47 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
 import { activate } from '../extension';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { createMockVSCodeModule, createMockExtensionContext } from './utils/vscode-mock';
 
-const outputChannelMock = {
-  appendLine: vi.fn(),
-  dispose: vi.fn(),
-};
+// Setup global mock for vscode module
+vi.mock('vscode', () => createMockVSCodeModule());
 
 describe('Cline Extension', () => {
+  let mockContext: vscode.ExtensionContext;
+
   beforeEach(() => {
+    // Reset all mocks before each test
     vi.resetAllMocks();
-    vi.mock('vscode', () => ({
-      window: {
-        createOutputChannel: () => outputChannelMock,
-        createTextEditorDecorationType: vi.fn(),
-        registerWebviewViewProvider: vi.fn(),
-      },
-      commands: {
-        registerCommand: vi.fn(),
-        executeCommand: vi.fn(),
-      },
-      extensions: {
-        getExtension: vi.fn(),
-      },
-      workspace: {
-        workspaceFolders: [],
-        getConfiguration: vi.fn(),
-        onDidChangeConfiguration: vi.fn(),
-        onDidCreateFiles: vi.fn(),
-        onDidDeleteFiles: vi.fn(),
-        onDidRenameFiles: vi.fn(),
-      },
-      ExtensionMode: {
-        Production: 1,
-        Development: 2,
-        Test: 3
-      },
-      Uri: {
-        parse: (value: string) => ({ path: value })
-      }
-    }));
+    
+    // Create a fresh mock context for each test
+    mockContext = createMockExtensionContext();
   });
 
   const packagePath = path.join(__dirname, "..", "..", "package.json");
@@ -66,6 +41,9 @@ describe('Cline Extension', () => {
   });
 
   it('should successfully execute the plus button command', async () => {
+    // Activate the extension first
+    activate(mockContext);
+    
     // Simulate a delay to mimic real-world async behavior
     await new Promise((resolve) => setTimeout(resolve, 100));
     
@@ -77,78 +55,58 @@ describe('Cline Extension', () => {
   });
 
   it('should activate extension', () => {
-    const mockContext = {
-      subscriptions: [],
-      workspaceState: {
-        get: vi.fn(),
-        update: vi.fn()
-      },
-      globalState: {
-        get: vi.fn(),
-        update: vi.fn()
-      },
-      secrets: {
-        get: vi.fn(),
-        store: vi.fn(),
-        delete: vi.fn()
-      },
-      extensionPath: '',
-      storagePath: '',
-      globalStoragePath: '',
-      logPath: '',
-      asAbsolutePath: vi.fn(),
-      extensionUri: vscode.Uri.parse('file:///test/extension'),
-      storageUri: vscode.Uri.parse('file:///test/storage'),
-      globalStorageUri: vscode.Uri.parse('file:///test/global-storage'),
-      logUri: vscode.Uri.parse('file:///test/logs'),
-      environmentVariableCollection: {} as any,
-      extensionMode: vscode.ExtensionMode.Production
-    } as unknown as vscode.ExtensionContext;
-
     const result = activate(mockContext);
+    
+    // Verify that the extension returns an API
     expect(result).toBeDefined();
+    
+    // Verify output channel was created
+    expect(vscode.window.createOutputChannel).toHaveBeenCalledWith('Cline');
   });
 
   it('should register commands', () => {
     const mockRegisterCommand = vi.spyOn(vscode.commands, 'registerCommand');
     
-    const mockContext = {
-      subscriptions: [],
-      workspaceState: {
-        get: vi.fn(),
-        update: vi.fn()
-      },
-      globalState: {
-        get: vi.fn(),
-        update: vi.fn()
-      },
-      secrets: {
-        get: vi.fn(),
-        store: vi.fn(),
-        delete: vi.fn()
-      },
-      extensionPath: '',
-      storagePath: '',
-      globalStoragePath: '',
-      logPath: '',
-      asAbsolutePath: vi.fn(),
-      extensionUri: vscode.Uri.parse('file:///test/extension'),
-      storageUri: vscode.Uri.parse('file:///test/storage'),
-      globalStorageUri: vscode.Uri.parse('file:///test/global-storage'),
-      logUri: vscode.Uri.parse('file:///test/logs'),
-      environmentVariableCollection: {} as any,
-      extensionMode: vscode.ExtensionMode.Production
-    } as unknown as vscode.ExtensionContext;
-
     activate(mockContext);
 
-    expect(mockRegisterCommand).toHaveBeenCalledWith(
-      'cline.plusButtonClicked', 
-      expect.any(Function)
-    );
-    expect(mockRegisterCommand).toHaveBeenCalledWith(
+    // Check specific commands are registered
+    const registeredCommands = [
+      'cline.plusButtonClicked',
       'cline.mcpButtonClicked', 
-      expect.any(Function)
-    );
+      'cline.popoutButtonClicked',
+      'cline.openInNewTab',
+      'cline.settingsButtonClicked',
+      'cline.historyButtonClicked'
+    ];
+
+    registeredCommands.forEach(command => {
+      expect(mockRegisterCommand).toHaveBeenCalledWith(
+        command, 
+        expect.any(Function)
+      );
+    });
+  });
+
+  it('should register text document content provider', () => {
+    activate(mockContext);
+
+    // Verify that text document content provider is registered
+    expect(vscode.workspace.registerTextDocumentContentProvider)
+      .toHaveBeenCalledWith(
+        expect.any(String), 
+        expect.any(Object)
+      );
+  });
+
+  it('should register webview view provider', () => {
+    activate(mockContext);
+
+    // Verify that webview view provider is registered
+    expect(vscode.window.registerWebviewViewProvider)
+      .toHaveBeenCalledWith(
+        expect.any(String), 
+        expect.any(Object),
+        expect.any(Object)
+      );
   });
 });
