@@ -28,6 +28,7 @@ export class AnthropicHandler implements ApiHandler {
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-5-sonnet-20241022":
+			case "claude-3-5-sonnet-20240620":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
