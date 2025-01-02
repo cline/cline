@@ -297,7 +297,7 @@ export class VsCodeLmHandler implements ApiHandler {
 
             const totalInputTokens: number = await this.calculateInputTokens(systemPrompt, messages);
             const vsCodeLmMessages: vscode.LanguageModelChatMessage[] = [
-                vscode.LanguageModelChatMessage.Assistant(systemPrompt),
+                vscode.LanguageModelChatMessage.User(systemPrompt), //VSCode Language Model API does not support system prompts yet.
                 ...convertToVsCodeLmMessages(messages)
             ];
 
