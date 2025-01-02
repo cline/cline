@@ -4,6 +4,12 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
+		| "currentApiConfigName"
+		| "upsertApiConfiguration"
+		| "deleteApiConfiguration"
+		| "loadApiConfiguration"
+		| "renameApiConfiguration"
+		| "getListApiConfiguration"
 		| "customInstructions"
 		| "webviewDidLaunch"
 		| "newTask"
