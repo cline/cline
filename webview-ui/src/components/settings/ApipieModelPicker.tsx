@@ -11,7 +11,9 @@ const defaultModel = "gpt-4o"
 
 const ApipieModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, apipieModels } = useExtensionState()
-	const [selectedModel, setSelectedModel] = useState(`${defaultProvider}/${defaultModel}`)
+	const [selectedModel, setSelectedModel] = useState(
+		apiConfiguration?.apiModelId || `${defaultProvider}/${defaultModel}`,
+	)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	useMount(() => {
