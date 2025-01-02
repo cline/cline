@@ -1,3 +1,10 @@
+import * as vscode from "vscode";
+import { Anthropic } from "@anthropic-ai/sdk";
+
+export type MessageParamWithTokenCount = Anthropic.Messages.MessageParam & {
+    tokenCount?: number;
+}
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -9,6 +16,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+    | "vscode-lm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -35,6 +43,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	azureApiVersion?: string
+    vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -349,7 +358,6 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
-
 // DeepSeek
 // https://api-docs.deepseek.com/quick_start/pricing
 export type DeepSeekModelId = keyof typeof deepSeekModels
