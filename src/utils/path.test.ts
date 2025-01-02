@@ -34,19 +34,20 @@ describe("Path Utilities", () => {
 		})
 
 		it("should show relative paths within cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/project/src/file.txt"
+			// Use platform-specific paths
+			const cwd = process.platform === "win32" ? "C:/home/user/project" : "/home/user/project"
+			const filePath = process.platform === "win32" ? "C:/home/user/project/src/file.txt" : "/home/user/project/src/file.txt"
 			getReadablePath(cwd, filePath).should.equal("src/file.txt")
 		})
 
 		it("should show basename when path equals cwd", () => {
-			const cwd = "/home/user/project"
+			const cwd = process.platform === "win32" ? "C:/home/user/project" : "/home/user/project"
 			getReadablePath(cwd, cwd).should.equal("project")
 		})
 
 		it("should show absolute path when outside cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/other/file.txt"
+			const cwd = process.platform === "win32" ? "C:/home/user/project" : "/home/user/project"
+			const filePath = process.platform === "win32" ? "C:/home/user/other/file.txt" : "/home/user/other/file.txt"
 			getReadablePath(cwd, filePath).should.equal(filePath)
 		})
 	})

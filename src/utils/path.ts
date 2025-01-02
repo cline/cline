@@ -91,7 +91,11 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	} else {
 		// show the relative path to the cwd
 		const normalizedRelPath = path.relative(cwd, absolutePath)
-		if (absolutePath.includes(cwd)) {
+		const normalizedCwd = path.normalize(cwd)
+		const normalizedAbsPath = path.normalize(absolutePath)
+		
+		// Check if the normalized absolute path starts with the normalized cwd
+		if (normalizedAbsPath.toLowerCase().startsWith(normalizedCwd.toLowerCase())) {
 			return normalizedRelPath.toPosix()
 		} else {
 			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
