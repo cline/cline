@@ -93,7 +93,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 		const normalizedRelPath = path.relative(cwd, absolutePath)
 		const normalizedCwd = path.normalize(cwd)
 		const normalizedAbsPath = path.normalize(absolutePath)
-		
+
 		// Check if the normalized absolute path starts with the normalized cwd
 		if (normalizedAbsPath.toLowerCase().startsWith(normalizedCwd.toLowerCase())) {
 			return normalizedRelPath.toPosix()

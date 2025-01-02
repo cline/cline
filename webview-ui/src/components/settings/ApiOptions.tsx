@@ -370,7 +370,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-			
 			{selectedProvider === "vertex-gemini" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField

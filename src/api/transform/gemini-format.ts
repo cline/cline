@@ -195,7 +195,6 @@ export function convertGeminiResponseToAnthropic(
 	}
 }
 
-
 // Convert Anthropic messages to Vertex AI Gemini format
 export function convertAnthropicContentToVertexGemini(
 	content:

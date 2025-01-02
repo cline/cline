@@ -36,7 +36,8 @@ describe("Path Utilities", () => {
 		it("should show relative paths within cwd", () => {
 			// Use platform-specific paths
 			const cwd = process.platform === "win32" ? "C:/home/user/project" : "/home/user/project"
-			const filePath = process.platform === "win32" ? "C:/home/user/project/src/file.txt" : "/home/user/project/src/file.txt"
+			const filePath =
+				process.platform === "win32" ? "C:/home/user/project/src/file.txt" : "/home/user/project/src/file.txt"
 			getReadablePath(cwd, filePath).should.equal("src/file.txt")
 		})
 
