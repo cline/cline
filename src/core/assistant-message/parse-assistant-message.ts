@@ -29,7 +29,9 @@ export function parseAssistantMessage(assistantMessage: string) {
 			const paramClosingTag = `</${currentParamName}>`
 			if (currentParamValue.endsWith(paramClosingTag)) {
 				// end of param value
-				currentToolUse.params[currentParamName] = decode(currentParamValue.slice(0, -paramClosingTag.length).trim())
+				currentToolUse.params[currentParamName] = decode(
+					currentParamValue.slice(0, -paramClosingTag.length).trim(),
+				)
 				currentParamName = undefined
 				continue
 			} else {
