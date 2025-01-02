@@ -3,6 +3,7 @@ export type ApiProvider =
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
+	| "vertex-gemini"
 	| "openai"
 	| "ollama"
 	| "lmstudio"
@@ -222,6 +223,76 @@ export const vertexModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Vertex Gemini
+export type VertexGeminiModelId = keyof typeof vertexGeminiModels
+export const vertexGeminiDefaultModelId: VertexGeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
+export const vertexGeminiModels = {
+	"gemini-2.0-flash-thinking-exp-1219": {
+		maxTokens: 8192,
+		contextWindow: 32_767,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-exp": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-002": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-8b-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-002": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
