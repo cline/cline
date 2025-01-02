@@ -17,6 +17,8 @@ import {
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
+	deepSeekDefaultModelId,
+	deepSeekModels,
 	geminiDefaultModelId,
 	geminiModels,
 	openAiModelInfoSaneDefaults,
@@ -129,6 +131,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -211,6 +214,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 								href="https://platform.openai.com/api-keys"
 								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an OpenAI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "deepseek" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.deepSeekApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("deepSeekApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.deepSeekApiKey && (
+							<VSCodeLink
+								href="https://www.deepseek.com/"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								You can get a DeepSeek API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -303,12 +334,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
 							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
 							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
 							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
 							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
 							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
 							{/* <VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption> */}
 							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
 							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
@@ -630,6 +663,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 						</div>
 
 						<ModelInfoView
@@ -816,6 +850,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "deepseek":
+			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,

@@ -50,6 +50,9 @@ import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showSystemNotification } from "../integrations/notifications"
+import { removeInvalidChars } from "../utils/string"
+import { fixModelHtmlEscaping } from "../utils/string"
+import { OpenAiHandler } from "../api/providers/openai"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -829,8 +832,26 @@ export class Cline {
 					previousRequest.text,
 				)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow || 128_000
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+				let contextWindow = this.api.getModel().info.contextWindow || 128_000
+				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
+				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
+					contextWindow = 64_000
+				}
+				let maxAllowedSize: number
+				switch (contextWindow) {
+					case 64_000: // deepseek models
+						maxAllowedSize = contextWindow - 27_000
+						break
+					case 128_000: // most models
+						maxAllowedSize = contextWindow - 30_000
+						break
+					case 200_000: // claude models
+						maxAllowedSize = contextWindow - 40_000
+						break
+					default:
+						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
+				}
+
 				if (totalTokens >= maxAllowedSize) {
 					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
 					await this.overwriteApiConversationHistory(truncatedMessages)
@@ -1131,6 +1152,11 @@ export class Cline {
 							// Construct newContent from diff
 							let newContent: string
 							if (diff) {
+								if (!this.api.getModel().id.includes("claude")) {
+									// deepseek models tend to use unescaped html entities in diffs
+									diff = fixModelHtmlEscaping(diff)
+									diff = removeInvalidChars(diff)
+								}
 								try {
 									newContent = await constructNewFileContent(
 										diff,
@@ -1140,7 +1166,13 @@ export class Cline {
 								} catch (error) {
 									await this.say("diff_error", relPath)
 									pushToolResult(
-										formatResponse.toolError(`Error writing file: ${(error as Error)?.message}`),
+										formatResponse.toolError(
+											`${(error as Error)?.message}\n\n` +
+												`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
+												`The file was reverted to its original state:\n\n` +
+												`<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
+												`Try again with a more precise SEARCH block.\n(If you keep running into this error, you may use the write_to_file tool as a workaround.)`,
+										),
 									)
 									await this.diffViewProvider.revertChanges()
 									await this.diffViewProvider.reset()
@@ -1157,23 +1189,15 @@ export class Cline {
 								if (newContent.endsWith("```")) {
 									newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 								}
+
+								if (!this.api.getModel().id.includes("claude")) {
+									// it seems not just llama models are doing this, but also gemini and potentially others
+									newContent = fixModelHtmlEscaping(newContent)
+									newContent = removeInvalidChars(newContent)
+								}
 							} else {
 								// can't happen, since we already checked for content/diff above. but need to do this for type error
 								break
-							}
-
-							if (!this.api.getModel().id.includes("claude")) {
-								// it seems not just llama models are doing this, but also gemini and potentially others
-								if (
-									newContent.includes("&gt;") ||
-									newContent.includes("&lt;") ||
-									newContent.includes("&quot;")
-								) {
-									newContent = newContent
-										.replace(/&gt;/g, ">")
-										.replace(/&lt;/g, "<")
-										.replace(/&quot;/g, '"')
-								}
 							}
 
 							newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
@@ -1261,14 +1285,40 @@ export class Cline {
 										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									const didApprove = await askApproval("tool", completeMessage)
+									// const didApprove = await askApproval("tool", completeMessage)
+
+									// Need a more customized tool response for file edits to highlight the fact that the file was not updated (particularly important for deepseek)
+									let didApprove = true
+									const { response, text, images } = await this.ask("tool", completeMessage, false)
+									if (response !== "yesButtonClicked") {
+										// TODO: add similar context for other tool denial responses, to emphasize ie that a command was not run
+										const fileDeniedNote = fileExists
+											? "The file was not updated, and maintains its original contents."
+											: "The file was not created."
+										if (response === "messageResponse") {
+											await this.say("user_feedback", text, images)
+											pushToolResult(
+												formatResponse.toolResult(
+													`The user denied this operation. ${fileDeniedNote}\nThe user provided the following feedback:\n<feedback>\n${text}\n</feedback>`,
+													images,
+												),
+											)
+											this.didRejectTool = true
+											didApprove = false
+										} else {
+											pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
+											this.didRejectTool = true
+											didApprove = false
+										}
+									}
+
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
 										break
 									}
 								}
 
-								const { newProblemsMessage, userEdits, finalContent } =
+								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 									await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 								if (userEdits) {
@@ -1282,21 +1332,27 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+											(autoFormattingEdits
+												? `The user's editor also applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
+												: "") +
+											`The updated content, which includes both your original modifications and the additional edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file that was saved:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
 											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`4. If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including the user's edits and any auto-formatting done by the system).\n` +
+											`4. IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including both user edits and any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n` +
 											`${newProblemsMessage}`,
 									)
 								} else {
 									pushToolResult(
 										`The content was successfully saved to ${relPath.toPosix()}.\n\n` +
-											`Here is the full, updated content of the file:\n\n` +
+											(autoFormattingEdits
+												? `Along with your edits, the user's editor applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
+												: "") +
+											`Here is the full, updated content of the file that was saved:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`Please note: If you need to make further changes to this file, use this final_file_content as the new reference for your SEARCH/REPLACE operations, as it is now the current state of the file (including any auto-formatting done by the system).\n\n` +
+											`IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n\n` +
 											`${newProblemsMessage}`,
 									)
 								}
