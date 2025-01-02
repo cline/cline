@@ -255,6 +255,7 @@ describe('ClineProvider', () => {
             writeDelayMs: 1000,
             browserViewportSize: "900x600",
             fuzzyMatchThreshold: 1.0,
+            mcpEnabled: true,
         }
         
         const message: ExtensionMessage = { 

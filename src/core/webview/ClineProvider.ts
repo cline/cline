@@ -78,7 +78,7 @@ type GlobalStateKey =
 	| "preferredLanguage" // Language setting for Cline's communication
 	| "writeDelayMs"
 	| "terminalOutputLineLimit"
-
+	| "mcpEnabled"
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -96,6 +96,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private latestAnnouncementId = "dec-10-2024" // update to some unique identifier when we add a new announcement
+  mcpEnabled: boolean = true
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -130,6 +131,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+    this.mcpEnabled = true
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -606,6 +608,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "mcpEnabled":
+						this.mcpEnabled = message.bool ?? true
+						await this.updateGlobalState("mcpEnabled", this.mcpEnabled)
+						await this.postStateToWebview()
+						break
 					case "playSound":
 						if (message.audioType) {
 							const soundPath = path.join(this.context.extensionPath, "audio", `${message.audioType}.wav`)
@@ -1056,6 +1063,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs,
 			terminalOutputLineLimit,
 			fuzzyMatchThreshold,
+			mcpEnabled,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -1087,6 +1095,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
+			mcpEnabled: mcpEnabled ?? true,
 		}
 	}
 
@@ -1188,6 +1197,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs,
 			screenshotQuality,
 			terminalOutputLineLimit,
+			mcpEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1234,6 +1244,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("writeDelayMs") as Promise<number | undefined>,
 			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
 			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
+			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1324,6 +1335,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				// Return mapped language or default to English
 				return langMap[vscodeLang.split('-')[0]] ?? 'English';
 			})(),
+			mcpEnabled: mcpEnabled ?? true,
 		}
 	}
 
