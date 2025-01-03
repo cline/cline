@@ -48,8 +48,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setScreenshotQuality,
 		terminalOutputLineLimit,
 		setTerminalOutputLineLimit,
-		mcpEnabled,
-		setMcpEnabled,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -81,7 +79,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
 			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
 			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
-			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			onDone()
 		}
 	}
@@ -214,21 +211,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules and .cursorrules in the working directory are also included.
 					</p>
-
-          <div style={{ marginBottom: 5 }}>
-            <VSCodeCheckbox
-              checked={mcpEnabled}
-              onChange={(e: any) => setMcpEnabled(e.target.checked)}>
-              <span style={{ fontWeight: "500" }}>Enable MCP Servers</span>
-            </VSCodeCheckbox>
-            <p style={{
-              fontSize: "12px",
-              marginTop: "5px",
-              color: "var(--vscode-descriptionForeground)",
-            }}>
-              When enabled, Cline will be able to interact with MCP servers for advanced functionality.
-            </p>
-          </div>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
@@ -575,7 +557,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						)}
 					</div>
 				</div>
-
 
 				{IS_DEV && (
 					<>

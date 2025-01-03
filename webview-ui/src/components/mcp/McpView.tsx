@@ -1,5 +1,6 @@
 import {
 	VSCodeButton,
+	VSCodeCheckbox,
 	VSCodeLink,
 	VSCodePanels,
 	VSCodePanelTab,
@@ -17,7 +18,7 @@ type McpViewProps = {
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers, alwaysAllowMcp } = useExtensionState()
+	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled, setMcpEnabled } = useExtensionState()
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -106,7 +107,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					style={{
 						color: "var(--vscode-foreground)",
 						fontSize: "13px",
-						marginBottom: "20px",
+						marginBottom: "10px",
 						marginTop: "5px",
 					}}>
 					The{" "}
@@ -122,27 +123,49 @@ const McpView = ({ onDone }: McpViewProps) => {
 					npm docs").
 				</div>
 
-				{/* Server List */}
-				{servers.length > 0 && (
-					<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-						{servers.map((server) => (
-							<ServerRow key={server.name} server={server} alwaysAllowMcp={alwaysAllowMcp} />
-						))}
-					</div>
-				)}
-
-				{/* Edit Settings Button */}
-				<div style={{ marginTop: "10px", width: "100%" }}>
-					<VSCodeButton
-						appearance="secondary"
-						style={{ width: "100%" }}
-						onClick={() => {
-							vscode.postMessage({ type: "openMcpSettings" })
+				<div style={{ marginBottom: "20px" }}>
+					<VSCodeCheckbox
+						checked={mcpEnabled}
+						onChange={(e: any) => {
+							setMcpEnabled(e.target.checked)
+							vscode.postMessage({ type: "mcpEnabled", bool: e.target.checked })
 						}}>
-						<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-						Edit MCP Settings
-					</VSCodeButton>
+						<span style={{ fontWeight: "500" }}>Enable MCP Servers</span>
+					</VSCodeCheckbox>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						When enabled, Cline will be able to interact with MCP servers for advanced functionality. If you're not using MCP, you can disable this to reduce Cline's token usage.
+					</p>
 				</div>
+
+				{mcpEnabled && (
+					<>
+						{/* Server List */}
+						{servers.length > 0 && (
+							<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+								{servers.map((server) => (
+									<ServerRow key={server.name} server={server} alwaysAllowMcp={alwaysAllowMcp} />
+								))}
+							</div>
+						)}
+
+						{/* Edit Settings Button */}
+						<div style={{ marginTop: "10px", width: "100%" }}>
+							<VSCodeButton
+								appearance="secondary"
+								style={{ width: "100%" }}
+								onClick={() => {
+									vscode.postMessage({ type: "openMcpSettings" })
+								}}>
+								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
+								Edit MCP Settings
+							</VSCodeButton>
+						</div>
+					</>
+				)}
 
 				{/* Bottom padding */}
 				<div style={{ height: "20px" }} />
