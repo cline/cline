@@ -780,7 +780,10 @@ export class Cline {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let mcpHub: McpHub | undefined
-		if (this.providerRef.deref()?.mcpEnabled ?? true) {
+
+		const { mcpEnabled } = await this.providerRef.deref()?.getState() ?? {}
+
+		if (mcpEnabled ?? true) {
 			mcpHub = this.providerRef.deref()?.mcpHub
 			if (!mcpHub) {
 				throw new Error("MCP hub not available")

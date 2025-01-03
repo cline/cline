@@ -96,7 +96,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private latestAnnouncementId = "dec-10-2024" // update to some unique identifier when we add a new announcement
-  mcpEnabled: boolean = true
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -131,7 +130,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
-    this.mcpEnabled = true
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -609,8 +607,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "mcpEnabled":
-						this.mcpEnabled = message.bool ?? true
-						await this.updateGlobalState("mcpEnabled", this.mcpEnabled)
+						const mcpEnabled = message.bool ?? true
+						await this.updateGlobalState("mcpEnabled", mcpEnabled)
 						await this.postStateToWebview()
 						break
 					case "playSound":
