@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.39]
+
+-   Add toggle to enable/disable the MCP-related sections of the system prompt (thanks @daniel-lxs!)
+
 ## [2.2.38]
 
 -   Add a setting to control the number of terminal output lines to pass to the model when executing commands
