@@ -39,6 +39,7 @@ export interface ApiHandlerOptions {
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	includeStreamOptions?: boolean
 }
 
 // Models

@@ -37,6 +37,7 @@ import OpenRouterModelPicker, {
 	ModelDescriptionMarkdown,
 	OPENROUTER_MODEL_PICKER_Z_INDEX,
 } from "./OpenRouterModelPicker"
+import OpenAiModelPicker from "./OpenAiModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -462,13 +463,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
+					<span style={{ fontWeight: 500 }}>Model</span>
+					<OpenAiModelPicker />
+					<div style={{ display: "flex", alignItems: "center" }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.includeStreamOptions ?? true}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked
+								setApiConfiguration({
+									...apiConfiguration,
+									includeStreamOptions: isChecked,
+								})
+							}}>
+							Include stream options
+						</VSCodeCheckbox>
+					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
