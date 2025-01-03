@@ -20,6 +20,9 @@
     "url": "https://github.com/RooVetGit/Roo-Cline"
   },
   "homepage": "https://github.com/RooVetGit/Roo-Cline",
+  "enabledApiProposals": [
+    "extensionRuntime"
+  ],
   "categories": [
     "AI",
     "Chat",
@@ -159,6 +162,7 @@
     "start:webview": "cd webview-ui && npm run start",
     "test": "jest && npm run test:webview",
     "test:webview": "cd webview-ui && npm run test",
+    "test:extension": "vscode-test",
     "prepare": "husky",
     "publish:marketplace": "vsce publish",
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
