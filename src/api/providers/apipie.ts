@@ -108,19 +108,14 @@ export class ApipieHandler implements ApiHandler {
 
 		// Fetch model info if we haven't already
 		if (!this.modelInfo) {
-			const response = await fetch("https://apipie.ai/v1/models", {
+			const response = await fetch("https://apipie.ai/v1/models?subtype=chatx,meta,code", {
 				headers: {
 					"X-API-Key": this.options.apipieApiKey || "",
 				},
 			})
 			const models = await response.json()
 			this.modelInfo = models.data.find((m: ApipieModel) => {
-				if (
-					m.available === 1 &&
-					m.subtype &&
-					m.subtype.split(",").some((sub) => ["chatx", "meta", "code"].includes(sub)) &&
-					m.max_response_tokens >= 8000
-				) {
+				if (m.available === 1 && m.max_response_tokens >= 8000) {
 					m.model = `${m.provider}/${m.id}`
 					return `${m.provider}/${m.id}` === this.options.apiModelId
 				}
@@ -137,8 +132,8 @@ export class ApipieHandler implements ApiHandler {
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
-			transforms: ["middle-out"], // Add middle-out transform like OpenRouter to handle context
-			response_format: { type: "text" }, // Ensure we get text responses
+			transforms: ["middle-out"],
+			response_format: { type: "text" },
 		})
 
 		for await (const chunk of stream) {
