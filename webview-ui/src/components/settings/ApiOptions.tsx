@@ -1,4 +1,5 @@
 import {
+	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -827,7 +828,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 					{/* Custom Headers Section */}
 					<div style={{ marginTop: 10 }}>
-						<span style={{ fontWeight: 500 }}>Custom Headers</span>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+							<span style={{ fontWeight: 500 }}>Custom Headers</span>
+							<VSCodeButton
+								onClick={() => {
+									const newHeaders = { ...apiConfiguration?.openAiHeaders ?? {} }
+									newHeaders[`header${Object.keys(newHeaders).length + 1}`] = ""
+									setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
+								}}>
+								Add Header
+							</VSCodeButton>
+						</div>
 						{Object.entries(apiConfiguration?.openAiHeaders || {}).map(([key, value], index) => (
 							<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 								<VSCodeTextField
@@ -835,7 +846,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									style={{ width: "40%" }}
 									placeholder="Header name"
 									onInput={(e: any) => {
-										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										const newHeaders = { ...apiConfiguration?.openAiHeaders }
 										const oldKey = key
 										delete newHeaders[oldKey]
 										newHeaders[e.target.value] = value
@@ -847,31 +858,22 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									style={{ width: "40%" }}
 									placeholder="Header value"
 									onInput={(e: any) => {
-										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										const newHeaders = { ...apiConfiguration?.openAiHeaders ?? {} }
 										newHeaders[key] = e.target.value
 										setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
 									}}
 								/>
-								<vscode-button
+								<VSCodeButton
 									appearance="secondary"
 									onClick={() => {
-										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										const newHeaders = { ...apiConfiguration?.openAiHeaders ?? {} }
 										delete newHeaders[key]
 										setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
 									}}>
 									Remove
-								</vscode-button>
+								</VSCodeButton>
 							</div>
 						))}
-						<vscode-button
-							style={{ marginTop: 5 }}
-							onClick={() => {
-								const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
-								newHeaders[`header${Object.keys(newHeaders).length + 1}`] = ""
-								setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
-							}}>
-							Add Header
-						</vscode-button>
 					</div>
 
 					<VSCodeCheckbox
