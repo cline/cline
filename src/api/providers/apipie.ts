@@ -47,10 +47,64 @@ export class ApipieHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		// Add cache control for file contents and system messages
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+		// Add system message with cache control
+		openAiMessages.push({
+			role: "system",
+			content: [
+				{
+					type: "text",
+					text: systemPrompt,
+					// @ts-ignore-next-line
+					cache_control: { type: "ephemeral" },
+				},
+			],
+		})
+
+		// Convert messages
+		const convertedMessages = convertToOpenAiMessages(messages)
+		openAiMessages.push(...convertedMessages)
+
+		// Add cache control to the last two user messages
+		const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
+		lastTwoUserMessages.forEach((msg) => {
+			if (typeof msg.content === "string") {
+				msg.content = [
+					{
+						type: "text",
+						text: msg.content,
+						// @ts-ignore-next-line
+						cache_control: { type: "ephemeral" },
+					},
+				]
+			} else if (Array.isArray(msg.content)) {
+				const lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+				if (lastTextPart) {
+					// @ts-ignore-next-line
+					lastTextPart.cache_control = { type: "ephemeral" }
+				}
+			}
+		})
+
+		// Add cache control to file content in tool messages
+		openAiMessages.forEach((msg) => {
+			if (
+				msg.role === "tool" &&
+				typeof msg.content === "string" &&
+				(msg.content.includes("<file_content") || msg.content.includes("<final_file_content"))
+			) {
+				msg.content = [
+					{
+						type: "text",
+						text: msg.content,
+						// @ts-ignore-next-line
+						cache_control: { type: "ephemeral" },
+					},
+				]
+			}
+		})
 
 		// Fetch model info if we haven't already
 		if (!this.modelInfo) {
@@ -83,6 +137,8 @@ export class ApipieHandler implements ApiHandler {
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
+			transforms: ["middle-out"], // Add middle-out transform like OpenRouter to handle context
+			response_format: { type: "text" }, // Ensure we get text responses
 		})
 
 		for await (const chunk of stream) {
@@ -113,7 +169,7 @@ export class ApipieHandler implements ApiHandler {
 				maxTokens: this.modelInfo?.max_tokens || 128000,
 				contextWindow: this.modelInfo?.max_response_tokens || 4096,
 				supportsImages: false,
-				supportsPromptCache: false,
+				supportsPromptCache: true,
 				inputPrice: this.modelInfo?.input_cost || 0,
 				outputPrice: this.modelInfo?.output_cost || 0,
 				description: this.modelInfo?.description,
