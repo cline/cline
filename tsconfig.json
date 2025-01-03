@@ -17,6 +17,9 @@
 		"sourceMap": true,
 		"strict": true,
 		"target": "es2022",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false
 	},

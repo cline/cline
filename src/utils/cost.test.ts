@@ -7,7 +7,8 @@ describe("API Cost Calculation", () => {
     inputPrice: 3.0,
     outputPrice: 15.0,
     cacheWritesPrice: 5.0,
-    cacheReadsPrice: 1.0
+    cacheReadsPrice: 1.0,
+    supportsPromptCache: true
   };
 
   it("should calculate API cost correctly", () => {
@@ -25,7 +26,8 @@ describe("API Cost Calculation", () => {
   it("should handle missing prices", () => {
     const incompleteModelInfo: ModelInfo = {
       inputPrice: undefined,
-      outputPrice: undefined
+      outputPrice: undefined,
+      supportsPromptCache: false
     };
 
     const cost = calculateApiCost(incompleteModelInfo, 1000, 500);

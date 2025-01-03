@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { Spy } from 'jasmine';
 
 /**
  * Create a mock function with optional implementation
@@ -7,8 +7,8 @@ import { vi } from 'vitest';
  */
 export function createMockFunction<T extends (...args: any[]) => any>(
   implementation?: T
-): jest.MockedFunction<T> {
-  return vi.fn(implementation);
+): Spy {
+  return jasmine.createSpy('mockFunction', implementation);
 }
 
 /**
@@ -18,86 +18,56 @@ export function createMockFunction<T extends (...args: any[]) => any>(
  */
 export function createMockObject<T extends Record<string, (...args: any[]) => any>>(
   methods: T
-): { [K in keyof T]: jest.MockedFunction<T[K]> } {
-  const mockedObject: any = {};
+): { [K in keyof T]: Spy } {
+  const mockedObject: Partial<{ [K in keyof T]: Spy }> = {};
   
-  for (const [key, method] of Object.entries(methods)) {
-    mockedObject[key] = vi.fn(method);
+  for (const key of Object.keys(methods) as Array<keyof T>) {
+    mockedObject[key] = jasmine.createSpy(String(key), methods[key]);
   }
   
-  return mockedObject;
+  return mockedObject as { [K in keyof T]: Spy };
 }
 
 /**
  * Generate random test data
  */
 export const testData = {
-  /**
-   * Generate a random string
-   * @param length Length of the string, default 10
-   * @returns Random string
-   */
-  randomString: (length = 10) => 
-    Math.random().toString(36).substring(2, length + 2),
-  
-  /**
-   * Generate a random number within a range
-   * @param min Minimum value, default 0
-   * @param max Maximum value, default 100
-   * @returns Random number
-   */
-  randomNumber: (min = 0, max = 100) => 
-    Math.floor(Math.random() * (max - min + 1)) + min,
-  
-  /**
-   * Generate a random boolean
-   * @returns Random boolean
-   */
+  randomString: (length = 10) => Math.random().toString(36).substring(2, length + 2),
+  randomNumber: (min = 0, max = 100) => Math.floor(Math.random() * (max - min + 1)) + min,
   randomBoolean: () => Math.random() < 0.5,
-
-  /**
-   * Generate a random date
-   * @param start Start date, default 1 year ago
-   * @param end End date, default now
-   * @returns Random date
-   */
-  randomDate: (start = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), end = new Date()) => {
-    const startTime = start.getTime();
-    const endTime = end.getTime();
-    return new Date(startTime + Math.random() * (endTime - startTime));
-  }
+  randomDate: (
+    start = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    end = new Date()
+  ) => new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())),
 };
 
 /**
  * Async utility to simulate network or async operation delay
- * @param ms Milliseconds to delay
- * @returns Promise that resolves after delay
  */
 export function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Create a spy that tracks method calls
- * @param object Object containing the method
- * @param methodName Name of the method to spy on
- * @returns Spy object
+ * Create a spy on an object method
  */
 export function createSpy<T extends object, K extends keyof T>(
-  object: T, 
+  object: T,
   methodName: K
-): jest.MockedFunction<T[K]> {
-  return vi.spyOn(object, methodName as any);
+): Spy {
+  const method = object[methodName];
+  if (typeof method !== 'function') {
+    throw new Error(`Property ${String(methodName)} is not a function`);
+  }
+  return jasmine.createSpy('spy', method as (...args: any[]) => any);
 }
 
 /**
- * Check if a mock function was called with specific arguments
- * @param mockFn Mock function to check
- * @param args Expected arguments
- * @returns Boolean indicating if the function was called with those arguments
+ * Check if a spy was called with specific arguments
  */
-export function wasCalledWith(mockFn: jest.MockedFunction<any>, ...args: any[]): boolean {
-  return mockFn.mock.calls.some(call => 
-    call.every((arg, index) => arg === args[index])
+export function wasCalledWith(spy: Spy, ...args: any[]): boolean {
+  return spy.calls.allArgs().some((callArgs: any[]) => 
+    callArgs.length === args.length && 
+    callArgs.every((arg: any, index: number) => arg === args[index])
   );
 }

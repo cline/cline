@@ -37,9 +37,9 @@ function toPosixPath(p: string) {
   // Convert backslashes to forward slashes
   let posixPath = p.replace(/\\/g, "/")
   
-  // Remove Windows drive letter if present
-  if (process.platform === "win32" && /^[a-zA-Z]:\//.test(posixPath)) {
-    posixPath = posixPath.slice(2)
+  // Preserve Windows drive letter but convert to forward slash
+  if (process.platform === "win32" && /^[a-zA-Z]:[\\/]/.test(posixPath)) {
+    posixPath = posixPath[0] + ":" + posixPath.slice(2)
   }
   
   return posixPath
