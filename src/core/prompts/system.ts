@@ -9,8 +9,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 export const SYSTEM_PROMPT = async (
 	cwd: string,
 	supportsComputerUse: boolean,
-	mcpEnabled: boolean,
-	mcpHub: McpHub,
+	mcpHub?: McpHub,
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string
 ) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
@@ -147,7 +146,7 @@ Usage:
 		: ""
 }
 
-${mcpEnabled ? `
+${mcpHub ? `
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
@@ -231,7 +230,7 @@ Your final result description here
 <line_count>14</line_count>
 </write_to_file>
 
-${mcpEnabled ? `
+${mcpHub ? `
 ## Example 3: Requesting to use an MCP tool
 
 <use_mcp_tool>
@@ -275,7 +274,7 @@ By waiting for and carefully considering the user's response after each tool use
 
 ====
 
-${mcpEnabled ? `
+${mcpHub ? `
 MCP SERVERS
 
 The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
@@ -697,7 +696,7 @@ CAPABILITIES
 		? "\n- You can use the browser_action tool to interact with websites (including html files and locally running development servers) through a Puppeteer-controlled browser when you feel it is necessary in accomplishing the user's task. This tool is particularly useful for web development tasks as it allows you to launch a browser, navigate to pages, interact with elements through clicks and keyboard input, and capture the results through screenshots and console logs. This tool may be useful at key stages of web development tasks-such as after implementing new features, making substantial changes, when troubleshooting issues, or to verify the result of your work. You can analyze the provided screenshots to ensure correct rendering or identify errors, and review console logs for runtime issues.\n	- For example, if asked to add a component to a react website, you might create the necessary files, use execute_command to run the site locally, then use browser_action to launch the browser, navigate to the local server, and verify the component renders & functions correctly before closing the browser."
 		: ""
 }
-${mcpEnabled ? `
+${mcpHub ? `
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
 ` : ''}
 
