@@ -1,6 +1,5 @@
 import {
 	VSCodeButton,
-	VSCodeCheckbox,
 	VSCodeLink,
 	VSCodePanels,
 	VSCodePanelTab,
@@ -12,13 +11,14 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
+import McpEnabledToggle from "./McpEnabledToggle"
 
 type McpViewProps = {
 	onDone: () => void
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled, setMcpEnabled } = useExtensionState()
+	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled } = useExtensionState()
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -123,23 +123,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					npm docs").
 				</div>
 
-				<div style={{ marginBottom: "20px" }}>
-					<VSCodeCheckbox
-						checked={mcpEnabled}
-						onChange={(e: any) => {
-							setMcpEnabled(e.target.checked)
-							vscode.postMessage({ type: "mcpEnabled", bool: e.target.checked })
-						}}>
-						<span style={{ fontWeight: "500" }}>Enable MCP Servers</span>
-					</VSCodeCheckbox>
-					<p style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-						When enabled, Cline will be able to interact with MCP servers for advanced functionality. If you're not using MCP, you can disable this to reduce Cline's token usage.
-					</p>
-				</div>
+				<McpEnabledToggle />
 
 				{mcpEnabled && (
 					<>
