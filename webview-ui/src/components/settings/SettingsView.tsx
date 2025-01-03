@@ -4,6 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import McpEnabledToggle from "../mcp/McpEnabledToggle"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -48,6 +49,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setScreenshotQuality,
 		terminalOutputLineLimit,
 		setTerminalOutputLineLimit,
+		mcpEnabled,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -79,6 +81,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
 			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
 			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
+			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			onDone()
 		}
 	}
@@ -135,12 +138,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Provider Settings</h3>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
+					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
 					<ApiOptions
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
@@ -211,6 +215,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules and .cursorrules in the working directory are also included.
 					</p>
+
+					<McpEnabledToggle />
 				</div>
 
 				<div style={{ marginBottom: 5 }}>

@@ -62,6 +62,7 @@ export interface ExtensionState {
 	preferredLanguage: string
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
+	mcpEnabled: boolean
 }
 
 export interface ClineMessage {

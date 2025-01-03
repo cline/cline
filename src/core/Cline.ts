@@ -50,6 +50,7 @@ import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { OpenRouterHandler } from "../api/providers/openrouter"
+import { McpHub } from "../services/mcp/McpHub"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -778,14 +779,19 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
-			console.error("MCP servers failed to connect in time")
-		})
+		let mcpHub: McpHub | undefined
 
-		const mcpHub = this.providerRef.deref()?.mcpHub
-		if (!mcpHub) {
-			throw new Error("MCP hub not available")
+		const { mcpEnabled } = await this.providerRef.deref()?.getState() ?? {}
+
+		if (mcpEnabled ?? true) {
+			mcpHub = this.providerRef.deref()?.mcpHub
+			if (!mcpHub) {
+				throw new Error("MCP hub not available")
+			}
+			// Wait for MCP servers to be connected before generating system prompt
+			await pWaitFor(() => mcpHub!.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+				console.error("MCP servers failed to connect in time")
+			})
 		}
 
 		const { browserViewportSize, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}

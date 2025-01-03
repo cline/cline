@@ -49,6 +49,7 @@ export interface WebviewMessage {
 		| "draggedImages"
 		| "deleteMessage"
 		| "terminalOutputLineLimit"
+		| "mcpEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
