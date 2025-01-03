@@ -18,7 +18,8 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
-- Enable/disable MCP servers
+- Enable/disable individual MCP servers
+- Enable/disable the MCP feature overall
 - Configurable delay after auto-writes to allow diagnostics to detect potential problems
 - Control the number of terminal output lines to pass to the model when executing commands
 - Runs alongside the original Cline
