@@ -463,13 +463,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
+					<span style={{ fontWeight: 500 }}>Model</span>
 					<OpenAiModelPicker />
 					<div style={{ display: "flex", alignItems: "center" }}>
 						<VSCodeCheckbox
@@ -483,10 +477,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							}}>
 							Include stream options
 						</VSCodeCheckbox>
-						<span
-							className="codicon codicon-info"
-							title="Stream options are for { include_usage: true }. Some providers may not support this option."
-							style={{ marginLeft: "5px", cursor: "help" }}></span>
 					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
