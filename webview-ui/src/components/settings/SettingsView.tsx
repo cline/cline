@@ -138,12 +138,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Provider Settings</h3>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
+					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
 					<ApiOptions
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
