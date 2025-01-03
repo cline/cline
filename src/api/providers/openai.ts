@@ -21,11 +21,13 @@ export class OpenAiHandler implements ApiHandler {
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders: this.options.openAiHeaders,
 			})
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
+				defaultHeaders: this.options.openAiHeaders,
 			})
 		}
 	}

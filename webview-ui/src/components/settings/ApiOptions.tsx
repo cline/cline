@@ -824,6 +824,56 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+
+					{/* Custom Headers Section */}
+					<div style={{ marginTop: 10 }}>
+						<span style={{ fontWeight: 500 }}>Custom Headers</span>
+						{Object.entries(apiConfiguration?.openAiHeaders || {}).map(([key, value], index) => (
+							<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+								<VSCodeTextField
+									value={key}
+									style={{ width: "40%" }}
+									placeholder="Header name"
+									onInput={(e: any) => {
+										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										const oldKey = key
+										delete newHeaders[oldKey]
+										newHeaders[e.target.value] = value
+										setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
+									}}
+								/>
+								<VSCodeTextField
+									value={value}
+									style={{ width: "40%" }}
+									placeholder="Header value"
+									onInput={(e: any) => {
+										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										newHeaders[key] = e.target.value
+										setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
+									}}
+								/>
+								<vscode-button
+									appearance="secondary"
+									onClick={() => {
+										const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+										delete newHeaders[key]
+										setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
+									}}>
+									Remove
+								</vscode-button>
+							</div>
+						))}
+						<vscode-button
+							style={{ marginTop: 5 }}
+							onClick={() => {
+								const newHeaders = { ...apiConfiguration?.openAiHeaders } || {}
+								newHeaders[`header${Object.keys(newHeaders).length + 1}`] = ""
+								setApiConfiguration({ ...apiConfiguration, openAiHeaders: newHeaders })
+							}}>
+							Add Header
+						</vscode-button>
+					</div>
+
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
