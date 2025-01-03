@@ -13,12 +13,8 @@
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"baseUrl": "./src",
-		"paths": {
-			"@test/*": ["test/*"]
-		},
 		"types": [
 			"node",
-			"jasmine",
 			"vscode"
 		],
 		"typeRoots": [
@@ -27,8 +23,7 @@
 		]
 	},
 	"include": [
-		"src/**/*.ts",
-		"src/test/**/*.ts"
+		"src/**/*.ts"
 	],
 	"exclude": [
 		"node_modules",
