@@ -1,18 +1,23 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { FormEvent } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 
 const McpEnabledToggle = () => {
 	const { mcpEnabled, setMcpEnabled } = useExtensionState()
 
+	const handleChange = (e: Event | FormEvent<HTMLElement>) => {
+		const target = ('target' in e ? e.target : null) as HTMLInputElement | null
+		if (!target) return
+		setMcpEnabled(target.checked)
+		vscode.postMessage({ type: "mcpEnabled", bool: target.checked })
+	}
+
 	return (
 		<div style={{ marginBottom: "20px" }}>
 			<VSCodeCheckbox
 				checked={mcpEnabled}
-				onChange={(e: any) => {
-					setMcpEnabled(e.target.checked)
-					vscode.postMessage({ type: "mcpEnabled", bool: e.target.checked })
-				}}>
+				onChange={handleChange}>
 				<span style={{ fontWeight: "500" }}>Enable MCP Servers</span>
 			</VSCodeCheckbox>
 			<p style={{
