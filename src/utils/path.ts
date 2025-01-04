@@ -83,7 +83,7 @@ export function normalizePath(p: string): string {
   if (normalized.length > 1 && (normalized.endsWith("/") || normalized.endsWith("\\"))) {
     normalized = normalized.slice(0, -1)
   }
-  return normalized
+  return toPosixPath(normalized)
 }
 
 export function getReadablePath(cwd: string, relPath?: string): string {

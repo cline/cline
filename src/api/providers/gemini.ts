@@ -1,3 +1,4 @@
+console.log('src/api/providers/gemini.ts loaded');
 import { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { ApiHandler } from "../"

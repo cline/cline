@@ -1,3 +1,4 @@
+console.log('src/api/providers/openai-native.ts loaded');
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"

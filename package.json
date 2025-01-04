@@ -141,7 +141,7 @@
 		"install:all": "npm install && cd webview-ui && npm install",
 		"start:webview": "cd webview-ui && npm run start",
 		"publish:marketplace": "vsce publish && ovsx publish",
-		"test": "vitest",
+		"test": "vitest run",
 		"test:watch": "vitest --watch",
 		"test:ui": "vitest --ui",
 		"test:coverage": "vitest run --coverage",
@@ -161,6 +161,7 @@
 		"codecov": "^3.8.3",
 		"esbuild": "^0.21.5",
 		"eslint": "^8.57.0",
+		"jest-mock-vscode": "^4.0.3",
 		"prettier": "^3.3.3",
 		"typescript": "^5.7.2",
 		"vitest": "^1.1.0"

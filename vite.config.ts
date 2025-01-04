@@ -11,4 +11,9 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
     },
   },
+  resolve: {
+    alias: {
+      vscode: 'c:/dev/cline/tests/vscode-mocks.ts',
+    },
+  },
 });
