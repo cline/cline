@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+    workflow_dispatch:
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            # Cache root dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Type Check
+              run: npm run check-types
+
+            - name: ESLint Check
+              run: npm run lint
+
+            - name: Prettier / Format Check
+              run: npm run format
+
+            - name: Tests
+              run: xvfb-run -a npm run test
+              if: runner.os == 'Linux'

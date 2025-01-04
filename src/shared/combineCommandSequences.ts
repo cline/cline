@@ -25,13 +25,13 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 
 	// First pass: combine commands with their outputs
 	for (let i = 0; i < messages.length; i++) {
-		if (messages[i].type === "ask" && messages[i].ask === "command") {
+		if (messages[i].type === "ask" && (messages[i].ask === "command" || messages[i].say === "command")) {
 			let combinedText = messages[i].text || ""
 			let didAddOutput = false
 			let j = i + 1
 
 			while (j < messages.length) {
-				if (messages[j].type === "ask" && messages[j].ask === "command") {
+				if (messages[j].type === "ask" && (messages[j].ask === "command" || messages[j].say === "command")) {
 					// Stop if we encounter the next command
 					break
 				}
@@ -63,7 +63,7 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 	return messages
 		.filter((msg) => !(msg.ask === "command_output" || msg.say === "command_output"))
 		.map((msg) => {
-			if (msg.type === "ask" && msg.ask === "command") {
+			if (msg.type === "ask" && (msg.ask === "command" || msg.say === "command")) {
 				const combinedCommand = combinedCommands.find((cmd) => cmd.ts === msg.ts)
 				return combinedCommand || msg
 			}
@@ -71,3 +71,4 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 		})
 }
 export const COMMAND_OUTPUT_STRING = "Output:"
+export const COMMAND_REQ_APP_STRING = "REQ_APP"

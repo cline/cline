@@ -12,10 +12,13 @@ export const toolUseNames = [
 	"execute_command",
 	"read_file",
 	"write_to_file",
+	"replace_in_file",
 	"search_files",
 	"list_files",
 	"list_code_definition_names",
 	"browser_action",
+	"use_mcp_tool",
+	"access_mcp_resource",
 	"ask_followup_question",
 	"attempt_completion",
 ] as const
@@ -25,8 +28,10 @@ export type ToolUseName = (typeof toolUseNames)[number]
 
 export const toolParamNames = [
 	"command",
+	"requires_approval",
 	"path",
 	"content",
+	"diff",
 	"regex",
 	"file_pattern",
 	"recursive",
@@ -34,6 +39,10 @@ export const toolParamNames = [
 	"url",
 	"coordinate",
 	"text",
+	"server_name",
+	"tool_name",
+	"arguments",
+	"uri",
 	"question",
 	"result",
 ] as const
@@ -51,7 +60,7 @@ export interface ToolUse {
 export interface ExecuteCommandToolUse extends ToolUse {
 	name: "execute_command"
 	// Pick<Record<ToolParamName, string>, "command"> makes "command" required, but Partial<> makes it optional
-	params: Partial<Pick<Record<ToolParamName, string>, "command">>
+	params: Partial<Pick<Record<ToolParamName, string>, "command" | "requires_approval">>
 }
 
 export interface ReadFileToolUse extends ToolUse {
@@ -62,6 +71,11 @@ export interface ReadFileToolUse extends ToolUse {
 export interface WriteToFileToolUse extends ToolUse {
 	name: "write_to_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
+}
+
+export interface ReplaceInFileToolUse extends ToolUse {
+	name: "replace_in_file"
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "diff">>
 }
 
 export interface SearchFilesToolUse extends ToolUse {
@@ -82,6 +96,16 @@ export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 export interface BrowserActionToolUse extends ToolUse {
 	name: "browser_action"
 	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text">>
+}
+
+export interface UseMcpToolToolUse extends ToolUse {
+	name: "use_mcp_tool"
+	params: Partial<Pick<Record<ToolParamName, string>, "server_name" | "tool_name" | "arguments">>
+}
+
+export interface AccessMcpResourceToolUse extends ToolUse {
+	name: "access_mcp_resource"
+	params: Partial<Pick<Record<ToolParamName, string>, "server_name" | "uri">>
 }
 
 export interface AskFollowupQuestionToolUse extends ToolUse {

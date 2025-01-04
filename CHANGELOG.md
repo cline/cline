@@ -1,5 +1,62 @@
 # Change Log
 
+## [3.0.12]
+
+- Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)
+
+## [3.0.11]
+
+- Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
+
+## [3.0.10]
+
+- Add DeepSeek provider to API Provider options
+- Fix context window limit errors for DeepSeek v3
+
+## [3.0.9]
+
+- Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
+
+## [3.0.8]
+
+- Mitigate DeepSeek v3 diff edit errors by adding 'auto-formatting considerations' to system prompt, encouraging model to use updated file contents as reference point for SEARCH blocks
+
+## [3.0.7]
+
+- Revert to using batched file watcher to fix crash when many files would be created at once
+
+## [3.0.6]
+
+- Fix bug where some files would be missing in the `@` context mention menu
+- Add Bedrock support in additional regions
+- Diff edit improvements
+- Add OpenRouter's middle-out transform for models that don't use prompt caching (prevents context window limit errors, but cannot be applied to models like Claude since it would continuously break the cache)
+
+## [3.0.4]
+
+- Fix bug where gemini models would add code block artifacts to the end of text content
+- Fix context mention menu visual issues on light themes
+
+## [3.0.2]
+
+- Adds block anchor matching for more reliable diff edits (if 3+ lines, first and last line are used as anchors to search for)
+- Add instruction to system prompt to use complete lines in diff edits to work properly with fallback strategies
+- Improves diff edit error handling
+- Adds new Gemini models
+
+## [3.0.0]
+
+- Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
+- Adds support for a more comprehensive auto-approve configuration, allowing you to specify which tools require approval and which don't.
+- Adds ability to enable system notifications for when Cline needs approval or completes a task.
+- Adds support for a root-level `.clinerules` file that can be used to specify custom instructions for the project.
+
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that gets the latest npm docs")
+
 ## [2.1.6]
 
 - Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
