@@ -1,6 +1,6 @@
 {
-	"compilerOptions": {
-		"target": "ES2020",
+  "compilerOptions": {
+    "target": "ES2020",
 		"module": "commonjs",
 		"lib": ["es2020", "dom"],
 		"strict": true,
@@ -13,10 +13,10 @@
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"baseUrl": "./src",
-		"types": [
+    "types": [
 			"node",
-			"vitest/globals",
-			"vscode"
+			"vscode",
+			"jest"
 		],
 		"typeRoots": [
 			"./node_modules/@types",

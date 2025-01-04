@@ -1,4 +1,3 @@
-console.log('src/api/providers/openai.ts loaded');
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import {

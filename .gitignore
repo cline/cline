@@ -3,5 +3,6 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+doc
 
 .DS_Store
