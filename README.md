@@ -54,10 +54,10 @@ The extension also keeps track of total tokens and API usage cost for the entire
 
 We use [Vitest](https://vitest.dev/) for our testing framework. Here are the available test scripts:
 
-- `npm run test:unit`: Run all unit tests
-- `npm run test:unit:watch`: Run unit tests in watch mode
-- `npm run test:coverage`: Run tests and generate coverage report
-- `npm run test:ci`: Run linting and tests with coverage
+-   `npm run test:unit`: Run all unit tests
+-   `npm run test:unit:watch`: Run unit tests in watch mode
+-   `npm run test:coverage`: Run tests and generate coverage report
+-   `npm run test:ci`: Run linting and tests with coverage
 
 ### Writing Tests
 

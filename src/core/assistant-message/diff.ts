@@ -11,10 +11,10 @@ export function lineTrimmedFallbackMatch(
 	searchContent: string,
 	startIndex: number,
 ): [number, number] | false {
-  console.log('Function entry:', 'lineTrimmedFallbackMatch');
-  console.log('Original:', originalContent);
-  console.log('Search:', searchContent);
-  console.log('Index:', startIndex);
+	console.log("Function entry:", "lineTrimmedFallbackMatch")
+	console.log("Original:", originalContent)
+	console.log("Search:", searchContent)
+	console.log("Index:", startIndex)
 	// Split both contents into lines
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
@@ -56,13 +56,13 @@ export function lineTrimmedFallbackMatch(
 			}
 
 			// Find end character index
-let matchEndIndex = matchStartIndex
-for (let k = 0; k < searchLines.length; k++) {
-  matchEndIndex += originalLines[i + k].length
-  if (k < searchLines.length - 1) {
-    matchEndIndex += 1 // Include the newline character for each line except the last one
-  }
-}
+			let matchEndIndex = matchStartIndex
+			for (let k = 0; k < searchLines.length; k++) {
+				matchEndIndex += originalLines[i + k].length
+				if (k < searchLines.length - 1) {
+					matchEndIndex += 1 // Include the newline character for each line except the last one
+				}
+			}
 
 			return [matchStartIndex, matchEndIndex]
 		}
@@ -103,10 +103,10 @@ export function blockAnchorFallbackMatch(
 	searchContent: string,
 	startIndex: number,
 ): [number, number] | false {
-  console.log('Function entry:', 'blockAnchorFallbackMatch');
-  console.log('Original:', originalContent);
-  console.log('Search:', searchContent);
-  console.log('Index:', startIndex);
+	console.log("Function entry:", "blockAnchorFallbackMatch")
+	console.log("Original:", originalContent)
+	console.log("Search:", searchContent)
+	console.log("Index:", startIndex)
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
 
@@ -153,9 +153,9 @@ export function blockAnchorFallbackMatch(
 		let matchEndIndex = matchStartIndex
 		for (let k = 0; k < searchBlockSize; k++) {
 			matchEndIndex += originalLines[i + k].length
-      if (k < searchBlockSize - 1) {
-        matchEndIndex += 1
-      }
+			if (k < searchBlockSize - 1) {
+				matchEndIndex += 1
+			}
 		}
 
 		return [matchStartIndex, matchEndIndex]
@@ -227,9 +227,9 @@ export async function constructNewFileContent(
 	originalContent: string,
 	isFinal: boolean,
 ): Promise<string> {
-  console.log('Function entry:', 'constructNewFileContent');
-  console.log('Diff:', diffContent);
-  console.log('IsFinal:', isFinal);
+	console.log("Function entry:", "constructNewFileContent")
+	console.log("Diff:", diffContent)
+	console.log("IsFinal:", isFinal)
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -364,14 +364,14 @@ export async function constructNewFileContent(
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {
 			currentReplaceContent += line + "\n"
-// Output replacement lines immediately if we know the insertion point
-if (searchMatchIndex !== -1) {
-  if (line !== lines[lines.length - 1]) {
-    result += line + "\n"
-  } else {
-    result += line
-  }
-}
+			// Output replacement lines immediately if we know the insertion point
+			if (searchMatchIndex !== -1) {
+				if (line !== lines[lines.length - 1]) {
+					result += line + "\n"
+				} else {
+					result += line
+				}
+			}
 		}
 	}
 

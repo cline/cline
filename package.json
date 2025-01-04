@@ -168,7 +168,7 @@
 		"memfs": "^4.15.3",
 		"prettier": "^3.3.3",
 		"ts-jest": "^29.2.5",
-		"typescript": "^5.7.2",
+		"typescript": "^5.6.0",
 		"vitest": "^1.6.0"
 	},
 	"dependencies": {

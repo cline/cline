@@ -14,7 +14,7 @@ jobs:
                 node-version: [18.x, 20.x]
 
         runs-on: ${{ matrix.os }}
-        
+
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: ${{ matrix.node-version }}
-                  cache: 'npm'
+                  cache: "npm"
 
             # Cache root dependencies
             - name: Cache root dependencies
@@ -64,10 +64,10 @@ jobs:
             - name: Upload coverage reports to Codecov
               uses: codecov/codecov-action@v4
               env:
-                CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+                  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
               with:
-                files: ./coverage/coverage-final.json
-                fail_ci_if_error: true
+                  files: ./coverage/coverage-final.json
+                  fail_ci_if_error: true
 
             # Optional: Run tests on specific platforms
             - name: Tests on ${{ matrix.os }}
