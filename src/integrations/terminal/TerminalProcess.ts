@@ -23,8 +23,12 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
 
-	// constructor() {
-	// 	super()
+	constructor() {
+		super()
+		this.run = this.run.bind(this)
+		this.continue = this.continue.bind(this)
+		this.getUnretrievedOutput = this.getUnretrievedOutput.bind(this)
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {

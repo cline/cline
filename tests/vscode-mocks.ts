@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { EventEmitter as NodeEventEmitter } from 'events';
 
 // Mock VS Code API types
 interface MockTerminalExitStatus {
@@ -28,7 +29,7 @@ interface OutputChannel {
 type Event<T> = (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => Disposable;
 
 // Create proper Event Emitter implementation
-class EventEmitter<T> {
+class VSCodeEventEmitter<T> {
   private listeners: ((e: T) => any)[] = [];
 
   constructor() {
@@ -63,7 +64,7 @@ class EventEmitter<T> {
 }
 
 // Create base mock implementations
-const createBaseEventEmitter = () => new EventEmitter();
+const createBaseEventEmitter = () => new VSCodeEventEmitter();
 
 const createBaseTerminal = (options: any) => ({
   name: options?.name || 'Mock Terminal',
@@ -80,7 +81,8 @@ const createBaseTerminal = (options: any) => ({
 
 // Mock the entire vscode module
 const vscode = {
-  EventEmitter,
+  EventEmitter: VSCodeEventEmitter,
+  NodeEventEmitter,
   ThemeIcon: vi.fn().mockImplementation((id: string) => ({ id })),
   workspace: {
     workspaceFolders: [],
@@ -89,8 +91,8 @@ const vscode = {
       update: vi.fn(),
       has: vi.fn(),
     }),
-    onDidChangeConfiguration: new EventEmitter().event,
-    onDidChangeWorkspaceFolders: new EventEmitter().event,
+    onDidChangeConfiguration: new VSCodeEventEmitter().event,
+    onDidChangeWorkspaceFolders: new VSCodeEventEmitter().event,
   },
   window: {
     terminals: [],
@@ -108,9 +110,9 @@ const vscode = {
       hide: vi.fn(),
       dispose: vi.fn(),
     })),
-    onDidOpenTerminal: new EventEmitter().event,
-    onDidCloseTerminal: new EventEmitter().event,
-    onDidChangeTerminalState: new EventEmitter().event,
+    onDidOpenTerminal: new VSCodeEventEmitter().event,
+    onDidCloseTerminal: new VSCodeEventEmitter().event,
+    onDidChangeTerminalState: new VSCodeEventEmitter().event,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
     showErrorMessage: vi.fn(),
@@ -118,7 +120,7 @@ const vscode = {
     showInputBox: vi.fn(),
     createStatusBarItem: vi.fn(),
     activeTextEditor: undefined,
-    onDidChangeActiveTextEditor: new EventEmitter().event,
+    onDidChangeActiveTextEditor: new VSCodeEventEmitter().event,
   },
   commands: {
     registerCommand: vi.fn(),
@@ -171,7 +173,7 @@ const vscode = {
   CancellationTokenSource: class {
     token: CancellationToken;
     constructor() {
-      const emitter = new EventEmitter<void>();
+      const emitter = new VSCodeEventEmitter<void>();
       this.token = {
         isCancellationRequested: false,
         onCancellationRequested: emitter.event,
