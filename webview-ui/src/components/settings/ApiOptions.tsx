@@ -828,21 +828,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 					{/* Custom Headers Section */}
 					{(() => {
-						const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {});
+						const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {})
 						return (
 							<div style={{ marginTop: 10 }}>
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 									<span style={{ fontWeight: 500 }}>Custom Headers</span>
 									<VSCodeButton
 										onClick={() => {
-											const currentHeaders = {...(apiConfiguration?.openAiHeaders || {})}
+											const currentHeaders = { ...(apiConfiguration?.openAiHeaders || {}) }
 											const headerCount = Object.keys(currentHeaders).length
 											const newKey = `header${headerCount + 1}`
 											currentHeaders[newKey] = ""
 											handleInputChange("openAiHeaders")({
 												target: {
-													value: currentHeaders
-												}
+													value: currentHeaders,
+												},
 											})
 										}}>
 										Add Header
@@ -850,59 +850,59 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								</div>
 								<div>
 									{headerEntries.map(([key, value], index) => (
-							<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
-								<VSCodeTextField
-									value={key}
-									style={{ width: "40%" }}
-									placeholder="Header name"
-									onInput={(e: any) => {
-										const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
-										const newValue = e.target.value
-										if (newValue && newValue !== key) {
-											const { [key]: _, ...rest } = currentHeaders
-											handleInputChange("openAiHeaders")({
-												target: {
-													value: {
-														...rest,
-														[newValue]: value
+										<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+											<VSCodeTextField
+												value={key}
+												style={{ width: "40%" }}
+												placeholder="Header name"
+												onInput={(e: any) => {
+													const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
+													const newValue = e.target.value
+													if (newValue && newValue !== key) {
+														const { [key]: _, ...rest } = currentHeaders
+														handleInputChange("openAiHeaders")({
+															target: {
+																value: {
+																	...rest,
+																	[newValue]: value,
+																},
+															},
+														})
 													}
-												}
-											})
-										}
-									}}
-								/>
-								<VSCodeTextField
-									value={value}
-									style={{ width: "40%" }}
-									placeholder="Header value"
-									onInput={(e: any) => {
-										handleInputChange("openAiHeaders")({
-											target: {
-												value: {
-													...apiConfiguration?.openAiHeaders ?? {},
-													[key]: e.target.value
-												}
-											}
-										})
-									}}
-								/>
-								<VSCodeButton
-									appearance="secondary"
-									onClick={() => {
-										const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
-										handleInputChange("openAiHeaders")({
-											target: {
-												value: rest
-											}
-										})
-									}}>
-									Remove
-								</VSCodeButton>
-							</div>
-						))}
+												}}
+											/>
+											<VSCodeTextField
+												value={value}
+												style={{ width: "40%" }}
+												placeholder="Header value"
+												onInput={(e: any) => {
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: {
+																...(apiConfiguration?.openAiHeaders ?? {}),
+																[key]: e.target.value,
+															},
+														},
+													})
+												}}
+											/>
+											<VSCodeButton
+												appearance="secondary"
+												onClick={() => {
+													const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: rest,
+														},
+													})
+												}}>
+												Remove
+											</VSCodeButton>
+										</div>
+									))}
 								</div>
 							</div>
-						);
+						)
 					})()}
 
 					<VSCodeCheckbox
