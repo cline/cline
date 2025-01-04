@@ -1,56 +1,109 @@
-import { afterEach, describe, expect, test, vi } from "vitest"
-import { Uri, window, workspace, type WorkspaceFolder } from "vscode"
+import { vi } from 'vitest';
 
-vi.mock("vscode")
-
-const testFileUri = Uri.file(__filename)
-const rootUri = Uri.file(__dirname)
-const workspaceFolder1: WorkspaceFolder = {
-	uri: Uri.joinPath(rootUri, "Folder1"),
-	name: "Folder1",
-	index: 0,
+// Mock VS Code API types
+interface MockTerminalExitStatus {
+  code: number | undefined;
+  reason: number;
 }
 
-const workspaceFolder2: WorkspaceFolder = {
-	uri: Uri.joinPath(rootUri, "Folder2"),
-	name: "Folder2",
-	index: 1,
-}
+// Create base mock implementations
+const createBaseEventEmitter = () => ({
+  event: vi.fn(),
+  fire: vi.fn(),
+  dispose: vi.fn(),
+});
 
-describe("vscode.workspace", () => {
-	afterEach(() => {
-		vi.resetAllMocks()
-	})
+const createBaseTerminal = (options: any) => ({
+  name: options?.name || 'Mock Terminal',
+  processId: Promise.resolve(1234),
+  creationOptions: options,
+  _exitStatus: undefined,
+  state: { isInteractedWith: false },
+  shellIntegration: undefined,
+  sendText: vi.fn(),
+  show: vi.fn(),
+  hide: vi.fn(),
+  dispose: vi.fn(),
+});
 
-	test("getWorkspaceFolder", () => {
-		const uri = Uri.joinPath(workspaceFolder1.uri, "code.test.ts")
-		const uri2 = Uri.joinPath(workspaceFolder2.uri, "test.txt")
+// Mock the entire vscode module
+const vscode = {
+  EventEmitter: vi.fn().mockImplementation(() => createBaseEventEmitter()),
+  ThemeIcon: vi.fn().mockImplementation((id: string) => ({ id })),
+  workspace: {
+    workspaceFolders: [],
+    getConfiguration: vi.fn().mockReturnValue({
+      get: vi.fn(),
+      update: vi.fn(),
+      has: vi.fn(),
+    }),
+    onDidChangeConfiguration: vi.fn(),
+    onDidChangeWorkspaceFolders: vi.fn(),
+  },
+  window: {
+    terminals: [],
+    createTerminal: vi.fn((options?: any) => {
+      const terminal = createBaseTerminal(options);
+      vscode.window.terminals.push(terminal);
+      return terminal;
+    }),
+    onDidOpenTerminal: vi.fn(),
+    onDidCloseTerminal: vi.fn(),
+    onDidChangeTerminalState: vi.fn(),
+    showInformationMessage: vi.fn(),
+    showWarningMessage: vi.fn(),
+    showErrorMessage: vi.fn(),
+    showQuickPick: vi.fn(),
+    showInputBox: vi.fn(),
+    createStatusBarItem: vi.fn(),
+    activeTextEditor: undefined,
+  },
+  commands: {
+    registerCommand: vi.fn(),
+    executeCommand: vi.fn(),
+    registerTextEditorCommand: vi.fn(),
+    getCommands: vi.fn(),
+  },
+  languages: {
+    registerHoverProvider: vi.fn(),
+    registerCompletionItemProvider: vi.fn(),
+    registerDefinitionProvider: vi.fn(),
+  },
+  Uri: {
+    file: vi.fn((path: string) => ({ scheme: 'file', path })),
+    parse: vi.fn(),
+  },
+  Position: vi.fn().mockImplementation((line: number, character: number) => ({
+    line,
+    character,
+    translate: vi.fn(),
+    with: vi.fn(),
+    isAfter: vi.fn(),
+    isBefore: vi.fn(),
+    isEqual: vi.fn(),
+    compareTo: vi.fn(),
+  })),
+  Range: vi.fn().mockImplementation((startLine: number, startChar: number, endLine: number, endChar: number) => ({
+    start: new vscode.Position(startLine, startChar),
+    end: new vscode.Position(endLine, endChar),
+    isEmpty: vi.fn(),
+    isSingleLine: vi.fn(),
+    contains: vi.fn(),
+    intersection: vi.fn(),
+    union: vi.fn(),
+  })),
+  TerminalExitReason: {
+    Unknown: 0,
+    Shutdown: 1,
+    Process: 2,
+    User: 3,
+    Extension: 4,
+  } as const,
+};
 
-		const spy = vi.spyOn(workspace, "workspaceFolders", "get")
-		spy.mockReturnValue([workspaceFolder1, workspaceFolder2])
+// Mock the vscode module
+vi.mock('vscode', () => {
+  return { default: vscode };
+});
 
-		expect(workspace.workspaceFolders).toEqual([workspaceFolder1, workspaceFolder2])
-		expect(workspace.getWorkspaceFolder(uri)).toEqual(workspaceFolder1)
-		expect(workspace.getWorkspaceFolder(uri2)).toEqual(workspaceFolder2)
-	})
-
-	test("openTextDocument", async () => {
-		const uri = testFileUri
-		const doc = await workspace.openTextDocument(uri)
-		expect(doc.uri).toEqual(uri)
-		expect(doc.getText()).toContain("vi.mock('vscode');")
-	})
-})
-
-describe("vscode.window", () => {
-	afterEach(() => {
-		vi.resetAllMocks()
-	})
-
-	test("showTextDocument", async () => {
-		const uri = testFileUri
-		const doc = await workspace.openTextDocument(uri)
-		const editor = await window.showTextDocument(doc)
-		expect(editor.document).toBe(doc)
-	})
-})
+export { vscode };

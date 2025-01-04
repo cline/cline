@@ -1,101 +1,96 @@
-// tests/TerminalManager.test.ts
-
+// TerminalManager.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { vscode } from '../../../tests/vscode-mocks';
 import { TerminalManager } from './TerminalManager';
-import { TerminalInfo } from './TerminalRegistry';
-import { TerminalProcess, mergePromise, TerminalProcessResultPromise } from './TerminalProcess';
-
-// Mocking external modules
-vi.mock('vscode', () => ({
-  window: {
-    onDidStartTerminalShellExecution: vi.fn(),
-  },
-  Uri: {
-    file: vi.fn((path: string) => ({
-      fsPath: path,
-    })),
-  },
-  Disposable: vi.fn(),
-}));
-
-vi.mock('./TerminalRegistry', () => ({
-  TerminalRegistry: {
-    getAllTerminals: vi.fn(),
-    createTerminal: vi.fn(),
-    removeTerminal: vi.fn(),
-    getTerminal: vi.fn(),
-  },
-}));
-
-vi.mock('./TerminalProcess', () => ({
-  TerminalProcess: vi.fn().mockImplementation(() => ({
-    once: vi.fn(),
-    on: vi.fn(),
-    getUnretrievedOutput: vi.fn(),
-    isHot: false,
-    run: vi.fn(),
-    waitForShellIntegration: true,
-  })),
-  mergePromise: vi.fn((process: any, promise: Promise<any>) => promise),
-  TerminalProcessResultPromise: vi.fn(),
-}));
+import { TerminalRegistry, TerminalInfo } from './TerminalRegistry';
+import { waitForNextTick } from '../../../tests/setup';
 
 describe('TerminalManager', () => {
   let terminalManager: TerminalManager;
-
+  let mockTerminalInfo: TerminalInfo;
+  
   beforeEach(() => {
     terminalManager = new TerminalManager();
+    mockTerminalInfo = TerminalRegistry.createTerminal('/test/path');
   });
 
   afterEach(() => {
+    terminalManager.disposeAll();
     vi.resetAllMocks();
+    const allTerminals = TerminalRegistry.getAllTerminals();
+    allTerminals.forEach(t => TerminalRegistry.removeTerminal(t.id));
   });
 
-  it('should create an instance of TerminalManager', () => {
-    expect(terminalManager).toBeInstanceOf(TerminalManager);
-  });
-
-  it('should have a runCommand method', () => {
-    expect(typeof terminalManager.runCommand).toBe('function');
-  });
-
-  it('should have a getOrCreateTerminal method', () => {
-    expect(typeof terminalManager.getOrCreateTerminal).toBe('function');
-  });
-
-  it('should have a getTerminals method', () => {
-    expect(typeof terminalManager.getTerminals).toBe('function');
-  });
-
-  it('should have a getUnretrievedOutput method', () => {
-    expect(typeof terminalManager.getUnretrievedOutput).toBe('function');
-  });
-
-  it('should have an isProcessHot method', () => {
-    expect(typeof terminalManager.isProcessHot).toBe('function');
-  });
-
-  it('should have a disposeAll method', () => {
-    expect(typeof terminalManager.disposeAll).toBe('function');
-  });
-
-  // Example of mocking method calls without executing their implementations
-  it('should call runCommand without executing its implementation', async () => {
-    const mockRunCommand = vi.spyOn(terminalManager, 'runCommand').mockImplementation(() => {
-      // Mock implementation can return a dummy promise or value
-      return Promise.resolve() as unknown as TerminalProcessResultPromise;
+  describe('Terminal Creation', () => {
+    it('should create a terminal with correct configuration', () => {
+      expect(vscode.window.createTerminal).toHaveBeenCalledWith({
+        cwd: '/test/path',
+        name: 'Cline',
+        iconPath: expect.anything(),
+      });
+      
+      expect(mockTerminalInfo).toMatchObject({
+        busy: false,
+        lastCommand: '',
+        id: expect.any(Number),
+      });
     });
 
-    const terminalInfo: TerminalInfo = { id: 1, busy: false, lastCommand: '', terminal: {} as any };
-    const command = 'echo Hello World';
+    it('should handle terminal creation failure gracefully', () => {
+      vi.spyOn(vscode.window, 'createTerminal').mockImplementationOnce(() => {
+        throw new Error('Terminal creation failed');
+      });
 
-    await terminalManager.runCommand(terminalInfo, command);
-
-    expect(mockRunCommand).toHaveBeenCalledWith(terminalInfo, command);
-
-    // Restore the original implementation if needed
-    mockRunCommand.mockRestore();
+      expect(() => TerminalRegistry.createTerminal('/test/path'))
+        .toThrow('Terminal creation failed');
+    });
   });
 
-  // Similarly, you can add more tests to ensure other methods are callable
+  describe('Command Execution', () => {
+    it('should execute commands and update terminal state', async () => {
+      const command = 'echo "test"';
+      const processPromise = terminalManager.runCommand(mockTerminalInfo, command);
+
+      expect(mockTerminalInfo.busy).toBe(true);
+      expect(mockTerminalInfo.lastCommand).toBe(command);
+
+      await processPromise;
+      await waitForNextTick();
+
+      expect(mockTerminalInfo.busy).toBe(false);
+    });
+
+    it('should handle command execution errors', async () => {
+      const command = 'invalid-command';
+      vi.spyOn(vscode.window, 'showErrorMessage');
+
+      const processPromise = terminalManager.runCommand(mockTerminalInfo, command);
+      await expect(processPromise).rejects.toThrow();
+      
+      expect(vscode.window.showErrorMessage).toHaveBeenCalled();
+      expect(mockTerminalInfo.busy).toBe(false);
+    });
+  });
+
+  describe('Terminal Lifecycle', () => {
+    it('should handle terminal disposal', () => {
+      const terminal = vscode.window.terminals[0];
+      terminalManager.disposeAll();
+
+      expect(terminal.dispose).toHaveBeenCalled();
+      expect(TerminalRegistry.getAllTerminals()).toHaveLength(0);
+    });
+
+    it('should update registry when terminal closes', () => {
+      const closeHandler = vi.fn();
+      terminalManager.onTerminalClosed(closeHandler);
+
+      // Simulate terminal close
+      const terminal = vscode.window.terminals[0];
+      terminal.dispose();
+
+      expect(closeHandler).toHaveBeenCalledWith(mockTerminalInfo.id);
+      expect(TerminalRegistry.getAllTerminals()).toHaveLength(0);
+    });
+  });
 });

@@ -18,11 +18,11 @@
 		"useUnknownInCatchVariables": false,
 		"sourceMap": true,
 		"outDir": "./dist",
-		"rootDir": "./src",
-		"baseUrl": "./src",
-		"types": ["node", "vscode", "vitest/globals"],
+		"rootDir": "./",
+		"baseUrl": "./",
+  "types": ["node", "vscode"],
 		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts"]
 	},
-	"include": ["src/**/*.ts"],
+	"include": ["src/**/*.ts", "tests/**/*.ts"],
 	"exclude": ["node_modules", "dist", "out"]
 }

@@ -1,167 +1,190 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"
-import { TerminalRegistry, TerminalInfo } from "./TerminalRegistry"
-import * as vscode from "vscode"
+// TerminalRegistry.test.ts
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { TerminalRegistry, TerminalInfo } from './TerminalRegistry';
+import { vscode } from '../../../tests/vscode-mocks'; // 引入模擬的 VSCode 模組
 
-interface MockTerminalExitStatus {
-	code: number | undefined
-}
+describe('TerminalRegistry', () => {
+  beforeEach(() => {
+    // 重置 TerminalRegistry 的內部狀態
+    (TerminalRegistry as any).terminals = [];
+    (TerminalRegistry as any).nextTerminalId = 1;
+    console.log('Before each test: Resetting TerminalRegistry state');
+  });
 
-vi.mock("vscode", () => ({
-	window: {
-		terminals: [],
-		activeTerminal: undefined,
-		onDidChangeActiveTerminal: vi.fn(),
-		createTerminal: vi.fn((options: vscode.TerminalOptions) => {
-			const terminal: vscode.Terminal & { _exitStatus?: MockTerminalExitStatus } = {
-				name: options.name || "Mock Terminal",
-				processId: Promise.resolve(1234),
-				creationOptions: options,
-				get exitStatus(): MockTerminalExitStatus | undefined {
-					return this._exitStatus
-				},
-				set exitStatus(value: MockTerminalExitStatus | undefined) {
-					this._exitStatus = value
-				},
-				state: { isInteractedWith: false },
-				shellIntegration: undefined,
-				sendText: vi.fn(),
-				show: vi.fn(),
-				hide: vi.fn(),
-				dispose: vi.fn(),
-			}
+  describe('createTerminal', () => {
+    it('應該以正確的默認屬性創建終端', () => {
+      console.log('Test: 應該以正確的默認屬性創建終端');
+      const terminalInfo = TerminalRegistry.createTerminal();
+      console.log('Created TerminalInfo:', terminalInfo);
 
-			return terminal
-		}),
-		onDidOpenTerminal: vi.fn(),
-		onDidCloseTerminal: vi.fn(),
-		onDidChangeTerminalState: vi.fn(),
-		onDidChangeTerminalShellIntegration: vi.fn(),
-		onDidStartTerminalShellExecution: vi.fn(),
-		onDidEndTerminalShellExecution: vi.fn(),
-		activeTextEditor: undefined,
-		onDidChangeActiveTextEditor: vi.fn(),
-		showTextDocument: vi.fn(),
-		createStatusBarItem: vi.fn(),
-	},
-	ThemeIcon: class {
-		constructor(public id: string) {}
-		static File = new this("file")
-		static Folder = new this("folder")
-	},
-}))
+      expect(terminalInfo).toHaveProperty('id', 1);
+      expect(terminalInfo).toHaveProperty('busy', false);
+      expect(terminalInfo).toHaveProperty('lastCommand', '');
+      expect(terminalInfo.terminal).toBeDefined();
+      expect(vscode.window.createTerminal).toHaveBeenCalledWith({
+        cwd: undefined,
+        name: 'Cline',
+        iconPath: expect.any(vscode.ThemeIcon),
+      });
+    });
 
-describe("TerminalRegistry", () => {
-	beforeEach(() => {
-		// Reset the internal state before each test
-		;(TerminalRegistry as any).terminals = []
-		;(TerminalRegistry as any).nextTerminalId = 1
-	})
+    it('應該以遞增的 ID 創建多個終端', () => {
+      console.log('Test: 應該以遞增的 ID 創建多個終端');
+      const terminal1 = TerminalRegistry.createTerminal();
+      const terminal2 = TerminalRegistry.createTerminal();
+      console.log('Created Terminal 1:', terminal1);
+      console.log('Created Terminal 2:', terminal2);
 
-	describe("createTerminal", () => {
-		it("should create a terminal with correct default properties", () => {
-			const terminalInfo = TerminalRegistry.createTerminal()
+      expect(terminal1.id).toBe(1);
+      expect(terminal2.id).toBe(2);
+    });
 
-			expect(terminalInfo).toHaveProperty("id", 1)
-			expect(terminalInfo).toHaveProperty("busy", false)
-			expect(terminalInfo).toHaveProperty("lastCommand", "")
-			expect(terminalInfo.terminal).toBeDefined()
-		})
+    it('應該以指定的工作目錄創建終端', () => {
+      console.log('Test: 應該以指定的工作目錄創建終端');
+      const cwd = '/test/path';
+      const terminalInfo = TerminalRegistry.createTerminal(cwd);
+      console.log('Created TerminalInfo with cwd:', terminalInfo);
 
-		it("should create terminals with incrementing IDs", () => {
-			const terminal1 = TerminalRegistry.createTerminal()
-			const terminal2 = TerminalRegistry.createTerminal()
+      expect(vscode.window.createTerminal).toHaveBeenCalledWith({
+        cwd,
+        name: 'Cline',
+        iconPath: expect.any(vscode.ThemeIcon),
+      });
+    });
+  });
 
-			expect(terminal1.id).toBe(1)
-			expect(terminal2.id).toBe(2)
-		})
+  describe('getTerminal', () => {
+    it('應該通過 ID 獲取已存在的終端', () => {
+      console.log('Test: 應該通過 ID 獲取已存在的終端');
+      const originalTerminal = TerminalRegistry.createTerminal();
+      console.log('Created Terminal:', originalTerminal);
+      const retrievedTerminal = TerminalRegistry.getTerminal(originalTerminal.id);
+      console.log('Retrieved Terminal:', retrievedTerminal);
 
-		it("should create a terminal with specified working directory", () => {
-			const cwd = "/test/path"
-			const terminalInfo = TerminalRegistry.createTerminal(cwd)
+      expect(retrievedTerminal).toBe(originalTerminal);
+    });
 
-			expect(vscode.window.createTerminal).toHaveBeenCalledWith({
-				cwd,
-				name: "Cline",
-				iconPath: expect.any(vscode.ThemeIcon),
-			})
-		})
-	})
+    it('應該對不存在的終端 ID 返回 undefined', () => {
+      console.log('Test: 應該對不存在的終端 ID 返回 undefined');
+      const retrievedTerminal = TerminalRegistry.getTerminal(999);
+      console.log('Retrieved Terminal:', retrievedTerminal);
 
-	describe("getTerminal", () => {
-		it("should retrieve an existing terminal by ID", () => {
-			const originalTerminal = TerminalRegistry.createTerminal()
-			const retrievedTerminal = TerminalRegistry.getTerminal(originalTerminal.id)
+      expect(retrievedTerminal).toBeUndefined();
+    });
 
-			expect(retrievedTerminal).toBe(originalTerminal)
-		})
+    it('應該移除並對已關閉的終端返回 undefined', () => {
+      console.log('Test: 應該移除並對已關閉的終端返回 undefined');
+      const terminal = TerminalRegistry.createTerminal();
+      console.log('Created Terminal:', terminal);
 
-		it("should return undefined for non-existent terminal", () => {
-			const retrievedTerminal = TerminalRegistry.getTerminal(999)
-			expect(retrievedTerminal).toBeUndefined()
-		})
+      // 模擬終端關閉
+      console.log('Setting exitStatus to simulate terminal closure');
+      terminal.terminal.exitStatus = { code: 0, reason: vscode.TerminalExitReason.ShellExit };
+      console.log('Simulated terminal closure:', terminal);
 
-		it("should remove and return undefined for closed terminal", () => {
-			const terminal = TerminalRegistry.createTerminal()
+      const retrievedTerminal = TerminalRegistry.getTerminal(terminal.id);
+      console.log('Retrieved Terminal after closure:', retrievedTerminal);
 
-			// Simulate terminal closure by setting exitStatus
-			terminal.terminal.exitStatus = { code: 0 }
+      expect(retrievedTerminal).toBeUndefined();
+      expect(TerminalRegistry.getTerminal(terminal.id)).toBeUndefined();
+    });
+  });
 
-			const retrievedTerminal = TerminalRegistry.getTerminal(terminal.id)
+  describe('removeTerminal', () => {
+    it('應該通過 ID 移除指定的終端', () => {
+      console.log('Test: 應該通過 ID 移除指定的終端');
+      const terminal1 = TerminalRegistry.createTerminal();
+      const terminal2 = TerminalRegistry.createTerminal();
+      console.log('Created Terminal 1:', terminal1);
+      console.log('Created Terminal 2:', terminal2);
 
-			expect(retrievedTerminal).toBeUndefined()
-		})
-	})
+      TerminalRegistry.removeTerminal(terminal1.id);
+      console.log('Removed Terminal 1:', terminal1);
 
-	describe("removeTerminal", () => {
-		it("should remove a terminal by ID", () => {
-			const terminal1 = TerminalRegistry.createTerminal()
-			const terminal2 = TerminalRegistry.createTerminal()
+      const remainingTerminals = (TerminalRegistry as any).terminals;
+      console.log('Remaining Terminals:', remainingTerminals);
 
-			TerminalRegistry.removeTerminal(terminal1.id)
+      expect(remainingTerminals).toHaveLength(1);
+      expect(remainingTerminals[0]).toBe(terminal2);
+    });
+  });
 
-			const remainingTerminals = (TerminalRegistry as any).terminals
-			expect(remainingTerminals).toHaveLength(1)
-			expect(remainingTerminals[0]).toBe(terminal2)
-		})
-	})
+  describe('updateTerminal', () => {
+    it('應該更新終端的屬性', () => {
+      console.log('Test: 應該更新終端的屬性');
+      const terminal = TerminalRegistry.createTerminal();
+      console.log('Created Terminal:', terminal);
 
-	describe("updateTerminal", () => {
-		it("should update terminal properties", () => {
-			const terminal = TerminalRegistry.createTerminal()
+      TerminalRegistry.updateTerminal(terminal.id, {
+        busy: true,
+        lastCommand: 'test command',
+      });
+      console.log('Updated Terminal:', terminal);
 
-			TerminalRegistry.updateTerminal(terminal.id, {
-				busy: true,
-				lastCommand: "test command",
-			})
+      const updatedTerminal = TerminalRegistry.getTerminal(terminal.id);
+      console.log('Retrieved Updated Terminal:', updatedTerminal);
 
-			const updatedTerminal = TerminalRegistry.getTerminal(terminal.id)
+      expect(updatedTerminal).toHaveProperty('busy', true);
+      expect(updatedTerminal).toHaveProperty('lastCommand', 'test command');
+    });
 
-			expect(updatedTerminal).toHaveProperty("busy", true)
-			expect(updatedTerminal).toHaveProperty("lastCommand", "test command")
-		})
+    it('應該不會更新不存在的終端', () => {
+      console.log('Test: 應該不會更新不存在的終端');
+      TerminalRegistry.updateTerminal(999, {
+        busy: true,
+        lastCommand: 'test command',
+      });
+      console.log('Attempted to update non-existent terminal');
 
-		it("should not update non-existent terminal", () => {
-			TerminalRegistry.updateTerminal(999, {
-				busy: true,
-				lastCommand: "test command",
-			})
+      // 確保沒有任何終端被更新
+      const allTerminals = TerminalRegistry.getAllTerminals();
+      expect(allTerminals).toHaveLength(0);
+    });
+  });
 
-			// No error should be thrown
-		})
-	})
+  describe('getAllTerminals', () => {
+    it('應該返回所有活躍的終端', () => {
+      console.log('Test: 應該返回所有活躍的終端');
+      const terminal1 = TerminalRegistry.createTerminal();
+      const terminal2 = TerminalRegistry.createTerminal();
+      console.log('Created Terminal 1:', terminal1);
+      console.log('Created Terminal 2:', terminal2);
 
-	describe("getAllTerminals", () => {
-		it("should return all active terminals", () => {
-			const terminal1 = TerminalRegistry.createTerminal()
-			const terminal2 = TerminalRegistry.createTerminal()
+      // 模擬第一個終端已關閉
+      terminal1.terminal.exitStatus = { code: 0, reason: vscode.TerminalExitReason.ShellExit };
+      console.log('Simulated terminal1 closure:', terminal1);
 
-			// Simulate first terminal being closed
-			terminal1.terminal.exitStatus = { code: 0 }
+      const activeTerminals = TerminalRegistry.getAllTerminals();
+      console.log('Active Terminals:', activeTerminals);
 
-			const activeTerminals = TerminalRegistry.getAllTerminals()
+      expect(activeTerminals).toHaveLength(1);
+      expect(activeTerminals[0]).toBe(terminal2);
+    });
 
-			expect(activeTerminals).toHaveLength(1)
-			expect(activeTerminals[0]).toBe(terminal2)
-		})
-	})
-})
+    it('應該只返回尚未關閉的終端', () => {
+      console.log('Test: 應該只返回尚未關閉的終端');
+      const terminal1 = TerminalRegistry.createTerminal();
+      const terminal2 = TerminalRegistry.createTerminal();
+      console.log('Created Terminal 1:', terminal1);
+      console.log('Created Terminal 2:', terminal2);
+
+      // 模擬兩個終端都已關閉
+      terminal1.terminal.exitStatus = { code: 0, reason: vscode.TerminalExitReason.ShellExit };
+      terminal2.terminal.exitStatus = { code: 1, reason: vscode.TerminalExitReason.ShellExit };
+      console.log('Simulated terminal closures:', terminal1, terminal2);
+
+      const activeTerminals = TerminalRegistry.getAllTerminals();
+      console.log('Active Terminals:', activeTerminals);
+
+      expect(activeTerminals).toHaveLength(0);
+    });
+
+    it('應該返回空陣列當沒有活躍終端時', () => {
+      console.log('Test: 應該返回空陣列當沒有活躍終端時');
+      const activeTerminals = TerminalRegistry.getAllTerminals();
+      console.log('Active Terminals:', activeTerminals);
+
+      expect(activeTerminals).toHaveLength(0);
+    });
+  });
+});

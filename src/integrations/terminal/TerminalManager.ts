@@ -75,6 +75,18 @@ export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, TerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
+	private _onDidStartTerminalShellExecution = new vscode.EventEmitter<{
+		terminal: vscode.Terminal;
+		shellIntegration: any;
+		execution: any;
+	}>();
+
+	private _onDidEndTerminalShellExecution = new vscode.EventEmitter<{
+		terminal: vscode.Terminal;
+		shellIntegration: any;
+		execution: any;
+		exitCode: number | undefined;
+	}>();
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -94,6 +106,7 @@ export class TerminalManager {
 	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+		console.log(`runCommand - Start: terminal id: ${terminalInfo.id}, command: ${command}`)
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -124,34 +137,70 @@ export class TerminalManager {
 
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
-			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
-		} else {
-			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
-				const existingProcess = this.processes.get(terminalInfo.id)
-				if (existingProcess && existingProcess.waitForShellIntegration) {
-					existingProcess.waitForShellIntegration = false
-					existingProcess.run(terminalInfo.terminal, command)
-				}
+			console.log(`runCommand - Shell integration detected`)
+			const execution = terminalInfo.terminal.shellIntegration.executeCommand(command)
+			console.log(`runCommand - Command executed, execution: ${execution}`)
+			this._onDidStartTerminalShellExecution.fire({
+				terminal: terminalInfo.terminal,
+				shellIntegration: terminalInfo.terminal.shellIntegration,
+				execution,
 			})
+			execution.exitCode
+				.then((exitCode) => {
+					console.log(`runCommand - Command finished, exit code: ${exitCode}`)
+					this._onDidEndTerminalShellExecution.fire({
+						terminal: terminalInfo.terminal,
+						shellIntegration: terminalInfo.terminal.shellIntegration!,
+						execution,
+						exitCode,
+					})
+				})
+				.catch((e) => {
+					console.error(`runCommand - Command failed: ${e}`)
+					this._onDidEndTerminalShellExecution.fire({
+						terminal: terminalInfo.terminal,
+						shellIntegration: terminalInfo.terminal.shellIntegration!,
+						execution,
+						exitCode: undefined,
+					})
+				})
+		} else {
+			console.log(`runCommand - No shell integration detected`)
+			terminalInfo.terminal.sendText(command)
+			console.log(`runCommand - Command sent via sendText: ${command}`)
+			this.removeTerminal(terminalInfo.id)
+			console.log(`runCommand - Terminal removed: ${terminalInfo.id}`)
 		}
+		console.log(`runCommand - End`)
 
 		return mergePromise(process, promise)
 	}
 
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
+		console.log(`getOrCreateTerminal - Start: cwd: ${cwd}`)
 		// Find available terminal from our pool first (created for this task)
 		const availableTerminal = TerminalRegistry.getAllTerminals().find((t) => {
 			if (t.busy) {
 				return false
 			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
+
+			// If no shellIntegration, cannot compare paths
+			const terminalCwd = t.terminal.shellIntegration?.cwd
 			if (!terminalCwd) {
 				return false
 			}
-			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+
+			try {
+				// Safely convert cwd to a file URI and get its path
+				const cwdUri = vscode.Uri.file(cwd)
+				return arePathsEqual(cwdUri.fsPath, terminalCwd.fsPath)
+			} catch (error) {
+				// If path conversion fails, return false
+				console.warn(`Failed to compare paths: ${error}`)
+				return false
+			}
 		})
+
 		if (availableTerminal) {
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
