@@ -1,4 +1,4 @@
-console.log("src/api/providers/deepseek.ts loaded")
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"

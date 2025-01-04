@@ -11,13 +11,13 @@ vi.mock("vscode", async () => {
 })
 
 describe("VSCode Extension", () => {
-	console.log("describe: VSCode Extension")
+	
 	afterEach(() => {
 		vi.resetAllMocks()
 	})
 
 	test("extension activates", () => {
-		console.log("test: extension activates")
+		
 		const context = {
 			subscriptions: [],
 			workspaceState: {
@@ -59,9 +59,9 @@ describe("VSCode Extension", () => {
 		vi.spyOn(workspace, "workspaceFolders", "get").mockReturnValue(mockWorkspaceFolders)
 
 		activate(context)
-		console.log("expect: workspace.workspaceFolders to be defined")
+		
 		expect(workspace.workspaceFolders).toBeDefined()
-		console.log("expect: workspace.workspaceFolders to be defined - complete")
+		
 	})
 
 	test("extension deactivates", () => {

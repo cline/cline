@@ -154,7 +154,7 @@ export class OpenRouterHandler implements ApiHandler {
 			})
 
 			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
+			
 			yield {
 				type: "usage",
 				// cacheWriteTokens: 0,

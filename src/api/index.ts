@@ -1,4 +1,4 @@
-console.log("src/api/index.ts loaded")
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
