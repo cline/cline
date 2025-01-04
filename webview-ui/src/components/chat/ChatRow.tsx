@@ -12,7 +12,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/s
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
-import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
+import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
@@ -357,7 +357,7 @@ export const ChatRowContent = ({
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
