@@ -75,7 +75,7 @@ export function arePathsEqual(path1?: string, path2?: string): boolean {
   return path1 === path2
 }
 
-function normalizePath(p: string): string {
+export function normalizePath(p: string): string {
   // normalize resolve ./.. segments, removes duplicate slashes, and standardizes path separators
   let normalized = path.normalize(p)
   // however it doesn't remove trailing slashes

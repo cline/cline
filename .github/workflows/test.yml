@@ -23,6 +23,7 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: ${{ matrix.node-version }}
+                  cache: 'npm'
 
             # Cache root dependencies
             - name: Cache root dependencies
@@ -57,7 +58,7 @@ jobs:
               run: npm run lint
 
             - name: Run Tests with Coverage
-              run: npm run test:coverage
+              run: npm run test:coverage:vitest
 
             # Upload coverage to Codecov
             - name: Upload coverage reports to Codecov

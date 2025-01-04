@@ -140,19 +140,30 @@
 		"format:fix": "prettier . --write",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"start:webview": "cd webview-ui && npm run start",
-		"publish:marketplace": "vsce publish && ovsx publish"
+		"publish:marketplace": "vsce publish && ovsx publish",
+		"test": "vitest",
+		"test:watch": "vitest --watch",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest run --coverage",
+		"test:coverage:vitest": "vitest run --coverage",
+		"test:debug": "vitest --inspect-brk --verbose"
 	},
+	"type": "module",
 	"devDependencies": {
 		"@types/diff": "^5.2.1",
-		"@types/node": "^20.x",
+		"@types/node": "^20.10.0",
 		"@types/should": "^11.2.0",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
+		"@vitest/ui": "^1.1.0",
+		"c8": "^9.1.0",
+		"codecov": "^3.8.3",
 		"esbuild": "^0.21.5",
 		"eslint": "^8.57.0",
 		"prettier": "^3.3.3",
-		"typescript": "^5.3.3"
+		"typescript": "^5.7.2",
+		"vitest": "^1.1.0"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",
