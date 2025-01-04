@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import { DiffStrategy, getDiffStrategy, UnifiedDiffStrategy } from "./diff/DiffStrategy"
+import { validateToolUse, isToolAllowedForMode } from "./mode-validator"
 import delay from "delay"
 import fs from "fs/promises"
 import os from "os"
@@ -44,7 +45,7 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
-import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
+import { addCustomInstructions, codeMode, SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
@@ -104,7 +105,7 @@ export class Cline {
 		fuzzyMatchThreshold?: number,
 		task?: string | undefined,
 		images?: string[] | undefined,
-		historyItem?: HistoryItem | undefined,
+		historyItem?: HistoryItem | undefined
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
@@ -779,8 +780,15 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserViewportSize) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
+		const { browserViewportSize, preferredLanguage, mode } = await this.providerRef.deref()?.getState() ?? {}
+		const systemPrompt = await SYSTEM_PROMPT(
+			cwd,
+			this.api.getModel().info.supportsComputerUse ?? false,
+			mcpHub,
+			this.diffStrategy,
+			browserViewportSize,
+			mode
+		) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -1084,6 +1092,16 @@ export class Cline {
 
 				if (block.name !== "browser_action") {
 					await this.browserSession.closeBrowser()
+				}
+
+				// Validate tool use based on current mode
+				const { mode } = await this.providerRef.deref()?.getState() ?? {}
+				try {
+					validateToolUse(block.name, mode ?? codeMode)
+				} catch (error) {
+					this.consecutiveMistakeCount++
+					pushToolResult(formatResponse.toolError(error.message))
+					break
 				}
 
 				switch (block.name) {
@@ -2535,6 +2553,16 @@ export class Cline {
 		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
 		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? '+' : ''}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
+
+		// Add current mode and any mode-specific warnings
+		const { mode } = await this.providerRef.deref()?.getState() ?? {}
+		const currentMode = mode ?? codeMode
+		details += `\n\n# Current Mode\n${currentMode}`
+		
+		// Add warning if not in code mode
+		if (!isToolAllowedForMode('write_to_file', currentMode) || !isToolAllowedForMode('execute_command', currentMode)) {
+			details += `\n\nNOTE: You are currently in '${currentMode}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to 'code' mode. Note that only the user can switch modes.`
+		}
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`

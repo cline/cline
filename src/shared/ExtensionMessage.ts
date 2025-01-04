@@ -4,6 +4,7 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
+import { Mode } from "../core/prompts/types"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -47,6 +48,7 @@ export interface ExtensionMessage {
 }
 
 export interface ApiConfigMeta {
+	id: string
 	name: string
 	apiProvider?: ApiProvider
 }
@@ -79,6 +81,8 @@ export interface ExtensionState {
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean
+	mode: Mode
+	modeApiConfigs?: Record<Mode, string>;
 }
 
 export interface ClineMessage {

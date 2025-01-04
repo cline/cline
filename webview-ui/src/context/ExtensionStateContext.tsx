@@ -16,6 +16,8 @@ import { McpServer } from "../../../src/shared/mcp"
 import {
 	checkExistKey
 } from "../../../src/shared/checkExistApiConfig"
+import { Mode } from "../../../src/core/prompts/types"
+import { codeMode } from "../../../src/shared/modes"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -56,6 +58,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCurrentApiConfigName: (value: string) => void
 	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
 	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
+	mode: Mode
+	setMode: (value: Mode) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -81,6 +85,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		requestDelaySeconds: 5,
 		currentApiConfigName: 'default',
 		listApiConfigMeta: [],
+		mode: codeMode,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -111,7 +116,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
-				setState(message.state!)
+				setState(prevState => ({
+					...prevState,
+					...message.state!
+				}))
 				const config = message.state?.apiConfiguration
 				const hasKey = checkExistKey(config)
 				setShowWelcome(!hasKey)
@@ -220,7 +228,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
 		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
 		setListApiConfigMeta,
-		onUpdateApiConfig
+		onUpdateApiConfig,
+		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

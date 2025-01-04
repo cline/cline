@@ -1,13 +1,7 @@
-import { DiffStrategy } from "../diff/DiffStrategy"
-import { McpHub } from "../../services/mcp/McpHub"
-import { CODE_PROMPT } from "./code"
-import { ARCHITECT_PROMPT } from "./architect"
-import { ASK_PROMPT } from "./ask"
-import { Mode, codeMode, architectMode, askMode } from "./modes"
 import fs from 'fs/promises'
 import path from 'path'
 
-async function loadRuleFiles(cwd: string): Promise<string> {
+export async function loadRuleFiles(cwd: string): Promise<string> {
     const ruleFiles = ['.clinerules', '.cursorrules', '.windsurfrules']
     let combinedRules = ''
 
@@ -56,23 +50,3 @@ The following additional instructions are provided by the user, and should be fo
 ${joinedInstructions}`
         : ""
 }
-
-export const SYSTEM_PROMPT = async (
-	cwd: string,
-	supportsComputerUse: boolean,
-	mcpHub?: McpHub,
-	diffStrategy?: DiffStrategy,
-	browserViewportSize?: string,
-  mode: Mode = codeMode,
-) => {
-    switch (mode) {
-        case architectMode:
-            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
-        case askMode:
-            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
-        default:
-            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
-    }
-}
-
-export { codeMode, architectMode, askMode }

@@ -263,6 +263,7 @@ describe('ChatView - Auto Approval Tests', () => {
       // First hydrate state with initial task
       mockPostMessage({
         alwaysAllowWrite: true,
+        writeDelayMs: 0,
         clineMessages: [
           {
             type: 'say',
@@ -276,6 +277,7 @@ describe('ChatView - Auto Approval Tests', () => {
       // Then send the write tool ask message
       mockPostMessage({
         alwaysAllowWrite: true,
+        writeDelayMs: 0,
         clineMessages: [
           {
             type: 'say',

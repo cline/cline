@@ -1,5 +1,6 @@
 import { ExtensionContext } from 'vscode'
 import { ApiConfiguration } from '../../shared/api'
+import { Mode } from '../prompts/types'
 import { ApiConfigMeta } from '../../shared/ExtensionMessage'
 
 export interface ApiConfigData {
@@ -7,20 +8,29 @@ export interface ApiConfigData {
   apiConfigs: {
     [key: string]: ApiConfiguration
   }
+  modeApiConfigs?: Partial<Record<Mode, string>>
 }
 
 export class ConfigManager {
   private readonly defaultConfig: ApiConfigData = {
     currentApiConfigName: 'default',
     apiConfigs: {
-      default: {}
+      default: {
+        id: this.generateId()
+      }
     }
   }
+
   private readonly SCOPE_PREFIX = "roo_cline_config_"
   private readonly context: ExtensionContext
 
   constructor(context: ExtensionContext) {
     this.context = context
+    this.initConfig().catch(console.error)
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substring(2, 15)
   }
 
   /**
@@ -31,6 +41,20 @@ export class ConfigManager {
       const config = await this.readConfig()
       if (!config) {
         await this.writeConfig(this.defaultConfig)
+        return
+      }
+
+      // Migrate: ensure all configs have IDs
+      let needsMigration = false
+      for (const [name, apiConfig] of Object.entries(config.apiConfigs)) {
+        if (!apiConfig.id) {
+          apiConfig.id = this.generateId()
+          needsMigration = true
+        }
+      }
+
+      if (needsMigration) {
+        await this.writeConfig(config)
       }
     } catch (error) {
       throw new Error(`Failed to initialize config: ${error}`)
@@ -45,6 +69,7 @@ export class ConfigManager {
       const config = await this.readConfig()
       return Object.entries(config.apiConfigs).map(([name, apiConfig]) => ({
         name,
+        id: apiConfig.id || '',
         apiProvider: apiConfig.apiProvider,
       }))
     } catch (error) {
@@ -58,7 +83,11 @@ export class ConfigManager {
   async SaveConfig(name: string, config: ApiConfiguration): Promise<void> {
     try {
       const currentConfig = await this.readConfig()
-      currentConfig.apiConfigs[name] = config
+      const existingConfig = currentConfig.apiConfigs[name]
+      currentConfig.apiConfigs[name] = {
+        ...config,
+        id: existingConfig?.id || this.generateId()
+      }
       await this.writeConfig(currentConfig)
     } catch (error) {
       throw new Error(`Failed to save config: ${error}`)
@@ -134,6 +163,34 @@ export class ConfigManager {
       return name in config.apiConfigs
     } catch (error) {
       throw new Error(`Failed to check config existence: ${error}`)
+    }
+  }
+
+  /**
+   * Set the API config for a specific mode
+   */
+  async SetModeConfig(mode: Mode, configId: string): Promise<void> {
+    try {
+      const currentConfig = await this.readConfig()
+      if (!currentConfig.modeApiConfigs) {
+        currentConfig.modeApiConfigs = {}
+      }
+      currentConfig.modeApiConfigs[mode] = configId
+      await this.writeConfig(currentConfig)
+    } catch (error) {
+      throw new Error(`Failed to set mode config: ${error}`)
+    }
+  }
+
+  /**
+   * Get the API config ID for a specific mode
+   */
+  async GetModeConfigId(mode: Mode): Promise<string | undefined> {
+    try {
+      const config = await this.readConfig()
+      return config.modeApiConfigs?.[mode]
+    } catch (error) {
+      throw new Error(`Failed to get mode config: ${error}`)
     }
   }
 
