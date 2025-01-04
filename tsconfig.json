@@ -9,20 +9,20 @@
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"moduleResolution": "node",
-"noFallthroughCasesInSwitch": true,
+		"noFallthroughCasesInSwitch": true,
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": false,
 		"resolveJsonModule": true,
-	"useDefineForClassFields": true,
+		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
 		"sourceMap": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"baseUrl": "./src",
-		"types": ["node", "vscode", "jest"],
+		"types": ["node", "vscode", "vitest/globals"],
 		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts"]
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": ["node_modules", "dist", "out", "**/*.test.ts"]
+	"exclude": ["node_modules", "dist", "out"]
 }
