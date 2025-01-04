@@ -1,149 +1,167 @@
-// tests/TerminalRegistry.test.ts
+import { describe, it, expect, beforeEach, vi } from "vitest"
+import { TerminalRegistry, TerminalInfo } from "./TerminalRegistry"
+import * as vscode from "vscode"
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TerminalRegistry, TerminalInfo } from './TerminalRegistry';
-import * as vscode from 'vscode';
+interface MockTerminalExitStatus {
+	code: number | undefined
+}
 
-// Mocking the vscode module
-vi.mock('vscode', () => {
-  // Create a mock Terminal class
-  class MockTerminal {
-    exitStatus?: { code: number };
-    constructor() {
-      this.exitStatus = undefined;
-    }
+vi.mock("vscode", () => ({
+	window: {
+		terminals: [],
+		activeTerminal: undefined,
+		onDidChangeActiveTerminal: vi.fn(),
+		createTerminal: vi.fn((options: vscode.TerminalOptions) => {
+			const terminal: vscode.Terminal & { _exitStatus?: MockTerminalExitStatus } = {
+				name: options.name || "Mock Terminal",
+				processId: Promise.resolve(1234),
+				creationOptions: options,
+				get exitStatus(): MockTerminalExitStatus | undefined {
+					return this._exitStatus
+				},
+				set exitStatus(value: MockTerminalExitStatus | undefined) {
+					this._exitStatus = value
+				},
+				state: { isInteractedWith: false },
+				shellIntegration: undefined,
+				sendText: vi.fn(),
+				show: vi.fn(),
+				hide: vi.fn(),
+				dispose: vi.fn(),
+			}
 
-    dispose = vi.fn();
-    // Add other Terminal methods if needed
-  }
+			return terminal
+		}),
+		onDidOpenTerminal: vi.fn(),
+		onDidCloseTerminal: vi.fn(),
+		onDidChangeTerminalState: vi.fn(),
+		onDidChangeTerminalShellIntegration: vi.fn(),
+		onDidStartTerminalShellExecution: vi.fn(),
+		onDidEndTerminalShellExecution: vi.fn(),
+		activeTextEditor: undefined,
+		onDidChangeActiveTextEditor: vi.fn(),
+		showTextDocument: vi.fn(),
+		createStatusBarItem: vi.fn(),
+	},
+	ThemeIcon: class {
+		constructor(public id: string) {}
+		static File = new this("file")
+		static Folder = new this("folder")
+	},
+}))
 
-  return {
-    window: {
-      createTerminal: vi.fn((options) => {
-        return new MockTerminal() as unknown as vscode.Terminal;
-      }),
-    },
-    Uri: {
-      file: vi.fn((path: string) => ({
-        fsPath: path,
-      })),
-    },
-    ThemeIcon: vi.fn().mockImplementation((iconName) => ({
-      id: iconName,
-    })),
-  };
-});
+describe("TerminalRegistry", () => {
+	beforeEach(() => {
+		// Reset the internal state before each test
+		;(TerminalRegistry as any).terminals = []
+		;(TerminalRegistry as any).nextTerminalId = 1
+	})
 
-describe('TerminalRegistry', () => {
-  beforeEach(() => {
-    // Reset the TerminalRegistry's internal state before each test
-    (TerminalRegistry as any).terminals = [];
-    (TerminalRegistry as any).nextTerminalId = 1;
-  });
+	describe("createTerminal", () => {
+		it("should create a terminal with correct default properties", () => {
+			const terminalInfo = TerminalRegistry.createTerminal()
 
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
+			expect(terminalInfo).toHaveProperty("id", 1)
+			expect(terminalInfo).toHaveProperty("busy", false)
+			expect(terminalInfo).toHaveProperty("lastCommand", "")
+			expect(terminalInfo.terminal).toBeDefined()
+		})
 
-  it('should have a createTerminal method', () => {
-    expect(typeof TerminalRegistry.createTerminal).toBe('function');
-  });
+		it("should create terminals with incrementing IDs", () => {
+			const terminal1 = TerminalRegistry.createTerminal()
+			const terminal2 = TerminalRegistry.createTerminal()
 
-  it('should have a getTerminal method', () => {
-    expect(typeof TerminalRegistry.getTerminal).toBe('function');
-  });
+			expect(terminal1.id).toBe(1)
+			expect(terminal2.id).toBe(2)
+		})
 
-  it('should have an updateTerminal method', () => {
-    expect(typeof TerminalRegistry.updateTerminal).toBe('function');
-  });
+		it("should create a terminal with specified working directory", () => {
+			const cwd = "/test/path"
+			const terminalInfo = TerminalRegistry.createTerminal(cwd)
 
-  it('should have a removeTerminal method', () => {
-    expect(typeof TerminalRegistry.removeTerminal).toBe('function');
-  });
+			expect(vscode.window.createTerminal).toHaveBeenCalledWith({
+				cwd,
+				name: "Cline",
+				iconPath: expect.any(vscode.ThemeIcon),
+			})
+		})
+	})
 
-  it('should have a getAllTerminals method', () => {
-    expect(typeof TerminalRegistry.getAllTerminals).toBe('function');
-  });
+	describe("getTerminal", () => {
+		it("should retrieve an existing terminal by ID", () => {
+			const originalTerminal = TerminalRegistry.createTerminal()
+			const retrievedTerminal = TerminalRegistry.getTerminal(originalTerminal.id)
 
-  // Example of testing createTerminal
-  it('should create a new terminal with correct parameters', () => {
-    const cwd = '/path/to/project';
-    const terminalInfo: TerminalInfo = TerminalRegistry.createTerminal(cwd);
+			expect(retrievedTerminal).toBe(originalTerminal)
+		})
 
-    expect(vscode.window.createTerminal).toHaveBeenCalledWith({
-      cwd,
-      name: 'Cline',
-      iconPath: { id: 'robot' },
-    });
+		it("should return undefined for non-existent terminal", () => {
+			const retrievedTerminal = TerminalRegistry.getTerminal(999)
+			expect(retrievedTerminal).toBeUndefined()
+		})
 
-    expect(terminalInfo).toHaveProperty('terminal');
-    expect(terminalInfo).toHaveProperty('busy', false);
-    expect(terminalInfo).toHaveProperty('lastCommand', '');
-    expect(terminalInfo).toHaveProperty('id', 1);
-  });
+		it("should remove and return undefined for closed terminal", () => {
+			const terminal = TerminalRegistry.createTerminal()
 
-  it('should increment terminal ID for each new terminal', () => {
-    const terminal1 = TerminalRegistry.createTerminal();
-    const terminal2 = TerminalRegistry.createTerminal();
+			// Simulate terminal closure by setting exitStatus
+			terminal.terminal.exitStatus = { code: 0 }
 
-    expect(terminal1.id).toBe(1);
-    expect(terminal2.id).toBe(2);
-  });
+			const retrievedTerminal = TerminalRegistry.getTerminal(terminal.id)
 
-  it('should retrieve a terminal by ID', () => {
-    const terminalInfo = TerminalRegistry.createTerminal();
-    const retrievedTerminal = TerminalRegistry.getTerminal(terminalInfo.id);
+			expect(retrievedTerminal).toBeUndefined()
+		})
+	})
 
-    expect(retrievedTerminal).toBe(terminalInfo);
-  });
+	describe("removeTerminal", () => {
+		it("should remove a terminal by ID", () => {
+			const terminal1 = TerminalRegistry.createTerminal()
+			const terminal2 = TerminalRegistry.createTerminal()
 
-  it('should return undefined for a non-existent terminal', () => {
-    const retrievedTerminal = TerminalRegistry.getTerminal(999);
-    expect(retrievedTerminal).toBeUndefined();
-  });
+			TerminalRegistry.removeTerminal(terminal1.id)
 
-  it('should remove a terminal correctly', () => {
-    const terminal1 = TerminalRegistry.createTerminal();
-    const terminal2 = TerminalRegistry.createTerminal();
+			const remainingTerminals = (TerminalRegistry as any).terminals
+			expect(remainingTerminals).toHaveLength(1)
+			expect(remainingTerminals[0]).toBe(terminal2)
+		})
+	})
 
-    TerminalRegistry.removeTerminal(terminal1.id);
-    const allTerminals = TerminalRegistry.getAllTerminals();
+	describe("updateTerminal", () => {
+		it("should update terminal properties", () => {
+			const terminal = TerminalRegistry.createTerminal()
 
-    expect(allTerminals).toHaveLength(1);
-    expect(allTerminals[0]).toBe(terminal2);
-  });
+			TerminalRegistry.updateTerminal(terminal.id, {
+				busy: true,
+				lastCommand: "test command",
+			})
 
-  it('should update a terminal correctly', () => {
-    const terminal = TerminalRegistry.createTerminal();
-    TerminalRegistry.updateTerminal(terminal.id, { busy: true, lastCommand: 'npm install' });
+			const updatedTerminal = TerminalRegistry.getTerminal(terminal.id)
 
-    const updatedTerminal = TerminalRegistry.getTerminal(terminal.id);
-    expect(updatedTerminal).toHaveProperty('busy', true);
-    expect(updatedTerminal).toHaveProperty('lastCommand', 'npm install');
-  });
+			expect(updatedTerminal).toHaveProperty("busy", true)
+			expect(updatedTerminal).toHaveProperty("lastCommand", "test command")
+		})
 
-  it('getAllTerminals should exclude closed terminals', () => {
-    const terminal1 = TerminalRegistry.createTerminal();
-    const terminal2 = TerminalRegistry.createTerminal();
+		it("should not update non-existent terminal", () => {
+			TerminalRegistry.updateTerminal(999, {
+				busy: true,
+				lastCommand: "test command",
+			})
 
-    // Simulate terminal1 being closed
-    (terminal1.terminal as any).exitStatus = { code: 0 };
+			// No error should be thrown
+		})
+	})
 
-    const allTerminals = TerminalRegistry.getAllTerminals();
+	describe("getAllTerminals", () => {
+		it("should return all active terminals", () => {
+			const terminal1 = TerminalRegistry.createTerminal()
+			const terminal2 = TerminalRegistry.createTerminal()
 
-    expect(allTerminals).toHaveLength(1);
-    expect(allTerminals[0]).toBe(terminal2);
-  });
+			// Simulate first terminal being closed
+			terminal1.terminal.exitStatus = { code: 0 }
 
-  it('getTerminal should remove and return undefined if terminal is closed', () => {
-    const terminal = TerminalRegistry.createTerminal();
+			const activeTerminals = TerminalRegistry.getAllTerminals()
 
-    // Simulate terminal being closed
-    (terminal.terminal as any).exitStatus = { code: 0 };
-
-    const retrievedTerminal = TerminalRegistry.getTerminal(terminal.id);
-
-    expect(retrievedTerminal).toBeUndefined();
-    expect(TerminalRegistry.getAllTerminals()).toHaveLength(0);
-  });
-});
+			expect(activeTerminals).toHaveLength(1)
+			expect(activeTerminals[0]).toBe(terminal2)
+		})
+	})
+})
