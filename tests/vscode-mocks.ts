@@ -214,9 +214,4 @@ const vscode = {
   },
 };
 
-// Mock the vscode module
-vi.mock('vscode', () => {
-  return { default: vscode };
-});
-
 export { vscode };
