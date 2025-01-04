@@ -7,21 +7,12 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
-      exclude: [
-        'coverage/**',
-        'dist/**',
-        '**/node_modules/**',
-        '**/*.d.ts',
-        'tests/**',
-        '**/*.test.ts',
-        '**/*.spec.ts',
-      ],
+    deps: {
+      interopDefault: true,
     },
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'vscode': path.resolve(__dirname, './tests/vscode-mocks.ts'),
     },
   },
 });

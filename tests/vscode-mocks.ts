@@ -6,12 +6,64 @@ interface MockTerminalExitStatus {
   reason: number;
 }
 
+interface Disposable {
+  dispose(): any;
+}
+
+interface CancellationToken {
+  isCancellationRequested: boolean;
+  onCancellationRequested: Event<any>;
+}
+
+interface OutputChannel {
+  name: string;
+  append(value: string): void;
+  appendLine(value: string): void;
+  clear(): void;
+  show(): void;
+  hide(): void;
+  dispose(): void;
+}
+
+type Event<T> = (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => Disposable;
+
+// Create proper Event Emitter implementation
+class EventEmitter<T> {
+  private listeners: ((e: T) => any)[] = [];
+
+  constructor() {
+    this.event = this.event.bind(this);
+    this.fire = this.fire.bind(this);
+    this.dispose = this.dispose.bind(this);
+  }
+
+  event(listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]): Disposable {
+    this.listeners.push(listener);
+    const disposable = {
+      dispose: () => {
+        const index = this.listeners.indexOf(listener);
+        if (index > -1) {
+          this.listeners.splice(index, 1);
+        }
+      }
+    };
+    if (disposables) {
+      disposables.push(disposable);
+    }
+    return disposable;
+  }
+
+  fire(data: T): void {
+    this.listeners.forEach(listener => listener(data));
+  }
+
+  dispose(): void {
+    this.listeners = [];
+  }
+}
+
 // Create base mock implementations
-const createBaseEventEmitter = () => ({
-  event: vi.fn(),
-  fire: vi.fn(),
-  dispose: vi.fn(),
-});
+const createBaseEventEmitter = () => new EventEmitter();
 
 const createBaseTerminal = (options: any) => ({
   name: options?.name || 'Mock Terminal',
@@ -28,7 +80,7 @@ const createBaseTerminal = (options: any) => ({
 
 // Mock the entire vscode module
 const vscode = {
-  EventEmitter: vi.fn().mockImplementation(() => createBaseEventEmitter()),
+  EventEmitter,
   ThemeIcon: vi.fn().mockImplementation((id: string) => ({ id })),
   workspace: {
     workspaceFolders: [],
@@ -37,8 +89,8 @@ const vscode = {
       update: vi.fn(),
       has: vi.fn(),
     }),
-    onDidChangeConfiguration: vi.fn(),
-    onDidChangeWorkspaceFolders: vi.fn(),
+    onDidChangeConfiguration: new EventEmitter().event,
+    onDidChangeWorkspaceFolders: new EventEmitter().event,
   },
   window: {
     terminals: [],
@@ -47,9 +99,18 @@ const vscode = {
       vscode.window.terminals.push(terminal);
       return terminal;
     }),
-    onDidOpenTerminal: vi.fn(),
-    onDidCloseTerminal: vi.fn(),
-    onDidChangeTerminalState: vi.fn(),
+    createOutputChannel: vi.fn((name: string): OutputChannel => ({
+      name,
+      append: vi.fn(),
+      appendLine: vi.fn(),
+      clear: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+    })),
+    onDidOpenTerminal: new EventEmitter().event,
+    onDidCloseTerminal: new EventEmitter().event,
+    onDidChangeTerminalState: new EventEmitter().event,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
     showErrorMessage: vi.fn(),
@@ -57,6 +118,7 @@ const vscode = {
     showInputBox: vi.fn(),
     createStatusBarItem: vi.fn(),
     activeTextEditor: undefined,
+    onDidChangeActiveTextEditor: new EventEmitter().event,
   },
   commands: {
     registerCommand: vi.fn(),
@@ -70,7 +132,14 @@ const vscode = {
     registerDefinitionProvider: vi.fn(),
   },
   Uri: {
-    file: vi.fn((path: string) => ({ scheme: 'file', path })),
+    file: vi.fn((path: string) => ({ 
+      scheme: 'file',
+      path,
+      fsPath: path,
+      with: vi.fn(),
+      toString: vi.fn(),
+      toJSON: vi.fn(),
+    })),
     parse: vi.fn(),
   },
   Position: vi.fn().mockImplementation((line: number, character: number) => ({
@@ -99,6 +168,20 @@ const vscode = {
     User: 3,
     Extension: 4,
   } as const,
+  CancellationTokenSource: class {
+    token: CancellationToken;
+    constructor() {
+      const emitter = new EventEmitter<void>();
+      this.token = {
+        isCancellationRequested: false,
+        onCancellationRequested: emitter.event,
+      };
+    }
+    cancel() {
+      (this.token as any).isCancellationRequested = true;
+    }
+    dispose() {}
+  },
 };
 
 // Mock the vscode module
