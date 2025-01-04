@@ -2,6 +2,11 @@ const assert = require('assert');
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
+const dotenv = require('dotenv');
+
+// Load test environment variables
+const testEnvPath = path.join(__dirname, '.test_env');
+dotenv.config({ path: testEnvPath });
 
 suite('Roo Cline Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Starting Roo Cline extension tests.');
@@ -34,14 +39,11 @@ suite('Roo Cline Extension Test Suite', () => {
 				}
 
 				// Verify API key is set and valid
-				const testEnvPath = path.join(__dirname, '.test_env');
-				const envContent = fs.readFileSync(testEnvPath, 'utf8');
-				const match = envContent.match(/OPEN_ROUTER_API_KEY=(.+)/);
-				if (!match) {
-					done(new Error('OpenRouter API key should be present in .test_env'));
+				const apiKey = process.env.OPEN_ROUTER_API_KEY;
+				if (!apiKey) {
+					done(new Error('OPEN_ROUTER_API_KEY environment variable is not set'));
 					return;
 				}
-				const apiKey = match[1];
 				if (!apiKey.startsWith('sk-or-v1-')) {
 					done(new Error('OpenRouter API key should have correct format'));
 					return;
@@ -180,14 +182,12 @@ suite('Roo Cline Extension Test Suite', () => {
 		// Set up API configuration
 		await provider.updateGlobalState('apiProvider', 'openrouter');
 		await provider.updateGlobalState('openRouterModelId', 'anthropic/claude-3.5-sonnet');
-		const testEnvPath = path.join(__dirname, '.test_env');
-		const envContent = fs.readFileSync(testEnvPath, 'utf8');
-		const match = envContent.match(/OPEN_ROUTER_API_KEY=(.+)/);
-		if (!match) {
-			assert.fail('OpenRouter API key should be present in .test_env');
+		const apiKey = process.env.OPEN_ROUTER_API_KEY;
+		if (!apiKey) {
+			assert.fail('OPEN_ROUTER_API_KEY environment variable is not set');
 			return;
 		}
-		await provider.storeSecret('openRouterApiKey', match[1]);
+		await provider.storeSecret('openRouterApiKey', apiKey);
 
 		// Create webview panel with development options
 		const extensionUri = extension.extensionUri;

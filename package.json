@@ -185,6 +185,7 @@
     "@typescript-eslint/parser": "^7.11.0",
     "@vscode/test-cli": "^0.0.9",
     "@vscode/test-electron": "^2.4.0",
+    "dotenv": "^16.4.7",
     "esbuild": "^0.24.0",
     "eslint": "^8.57.0",
     "husky": "^9.1.7",
@@ -196,9 +197,9 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.10.2",
-    "@aws-sdk/client-bedrock-runtime": "^3.706.0",
     "@anthropic-ai/sdk": "^0.26.0",
     "@anthropic-ai/vertex-sdk": "^0.4.1",
+    "@aws-sdk/client-bedrock-runtime": "^3.706.0",
     "@google/generative-ai": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.0.1",
     "@types/clone-deep": "^4.0.4",
