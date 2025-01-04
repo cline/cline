@@ -1,8 +1,7 @@
 // TerminalManager.test.ts
-import { describe, it, expect, beforeEach, afterEach, vi, afterAll } from 'vitest';
+import { describe, it, expect, vi, afterAll } from 'vitest';
 import * as vscode from 'vscode';
 import { TerminalManager } from './TerminalManager';
-import { TerminalRegistry, TerminalInfo } from './TerminalRegistry';
 
 // Partial mocking of vscode module
 vi.mock('vscode', async () => {
