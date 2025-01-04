@@ -76,20 +76,22 @@ export class TerminalManager {
 	private processes: Map<number, TerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 
-constructor() {
-	let disposable: vscode.Disposable | undefined
-	try {
-		disposable = vscode.window.onDidStartTerminalShellExecution?.(async (e: { execution: { read: () => AsyncIterable<string> } }) => {
-			// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
-			e?.execution?.read()
-		})
-	} catch (error) {
-		// console.error("Error setting up onDidEndTerminalShellExecution", error)
+	constructor() {
+		let disposable: vscode.Disposable | undefined
+		try {
+			disposable = vscode.window.onDidStartTerminalShellExecution?.(
+				async (e: { execution: { read: () => AsyncIterable<string> } }) => {
+					// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
+					e?.execution?.read()
+				},
+			)
+		} catch (error) {
+			// console.error("Error setting up onDidEndTerminalShellExecution", error)
+		}
+		if (disposable) {
+			this.disposables.push(disposable)
+		}
 	}
-	if (disposable) {
-		this.disposables.push(disposable)
-	}
-}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
