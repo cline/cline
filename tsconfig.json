@@ -1,14 +1,21 @@
 {
 	"compilerOptions": {
-		"target": "ES2020",
-		"module": "commonjs",
-		"lib": ["es2020", "dom"],
+		"target": "ES2022",
+		"module": "esnext",
+		"lib": ["es2022", "dom", "esnext.disposable"],
 		"strict": true,
 		"esModuleInterop": true,
-		"skipLibCheck": true,
+		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
 		"moduleResolution": "node",
+"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": false,
 		"resolveJsonModule": true,
+	"useDefineForClassFields": true,
+		"useUnknownInCatchVariables": false,
 		"sourceMap": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
@@ -17,5 +24,5 @@
 		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts"]
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": ["node_modules", "dist", "out"]
+	"exclude": ["node_modules", "dist", "out", "**/*.test.ts"]
 }
