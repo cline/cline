@@ -1,5 +1,4 @@
 import { vi } from 'vitest';
-import { EventEmitter as NodeEventEmitter } from 'events';
 
 // Mock VS Code API types
 interface MockTerminalExitStatus {
@@ -63,26 +62,54 @@ class VSCodeEventEmitter<T> {
   }
 }
 
+// Define a terminal interface to ensure type safety
+interface Terminal {
+  name: string;
+  processId: Promise<number>;
+  creationOptions: any;
+  _exitStatus: MockTerminalExitStatus | undefined;
+  state: { isInteractedWith: boolean };
+  shellIntegration: any;
+  sendText: (text: string, addNewLine?: boolean) => void;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+  close: () => void;
+}
+
 // Create base mock implementations
 const createBaseEventEmitter = () => new VSCodeEventEmitter();
 
-const createBaseTerminal = (options: any) => ({
-  name: options?.name || 'Mock Terminal',
-  processId: Promise.resolve(1234),
-  creationOptions: options,
-  _exitStatus: undefined,
-  state: { isInteractedWith: false },
-  shellIntegration: undefined,
-  sendText: vi.fn(),
-  show: vi.fn(),
-  hide: vi.fn(),
-  dispose: vi.fn(),
-});
+const createBaseTerminal = (options: any): Terminal => {
+  const terminal: Terminal = {
+    name: options?.name || 'Mock Terminal',
+    processId: Promise.resolve(1234),
+    creationOptions: options,
+    _exitStatus: undefined,
+    state: { isInteractedWith: false },
+    shellIntegration: undefined,
+    sendText: vi.fn(),
+    show: vi.fn(),
+    hide: vi.fn(),
+    dispose: vi.fn(),
+    close: function() {
+      onDidCloseTerminal.fire(terminal);
+    }
+  };
+  return terminal;
+};
+
+// Create instances of VSCodeEventEmitter for events
+const onDidOpenTerminal = new VSCodeEventEmitter<Terminal>();
+const onDidCloseTerminal = new VSCodeEventEmitter<Terminal>();
+const onDidChangeTerminalState = new VSCodeEventEmitter<Terminal>();
+const onDidChangeConfiguration = new VSCodeEventEmitter<any>();
+const onDidChangeWorkspaceFolders = new VSCodeEventEmitter<any>();
+const onDidChangeActiveTextEditor = new VSCodeEventEmitter<any>();
 
 // Mock the entire vscode module
 const vscode = {
   EventEmitter: VSCodeEventEmitter,
-  NodeEventEmitter,
   ThemeIcon: vi.fn().mockImplementation((id: string) => ({ id })),
   workspace: {
     workspaceFolders: [],
@@ -91,14 +118,15 @@ const vscode = {
       update: vi.fn(),
       has: vi.fn(),
     }),
-    onDidChangeConfiguration: new VSCodeEventEmitter().event,
-    onDidChangeWorkspaceFolders: new VSCodeEventEmitter().event,
+    onDidChangeConfiguration: onDidChangeConfiguration.event,
+    onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
   },
   window: {
-    terminals: [],
+    terminals: [] as Terminal[],
     createTerminal: vi.fn((options?: any) => {
       const terminal = createBaseTerminal(options);
       vscode.window.terminals.push(terminal);
+      onDidOpenTerminal.fire(terminal);
       return terminal;
     }),
     createOutputChannel: vi.fn((name: string): OutputChannel => ({
@@ -110,9 +138,9 @@ const vscode = {
       hide: vi.fn(),
       dispose: vi.fn(),
     })),
-    onDidOpenTerminal: new VSCodeEventEmitter().event,
-    onDidCloseTerminal: new VSCodeEventEmitter().event,
-    onDidChangeTerminalState: new VSCodeEventEmitter().event,
+    onDidOpenTerminal: onDidOpenTerminal.event,
+    onDidCloseTerminal: onDidCloseTerminal.event,
+    onDidChangeTerminalState: onDidChangeTerminalState.event,
     showInformationMessage: vi.fn(),
     showWarningMessage: vi.fn(),
     showErrorMessage: vi.fn(),
@@ -120,7 +148,7 @@ const vscode = {
     showInputBox: vi.fn(),
     createStatusBarItem: vi.fn(),
     activeTextEditor: undefined,
-    onDidChangeActiveTextEditor: new VSCodeEventEmitter().event,
+    onDidChangeActiveTextEditor: onDidChangeActiveTextEditor.event,
   },
   commands: {
     registerCommand: vi.fn(),
