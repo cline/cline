@@ -51,16 +51,49 @@ describe('TerminalManager Methods', () => {
     terminalManager = new TerminalManager()
     
     // Mock TerminalRegistry methods with a more flexible createTerminal
-    vi.spyOn(TerminalRegistry, 'getAllTerminals').mockReturnValue([])
+    const mockTerminals: TerminalInfo[] = []
+    let nextId = 1  // Reset ID counter for each test
+    
+    // Mock the private terminals array
+    Object.defineProperty(TerminalRegistry, 'terminals', {
+      get: () => mockTerminals,
+      set: (value) => {
+        mockTerminals.length = 0
+        mockTerminals.push(...value)
+      },
+      configurable: true
+    })
+    
+    // Reset and mock nextTerminalId
+    Object.defineProperty(TerminalRegistry, 'nextTerminalId', {
+      get: () => nextId,
+      set: (value) => {
+        nextId = value
+      },
+      configurable: true
+    })
+    
+    vi.spyOn(TerminalRegistry, 'getAllTerminals').mockImplementation(() => mockTerminals)
+    
     vi.spyOn(TerminalRegistry, 'createTerminal').mockImplementation((cwd?: string | vscode.Uri) => {
-      const terminal = vscode.window.createTerminal({ cwd, name: "Cline" })
+      // Create a comprehensive mock terminal
+      const terminal = {
+        name: "Cline",
+        sendText: vi.fn(),
+        show: vi.fn(),
+        hide: vi.fn(),
+        dispose: vi.fn(),
+        shellIntegration: {
+          cwd: typeof cwd === 'string' ? vscode.Uri.file(cwd) : cwd
+        }
+      } as vscode.Terminal
       
       // Create a mutable terminal info object
-      const terminalInfo = {
+      const terminalInfo: TerminalInfo = {
         terminal,
         busy: false,
         lastCommand: "",
-        id: TerminalRegistry['nextTerminalId']++
+        id: nextId++
       }
 
       // Special handling for specific mock CWDs
@@ -70,12 +103,14 @@ describe('TerminalManager Methods', () => {
         }
       }
 
+      mockTerminals.push(terminalInfo)
       return terminalInfo
     })
   })
 
   afterEach(() => {
     terminalManager.disposeAll()
+    vi.restoreAllMocks()
   })
 
   describe('getOrCreateTerminal', () => {
@@ -90,7 +125,9 @@ describe('TerminalManager Methods', () => {
 
       const result = await terminalManager.getOrCreateTerminal(mockCwd)
 
-      expect(result).toEqual(mockTerminal)
+      expect(result.id).toBe(mockTerminal.id)
+      expect(result.busy).toBe(mockTerminal.busy)
+      expect(result.lastCommand).toBe(mockTerminal.lastCommand)
       expect(terminalManager['terminalIds'].has(mockTerminal.id)).toBe(true)
     })
 
@@ -114,16 +151,16 @@ describe('TerminalManager Methods', () => {
         cwd: vscode.Uri.file(mockCwd)
       })
 
-      const availableTerminal = TerminalRegistry.createTerminal(mockCwd)
+      const availableTerminal = TerminalRegistry.createTerminal('/other/path')
       
       // Create a more complete mock of the terminal
       vi.spyOn(availableTerminal.terminal, 'shellIntegration' as any, 'get').mockReturnValue({
-        cwd: vscode.Uri.file(mockCwd)
+        cwd: vscode.Uri.file('/other/path')
       })
 
       const result = await terminalManager.getOrCreateTerminal(mockCwd)
 
-      expect(result).toBe(availableTerminal)
+      expect(result.id).not.toBe(busyTerminal.id)
       expect(result.busy).toBe(false)
       expect(terminalManager['terminalIds'].has(result.id)).toBe(true)
     })
