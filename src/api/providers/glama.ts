@@ -80,8 +80,8 @@ export class GlamaHandler implements ApiHandler {
 			stream: true,
 		}).withResponse();
 
-		const completionRequestUuid = response.headers.get(
-			'x-completion-request-uuid',
+		const completionRequestId = response.headers.get(
+			'x-completion-request-id',
 		);
 
 		for await (const chunk of completion) {
@@ -99,7 +99,7 @@ export class GlamaHandler implements ApiHandler {
 		await delay(1000)
 
 		try {
-			const response = await axios.get(`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestUuid}`, {
+			const response = await axios.get(`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.glamaApiKey}`,
 				},
