@@ -1,15 +1,24 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef } from "react"
-import { ClineApiReqInfo, ClineMessage, ClineSayTool } from "../../../../src/shared/ExtensionMessage"
-import { COMMAND_OUTPUT_STRING } from "../../../../src/shared/combineCommandSequences"
+import { useSize } from "react-use"
+import {
+	ClineApiReqInfo,
+	ClineAskUseMcpServer,
+	ClineMessage,
+	ClineSayTool,
+} from "../../../../src/shared/ExtensionMessage"
+import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
+import McpResourceRow from "../mcp/McpResourceRow"
+import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
-import { useSize } from "react-use"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -35,7 +44,7 @@ const ChatRow = memo(
 					padding: "10px 6px 10px 15px",
 				}}>
 				<ChatRowContent {...props} />
-			</div>
+			</div>,
 		)
 
 		useEffect(() => {
@@ -55,12 +64,19 @@ const ChatRow = memo(
 		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
-	deepEqual
+	deepEqual,
 )
 
 export default ChatRow
 
-const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+}: ChatRowContentProps) => {
+	const { mcpServers } = useExtensionState()
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -74,7 +90,12 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			? lastModifiedMessage?.text
 			: undefined
 	const isCommandExecuting =
-		isLast && lastModifiedMessage?.ask === "command" && lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
+		isLast &&
+		(lastModifiedMessage?.ask === "command" || lastModifiedMessage?.say === "command") &&
+		lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
+
+	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
+
 	const type = message.type === "ask" ? message.ask : message.say
 
 	const normalColor = "var(--vscode-foreground)"
@@ -98,6 +119,13 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
 					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
+			case "auto_approval_max_req_reached":
+				return [
+					<span
+						className="codicon codicon-warning"
+						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
+				]
 			case "command":
 				return [
 					isCommandExecuting ? (
@@ -108,7 +136,34 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Cline wants to execute this command:
+						{message.type === "ask"
+							? "Cline wants to execute this command:"
+							: "Cline executed this command:"}
+					</span>,
+				]
+			case "use_mcp_server":
+				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+				return [
+					isMcpServerResponding ? (
+						<ProgressIndicator />
+					) : (
+						<span
+							className="codicon codicon-server"
+							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+					),
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						{message.type === "ask" ? (
+							<>
+								Cline wants to{" "}
+								{mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+								<code>{mcpServerUse.serverName}</code> MCP server:
+							</>
+						) : (
+							<>
+								Cline {mcpServerUse.type === "use_mcp_tool" ? "used a tool" : "accessed a resource"} on
+								the <code>{mcpServerUse.serverName}</code> MCP server:
+							</>
+						)}
 					</span>,
 				]
 			case "completion_result":
@@ -175,7 +230,16 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason])
+	}, [
+		type,
+		cost,
+		apiRequestFailedMessage,
+		isCommandExecuting,
+		apiReqCancelReason,
+		isMcpServerResponding,
+		message.text,
+		message.type,
+	])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -211,11 +275,15 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Cline wants to edit this file:"
+									: "Cline is editing this file:"}
+							</span>
 						</div>
 						<CodeAccordian
-							isLoading={message.partial}
-							diff={tool.diff!}
+							// isLoading={message.partial}
+							code={tool.content}
 							path={tool.path!}
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
@@ -227,7 +295,11 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Cline wants to create a new file:"
+									: "Cline is creating a new file:"}
+							</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -380,35 +452,198 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 						/>
 					</>
 				)
-			case "inspectSite":
-				const isInspecting =
-					isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
-				return (
-					<>
-						<div style={headerStyle}>
-							{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? (
-									<>Cline wants to inspect this website:</>
-								) : (
-									<>Cline is inspecting this website:</>
-								)}
-							</span>
-						</div>
-						<div
-							style={{
-								borderRadius: 3,
-								border: "1px solid var(--vscode-editorGroup-border)",
-								overflow: "hidden",
-								backgroundColor: CODE_BLOCK_BG_COLOR,
-							}}>
-							<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
-						</div>
-					</>
-				)
+			// case "inspectSite":
+			// 	const isInspecting =
+			// 		isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
+			// 	return (
+			// 		<>
+			// 			<div style={headerStyle}>
+			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
+			// 				<span style={{ fontWeight: "bold" }}>
+			// 					{message.type === "ask" ? (
+			// 						<>Cline wants to inspect this website:</>
+			// 					) : (
+			// 						<>Cline is inspecting this website:</>
+			// 					)}
+			// 				</span>
+			// 			</div>
+			// 			<div
+			// 				style={{
+			// 					borderRadius: 3,
+			// 					border: "1px solid var(--vscode-editorGroup-border)",
+			// 					overflow: "hidden",
+			// 					backgroundColor: CODE_BLOCK_BG_COLOR,
+			// 				}}>
+			// 				<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
+			// 			</div>
+			// 		</>
+			// 	)
 			default:
 				return null
 		}
+	}
+
+	if (message.ask === "command" || message.say === "command") {
+		const splitMessage = (text: string) => {
+			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+			if (outputIndex === -1) {
+				return { command: text, output: "" }
+			}
+			return {
+				command: text.slice(0, outputIndex).trim(),
+				output: text
+					.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
+					.trim()
+					.split("")
+					.map((char) => {
+						switch (char) {
+							case "\t":
+								return "→   "
+							case "\b":
+								return "⌫"
+							case "\f":
+								return "⏏"
+							case "\v":
+								return "⇳"
+							default:
+								return char
+						}
+					})
+					.join(""),
+			}
+		}
+
+		const { command: rawCommand, output } = splitMessage(message.text || "")
+
+		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
+		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+
+		return (
+			<>
+				<div style={headerStyle}>
+					{icon}
+					{title}
+				</div>
+				{/* <Terminal
+					rawOutput={command + (output ? "\n" + output : "")}
+					shouldAllowInput={!!isCommandExecuting && output.length > 0}
+				/> */}
+				<div
+					style={{
+						borderRadius: 3,
+						border: "1px solid var(--vscode-editorGroup-border)",
+						overflow: "hidden",
+						backgroundColor: CODE_BLOCK_BG_COLOR,
+					}}>
+					<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
+					{output.length > 0 && (
+						<div style={{ width: "100%" }}>
+							<div
+								onClick={onToggleExpand}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+									width: "100%",
+									justifyContent: "flex-start",
+									cursor: "pointer",
+									padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
+								}}>
+								<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+								<span style={{ fontSize: "0.8em" }}>Command Output</span>
+							</div>
+							{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
+						</div>
+					)}
+				</div>
+				{requestsApproval && (
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 10,
+							padding: 8,
+							fontSize: "12px",
+							color: "var(--vscode-errorForeground)",
+						}}>
+						<i className="codicon codicon-warning"></i>
+						<span>The model has determined this command requires explicit approval.</span>
+					</div>
+				)}
+			</>
+		)
+	}
+
+	if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
+		const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+		const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
+		return (
+			<>
+				<div style={headerStyle}>
+					{icon}
+					{title}
+				</div>
+
+				<div
+					style={{
+						background: "var(--vscode-textCodeBlock-background)",
+						borderRadius: "3px",
+						padding: "8px 10px",
+						marginTop: "8px",
+					}}>
+					{useMcpServer.type === "access_mcp_resource" && (
+						<McpResourceRow
+							item={{
+								// Use the matched resource/template details, with fallbacks
+								...(findMatchingResourceOrTemplate(
+									useMcpServer.uri || "",
+									server?.resources,
+									server?.resourceTemplates,
+								) || {
+									name: "",
+									mimeType: "",
+									description: "",
+								}),
+								// Always use the actual URI from the request
+								uri: useMcpServer.uri || "",
+							}}
+						/>
+					)}
+
+					{useMcpServer.type === "use_mcp_tool" && (
+						<>
+							<McpToolRow
+								tool={{
+									name: useMcpServer.toolName || "",
+									description:
+										server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
+											?.description || "",
+								}}
+							/>
+							{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
+								<div style={{ marginTop: "8px" }}>
+									<div
+										style={{
+											marginBottom: "4px",
+											opacity: 0.8,
+											fontSize: "12px",
+											textTransform: "uppercase",
+										}}>
+										Arguments
+									</div>
+									<CodeAccordian
+										code={useMcpServer.arguments}
+										language="json"
+										isExpanded={true}
+										onToggleExpand={onToggleExpand}
+									/>
+								</div>
+							)}
+						</>
+					)}
+				</div>
+			</>
+		)
 	}
 
 	switch (message.type) {
@@ -549,42 +784,6 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							/>
 						</div>
 					)
-				case "inspect_site_result":
-					const logs = message.text || ""
-					const screenshot = message.images?.[0]
-					return (
-						<div
-							style={{
-								marginTop: -10,
-								width: "100%",
-							}}>
-							{screenshot && (
-								<img
-									src={screenshot}
-									alt="Inspect screenshot"
-									style={{
-										width: "calc(100% - 2px)",
-										height: "auto",
-										objectFit: "contain",
-										marginBottom: logs ? 7 : 0,
-										borderRadius: 3,
-										cursor: "pointer",
-										marginLeft: "1px",
-									}}
-									onClick={() => vscode.postMessage({ type: "openImage", text: screenshot })}
-								/>
-							)}
-							{logs && (
-								<CodeAccordian
-									code={logs}
-									language="shell"
-									isConsoleLogs={true}
-									isExpanded={isExpanded}
-									onToggleExpand={onToggleExpand}
-								/>
-							)}
-						</div>
-					)
 				case "error":
 					return (
 						<>
@@ -595,6 +794,35 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 								</div>
 							)}
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
+						</>
+					)
+				case "diff_error":
+					return (
+						<>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									padding: 8,
+									borderRadius: 3,
+									fontSize: 12,
+								}}>
+								<div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+									<i
+										className="codicon codicon-error"
+										style={{
+											marginRight: 8,
+											fontSize: 18,
+											color: "#FFA500",
+										}}></i>
+									<span style={{ fontWeight: 500, color: "#FFA500" }}>Diff Edit Failed</span>
+								</div>
+								<div>
+									This usually happens when the model uses search patterns that don't match anything
+									in the file. Retrying...
+								</div>
+							</div>
 						</>
 					)
 				case "completion_result":
@@ -647,7 +875,28 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							</div>
 						</>
 					)
-
+				case "mcp_server_response":
+					return (
+						<>
+							<div style={{ paddingTop: 0 }}>
+								<div
+									style={{
+										marginBottom: "4px",
+										opacity: 0.8,
+										fontSize: "12px",
+										textTransform: "uppercase",
+									}}>
+									Response
+								</div>
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						</>
+					)
 				default:
 					return (
 						<>
@@ -675,78 +924,14 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
 					)
-				case "command":
-					const splitMessage = (text: string) => {
-						const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-						if (outputIndex === -1) {
-							return { command: text, output: "" }
-						}
-						return {
-							command: text.slice(0, outputIndex).trim(),
-							output: text
-								.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-								.trim()
-								.split("")
-								.map((char) => {
-									switch (char) {
-										case "\t":
-											return "→   "
-										case "\b":
-											return "⌫"
-										case "\f":
-											return "⏏"
-										case "\v":
-											return "⇳"
-										default:
-											return char
-									}
-								})
-								.join(""),
-						}
-					}
-
-					const { command, output } = splitMessage(message.text || "")
+				case "auto_approval_max_req_reached":
 					return (
 						<>
 							<div style={headerStyle}>
 								{icon}
 								{title}
 							</div>
-							{/* <Terminal
-								rawOutput={command + (output ? "\n" + output : "")}
-								shouldAllowInput={!!isCommandExecuting && output.length > 0}
-							/> */}
-							<div
-								style={{
-									borderRadius: 3,
-									border: "1px solid var(--vscode-editorGroup-border)",
-									overflow: "hidden",
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-								}}>
-								<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
-								{output.length > 0 && (
-									<div style={{ width: "100%" }}>
-										<div
-											onClick={onToggleExpand}
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "4px",
-												width: "100%",
-												justifyContent: "flex-start",
-												cursor: "pointer",
-												padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
-											}}>
-											<span
-												className={`codicon codicon-chevron-${
-													isExpanded ? "down" : "right"
-												}`}></span>
-											<span style={{ fontSize: "0.8em" }}>Command Output</span>
-										</div>
-										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
-									</div>
-								)}
-							</div>
+							<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>{message.text}</p>
 						</>
 					)
 				case "completion_result":
@@ -785,7 +970,7 @@ const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessa
 	}
 }
 
-const ProgressIndicator = () => (
+export const ProgressIndicator = () => (
 	<div
 		style={{
 			width: "16px",

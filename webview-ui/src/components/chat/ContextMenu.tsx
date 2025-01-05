@@ -25,7 +25,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	const filteredOptions = useMemo(
 		() => getContextMenuOptions(searchQuery, selectedType, queryItems),
-		[searchQuery, selectedType, queryItems]
+		[searchQuery, selectedType, queryItems],
 	)
 
 	useEffect(() => {
@@ -129,14 +129,17 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						style={{
 							padding: "8px 12px",
 							cursor: isOptionSelectable(option) ? "pointer" : "default",
-							color: "var(--vscode-dropdown-foreground)",
+							color:
+								index === selectedIndex && isOptionSelectable(option)
+									? "var(--vscode-quickInputList-focusForeground)"
+									: "",
 							borderBottom: "1px solid var(--vscode-editorGroup-border)",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
 							backgroundColor:
 								index === selectedIndex && isOptionSelectable(option)
-									? "var(--vscode-list-activeSelectionBackground)"
+									? "var(--vscode-quickInputList-focusBackground)"
 									: "",
 						}}
 						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>

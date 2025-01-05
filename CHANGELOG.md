@@ -1,5 +1,107 @@
 # Change Log
 
+## [3.0.12]
+
+- Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)
+
+## [3.0.11]
+
+- Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
+
+## [3.0.10]
+
+- Add DeepSeek provider to API Provider options
+- Fix context window limit errors for DeepSeek v3
+
+## [3.0.9]
+
+- Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
+
+## [3.0.8]
+
+- Mitigate DeepSeek v3 diff edit errors by adding 'auto-formatting considerations' to system prompt, encouraging model to use updated file contents as reference point for SEARCH blocks
+
+## [3.0.7]
+
+- Revert to using batched file watcher to fix crash when many files would be created at once
+
+## [3.0.6]
+
+- Fix bug where some files would be missing in the `@` context mention menu
+- Add Bedrock support in additional regions
+- Diff edit improvements
+- Add OpenRouter's middle-out transform for models that don't use prompt caching (prevents context window limit errors, but cannot be applied to models like Claude since it would continuously break the cache)
+
+## [3.0.4]
+
+- Fix bug where gemini models would add code block artifacts to the end of text content
+- Fix context mention menu visual issues on light themes
+
+## [3.0.2]
+
+- Adds block anchor matching for more reliable diff edits (if 3+ lines, first and last line are used as anchors to search for)
+- Add instruction to system prompt to use complete lines in diff edits to work properly with fallback strategies
+- Improves diff edit error handling
+- Adds new Gemini models
+
+## [3.0.0]
+
+- Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
+- Adds support for a more comprehensive auto-approve configuration, allowing you to specify which tools require approval and which don't.
+- Adds ability to enable system notifications for when Cline needs approval or completes a task.
+- Adds support for a root-level `.clinerules` file that can be used to specify custom instructions for the project.
+
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that gets the latest npm docs")
+
+## [2.1.6]
+
+- Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
+
+## [2.1.5]
+
+- Add support for prompt caching for new Claude model IDs on OpenRouter (e.g. `anthropic/claude-3.5-sonnet-20240620`)
+
+## [2.1.4]
+
+- AWS Bedrock fixes (add missing regions, support for cross-region inference, and older Sonnet model for regions where new model is not available)
+
+## [2.1.3]
+
+- Add support for Claude 3.5 Haiku, 66% cheaper than Sonnet with similar intelligence
+
+## [2.1.2]
+
+- Misc. bug fixes
+- Update README with new browser feature
+
+## [2.1.1]
+
+- Add stricter prompt to prevent Cline from editing files during a browser session without first closing the browser
+
+## [2.1.0]
+
+- Cline now uses Anthropic's new "Computer Use" feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging, end-to-end testing, and even general web use. Try asking "Look up the weather in Colorado" to see it in action! (Available with Claude 3.5 Sonnet v2)
+
+## [2.0.19]
+
+- Fix model info for Claude 3.5 Sonnet v1 on OpenRouter
+
+## [2.0.18]
+
+- Add support for both v1 and v2 of Claude 3.5 Sonnet for GCP Vertex and AWS Bedrock (for cases where the new model is not enabled yet or unavailable in your region)
+
+## [2.0.17]
+
+- Update Anthropic model IDs
+
+## [2.0.16]
+
+- Adjustments to system prompt
+
 ## [2.0.15]
 
 - Fix bug where modifying Cline's edits would lead him to try to re-apply the edits

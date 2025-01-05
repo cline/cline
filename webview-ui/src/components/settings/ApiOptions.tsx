@@ -17,6 +17,8 @@ import {
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
+	deepSeekDefaultModelId,
+	deepSeekModels,
 	geminiDefaultModelId,
 	geminiModels,
 	openAiModelInfoSaneDefaults,
@@ -45,6 +47,7 @@ interface ApiOptionsProps {
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -57,23 +60,27 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	// Poll ollama models
-	const requestOllamaModels = useCallback(() => {
+	// Poll ollama/lmstudio models
+	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
 			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
+		} else if (selectedProvider === "lmstudio") {
+			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
 		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
+	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama") {
-			requestOllamaModels()
+		if (selectedProvider === "ollama" || selectedProvider === "lmstudio") {
+			requestLocalModels()
 		}
-	}, [selectedProvider, requestOllamaModels])
-	useInterval(requestOllamaModels, selectedProvider === "ollama" ? 2000 : null)
+	}, [selectedProvider, requestLocalModels])
+	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" ? 2000 : null)
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && message.ollamaModels) {
 			setOllamaModels(message.ollamaModels)
+		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
+			setLmStudioModels(message.lmStudioModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -124,10 +131,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
+					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
@@ -211,6 +220,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
+			{selectedProvider === "deepseek" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.deepSeekApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("deepSeekApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.deepSeekApiKey && (
+							<VSCodeLink
+								href="https://www.deepseek.com/"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								You can get a DeepSeek API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "openrouter" && (
 				<div>
 					<VSCodeTextField
@@ -284,27 +321,39 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							<VSCodeOption value="">Select a region...</VSCodeOption>
 							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
 							<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
-							{/* <VSCodeOption value="us-east-2">us-east-2</VSCodeOption> */}
+							<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
 							{/* <VSCodeOption value="us-west-1">us-west-1</VSCodeOption> */}
 							<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
 							{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
 							{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
 							<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
 							<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
-							{/* <VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption> */}
+							<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
 							{/* <VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption> */}
 							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
 							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
 							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
 							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
 							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
 							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
 							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
 							{/* <VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption> */}
 							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
 							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
+							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</div>
+					<VSCodeCheckbox
+						checked={apiConfiguration?.awsUseCrossRegionInference || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
+						}}>
+						Use cross-region inference
+					</VSCodeCheckbox>
 					<p
 						style={{
 							fontSize: "12px",
@@ -453,6 +502,75 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
+			{selectedProvider === "lmstudio" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.lmStudioBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("lmStudioBaseUrl")}
+						placeholder={"Default: http://localhost:1234"}>
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.lmStudioModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("lmStudioModelId")}
+						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					{lmStudioModels.length > 0 && (
+						<VSCodeRadioGroup
+							value={
+								lmStudioModels.includes(apiConfiguration?.lmStudioModelId || "")
+									? apiConfiguration?.lmStudioModelId
+									: ""
+							}
+							onChange={(e) => {
+								const value = (e.target as HTMLInputElement)?.value
+								// need to check value first since radio group returns empty string sometimes
+								if (value) {
+									handleInputChange("lmStudioModelId")({
+										target: { value },
+									})
+								}
+							}}>
+							{lmStudioModels.map((model) => (
+								<VSCodeRadio
+									key={model}
+									value={model}
+									checked={apiConfiguration?.lmStudioModelId === model}>
+									{model}
+								</VSCodeRadio>
+							))}
+						</VSCodeRadioGroup>
+					)}
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						LM Studio allows you to run models locally on your computer. For instructions on how to get
+						started, see their
+						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
+							quickstart guide.
+						</VSCodeLink>
+						You will also need to start LM Studio's{" "}
+						<VSCodeLink
+							href="https://lmstudio.ai/docs/basics/server"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							local server
+						</VSCodeLink>{" "}
+						feature to use it with this extension.{" "}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							with Claude models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
@@ -533,6 +651,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			{selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
+				selectedProvider !== "lmstudio" &&
 				showModelOptions && (
 					<>
 						<div className="dropdown-container">
@@ -544,6 +663,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 						</div>
 
 						<ModelInfoView
@@ -609,6 +729,12 @@ export const ModelInfoView = ({
 			isSupported={modelInfo.supportsImages ?? false}
 			supportsLabel="Supports images"
 			doesNotSupportLabel="Does not support images"
+		/>,
+		<ModelInfoSupportsItem
+			key="supportsComputerUse"
+			isSupported={modelInfo.supportsComputerUse ?? false}
+			supportsLabel="Supports computer use"
+			doesNotSupportLabel="Does not support computer use"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
@@ -724,6 +850,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "deepseek":
+			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,
@@ -740,6 +868,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.ollamaModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "lmstudio":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:

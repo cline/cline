@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 
+console.log("createTextEditorDecorationType called")
 const fadedOverlayDecorationType = vscode.window.createTextEditorDecorationType({
 	backgroundColor: "rgba(255, 255, 0, 0.1)",
 	opacity: "0.4",
@@ -65,8 +66,8 @@ export class DecorationController {
 			this.ranges.push(
 				new vscode.Range(
 					new vscode.Position(line + 1, 0),
-					new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER)
-				)
+					new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER),
+				),
 			)
 		}
 

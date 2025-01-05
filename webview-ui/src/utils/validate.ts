@@ -33,6 +33,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "deepseek":
+				if (!apiConfiguration.deepSeekApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "openai":
 				if (
 					!apiConfiguration.openAiBaseUrl ||
@@ -47,6 +52,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model ID."
 				}
 				break
+			case "lmstudio":
+				if (!apiConfiguration.lmStudioModelId) {
+					return "You must provide a valid model ID."
+				}
+				break
 		}
 	}
 	return undefined
@@ -54,7 +64,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,
-	openRouterModels?: Record<string, ModelInfo>
+	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {

@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
-import { ClineAsk, ClineSayTool, ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import {
+	ClineAsk,
+	ClineMessage,
+	ClineSayBrowserAction,
+	ClineSayTool,
+	ExtensionMessage,
+} from "../../../../src/shared/ExtensionMessage"
 import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
@@ -14,9 +20,11 @@ import { vscode } from "../../utils/vscode"
 import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import Announcement from "./Announcement"
+import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
+import AutoApproveMenu from "./AutoApproveMenu"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -44,8 +52,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>(undefined)
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>(undefined)
+	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
+	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
@@ -81,6 +89,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Proceed Anyways")
 							setSecondaryButtonText("Start New Task")
 							break
+						case "auto_approval_max_req_reached":
+							setTextAreaDisabled(true)
+							setClineAsk("auto_approval_max_req_reached")
+							setEnableButtons(true)
+							setPrimaryButtonText("Proceed")
+							setSecondaryButtonText("Start New Task")
+							break
 						case "followup":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
@@ -105,6 +120,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									break
 							}
 							break
+						case "browser_action_launch":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("browser_action_launch")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
+							break
 						case "command":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("command")
@@ -118,6 +140,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setEnableButtons(true)
 							setPrimaryButtonText("Proceed While Running")
 							setSecondaryButtonText(undefined)
+							break
+						case "use_mcp_server":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("use_mcp_server")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
@@ -162,8 +191,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "error":
 						case "api_req_finished":
 						case "text":
-						case "inspect_site_result":
+						case "browser_action":
+						case "browser_action_result":
+						case "browser_action_launch":
+						case "command":
+						case "use_mcp_server":
 						case "command_output":
+						case "mcp_server_request_started":
+						case "mcp_server_response":
 						case "completion_result":
 						case "tool":
 							break
@@ -185,8 +220,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			setTextAreaDisabled(false)
 			setClineAsk(undefined)
 			setEnableButtons(false)
-			setPrimaryButtonText(undefined)
-			setSecondaryButtonText(undefined)
+			setPrimaryButtonText("Approve")
+			setSecondaryButtonText("Reject")
 		}
 	}, [messages.length])
 
@@ -229,8 +264,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					switch (clineAsk) {
 						case "followup":
 						case "tool":
+						case "browser_action_launch":
 						case "command": // user can provide feedback to a tool or command use
 						case "command_output": // user can send input to command stdin
+						case "use_mcp_server":
 						case "completion_result": // if this happens then the user has feedback for the completion result
 						case "resume_task":
 						case "resume_completed_task":
@@ -255,7 +292,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk]
+		[messages.length, clineAsk],
 	)
 
 	const startNewTask = useCallback(() => {
@@ -271,8 +308,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "command":
 			case "command_output":
 			case "tool":
+			case "browser_action_launch":
+			case "use_mcp_server":
 			case "resume_task":
 			case "mistake_limit_reached":
+			case "auto_approval_max_req_reached":
 				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
 				break
 			case "completion_result":
@@ -299,10 +339,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		switch (clineAsk) {
 			case "api_req_failed":
 			case "mistake_limit_reached":
+			case "auto_approval_max_req_reached":
 				startNewTask()
 				break
 			case "command":
 			case "tool":
+			case "browser_action_launch":
+			case "use_mcp_server":
 				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 				break
@@ -347,7 +390,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const newImages = message.images ?? []
 					if (newImages.length > 0) {
 						setSelectedImages((prevImages) =>
-							[...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE)
+							[...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE),
 						)
 					}
 					break
@@ -373,7 +416,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleSendMessage,
 			handlePrimaryButtonClick,
 			handleSecondaryButtonClick,
-		]
+		],
 	)
 
 	useEvent("message", handleMessage)
@@ -418,13 +461,94 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						return false
 					}
 					break
-				case "inspect_site_result":
-					// don't show row for inspect site result until a screenshot is captured
-					return !!message.images
+				case "mcp_server_request_started":
+					return false
 			}
 			return true
 		})
 	}, [modifiedMessages])
+
+	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
+		// which of visible messages are browser session messages, see above
+		if (message.type === "ask") {
+			return ["browser_action_launch"].includes(message.ask!)
+		}
+		if (message.type === "say") {
+			return [
+				"browser_action_launch",
+				"api_req_started",
+				"text",
+				"browser_action",
+				"browser_action_result",
+			].includes(message.say!)
+		}
+		return false
+	}
+
+	const groupedMessages = useMemo(() => {
+		const result: (ClineMessage | ClineMessage[])[] = []
+		let currentGroup: ClineMessage[] = []
+		let isInBrowserSession = false
+
+		const endBrowserSession = () => {
+			if (currentGroup.length > 0) {
+				result.push([...currentGroup])
+				currentGroup = []
+				isInBrowserSession = false
+			}
+		}
+
+		visibleMessages.forEach((message) => {
+			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+				// complete existing browser session if any
+				endBrowserSession()
+				// start new
+				isInBrowserSession = true
+				currentGroup.push(message)
+			} else if (isInBrowserSession) {
+				// end session if api_req_started is cancelled
+
+				if (message.say === "api_req_started") {
+					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
+					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
+					if (lastApiReqStarted?.text != null) {
+						const info = JSON.parse(lastApiReqStarted.text)
+						const isCancelled = info.cancelReason != null
+						if (isCancelled) {
+							endBrowserSession()
+							result.push(message)
+							return
+						}
+					}
+				}
+
+				if (isBrowserSessionMessage(message)) {
+					currentGroup.push(message)
+
+					// Check if this is a close action
+					if (message.say === "browser_action") {
+						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						if (browserAction.action === "close") {
+							endBrowserSession()
+						}
+					}
+				} else {
+					// complete existing browser session if any
+					endBrowserSession()
+					result.push(message)
+				}
+			} else {
+				result.push(message)
+			}
+		})
+
+		// Handle case where browser session is the last group
+		if (currentGroup.length > 0) {
+			result.push([...currentGroup])
+		}
+
+		return result
+	}, [visibleMessages])
 
 	// scrolling
 
@@ -438,9 +562,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					})
 				},
 				10,
-				{ immediate: true }
+				{ immediate: true },
 			),
-		[]
+		[],
 	)
 
 	const scrollToBottomAuto = useCallback(() => {
@@ -454,10 +578,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
-			const isLast = visibleMessages.at(-1)?.ts === ts
-			const isSecondToLast = visibleMessages.at(-2)?.ts === ts
+			const lastGroup = groupedMessages.at(-1)
+			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
+			const secondToLastGroup = groupedMessages.at(-2)
+			const isSecondToLast = Array.isArray(secondToLastGroup)
+				? secondToLastGroup[0].ts === ts
+				: secondToLastGroup?.ts === ts
+
 			const isLastCollapsedApiReq =
-				visibleMessages.at(-1)?.say === "api_req_started" && !expandedRows[visibleMessages.at(-1)?.ts ?? 0]
+				isLast &&
+				!Array.isArray(lastGroup) && // Make sure it's not a browser session group
+				lastGroup?.say === "api_req_started" &&
+				!expandedRows[lastGroup.ts]
+
 			setExpandedRows((prev) => ({
 				...prev,
 				[ts]: !prev[ts],
@@ -485,7 +618,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				} else {
 					const timer = setTimeout(() => {
 						virtuosoRef.current?.scrollToIndex({
-							index: visibleMessages.length - (isLast ? 1 : 2),
+							index: groupedMessages.length - (isLast ? 1 : 2),
 							align: "start",
 						})
 					}, 0)
@@ -493,7 +626,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[visibleMessages, expandedRows, scrollToBottomAuto, isAtBottom]
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -508,7 +641,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[scrollToBottomSmooth, scrollToBottomAuto]
+		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
 	useEffect(() => {
@@ -518,7 +651,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}, 50)
 			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
-	}, [visibleMessages.length, scrollToBottomSmooth])
+	}, [groupedMessages.length, scrollToBottomSmooth])
 
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
@@ -537,18 +670,41 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [task])
 
 	const itemContent = useCallback(
-		(index: number, message: any) => (
-			<ChatRow
-				key={message.ts}
-				message={message}
-				isExpanded={expandedRows[message.ts] || false}
-				onToggleExpand={() => toggleRowExpansion(message.ts)}
-				lastModifiedMessage={modifiedMessages.at(-1)}
-				isLast={index === visibleMessages.length - 1}
-				onHeightChange={handleRowHeightChange}
-			/>
-		),
-		[expandedRows, modifiedMessages, visibleMessages.length, toggleRowExpansion, handleRowHeightChange]
+		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
+			// browser session group
+			if (Array.isArray(messageOrGroup)) {
+				return (
+					<BrowserSessionRow
+						messages={messageOrGroup}
+						isLast={index === groupedMessages.length - 1}
+						lastModifiedMessage={modifiedMessages.at(-1)}
+						onHeightChange={handleRowHeightChange}
+						// Pass handlers for each message in the group
+						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
+						onToggleExpand={(messageTs: number) => {
+							setExpandedRows((prev) => ({
+								...prev,
+								[messageTs]: !prev[messageTs],
+							}))
+						}}
+					/>
+				)
+			}
+
+			// regular message
+			return (
+				<ChatRow
+					key={messageOrGroup.ts}
+					message={messageOrGroup}
+					isExpanded={expandedRows[messageOrGroup.ts] || false}
+					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
+					lastModifiedMessage={modifiedMessages.at(-1)}
+					isLast={index === groupedMessages.length - 1}
+					onHeightChange={handleRowHeightChange}
+				/>
+			)
+		},
+		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
 
 	return (
@@ -577,10 +733,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			) : (
 				<div
 					style={{
-						flexGrow: 1,
+						flex: "1 1 0", // flex-grow: 1, flex-shrink: 1, flex-basis: 0
+						minHeight: 0,
 						overflowY: "auto",
 						display: "flex",
 						flexDirection: "column",
+						paddingBottom: "10px",
 					}}>
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
@@ -593,13 +751,40 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								Claude 3.5 Sonnet's agentic coding capabilities,
 							</VSCodeLink>{" "}
 							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, explore complex projects, and execute terminal commands (after you grant
-							permission), I can assist you in ways that go beyond code completion or tech support.
+							& edit files, explore complex projects, use the browser, and execute terminal commands
+							(after you grant permission), I can assist you in ways that go beyond code completion or
+							tech support. I can even use MCP to create new tools and extend my own capabilities.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
 			)}
+
+			{/* 
+			// Flex layout explanation:
+			// 1. Content div above uses flex: "1 1 0" to:
+			//    - Grow to fill available space (flex-grow: 1) 
+			//    - Shrink when AutoApproveMenu needs space (flex-shrink: 1)
+			//    - Start from zero size (flex-basis: 0) to ensure proper distribution
+			//    minHeight: 0 allows it to shrink below its content height
+			//
+			// 2. AutoApproveMenu uses flex: "0 1 auto" to:
+			//    - Not grow beyond its content (flex-grow: 0)
+			//    - Shrink when viewport is small (flex-shrink: 1) 
+			//    - Use its content size as basis (flex-basis: auto)
+			//    This ensures it takes its natural height when there's space
+			//    but becomes scrollable when the viewport is too small
+			*/}
+			{!task && (
+				<AutoApproveMenu
+					style={{
+						marginBottom: -2,
+						flex: "0 1 auto", // flex-grow: 0, flex-shrink: 1, flex-basis: auto
+						minHeight: 0,
+					}}
+				/>
+			)}
+
 			{task && (
 				<>
 					<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
@@ -616,7 +801,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}}
 							// increasing top by 3_000 to prevent jumping around when user collapses a row
 							increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
-							data={visibleMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
+							data={groupedMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 							itemContent={itemContent}
 							atBottomStateChange={(isAtBottom) => {
 								setIsAtBottom(isAtBottom)
@@ -626,9 +811,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 							}}
 							atBottomThreshold={10} // anything lower causes issues with followOutput
-							initialTopMostItemIndex={visibleMessages.length - 1}
+							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
 					</div>
+					<AutoApproveMenu />
 					{showScrollToBottom ? (
 						<div
 							style={{
@@ -653,7 +839,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 											: 0.5
 										: 0,
 								display: "flex",
-								padding: "10px 15px 0px 15px",
+								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
 							{primaryButtonText && !isStreaming && (
 								<VSCodeButton
@@ -713,7 +899,7 @@ const ScrollToBottomButton = styled.div`
 	justify-content: center;
 	align-items: center;
 	flex: 1;
-	height: 25px;
+	height: 24px;
 
 	&:hover {
 		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);

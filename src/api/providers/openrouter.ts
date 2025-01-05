@@ -31,9 +31,19 @@ export class OpenRouterHandler implements ApiHandler {
 		]
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
+		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (this.getModel().id) {
+			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
+			case "anthropic/claude-3-haiku":
 			case "anthropic/claude-3-haiku:beta":
+			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
 				openAiMessages[0] = {
 					role: "system",
@@ -76,15 +86,31 @@ export class OpenRouterHandler implements ApiHandler {
 		switch (this.getModel().id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
 				maxTokens = 8_192
 				break
 		}
+
+		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
+		let shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
+		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
+		if (this.getModel().id === "deepseek/deepseek-chat") {
+			shouldApplyMiddleOutTransform = true
+		}
+
+		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
+			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		})
 
 		let genId: string | undefined
@@ -128,7 +154,7 @@ export class OpenRouterHandler implements ApiHandler {
 			})
 
 			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
+
 			yield {
 				type: "usage",
 				// cacheWriteTokens: 0,

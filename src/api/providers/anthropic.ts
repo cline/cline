@@ -26,7 +26,9 @@ export class AnthropicHandler implements ApiHandler {
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 		const modelId = this.getModel().id
 		switch (modelId) {
-			case "claude-3-5-sonnet-20240620":
+			// 'latest' alias does not support cache_control
+			case "claude-3-5-sonnet-20241022":
+			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/*
@@ -34,7 +36,7 @@ export class AnthropicHandler implements ApiHandler {
 				*/
 				const userMsgIndices = messages.reduce(
 					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[]
+					[] as number[],
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
@@ -56,12 +58,12 @@ export class AnthropicHandler implements ApiHandler {
 														text: message.content,
 														cache_control: { type: "ephemeral" },
 													},
-											  ]
+												]
 											: message.content.map((content, contentIndex) =>
 													contentIndex === message.content.length - 1
 														? { ...content, cache_control: { type: "ephemeral" } }
-														: content
-											  ),
+														: content,
+												),
 								}
 							}
 							return message
@@ -76,12 +78,9 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
-							case "claude-3-5-sonnet-20240620":
-								return {
-									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31",
-									},
-								}
+							case "claude-3-5-sonnet-20241022":
+							case "claude-3-5-haiku-20241022":
+							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
 								return {
 									headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
@@ -89,7 +88,7 @@ export class AnthropicHandler implements ApiHandler {
 							default:
 								return undefined
 						}
-					})()
+					})(),
 				)
 				break
 			}

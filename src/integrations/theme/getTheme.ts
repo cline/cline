@@ -55,7 +55,7 @@ export async function getTheme() {
 			const filename = `${defaultThemes[colorTheme]}.json`
 			currentTheme = await fs.readFile(
 				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", filename),
-				"utf-8"
+				"utf-8",
 			)
 		}
 
@@ -65,7 +65,7 @@ export async function getTheme() {
 		if (parsed.include) {
 			const includeThemeString = await fs.readFile(
 				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", parsed.include),
-				"utf-8"
+				"utf-8",
 			)
 			const includeTheme = parseThemeString(includeThemeString)
 			parsed = mergeJson(parsed, includeTheme)
@@ -77,8 +77,8 @@ export async function getTheme() {
 			["vs", "hc-black"].includes(converted.base)
 				? converted.base
 				: colorTheme.includes("Light")
-				? "vs"
-				: "vs-dark"
+					? "vs"
+					: "vs-dark"
 		) as any
 
 		return converted
@@ -93,7 +93,7 @@ export function mergeJson(
 	first: JsonObject,
 	second: JsonObject,
 	mergeBehavior?: "merge" | "overwrite",
-	mergeKeys?: { [key: string]: (a: any, b: any) => boolean }
+	mergeKeys?: { [key: string]: (a: any, b: any) => boolean },
 ): any {
 	const copyOfFirst = JSON.parse(JSON.stringify(first))
 

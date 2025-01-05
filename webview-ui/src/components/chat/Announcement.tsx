@@ -32,24 +32,41 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<p style={{ margin: "5px 0px" }}>
-				New name! Meet Cline, an AI assistant that can use your <strong>CLI</strong> a<strong>N</strong>d{" "}
-				<strong>E</strong>ditor.
-			</p>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					Responses are now streamed + a yellow text decoration animation to keep track of Cline's progress as
-					he edits files.
+					<b>Auto-approve menu:</b> You can now specify which tools require approval, set a max # of
+					auto-approved API requests, and enable system notifications for when Cline completes a task.
 				</li>
 				<li>
-					Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more control
-					over tasks.
+					<b>New diff editing for large files:</b> Cline now uses an efficient search & replace approach when
+					modifying large files for faster, more reliable edits (no more "
+					<code>{"// rest of code here"}</code>" deletions).
 				</li>
 				<li>
-					Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better
-					performance with other models.
+					<b>.clinerules:</b> Add a root-level <code>.clinerules</code> file to specify custom instructions
+					for the project.
 				</li>
-				<li>Search and use any model with OpenRouter (search "free" for no-cost options).</li>
+			</ul>
+			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.2 Updates:</p>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+				<li>
+					Add and configure{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+						MCP servers
+					</VSCodeLink>
+					by clicking the new <span className="codicon codicon-server" style={{ fontSize: "10px" }}></span>{" "}
+					icon in the menu bar.
+				</li>
+				<li>
+					Cline can also create custom tools–just say "add a tool that...", and watch him create the MCP
+					server and install it in the extension, ready to use in future tasks.
+				</li>
+				<li>
+					Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
+					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+						see a demo of MCP in action here.
+					</VSCodeLink>
+				</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
@@ -98,15 +115,20 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					environments)
 				</li>
 			</ul>*/}
+			<div
+				style={{
+					height: "1px",
+					background: "var(--vscode-foreground)",
+					opacity: 0.1,
+					margin: "8px 0",
+				}}
+			/>
 			<p style={{ margin: "0" }}>
-				<VSCodeLink href="https://x.com/sdrzn/status/1843989769828602273" style={{ display: "inline" }}>
-					See a demo of the changes here.
-				</VSCodeLink>
-				I'm excited for you to try this update, and would love to hear how you like it in our Discord. Come say
-				hi!{" "}
+				Join
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					https://discord.gg/cline
+					discord.gg/cline
 				</VSCodeLink>
+				for more updates!
 			</p>
 		</div>
 	)
