@@ -76,14 +76,14 @@ const extensionConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	outfile: "dist/extension.js",
+	outfile: "dist/extension.cjs",
 	external: ["vscode"],
 }
 
 async function main() {
 	const extensionCtx = await esbuild.context(extensionConfig)
 	if (watch) {
-		await extensionCtx.watch()
+			await extensionCtx.watch()
 	} else {
 		await extensionCtx.rebuild()
 		await extensionCtx.dispose()
