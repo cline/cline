@@ -234,7 +234,7 @@ const DropdownWrapper = styled.div`
 	width: 100%;
 `
 
-export const GLAMA_MODEL_PICKER_Z_INDEX = 1_001
+export const GLAMA_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
 	position: absolute;
