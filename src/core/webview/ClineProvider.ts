@@ -61,6 +61,8 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
+	| "openAiSupportsComputerUse"
+	| "openAiSupportsPromptCache"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -383,6 +385,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
+								openAiSupportsComputerUse,
+								openAiSupportsPromptCache,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -409,6 +413,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.updateGlobalState("openAiSupportsComputerUse", openAiSupportsComputerUse)
+							await this.updateGlobalState("openAiSupportsPromptCache", openAiSupportsPromptCache)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -934,6 +940,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
+			openAiSupportsComputerUse,
+			openAiSupportsPromptCache,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -964,6 +972,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
+			this.getGlobalState("openAiSupportsComputerUse") as Promise<boolean | undefined>,
+			this.getGlobalState("openAiSupportsPromptCache") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1007,6 +1017,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openAiSupportsComputerUse,
+				openAiSupportsPromptCache,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

@@ -469,6 +469,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 5 }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.openAiSupportsComputerUse || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setApiConfiguration({ ...apiConfiguration, openAiSupportsComputerUse: isChecked })
+							}}>
+							Model supports computer use
+						</VSCodeCheckbox>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.openAiSupportsPromptCache || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setApiConfiguration({ ...apiConfiguration, openAiSupportsPromptCache: isChecked })
+							}}>
+							Model supports prompt caching
+						</VSCodeCheckbox>
+					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
