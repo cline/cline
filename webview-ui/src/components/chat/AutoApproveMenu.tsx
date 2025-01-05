@@ -109,6 +109,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		[autoApprovalSettings],
 	)
 
+	const updateMaxHistoricalMessages = useCallback(
+		(maxHistoricalMessages: number) => {
+			vscode.postMessage({
+				type: "autoApprovalSettings",
+				autoApprovalSettings: {
+					...autoApprovalSettings,
+					maxHistoricalMessages,
+				},
+			})
+		},
+		[autoApprovalSettings],
+	)
+
 	const updateNotifications = useCallback(
 		(enableNotifications: boolean) => {
 			vscode.postMessage({
@@ -281,6 +294,48 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						}}>
 						Cline will automatically make this many API requests before asking for approval to proceed with
 						the task.
+					</div>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							marginTop: "10px",
+							marginBottom: "8px",
+							color: "var(--vscode-foreground)",
+						}}>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
+						<VSCodeTextField
+							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
+							value={autoApprovalSettings.maxHistoricalMessages.toString()}
+							onInput={(e) => {
+								const input = e.target as HTMLInputElement
+								// Remove any non-numeric characters
+								input.value = input.value.replace(/[^0-9]/g, "")
+								const value = parseInt(input.value)
+								if (!isNaN(value) && value > 0) {
+									updateMaxHistoricalMessages(value)
+								}
+							}}
+							onKeyDown={(e) => {
+								// Prevent non-numeric keys (except for backspace, delete, arrows)
+								if (
+									!/^\d$/.test(e.key) &&
+									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+								) {
+									e.preventDefault()
+								}
+							}}
+							style={{ flex: 1 }}
+						/>
+					</div>
+					<div
+						style={{
+							color: "var(--vscode-descriptionForeground)",
+							fontSize: "12px",
+							marginBottom: "10px",
+						}}>
+						Cline will automatically keep this many historical messages when auto processing.
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox

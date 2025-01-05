@@ -2281,6 +2281,12 @@ export class Cline {
 			throw new Error("Cline instance aborted")
 		}
 
+		// Limit messages based on MAX_API_MESSAGES setting
+		if (userContent.length > this.autoApprovalSettings.maxHistoricalMessages) {
+			// Slice to keep only the most recent messages, but also keep the first one in the array
+			userContent = [userContent[0], ...userContent.slice(-this.autoApprovalSettings.maxHistoricalMessages + 1)]
+		}
+
 		if (this.consecutiveMistakeCount >= 3) {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
