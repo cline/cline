@@ -95,9 +95,6 @@ export class GlamaHandler implements ApiHandler {
 			}
 		}
 
-		// The usage information is only available after a few moments after the completion
-		await delay(1000)
-
 		try {
 			const response = await axios.get(`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestUuid}`, {
 				headers: {
