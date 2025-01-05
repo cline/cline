@@ -4,6 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import ApiConfigManager from "./ApiConfigManager"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -12,8 +13,8 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } =
-		useExtensionState()
+	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels, currentApiConfigName, listApiConfigMeta, } 
+		= useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = () => {
@@ -25,6 +26,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
+			vscode.postMessage({
+				type: "upsertApiConfiguration",
+				text: currentApiConfigName,
+				apiConfiguration
+			})
+
 			onDone()
 		}
 	}
@@ -76,6 +84,45 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			</div>
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
+				<div style={{ marginBottom: 5 }}>
+					<ApiConfigManager
+						currentApiConfigName={currentApiConfigName}
+						listApiConfigMeta={listApiConfigMeta}
+						onSelectConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "loadApiConfiguration",
+								text: configName
+							})
+						}}
+						onDeleteConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "deleteApiConfiguration",
+								text: configName
+							})
+						}}
+						onRenameConfig={(oldName: string, newName: string) => {
+							vscode.postMessage({
+								type: "renameApiConfiguration",
+								values: {
+									oldName,
+									newName
+								},
+								apiConfiguration
+							})
+						}}
+						onUpsertConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "upsertApiConfiguration",
+								text: configName,
+								apiConfiguration
+							})
+						}}
+						// setDraftNewConfig={(mode: boolean) => {
+						// 	setDraftNewMode(mode)
+						// }}
+					/>
+				</div>
+
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						showModelOptions={true}

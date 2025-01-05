@@ -4,6 +4,12 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
+		| "currentApiConfigName"
+		| "upsertApiConfiguration"
+		| "deleteApiConfiguration"
+		| "loadApiConfiguration"
+		| "renameApiConfiguration"
+		| "getListApiConfiguration"
 		| "customInstructions"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -32,6 +38,7 @@ export interface WebviewMessage {
 	images?: string[]
 	bool?: boolean
 	autoApprovalSettings?: AutoApprovalSettings
+	values?: Record<string, unknown>
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
