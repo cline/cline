@@ -44,7 +44,7 @@ jobs:
             # Install dependencies
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci
+              run: npm ci --legacy-peer-deps
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
