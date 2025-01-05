@@ -111,7 +111,7 @@ export class GlamaHandler implements ApiHandler {
 					cacheReadTokens: completionRequest.tokenUsage.cacheReadInputTokens,
 					inputTokens: completionRequest.tokenUsage.promptTokens,
 					outputTokens: completionRequest.tokenUsage.completionTokens,
-					totalCost: completionRequest.totalCostUsd,
+					totalCost: parseFloat(completionRequest.totalCostUsd),
 				}
 			}			
 		} catch (error) {
