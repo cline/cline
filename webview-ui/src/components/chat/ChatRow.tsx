@@ -731,16 +731,23 @@ export const ChatRowContent = ({
 								</>
 							)}
 
-							{isExpanded && (
-								<div style={{ marginTop: "10px" }}>
-									<CodeAccordian
-										code={JSON.parse(message.text || "{}").request}
-										language="markdown"
-										isExpanded={true}
-										onToggleExpand={onToggleExpand}
-									/>
+					{isExpanded && (
+						<div style={{ marginTop: "10px" }}>
+							{/* Display cache metrics if available */}
+							{JSON.parse(message.text || "{}").usage?.cacheReadTokens !== undefined && (
+								<div style={{ marginBottom: "10px", fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+									<div>Cache Reads: {JSON.parse(message.text || "{}").usage?.cacheReadTokens?.toLocaleString()} tokens</div>
+									<div>Cache Writes: {JSON.parse(message.text || "{}").usage?.cacheWriteTokens?.toLocaleString()} tokens</div>
 								</div>
 							)}
+							<CodeAccordian
+								code={JSON.parse(message.text || "{}").request}
+								language="markdown"
+								isExpanded={true}
+								onToggleExpand={onToggleExpand}
+							/>
+						</div>
+					)}
 						</>
 					)
 				case "api_req_finished":
