@@ -81,25 +81,27 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 			if (chunk.usage) {
-				const usage = {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-				} as any;
-
 				// Add cache metrics if prompt caching is enabled
+				let cacheWrites = 0;
+				let cacheReads = 0;
 				if (this.options.openAiSupportsPromptCache) {
 					// Estimate cache metrics based on input tokens
 					// Last two user messages are marked for caching
 					const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2);
 					if (lastTwoUserMessages.length > 0) {
 						// Assume the last message is a cache write and previous is a cache read
-						usage.cacheWriteTokens = Math.floor(chunk.usage.prompt_tokens * 0.2); // Estimate 20% of input tokens are cache writes
-						usage.cacheReadTokens = Math.floor(chunk.usage.prompt_tokens * 0.1); // Estimate 10% of input tokens are cache reads
+						cacheWrites = Math.floor(chunk.usage.prompt_tokens * 0.2); // Estimate 20% of input tokens are cache writes
+						cacheReads = Math.floor(chunk.usage.prompt_tokens * 0.1); // Estimate 10% of input tokens are cache reads
 					}
 				}
 
-				yield usage;
+				yield {
+					type: "usage",
+					inputTokens: chunk.usage.prompt_tokens || 0,
+					outputTokens: chunk.usage.completion_tokens || 0,
+					cacheWriteTokens: cacheWrites,
+					cacheReadTokens: cacheReads
+				};
 			}
 		}
 	}
