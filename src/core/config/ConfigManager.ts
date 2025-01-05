@@ -29,7 +29,6 @@ export class ConfigManager {
   async initConfig(): Promise<void> {
     try {
       const config = await this.readConfig()
-      console.log("config", config)
       if (!config) {
         await this.writeConfig(this.defaultConfig)
       }
