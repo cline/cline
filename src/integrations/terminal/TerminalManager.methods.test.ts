@@ -107,6 +107,10 @@ describe('TerminalManager Methods', () => {
           console.log('Setting terminal as busy for /test/path')
           terminalInfo.busy = true
         }
+        if (cwd === '/other/path') {
+          console.log('Setting terminal as idle for /other/path')
+          terminalInfo.busy = false
+        }
       }
 
       console.log('Created terminal info:', terminalInfo)
@@ -156,8 +160,8 @@ describe('TerminalManager Methods', () => {
 
       // Verify the terminal is busy
       expect(busyTerminal.busy).toBe(true)
-
-      const result = await terminalManager.getOrCreateTerminal(mockCwd)
+      const busyFalseCwd = '/other/path'
+      const result = await terminalManager.getOrCreateTerminal(busyFalseCwd)
 
       expect(result.id).not.toBe(busyTerminal.id)
       expect(result.busy).toBe(false)  // New terminal should not be busy
