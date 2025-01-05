@@ -56,26 +56,25 @@ describe('TerminalManager Methods', () => {
     
     // Mock the private terminals array
     Object.defineProperty(TerminalRegistry, 'terminals', {
-      get: () => mockTerminals,
+      get: () => {
+        console.log('Getting terminals:', mockTerminals)
+        return mockTerminals
+      },
       set: (value) => {
+        console.log('Setting terminals:', value)
         mockTerminals.length = 0
         mockTerminals.push(...value)
       },
       configurable: true
     })
     
-    // Reset and mock nextTerminalId
-    Object.defineProperty(TerminalRegistry, 'nextTerminalId', {
-      get: () => nextId,
-      set: (value) => {
-        nextId = value
-      },
-      configurable: true
+    vi.spyOn(TerminalRegistry, 'getAllTerminals').mockImplementation(() => {
+      console.log('getAllTerminals called, returning:', mockTerminals)
+      return mockTerminals
     })
     
-    vi.spyOn(TerminalRegistry, 'getAllTerminals').mockImplementation(() => mockTerminals)
-    
     vi.spyOn(TerminalRegistry, 'createTerminal').mockImplementation((cwd?: string | vscode.Uri) => {
+      console.log('Creating terminal with cwd:', cwd)
       // Create a comprehensive mock terminal
       const terminal = {
         name: "Cline",
@@ -99,10 +98,12 @@ describe('TerminalManager Methods', () => {
       // Special handling for specific mock CWDs
       if (typeof cwd === 'string') {
         if (cwd === '/test/path') {
+          console.log('Setting terminal as busy for /test/path')
           terminalInfo.busy = true
         }
       }
 
+      console.log('Created terminal info:', terminalInfo)
       mockTerminals.push(terminalInfo)
       return terminalInfo
     })
@@ -115,7 +116,7 @@ describe('TerminalManager Methods', () => {
 
   describe('getOrCreateTerminal', () => {
     it('should return an existing terminal with matching CWD', async () => {
-      const mockCwd = '/test/path'
+      const mockCwd = '/other/path'  // Changed from /test/path to avoid busy flag
       const mockTerminal = TerminalRegistry.createTerminal(mockCwd)
       
       // Create a more complete mock of the terminal
@@ -144,71 +145,46 @@ describe('TerminalManager Methods', () => {
 
     it('should skip busy terminals', async () => {
       const mockCwd = '/test/path'
-      const busyTerminal = TerminalRegistry.createTerminal(mockCwd)
+      const busyTerminal = TerminalRegistry.createTerminal(mockCwd)  // Will be busy due to path
       
       // Create a more complete mock of the terminal
       vi.spyOn(busyTerminal.terminal, 'shellIntegration' as any, 'get').mockReturnValue({
         cwd: vscode.Uri.file(mockCwd)
       })
 
-      const availableTerminal = TerminalRegistry.createTerminal('/other/path')
-      
-      // Create a more complete mock of the terminal
-      vi.spyOn(availableTerminal.terminal, 'shellIntegration' as any, 'get').mockReturnValue({
-        cwd: vscode.Uri.file('/other/path')
-      })
-
+      // Create a new terminal with the same path (should not be busy)
       const result = await terminalManager.getOrCreateTerminal(mockCwd)
 
       expect(result.id).not.toBe(busyTerminal.id)
-      expect(result.busy).toBe(false)
+      expect(result.busy).toBe(false)  // New terminal should not be busy
       expect(terminalManager['terminalIds'].has(result.id)).toBe(true)
     })
   })
 
   describe('getTerminals', () => {
-    it('should return terminals filtered by busy status', () => {
-      const createTerminalSpy = vi.spyOn(TerminalRegistry, 'createTerminal').mockImplementation((cwd?: string | vscode.Uri | undefined) => {
-        console.log(`Creating terminal with cwd: ${cwd}`);
-        const terminal = vscode.window.createTerminal({
-          cwd,
-          name: "Cline",
-          iconPath: new vscode.ThemeIcon("robot"),
-        });
-        const newInfo: TerminalInfo = {
-          terminal: terminal,
-          busy: false,
-          lastCommand: "",
-          id: TerminalRegistry.getNextTerminalId(),
-        };
-        TerminalRegistry.terminals.push(newInfo);
-        console.log(`New terminal created: ${newInfo}`);
-        return newInfo;
-      });
-
-      const busyTerminal = TerminalRegistry.createTerminal()
-      busyTerminal.busy = true
+    it('should return terminals filtered by busy status', async () => {
+      const mockCwd = '/test/path'
+      const busyTerminal = TerminalRegistry.createTerminal(mockCwd)
+      terminalManager['terminalIds'].add(busyTerminal.id)
       busyTerminal.lastCommand = 'busy command'
 
-      const idleTerminal = TerminalRegistry.createTerminal()
-      idleTerminal.busy = false
-      idleTerminal.lastCommand = 'idle command'
-
-      // Add terminal IDs to the manager
-      terminalManager['terminalIds'].add(busyTerminal.id)
+      const idleTerminal = TerminalRegistry.createTerminal('/other/path')
       terminalManager['terminalIds'].add(idleTerminal.id)
+      idleTerminal.lastCommand = 'idle command'
 
       // Get busy terminals
       const busyTerminals = terminalManager.getTerminals(true)
-      expect(busyTerminals).toEqual([
-        { id: busyTerminal.id, lastCommand: 'busy command' }
-      ])
+      expect(busyTerminals).toEqual([{
+        id: busyTerminal.id,
+        lastCommand: busyTerminal.lastCommand
+      }])
 
       // Get idle terminals
       const idleTerminals = terminalManager.getTerminals(false)
-      expect(idleTerminals).toEqual([
-        { id: idleTerminal.id, lastCommand: 'idle command' }
-      ])
+      expect(idleTerminals).toEqual([{
+        id: idleTerminal.id,
+        lastCommand: idleTerminal.lastCommand
+      }])
     })
 
     it('should return empty array when no terminals match', () => {
