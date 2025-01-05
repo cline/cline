@@ -1,3 +1,5 @@
+// @ts-nocheck
+// hard to test mocking without going out of bounds of the tpescript definitions
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import * as vscode from "vscode"
 import { activate, deactivate } from "./extension"
