@@ -29,9 +29,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
-			webviewOptions: { retainContextWhenHidden: true },
-		}),
+		vscode.window.registerWebviewViewProvider(
+			ClineProvider.sideBarId,
+			sidebarProvider,
+			{
+				webviewOptions: { retainContextWhenHidden: true },
+			},
+		),
 	)
 
 	context.subscriptions.push(
@@ -39,13 +43,19 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+			await sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "mcpButtonClicked",
+			})
 		}),
 	)
 
@@ -55,25 +65,48 @@ export function activate(context: vscode.ExtensionContext) {
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabProvider = new ClineProvider(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+		const lastCol = Math.max(
+			...vscode.window.visibleTextEditors.map(
+				(editor) => editor.viewColumn || 0,
+			),
+		)
 
 		// Check if there are any visible text editors, otherwise open a new group to the right
 		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
 		if (!hasVisibleEditors) {
-			await vscode.commands.executeCommand("workbench.action.newGroupRight")
+			await vscode.commands.executeCommand(
+				"workbench.action.newGroupRight",
+			)
 		}
-		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
+		const targetCol = hasVisibleEditors
+			? Math.max(lastCol + 1, 1)
+			: vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Cline", targetCol, {
-			enableScripts: true,
-			retainContextWhenHidden: true,
-			localResourceRoots: [context.extensionUri],
-		})
+		const panel = vscode.window.createWebviewPanel(
+			ClineProvider.tabPanelId,
+			"Cline",
+			targetCol,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true,
+				localResourceRoots: [context.extensionUri],
+			},
+		)
 		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 
 		panel.iconPath = {
-			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
-			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
+			light: vscode.Uri.joinPath(
+				context.extensionUri,
+				"assets",
+				"icons",
+				"robot_panel_light.png",
+			),
+			dark: vscode.Uri.joinPath(
+				context.extensionUri,
+				"assets",
+				"icons",
+				"robot_panel_dark.png",
+			),
 		}
 		tabProvider.resolveWebviewView(panel)
 
@@ -82,19 +115,35 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"cline.popoutButtonClicked",
+			openClineInNewTab,
+		),
+	)
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"cline.openInNewTab",
+			openClineInNewTab,
+		),
+	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "historyButtonClicked",
+			})
 		}),
 	)
 
@@ -105,13 +154,18 @@ export function activate(context: vscode.ExtensionContext) {
 	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents given such an uri. In return, content providers are wired into the open document logic so that providers are always considered.
 	https://code.visualstudio.com/api/extension-guides/virtual-documents
 	*/
-	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
+	const diffContentProvider = new (class
+		implements vscode.TextDocumentContentProvider
+	{
 		provideTextDocumentContent(uri: vscode.Uri): string {
 			return Buffer.from(uri.query, "base64").toString("utf-8")
 		}
 	})()
 	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider),
+		vscode.workspace.registerTextDocumentContentProvider(
+			DIFF_VIEW_URI_SCHEME,
+			diffContentProvider,
+		),
 	)
 
 	// URI Handler

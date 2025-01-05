@@ -5,7 +5,9 @@ import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
-export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
+export async function parseSourceCodeForDefinitionsTopLevel(
+	dirPath: string,
+): Promise<string> {
 	// check if the path exists
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
 	if (!dirExists) {
@@ -50,7 +52,10 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	return result ? result : "No source code definitions found."
 }
 
-function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingFiles: string[] } {
+function separateFiles(allFiles: string[]): {
+	filesToParse: string[]
+	remainingFiles: string[]
+} {
 	const extensions = [
 		"js",
 		"jsx",
@@ -74,8 +79,12 @@ function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingF
 		"php",
 		"swift",
 	].map((e) => `.${e}`)
-	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
-	const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))
+	const filesToParse = allFiles
+		.filter((file) => extensions.includes(path.extname(file)))
+		.slice(0, 50) // 50 files max
+	const remainingFiles = allFiles.filter(
+		(file) => !filesToParse.includes(file),
+	)
 	return { filesToParse, remainingFiles }
 }
 
@@ -95,7 +104,10 @@ This approach allows us to focus on the most relevant parts of the code (defined
 - https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/helper.js
 - https://tree-sitter.github.io/tree-sitter/code-navigation-systems
 */
-async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string | undefined> {
+async function parseFile(
+	filePath: string,
+	languageParsers: LanguageParser,
+): Promise<string | undefined> {
 	const fileContent = await fs.readFile(filePath, "utf8")
 	const ext = path.extname(filePath).toLowerCase().slice(1)
 
@@ -115,7 +127,9 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		const captures = query.captures(tree.rootNode)
 
 		// Sort captures by their start position
-		captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
+		captures.sort(
+			(a, b) => a.node.startPosition.row - b.node.startPosition.row,
+		)
 
 		// Split the file content into individual lines
 		const lines = fileContent.split("\n")

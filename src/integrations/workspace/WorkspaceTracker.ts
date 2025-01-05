@@ -3,7 +3,9 @@ import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+const cwd = vscode.workspace.workspaceFolders
+	?.map((folder) => folder.uri.fsPath)
+	.at(0)
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
@@ -22,20 +24,28 @@ class WorkspaceTracker {
 			return
 		}
 		const [files, _] = await listFiles(cwd, true, 1_000)
-		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
+		files.forEach((file) =>
+			this.filePaths.add(this.normalizeFilePath(file)),
+		)
 		this.workspaceDidUpdate()
 	}
 
 	private registerListeners() {
 		// Listen for file creation
 		// .bind(this) ensures the callback refers to class instance when using this, not necessary when using arrow function
-		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
+		this.disposables.push(
+			vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)),
+		)
 
 		// Listen for file deletion
-		this.disposables.push(vscode.workspace.onDidDeleteFiles(this.onFilesDeleted.bind(this)))
+		this.disposables.push(
+			vscode.workspace.onDidDeleteFiles(this.onFilesDeleted.bind(this)),
+		)
 
 		// Listen for file renaming
-		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
+		this.disposables.push(
+			vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)),
+		)
 
 		/*
 		 An event that is emitted when a workspace folder is added or removed.
@@ -95,16 +105,23 @@ class WorkspaceTracker {
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
+		const resolvedPath = cwd
+			? path.resolve(cwd, filePath)
+			: path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 
 	private async addFilePath(filePath: string): Promise<string> {
 		const normalizedPath = this.normalizeFilePath(filePath)
 		try {
-			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
+			const stat = await vscode.workspace.fs.stat(
+				vscode.Uri.file(normalizedPath),
+			)
 			const isDirectory = (stat.type & vscode.FileType.Directory) !== 0
-			const pathWithSlash = isDirectory && !normalizedPath.endsWith("/") ? normalizedPath + "/" : normalizedPath
+			const pathWithSlash =
+				isDirectory && !normalizedPath.endsWith("/")
+					? normalizedPath + "/"
+					: normalizedPath
 			this.filePaths.add(pathWithSlash)
 			return pathWithSlash
 		} catch {
@@ -116,7 +133,10 @@ class WorkspaceTracker {
 
 	private async removeFilePath(filePath: string): Promise<boolean> {
 		const normalizedPath = this.normalizeFilePath(filePath)
-		return this.filePaths.delete(normalizedPath) || this.filePaths.delete(normalizedPath + "/")
+		return (
+			this.filePaths.delete(normalizedPath) ||
+			this.filePaths.delete(normalizedPath + "/")
+		)
 	}
 
 	public dispose() {

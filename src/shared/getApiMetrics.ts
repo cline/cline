@@ -12,7 +12,7 @@ interface ApiMetrics {
  * Calculates API metrics from an array of ClineMessages.
  *
  * This function processes 'api_req_started' messages that have been combined with their
- * corresponding 'api_req_finished' messages by the combineApiRequests function.
+ * corresponding 'api_req_finished' messages by the combineApiRequests function. It also takes into account 'deleted_api_reqs' messages, which are aggregated from deleted messages.
  * It extracts and sums up the tokensIn, tokensOut, cacheWrites, cacheReads, and cost from these messages.
  *
  * @param messages - An array of ClineMessage objects to process.
@@ -35,10 +35,16 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 	}
 
 	messages.forEach((message) => {
-		if (message.type === "say" && message.say === "api_req_started" && message.text) {
+		if (
+			message.type === "say" &&
+			(message.say === "api_req_started" ||
+				message.say === "deleted_api_reqs") &&
+			message.text
+		) {
 			try {
 				const parsedData = JSON.parse(message.text)
-				const { tokensIn, tokensOut, cacheWrites, cacheReads, cost } = parsedData
+				const { tokensIn, tokensOut, cacheWrites, cacheReads, cost } =
+					parsedData
 
 				if (typeof tokensIn === "number") {
 					result.totalTokensIn += tokensIn
@@ -47,10 +53,12 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 					result.totalTokensOut += tokensOut
 				}
 				if (typeof cacheWrites === "number") {
-					result.totalCacheWrites = (result.totalCacheWrites ?? 0) + cacheWrites
+					result.totalCacheWrites =
+						(result.totalCacheWrites ?? 0) + cacheWrites
 				}
 				if (typeof cacheReads === "number") {
-					result.totalCacheReads = (result.totalCacheReads ?? 0) + cacheReads
+					result.totalCacheReads =
+						(result.totalCacheReads ?? 0) + cacheReads
 				}
 				if (typeof cost === "number") {
 					result.totalCost += cost

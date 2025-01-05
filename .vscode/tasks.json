@@ -5,7 +5,11 @@
 	"tasks": [
 		{
 			"label": "watch",
-			"dependsOn": ["npm: build:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": [
+				"npm: build:webview",
+				"npm: watch:tsc",
+				"npm: watch:esbuild"
+			],
 			"presentation": {
 				"reveal": "never"
 			},

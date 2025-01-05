@@ -35,14 +35,30 @@ interface ChatViewProps {
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
+const ChatView = ({
+	isHidden,
+	showAnnouncement,
+	hideAnnouncement,
+	showHistoryView,
+}: ChatViewProps) => {
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
-	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
+	const modifiedMessages = useMemo(
+		() => combineApiRequests(combineCommandSequences(messages.slice(1))),
+		[messages],
+	)
 	// has to be after api_req_finished are all reduced into api_req_started messages
-	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
+	const apiMetrics = useMemo(
+		() => getApiMetrics(modifiedMessages),
+		[modifiedMessages],
+	)
 
 	const [inputValue, setInputValue] = useState("")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -52,11 +68,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
-	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
-	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
+	const [primaryButtonText, setPrimaryButtonText] = useState<
+		string | undefined
+	>("Approve")
+	const [secondaryButtonText, setSecondaryButtonText] = useState<
+		string | undefined
+	>("Reject")
 	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
-	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
+	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>(
+		{},
+	)
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
@@ -107,7 +129,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
 							setEnableButtons(!isPartial)
-							const tool = JSON.parse(lastMessage.text || "{}") as ClineSayTool
+							const tool = JSON.parse(
+								lastMessage.text || "{}",
+							) as ClineSayTool
 							switch (tool.tool) {
 								case "editedExistingFile":
 								case "newFileCreated":
@@ -232,7 +256,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const isStreaming = useMemo(() => {
 		const isLastAsk = !!modifiedMessages.at(-1)?.ask // checking clineAsk isn't enough since messages effect may be called again for a tool for example, set clineAsk to its value, and if the next message is not an ask then it doesn't reset. This is likely due to how much more often we're updating messages as compared to before, and should be resolved with optimizations as it's likely a rendering bug. but as a final guard for now, the cancel button will show if the last message is not an ask
 		const isToolCurrentlyAsking =
-			isLastAsk && clineAsk !== undefined && enableButtons && primaryButtonText !== undefined
+			isLastAsk &&
+			clineAsk !== undefined &&
+			enableButtons &&
+			primaryButtonText !== undefined
 		if (isToolCurrentlyAsking) {
 			return false
 		}
@@ -241,8 +268,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		if (isLastMessagePartial) {
 			return true
 		} else {
-			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
+			const lastApiReqStarted = findLast(
+				modifiedMessages,
+				(message) => message.say === "api_req_started",
+			)
+			if (
+				lastApiReqStarted &&
+				lastApiReqStarted.text != null &&
+				lastApiReqStarted.say === "api_req_started"
+			) {
 				const cost = JSON.parse(lastApiReqStarted.text).cost
 				if (cost === undefined) {
 					// api request has not finished yet
@@ -313,7 +347,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "resume_task":
 			case "mistake_limit_reached":
 			case "auto_approval_max_req_reached":
-				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
+				vscode.postMessage({
+					type: "askResponse",
+					askResponse: "yesButtonClicked",
+				})
 				break
 			case "completion_result":
 			case "resume_completed_task":
@@ -347,7 +384,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "browser_action_launch":
 			case "use_mcp_server":
 				// responds to the API with a "This operation failed" and lets it try again
-				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
+				vscode.postMessage({
+					type: "askResponse",
+					askResponse: "noButtonClicked",
+				})
 				break
 		}
 		setTextAreaDisabled(true)
@@ -371,7 +411,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 
 	const shouldDisableImages =
-		!selectedModelInfo.supportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+		!selectedModelInfo.supportsImages ||
+		textAreaDisabled ||
+		selectedImages.length >= MAX_IMAGES_PER_MESSAGE
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
@@ -380,7 +422,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "action":
 					switch (message.action!) {
 						case "didBecomeVisible":
-							if (!isHidden && !textAreaDisabled && !enableButtons) {
+							if (
+								!isHidden &&
+								!textAreaDisabled &&
+								!enableButtons
+							) {
 								textAreaRef.current?.focus()
 							}
 							break
@@ -390,14 +436,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const newImages = message.images ?? []
 					if (newImages.length > 0) {
 						setSelectedImages((prevImages) =>
-							[...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE),
+							[...prevImages, ...newImages].slice(
+								0,
+								MAX_IMAGES_PER_MESSAGE,
+							),
 						)
 					}
 					break
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
-							handleSendMessage(message.text ?? "", message.images ?? [])
+							handleSendMessage(
+								message.text ?? "",
+								message.images ?? [],
+							)
 							break
 						case "primaryButtonClick":
 							handlePrimaryButtonClick()
@@ -454,10 +506,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			switch (message.say) {
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
+				case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 					return false
 				case "text":
 					// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
-					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+					if (
+						(message.text ?? "") === "" &&
+						(message.images?.length ?? 0) === 0
+					) {
 						return false
 					}
 					break
@@ -499,7 +555,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 
 		visibleMessages.forEach((message) => {
-			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+			if (
+				message.ask === "browser_action_launch" ||
+				message.say === "browser_action_launch"
+			) {
 				// complete existing browser session if any
 				endBrowserSession()
 				// start new
@@ -510,7 +569,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 				if (message.say === "api_req_started") {
 					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
-					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
+					const lastApiReqStarted = [...currentGroup]
+						.reverse()
+						.find((m) => m.say === "api_req_started")
 					if (lastApiReqStarted?.text != null) {
 						const info = JSON.parse(lastApiReqStarted.text)
 						const isCancelled = info.cancelReason != null
@@ -527,7 +588,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 					// Check if this is a close action
 					if (message.say === "browser_action") {
-						const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+						const browserAction = JSON.parse(
+							message.text || "{}",
+						) as ClineSayBrowserAction
 						if (browserAction.action === "close") {
 							endBrowserSession()
 						}
@@ -579,7 +642,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		(ts: number) => {
 			const isCollapsing = expandedRows[ts] ?? false
 			const lastGroup = groupedMessages.at(-1)
-			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
+			const isLast = Array.isArray(lastGroup)
+				? lastGroup[0].ts === ts
+				: lastGroup?.ts === ts
 			const secondToLastGroup = groupedMessages.at(-2)
 			const isSecondToLast = Array.isArray(secondToLastGroup)
 				? secondToLastGroup[0].ts === ts
@@ -656,7 +721,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
-			if (scrollContainerRef.current?.contains(wheelEvent.target as Node)) {
+			if (
+				scrollContainerRef.current?.contains(wheelEvent.target as Node)
+			) {
 				// user scrolled up
 				disableAutoScrollRef.current = true
 			}
@@ -665,7 +732,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message (@ to add context)..." : "Type your task here (@ to add context)..."
+		const text = task
+			? "Type a message (@ to add context)..."
+			: "Type your task here (@ to add context)..."
 		return text
 	}, [task])
 
@@ -680,7 +749,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
 						// Pass handlers for each message in the group
-						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
+						isExpanded={(messageTs: number) =>
+							expandedRows[messageTs] ?? false
+						}
 						onToggleExpand={(messageTs: number) => {
 							setExpandedRows((prev) => ({
 								...prev,
@@ -704,7 +775,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
+		[
+			expandedRows,
+			modifiedMessages,
+			groupedMessages.length,
+			toggleRowExpansion,
+			handleRowHeightChange,
+		],
 	)
 
 	return (
@@ -724,7 +801,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					task={task}
 					tokensIn={apiMetrics.totalTokensIn}
 					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
+					doesModelSupportPromptCache={
+						selectedModelInfo.supportsPromptCache
+					}
 					cacheWrites={apiMetrics.totalCacheWrites}
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
@@ -740,7 +819,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						flexDirection: "column",
 						paddingBottom: "10px",
 					}}>
-					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
+					{showAnnouncement && (
+						<Announcement
+							version={version}
+							hideAnnouncement={hideAnnouncement}
+						/>
+					)}
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
 						<h2>What can I do for you?</h2>
 						<p>
@@ -750,13 +834,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								style={{ display: "inline" }}>
 								Claude 3.5 Sonnet's agentic coding capabilities,
 							</VSCodeLink>{" "}
-							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, explore complex projects, use the browser, and execute terminal commands
-							(after you grant permission), I can assist you in ways that go beyond code completion or
-							tech support. I can even use MCP to create new tools and extend my own capabilities.
+							I can handle complex software development tasks
+							step-by-step. With tools that let me create & edit
+							files, explore complex projects, use the browser,
+							and execute terminal commands (after you grant
+							permission), I can assist you in ways that go beyond
+							code completion or tech support. I can even use MCP
+							to create new tools and extend my own capabilities.
 						</p>
 					</div>
-					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+					{taskHistory.length > 0 && (
+						<HistoryPreview showHistoryView={showHistoryView} />
+					)}
 				</div>
 			)}
 
@@ -787,7 +876,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			{task && (
 				<>
-					<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
+					<div
+						style={{ flexGrow: 1, display: "flex" }}
+						ref={scrollContainerRef}>
 						<Virtuoso
 							ref={virtuosoRef}
 							key={task.ts} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
@@ -800,7 +891,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
 							}}
 							// increasing top by 3_000 to prevent jumping around when user collapses a row
-							increaseViewportBy={{ top: 3_000, bottom: Number.MAX_SAFE_INTEGER }} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
+							increaseViewportBy={{
+								top: 3_000,
+								bottom: Number.MAX_SAFE_INTEGER,
+							}} // hack to make sure the last message is always rendered to get truly perfect scroll to bottom animation when new messages are added (Number.MAX_SAFE_INTEGER is safe for arithmetic operations, which is all virtuoso uses this value for in src/sizeRangeSystem.ts)
 							data={groupedMessages} // messages is the raw format returned by extension, modifiedMessages is the manipulated structure that combines certain messages of related type, and visibleMessages is the filtered structure that removes messages that should not be rendered
 							itemContent={itemContent}
 							atBottomStateChange={(isAtBottom) => {
@@ -808,7 +902,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								if (isAtBottom) {
 									disableAutoScrollRef.current = false
 								}
-								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
+								setShowScrollToBottom(
+									disableAutoScrollRef.current && !isAtBottom,
+								)
 							}}
 							atBottomThreshold={10} // anything lower causes issues with followOutput
 							initialTopMostItemIndex={groupedMessages.length - 1}
@@ -826,15 +922,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									scrollToBottomSmooth()
 									disableAutoScrollRef.current = false
 								}}>
-								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
+								<span
+									className="codicon codicon-chevron-down"
+									style={{ fontSize: "18px" }}></span>
 							</ScrollToBottomButton>
 						</div>
 					) : (
 						<div
 							style={{
 								opacity:
-									primaryButtonText || secondaryButtonText || isStreaming
-										? enableButtons || (isStreaming && !didClickCancel)
+									primaryButtonText ||
+									secondaryButtonText ||
+									isStreaming
+										? enableButtons ||
+											(isStreaming && !didClickCancel)
 											? 1
 											: 0.5
 										: 0,
@@ -847,7 +948,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									disabled={!enableButtons}
 									style={{
 										flex: secondaryButtonText ? 1 : 2,
-										marginRight: secondaryButtonText ? "6px" : "0",
+										marginRight: secondaryButtonText
+											? "6px"
+											: "0",
 									}}
 									onClick={handlePrimaryButtonClick}>
 									{primaryButtonText}
@@ -856,13 +959,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							{(secondaryButtonText || isStreaming) && (
 								<VSCodeButton
 									appearance="secondary"
-									disabled={!enableButtons && !(isStreaming && !didClickCancel)}
+									disabled={
+										!enableButtons &&
+										!(isStreaming && !didClickCancel)
+									}
 									style={{
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
 									}}
 									onClick={handleSecondaryButtonClick}>
-									{isStreaming ? "Cancel" : secondaryButtonText}
+									{isStreaming
+										? "Cancel"
+										: secondaryButtonText}
 								</VSCodeButton>
 							)}
 						</div>
@@ -891,7 +999,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 }
 
 const ScrollToBottomButton = styled.div`
-	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);
+	background-color: color-mix(
+		in srgb,
+		var(--vscode-toolbar-hoverBackground) 55%,
+		transparent
+	);
 	border-radius: 3px;
 	overflow: hidden;
 	cursor: pointer;
@@ -902,11 +1014,19 @@ const ScrollToBottomButton = styled.div`
 	height: 24px;
 
 	&:hover {
-		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);
+		background-color: color-mix(
+			in srgb,
+			var(--vscode-toolbar-hoverBackground) 90%,
+			transparent
+		);
 	}
 
 	&:active {
-		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 70%, transparent);
+		background-color: color-mix(
+			in srgb,
+			var(--vscode-toolbar-hoverBackground) 70%,
+			transparent
+		);
 	}
 `
 

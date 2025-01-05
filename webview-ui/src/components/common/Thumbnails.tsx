@@ -9,7 +9,12 @@ interface ThumbnailsProps {
 	onHeightChange?: (height: number) => void
 }
 
-const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProps) => {
+const Thumbnails = ({
+	images,
+	style,
+	setImages,
+	onHeightChange,
+}: ThumbnailsProps) => {
 	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
@@ -74,7 +79,8 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 								width: 13,
 								height: 13,
 								borderRadius: "50%",
-								backgroundColor: "var(--vscode-badge-background)",
+								backgroundColor:
+									"var(--vscode-badge-background)",
 								display: "flex",
 								justifyContent: "center",
 								alignItems: "center",

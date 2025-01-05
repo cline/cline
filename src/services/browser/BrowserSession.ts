@@ -1,7 +1,13 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import {
+	Browser,
+	Page,
+	ScreenshotOptions,
+	TimeoutError,
+	launch,
+} from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
@@ -79,7 +85,9 @@ export class BrowserSession {
 		return {}
 	}
 
-	async doAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
+	async doAction(
+		action: (page: Page) => Promise<void>,
+	): Promise<BrowserActionResult> {
 		if (!this.page) {
 			throw new Error(
 				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",
@@ -166,7 +174,10 @@ export class BrowserSession {
 	async navigateToUrl(url: string): Promise<BrowserActionResult> {
 		return this.doAction(async (page) => {
 			// networkidle2 isn't good enough since page may take some time to load. we can assume locally running dev sites will reach networkidle0 in a reasonable amount of time
-			await page.goto(url, { timeout: 7_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+			await page.goto(url, {
+				timeout: 7_000,
+				waitUntil: ["domcontentloaded", "networkidle2"],
+			})
 			// await page.goto(url, { timeout: 10_000, waitUntil: "load" })
 			await this.waitTillHTMLStable(page) // in case the page is loading more resources
 		})

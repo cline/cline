@@ -362,11 +362,17 @@ ${
 						.join("\n\n")
 
 					const templates = server.resourceTemplates
-						?.map((template) => `- ${template.uriTemplate} (${template.name}): ${template.description}`)
+						?.map(
+							(template) =>
+								`- ${template.uriTemplate} (${template.name}): ${template.description}`,
+						)
 						.join("\n")
 
 					const resources = server.resources
-						?.map((resource) => `- ${resource.uri} (${resource.name}): ${resource.description}`)
+						?.map(
+							(resource) =>
+								`- ${resource.uri} (${resource.name}): ${resource.description}`,
+						)
 						.join("\n")
 
 					const config = JSON.parse(server.config)
@@ -374,8 +380,12 @@ ${
 					return (
 						`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
 						(tools ? `\n\n### Available Tools\n${tools}` : "") +
-						(templates ? `\n\n### Resource Templates\n${templates}` : "") +
-						(resources ? `\n\n### Direct Resources\n${resources}` : "")
+						(templates
+							? `\n\n### Resource Templates\n${templates}`
+							: "") +
+						(resources
+							? `\n\n### Direct Resources\n${resources}`
+							: "")
 					)
 				})
 				.join("\n\n")}`
@@ -889,7 +899,10 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-export function addUserInstructions(settingsCustomInstructions?: string, clineRulesFileInstructions?: string) {
+export function addUserInstructions(
+	settingsCustomInstructions?: string,
+	clineRulesFileInstructions?: string,
+) {
 	let customInstructions = ""
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"

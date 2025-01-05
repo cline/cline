@@ -17,7 +17,12 @@ export function insertMention(
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
 		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		newValue =
+			beforeMention +
+			"@" +
+			value +
+			" " +
+			afterCursor.replace(/^[^\s]*/, "")
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
@@ -28,7 +33,10 @@ export function insertMention(
 	return { newValue, mentionIndex }
 }
 
-export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
+export function removeMention(
+	text: string,
+	position: number,
+): { newText: string; newPosition: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
@@ -37,7 +45,9 @@ export function removeMention(text: string, position: number): { newText: string
 
 	if (matchEnd) {
 		// If we're at the end of a mention, remove it
-		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "") // removes the first space after the mention
+		const newText =
+			text.slice(0, position - matchEnd[0].length) +
+			afterCursor.replace(" ", "") // removes the first space after the mention
 		const newPosition = position - matchEnd[0].length
 		return { newText, newPosition }
 	}
@@ -68,15 +78,25 @@ export function getContextMenuOptions(
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
-				.map((item) => ({ type: ContextMenuOptionType.File, value: item.value }))
-			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
+				.map((item) => ({
+					type: ContextMenuOptionType.File,
+					value: item.value,
+				}))
+			return files.length > 0
+				? files
+				: [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
 			const folders = queryItems
 				.filter((item) => item.type === ContextMenuOptionType.Folder)
-				.map((item) => ({ type: ContextMenuOptionType.Folder, value: item.value }))
-			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
+				.map((item) => ({
+					type: ContextMenuOptionType.Folder,
+					value: item.value,
+				}))
+			return folders.length > 0
+				? folders
+				: [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		return [
@@ -92,7 +112,9 @@ export function getContextMenuOptions(
 	if (query.startsWith("http")) {
 		return [{ type: ContextMenuOptionType.URL, value: query }]
 	} else {
-		const matchingItems = queryItems.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
+		const matchingItems = queryItems.filter((item) =>
+			item.value?.toLowerCase().includes(lowerQuery),
+		)
 
 		if (matchingItems.length > 0) {
 			return matchingItems.map((item) => ({

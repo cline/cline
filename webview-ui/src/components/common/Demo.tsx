@@ -57,43 +57,67 @@ function Demo() {
 			<div className="grid gap-3 p-2 place-items-start">
 				<VSCodeDataGrid>
 					<VSCodeDataGridRow row-type="header">
-						<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
+						<VSCodeDataGridCell
+							cell-type="columnheader"
+							grid-column="1">
 							A Custom Header Title
 						</VSCodeDataGridCell>
-						<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
+						<VSCodeDataGridCell
+							cell-type="columnheader"
+							grid-column="2">
 							Another Custom Title
 						</VSCodeDataGridCell>
-						<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
+						<VSCodeDataGridCell
+							cell-type="columnheader"
+							grid-column="3">
 							Title Is Custom
 						</VSCodeDataGridCell>
-						<VSCodeDataGridCell cell-type="columnheader" grid-column="4">
+						<VSCodeDataGridCell
+							cell-type="columnheader"
+							grid-column="4">
 							Custom Title
 						</VSCodeDataGridCell>
 					</VSCodeDataGridRow>
 					{rowData.map((row, index) => (
 						<VSCodeDataGridRow key={index}>
-							<VSCodeDataGridCell grid-column="1">{row.cell1}</VSCodeDataGridCell>
-							<VSCodeDataGridCell grid-column="2">{row.cell2}</VSCodeDataGridCell>
-							<VSCodeDataGridCell grid-column="3">{row.cell3}</VSCodeDataGridCell>
-							<VSCodeDataGridCell grid-column="4">{row.cell4}</VSCodeDataGridCell>
+							<VSCodeDataGridCell grid-column="1">
+								{row.cell1}
+							</VSCodeDataGridCell>
+							<VSCodeDataGridCell grid-column="2">
+								{row.cell2}
+							</VSCodeDataGridCell>
+							<VSCodeDataGridCell grid-column="3">
+								{row.cell3}
+							</VSCodeDataGridCell>
+							<VSCodeDataGridCell grid-column="4">
+								{row.cell4}
+							</VSCodeDataGridCell>
 						</VSCodeDataGridRow>
 					))}
 				</VSCodeDataGrid>
 
 				<VSCodeTextField>
-					<section slot="end" style={{ display: "flex", alignItems: "center" }}>
+					<section
+						slot="end"
+						style={{ display: "flex", alignItems: "center" }}>
 						<VSCodeButton appearance="icon" aria-label="Match Case">
 							<span className="codicon codicon-case-sensitive"></span>
 						</VSCodeButton>
-						<VSCodeButton appearance="icon" aria-label="Match Whole Word">
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Match Whole Word">
 							<span className="codicon codicon-whole-word"></span>
 						</VSCodeButton>
-						<VSCodeButton appearance="icon" aria-label="Use Regular Expression">
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Use Regular Expression">
 							<span className="codicon codicon-regex"></span>
 						</VSCodeButton>
 					</section>
 				</VSCodeTextField>
-				<span slot="end" className="codicon codicon-chevron-right"></span>
+				<span
+					slot="end"
+					className="codicon codicon-chevron-right"></span>
 
 				<span className="flex gap-3">
 					<VSCodeProgressRing />

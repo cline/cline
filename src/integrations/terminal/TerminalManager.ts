@@ -1,7 +1,11 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
-import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
+import {
+	mergePromise,
+	TerminalProcess,
+	TerminalProcessResultPromise,
+} from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
 
 /*
@@ -97,7 +101,9 @@ export class TerminalManager {
 	constructor() {
 		let disposable: vscode.Disposable | undefined
 		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+			disposable = (
+				vscode.window as vscode.Window
+			).onDidStartTerminalShellExecution?.(async (e) => {
 				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 				e?.execution?.read()
 			})
@@ -109,7 +115,10 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+	runCommand(
+		terminalInfo: TerminalInfo,
+		command: string,
+	): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -121,7 +130,9 @@ export class TerminalManager {
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
 		process.once("no_shell_integration", () => {
-			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
+			console.log(
+				`no_shell_integration received for terminal ${terminalInfo.id}`,
+			)
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 			this.terminalIds.delete(terminalInfo.id)
@@ -144,9 +155,15 @@ export class TerminalManager {
 			process.run(terminalInfo.terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
+			pWaitFor(
+				() => terminalInfo.terminal.shellIntegration !== undefined,
+				{ timeout: 4000 },
+			).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
-				if (existingProcess && existingProcess.waitForShellIntegration) {
+				if (
+					existingProcess &&
+					existingProcess.waitForShellIntegration
+				) {
 					existingProcess.waitForShellIntegration = false
 					existingProcess.run(terminalInfo.terminal, command)
 				}
@@ -158,16 +175,21 @@ export class TerminalManager {
 
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		// Find available terminal from our pool first (created for this task)
-		const availableTerminal = TerminalRegistry.getAllTerminals().find((t) => {
-			if (t.busy) {
-				return false
-			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
-			if (!terminalCwd) {
-				return false
-			}
-			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
-		})
+		const availableTerminal = TerminalRegistry.getAllTerminals().find(
+			(t) => {
+				if (t.busy) {
+					return false
+				}
+				const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
+				if (!terminalCwd) {
+					return false
+				}
+				return arePathsEqual(
+					vscode.Uri.file(cwd).fsPath,
+					terminalCwd.fsPath,
+				)
+			},
+		)
 		if (availableTerminal) {
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
@@ -181,7 +203,9 @@ export class TerminalManager {
 	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
 		return Array.from(this.terminalIds)
 			.map((id) => TerminalRegistry.getTerminal(id))
-			.filter((t): t is TerminalInfo => t !== undefined && t.busy === busy)
+			.filter(
+				(t): t is TerminalInfo => t !== undefined && t.busy === busy,
+			)
 			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 

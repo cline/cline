@@ -27,7 +27,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
+		if (
+			terminal.shellIntegration &&
+			terminal.shellIntegration.executeCommand
+		) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors
@@ -60,7 +63,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
 					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
+					const lastMatch = [
+						...data.matchAll(vscodeSequenceRegex),
+					].pop()
 					if (lastMatch && lastMatch.index !== undefined) {
 						data = data.slice(lastMatch.index + lastMatch[0].length)
 					}
@@ -77,7 +82,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
 					}
 					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+					if (
+						lines.length > 0 &&
+						lines[0].length >= 2 &&
+						lines[0][0] === lines[0][1]
+					) {
 						lines[0] = lines[0].slice(1)
 					}
 					// Remove everything up to the first alphanumeric character for first two lines
@@ -120,7 +129,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					clearTimeout(this.hotTimer)
 				}
 				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to cline
-				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
+				const compilingMarkers = [
+					"compiling",
+					"building",
+					"bundling",
+					"transpiling",
+					"generating",
+					"starting",
+				]
 				const markerNullifiers = [
 					"compiled",
 					"success",
@@ -136,13 +152,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					"fail",
 				]
 				const isCompiling =
-					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+					compilingMarkers.some((marker) =>
+						data.toLowerCase().includes(marker.toLowerCase()),
+					) &&
+					!markerNullifiers.some((nullifier) =>
+						data.toLowerCase().includes(nullifier.toLowerCase()),
+					)
 				this.hotTimer = setTimeout(
 					() => {
 						this.isHot = false
 					},
-					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
+					isCompiling
+						? PROCESS_HOT_TIMEOUT_COMPILING
+						: PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
@@ -154,7 +176,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.fullOutput += data
 				if (this.isListening) {
 					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
+					this.lastRetrievedIndex =
+						this.fullOutput.length - this.buffer.length
 				}
 			}
 
@@ -237,10 +260,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
 
 // Similar to execa's ResultPromise, this lets us create a mixin of both a TerminalProcess and a Promise: https://github.com/sindresorhus/execa/blob/main/lib/methods/promise.js
-export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
+export function mergePromise(
+	process: TerminalProcess,
+	promise: Promise<void>,
+): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(
-		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const,
+		(property) =>
+			[
+				property,
+				Reflect.getOwnPropertyDescriptor(
+					nativePromisePrototype,
+					property,
+				),
+			] as const,
 	)
 	for (const [property, descriptor] of descriptors) {
 		if (descriptor) {
