@@ -926,6 +926,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						maxTokens: rawModel.maxTokensOutput,
 						contextWindow: rawModel.maxTokensInput,
 						supportsImages: rawModel.capabilities?.includes("input:image"),
+						supportsComputerUse: rawModel.capabilities?.includes("computer_use"),
 						supportsPromptCache: rawModel.capabilities?.includes("caching"),
 						inputPrice: parsePrice(rawModel.pricePerToken?.input),
 						outputPrice: parsePrice(rawModel.pricePerToken?.output),
