@@ -26,5 +26,5 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	},
 	maxRequests: 20,
 	enableNotifications: false,
-	maxHistoricalMessages: 10, // Added default value for maxHistoricalMessages
+	maxHistoricalMessages: 0, // Added default value for maxHistoricalMessages
 }
