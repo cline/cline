@@ -4,16 +4,21 @@ import {
     AlibabaCloudModelId,
     alibabaCloudModels,
     alibabaCloudDefaultModelId,
-    ApiStreamChunk
+    
 } from "../../shared/api";
 import { ApiHandler } from "../index";
-import { ApiStream } from "../transform/stream";
+import { ApiStream, ApiStreamChunk } from "../transform/stream";
 
 export class AlibabaCloudHandler implements ApiHandler {
     private options: ApiHandlerOptions;
     private client: OpenAI;
 
     constructor(options: ApiHandlerOptions) {
+        // Validate configuration
+        if (!options.alibabaCloudApiKey?.trim()) {
+            throw new Error('Invalid Alibaba Cloud API configuration');
+        }
+
         this.options = options;
         
         // Use OpenAI-compatible API for Alibaba Cloud
@@ -48,7 +53,7 @@ export class AlibabaCloudHandler implements ApiHandler {
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content || '';
                 if (content) {
-                    yield { content } as ApiStreamChunk;
+                    yield { type: "text", text: content } as ApiStreamChunk;
                 }
             }
         } catch (error) {

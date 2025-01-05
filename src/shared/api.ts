@@ -368,26 +368,26 @@ export const alibabaCloudModels = {
 		supportsImages: false,
 		supportsComputerUse: false,
 		supportsPromptCache: false,
-		inputPrice: 3.0,
-		outputPrice: 9.0,
+		inputPrice: 0, // Time-limited Free Trial
+		outputPrice: 0, // Time-limited Free Trial
 	},
 	"qwen-turbo": {
-		maxTokens: 8_000,
+		maxTokens: 6144,
 		contextWindow: 8_000,
 		supportsImages: false,
 		supportsComputerUse: false,
 		supportsPromptCache: false,
-		inputPrice: 0.40,
-		outputPrice: 1.20,
+		inputPrice: 0, // Time-limited Free Trial
+		outputPrice: 0, // Time-limited Free Trial
 	},
 	"qwen-max": {
-		maxTokens: 8_000,
-		contextWindow: 8_000,
+		maxTokens: 16384,
+		contextWindow: 32_000,
 		supportsImages: false,
 		supportsComputerUse: false,
 		supportsPromptCache: false,
-		inputPrice: 10.000,
-		outputPrice: 30.000,
+		inputPrice: 0, // Time-limited Free Trial
+		outputPrice: 0, // Time-limited Free Trial
 	},
 	"qwen2-72b-instruct": {
 		maxTokens: 128_000,
@@ -406,6 +406,7 @@ export const alibabaCloudModels = {
 		supportsPromptCache: false,
 		inputPrice: 0, // Time-limited Free Trial
 		outputPrice: 0, // Time-limited Free Trial
+	},
 	"qwen2-7b-instruct": {
 		maxTokens: 128_000,
 		contextWindow: 131_072,
@@ -415,7 +416,7 @@ export const alibabaCloudModels = {
 		inputPrice: 0, // Time-limited Free Trial
 		outputPrice: 0, // Time-limited Free Trial
 	}
-}
+} as const satisfies Record<string, ModelInfo>;
 
 // DeepSeek
 // https://api-docs.deepseek.com/quick_start/pricing
