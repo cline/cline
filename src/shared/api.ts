@@ -315,7 +315,7 @@ export const bedrockModels = {
 
 // Glama
 // https://glama.ai/models
-export const glamaDefaultModelId = "anthropic/claude-3-5-sonnet" // will always exist in openRouterModels
+export const glamaDefaultModelId = "anthropic/claude-3-5-sonnet"
 export const glamaDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
