@@ -21,6 +21,8 @@ import {
 	deepSeekModels,
 	geminiDefaultModelId,
 	geminiModels,
+	glamaDefaultModelId,
+	glamaDefaultModelInfo,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -38,6 +40,7 @@ import OpenRouterModelPicker, {
 	OPENROUTER_MODEL_PICKER_Z_INDEX,
 } from "./OpenRouterModelPicker"
 import OpenAiModelPicker from "./OpenAiModelPicker"
+import GlamaModelPicker from "./GlamaModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -131,6 +134,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="glama">Glama</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -189,6 +193,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
 						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "glama" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.glamaApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("glamaApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Glama API Key</span>
+					</VSCodeTextField>
+					{!apiConfiguration?.glamaApiKey && (
+						<VSCodeLink
+							href="https://glama.ai/settings/api-keys"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							You can get an Glama API key by signing up here.
+						</VSCodeLink>
+					)}
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
 					</p>
 				</div>
 			)}
@@ -666,9 +698,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</p>
 			)}
 
+			{selectedProvider === "glama" && showModelOptions && <GlamaModelPicker />}
+
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
 
-			{selectedProvider !== "openrouter" &&
+			{selectedProvider !== "glama" &&
+				selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -872,6 +907,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "glama":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.glamaModelId || glamaDefaultModelId,
+				selectedModelInfo: apiConfiguration?.glamaModelInfo || glamaDefaultModelInfo,
+			}
 		case "openrouter":
 			return {
 				selectedProvider: provider,

@@ -27,6 +27,7 @@ export interface WebviewMessage {
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
+		| "refreshGlamaModels"
 		| "refreshOpenRouterModels"
 		| "refreshOpenAiModels"
 		| "alwaysAllowBrowser"
