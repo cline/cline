@@ -3,6 +3,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import * as vscode from "vscode"
 import { activate, deactivate } from "./extension"
+import * as path from "path"
+import * as os from "os"
 
 describe("VSCode Extension", () => {
 	beforeEach(() => {
@@ -12,9 +14,9 @@ describe("VSCode Extension", () => {
 	test("extension activates", async () => {
 		const context = {
 			subscriptions: [],
-			extensionPath: "/test/path",
+			extensionPath: path.join(os.tmpdir(), "/test/path"),
 			globalStorageUri: {
-				fsPath: "/test/global/storage/path",
+				fsPath: path.join(os.tmpdir(), "/test/global/storage/path"),
 			},
 			globalState: {
 				get: vi.fn(),
