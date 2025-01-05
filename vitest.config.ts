@@ -6,6 +6,11 @@ export default defineConfig({
 		globals: true,
 		environment: "node",
 		setupFiles: ["./tests/setup.ts"],
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'json', 'html'],
+			enabled: true
+		  },
 
 		include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
 		deps: {
