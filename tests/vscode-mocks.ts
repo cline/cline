@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { vi } from "vitest"
 
 // Mock VS Code API types

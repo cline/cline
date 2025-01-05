@@ -21,7 +21,9 @@
 		"rootDir": "./",
 		"baseUrl": "./",
 		"types": ["node", "vscode"],
-		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts"]
+		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts", "./"],
+		"skipLibCheck": true,
+		"skipDefaultLibCheck": true,
 	},
 	"include": ["src/**/*.ts", "tests/**/*.ts"],
 	"exclude": ["node_modules", "dist", "out"]

@@ -1,3 +1,4 @@
+import {test,expect} from "vitest"
 import { constructNewFileContent } from "./diff"
 
 test("constructNewFileContent with no trailing newline in replacement", async () => {

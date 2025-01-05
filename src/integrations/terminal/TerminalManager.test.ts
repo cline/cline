@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, afterAll } from "vitest"
 import * as vscode from "vscode"
 import { TerminalManager } from "./TerminalManager"

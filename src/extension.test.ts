@@ -1,3 +1,4 @@
+
 import { afterEach, describe, expect, test, vi, Mock, beforeEach } from "vitest"
 import * as vscode from "vscode"
 
@@ -44,7 +45,9 @@ describe("VSCode Extension", () => {
 		]
 		// @ts-ignore
 		vi.spyOn(vscode.window, "createOutputChannel").mockImplementation(
+      // @ts-ignore
 			(name: string) =>
+        // @ts-ignore
 				({
 					name,
 					append: vi.fn(),
@@ -57,7 +60,7 @@ describe("VSCode Extension", () => {
 		)
 
 		vi.spyOn(vscode.workspace, "workspaceFolders", "get").mockReturnValue(mockWorkspaceFolders)
-
+    // @ts-ignore
 		await activate(context)
 
 		expect(vscode.workspace.workspaceFolders).toEqual(mockWorkspaceFolders)
