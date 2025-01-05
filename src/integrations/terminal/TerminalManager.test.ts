@@ -20,6 +20,21 @@ vi.mock('vscode', async () => {
       ...actualVscode.window,
       onDidStartTerminalShellExecution: vi.fn(),
     },
+    workspace: {
+      ...actualVscode.workspace,
+      workspaceFolders: [
+        {
+          uri: {
+            scheme: 'file',
+            path: '/path/to/mock/workspace',
+            fsPath: '/path/to/mock/workspace',
+            with: vi.fn(),
+            toString: vi.fn(),
+            toJSON: vi.fn(),
+          },
+        },
+      ],
+    },
   };
 });
 
@@ -44,9 +59,7 @@ vi.mock('./TerminalProcess', async (importOriginal) => {
 });
 
 describe('TerminalManager runCommand', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
+
 
   afterAll(() => {
     vi.resetAllMocks();

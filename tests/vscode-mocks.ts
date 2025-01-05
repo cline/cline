@@ -108,20 +108,14 @@ const onDidChangeWorkspaceFolders = new VSCodeEventEmitter<any>();
 const onDidChangeActiveTextEditor = new VSCodeEventEmitter<any>();
 
 // Mock the entire vscode module
+const actualVscode = vi.importActual<typeof import('vscode')>('vscode');
 const vscode = {
+  ...actualVscode,
   EventEmitter: VSCodeEventEmitter,
   ThemeIcon: vi.fn().mockImplementation((id: string) => ({ id })),
-  workspace: {
-    workspaceFolders: [],
-    getConfiguration: vi.fn().mockReturnValue({
-      get: vi.fn(),
-      update: vi.fn(),
-      has: vi.fn(),
-    }),
-    onDidChangeConfiguration: onDidChangeConfiguration.event,
-    onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
-  },
+
   window: {
+    ...actualVscode.window,
     terminals: [] as Terminal[],
     createTerminal: vi.fn((options?: any) => {
       const terminal = createBaseTerminal(options);

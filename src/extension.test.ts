@@ -1,19 +1,20 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { vscode } from "../tests/vscode-mocks";
-const { workspace, window } = vscode;
-import { activate, deactivate } from "./extension"
+import { afterEach, describe, expect, test, vi, Mock, beforeEach } from "vitest";
+import * as vscode from "vscode";
+
+import { activate, deactivate } from "./extension";
 
 describe("VSCode Extension", () => {
-  
   afterEach(() => {
-    vi.resetAllMocks()
-  })
+    vi.resetAllMocks();
+  });
 
-  test("extension activates", () => {
-    
+  test("extension activates", async () => {
     const context = {
       subscriptions: [],
       extensionPath: "/test/path",
+      globalStorageUri: {
+        fsPath: "/test/global/storage/path",
+      },
       globalState: {
         get: vi.fn(),
         update: vi.fn(),
@@ -40,17 +41,27 @@ describe("VSCode Extension", () => {
         name: "mockWorkspace",
         index: 0,
       },
-    ]
+    ];
+    // @ts-ignore
+    vi.spyOn(vscode.window, "createOutputChannel").mockImplementation((name: string) => ({
+      name,
+      append: vi.fn(),
+      appendLine: vi.fn(),
+      clear: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+    } as vscode.OutputChannel));
 
-    vi.spyOn(workspace, "workspaceFolders", "get").mockReturnValue(mockWorkspaceFolders)
 
-    activate(context)
-    
-    expect(workspace.workspaceFolders).toBeDefined()
-    
-  })
+    vi.spyOn(vscode.workspace, "workspaceFolders", "get").mockReturnValue(mockWorkspaceFolders);
 
-  test("extension deactivates", () => {
-    deactivate()
-  })
-})
+    await activate(context);
+
+    expect(vscode.workspace.workspaceFolders).toEqual(mockWorkspaceFolders);
+  });
+
+  test("extension deactivates", async () => {
+    await deactivate();
+  });
+});
