@@ -1061,12 +1061,16 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
-		case "openai":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openAiModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
+			case "openai":
+				return {
+					selectedProvider: provider,
+					selectedModelId: apiConfiguration?.openAiModelId || "",
+					selectedModelInfo: {
+						...openAiModelInfoSaneDefaults,
+						supportsPromptCache: apiConfiguration?.openAiSupportsPromptCache ?? false,
+						supportsComputerUse: apiConfiguration?.openAiSupportsComputerUse ?? false,
+					},
+				}
 		case "ollama":
 			return {
 				selectedProvider: provider,
