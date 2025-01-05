@@ -16,6 +16,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for DeepSeek V3
 - Support for Amazon Nova and Meta 3, 3.1, and 3.2 models via AWS Bedrock
+- Support for Glama
 - Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
 - Enable/disable individual MCP servers
