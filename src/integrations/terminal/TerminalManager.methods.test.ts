@@ -73,6 +73,12 @@ describe('TerminalManager Methods', () => {
       return mockTerminals
     })
     
+    vi.spyOn(TerminalRegistry, 'getTerminal').mockImplementation((id: number) => {
+      const terminal = mockTerminals.find(t => t.id === id)
+      console.log(`getTerminal called with id ${id}, found:`, terminal)
+      return terminal
+    })
+    
     vi.spyOn(TerminalRegistry, 'createTerminal').mockImplementation((cwd?: string | vscode.Uri) => {
       console.log('Creating terminal with cwd:', cwd)
       // Create a comprehensive mock terminal
@@ -90,7 +96,7 @@ describe('TerminalManager Methods', () => {
       // Create a mutable terminal info object
       const terminalInfo: TerminalInfo = {
         terminal,
-        busy: false,
+        busy: false,  // Always set to false by default
         lastCommand: "",
         id: nextId++
       }
@@ -145,14 +151,12 @@ describe('TerminalManager Methods', () => {
 
     it('should skip busy terminals', async () => {
       const mockCwd = '/test/path'
-      const busyTerminal = TerminalRegistry.createTerminal(mockCwd)  // Will be busy due to path
-      
-      // Create a more complete mock of the terminal
-      vi.spyOn(busyTerminal.terminal, 'shellIntegration' as any, 'get').mockReturnValue({
-        cwd: vscode.Uri.file(mockCwd)
-      })
+      const busyTerminal = TerminalRegistry.createTerminal(mockCwd)
+      terminalManager['terminalIds'].add(busyTerminal.id)
 
-      // Create a new terminal with the same path (should not be busy)
+      // Verify the terminal is busy
+      expect(busyTerminal.busy).toBe(true)
+
       const result = await terminalManager.getOrCreateTerminal(mockCwd)
 
       expect(result.id).not.toBe(busyTerminal.id)
