@@ -16,11 +16,43 @@ export function truncateHalfConversation(
 	// Always keep the first Task message (this includes the project's file structure in environment_details)
 	const truncatedMessages = [messages[0]]
 
-	// Remove half of user-assistant pairs
-	const messagesToRemove = Math.floor(messages.length / 4) * 2 // has to be even number
+	// Calculate token count
+	let totalTokens = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0)
+	
+	// If under limit, return all messages
+	if (totalTokens <= 65536) {
+		return messages
+	}
 
-	const remainingMessages = messages.slice(messagesToRemove + 1) // has to start with assistant message since tool result cannot follow assistant message with no tool use
-	truncatedMessages.push(...remainingMessages)
+	// Remove least important messages first
+	const importantMessages = messages.filter(msg => {
+		// Keep messages with tool results
+		if ((msg as any).role === 'tool') return true
+		// Keep messages with file content
+		if (typeof msg.content === 'string' && msg.content.includes('file_content')) return true
+		// Keep messages with environment details
+		if (typeof msg.content === 'string' && msg.content.includes('environment_details')) return true
+		return false
+	})
+
+	// Add important messages first
+	truncatedMessages.push(...importantMessages)
+
+	// Calculate remaining tokens
+	let remainingTokens = 65536 - truncatedMessages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0)
+
+	// Add remaining messages until token limit
+	for (let i = 1; i < messages.length; i++) {
+		const msg = messages[i]
+		const msgTokens = msg.content?.length || 0
+		
+		if (remainingTokens - msgTokens >= 0) {
+			truncatedMessages.push(msg)
+			remainingTokens -= msgTokens
+		} else {
+			break
+		}
+	}
 
 	return truncatedMessages
 }
