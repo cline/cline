@@ -8,7 +8,9 @@ import * as path from "path"
  * @param filePath - The full path to a file.
  * @returns A promise that resolves to an array of newly created directories.
  */
-export async function createDirectoriesForFile(filePath: string): Promise<string[]> {
+export async function createDirectoriesForFile(
+	filePath: string,
+): Promise<string[]> {
 	const newDirectories: string[] = []
 	const normalizedFilePath = path.normalize(filePath) // Normalize path for cross-platform compatibility
 	const directoryPath = path.dirname(normalizedFilePath)

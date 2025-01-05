@@ -30,7 +30,9 @@ describe("Path Utilities", () => {
 		it("should handle desktop path", () => {
 			const desktop = path.join(os.homedir(), "Desktop")
 			const testPath = path.join(desktop, "test.txt")
-			getReadablePath(desktop, "test.txt").should.equal(testPath.replace(/\\/g, "/"))
+			getReadablePath(desktop, "test.txt").should.equal(
+				testPath.replace(/\\/g, "/"),
+			)
 		})
 
 		it("should show relative paths within cwd", () => {

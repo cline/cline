@@ -1,7 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	geminiDefaultModelId,
+	GeminiModelId,
+	geminiModels,
+	ModelInfo,
+} from "../../shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
@@ -17,7 +23,10 @@ export class GeminiHandler implements ApiHandler {
 		this.client = new GoogleGenerativeAI(options.geminiApiKey)
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+	): ApiStream {
 		const model = this.client.getGenerativeModel({
 			model: this.getModel().id,
 			systemInstruction: systemPrompt,
@@ -51,6 +60,9 @@ export class GeminiHandler implements ApiHandler {
 			const id = modelId as GeminiModelId
 			return { id, info: geminiModels[id] }
 		}
-		return { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
+		return {
+			id: geminiDefaultModelId,
+			info: geminiModels[geminiDefaultModelId],
+		}
 	}
 }

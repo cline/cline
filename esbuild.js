@@ -18,7 +18,9 @@ const esbuildProblemMatcherPlugin = {
 		build.onEnd((result) => {
 			result.errors.forEach(({ text, location }) => {
 				console.error(`✘ [ERROR] ${text}`)
-				console.error(`    ${location.file}:${location.line}:${location.column}:`)
+				console.error(
+					`    ${location.file}:${location.line}:${location.column}:`,
+				)
 			})
 			console.log("[watch] build finished")
 		})
@@ -30,14 +32,26 @@ const copyWasmFiles = {
 	setup(build) {
 		build.onEnd(() => {
 			// tree sitter
-			const sourceDir = path.join(__dirname, "node_modules", "web-tree-sitter")
+			const sourceDir = path.join(
+				__dirname,
+				"node_modules",
+				"web-tree-sitter",
+			)
 			const targetDir = path.join(__dirname, "dist")
 
 			// Copy tree-sitter.wasm
-			fs.copyFileSync(path.join(sourceDir, "tree-sitter.wasm"), path.join(targetDir, "tree-sitter.wasm"))
+			fs.copyFileSync(
+				path.join(sourceDir, "tree-sitter.wasm"),
+				path.join(targetDir, "tree-sitter.wasm"),
+			)
 
 			// Copy language-specific WASM files
-			const languageWasmDir = path.join(__dirname, "node_modules", "tree-sitter-wasms", "out")
+			const languageWasmDir = path.join(
+				__dirname,
+				"node_modules",
+				"tree-sitter-wasms",
+				"out",
+			)
 			const languages = [
 				"typescript",
 				"tsx",
@@ -56,7 +70,10 @@ const copyWasmFiles = {
 
 			languages.forEach((lang) => {
 				const filename = `tree-sitter-${lang}.wasm`
-				fs.copyFileSync(path.join(languageWasmDir, filename), path.join(targetDir, filename))
+				fs.copyFileSync(
+					path.join(languageWasmDir, filename),
+					path.join(targetDir, filename),
+				)
 			})
 		})
 	},

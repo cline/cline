@@ -59,7 +59,10 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				}}>
 				<span
 					className="codicon codicon-comment-discussion"
-					style={{ marginRight: "4px", transform: "scale(0.9)" }}></span>
+					style={{
+						marginRight: "4px",
+						transform: "scale(0.9)",
+					}}></span>
 				<span
 					style={{
 						fontWeight: 500,
@@ -106,31 +109,51 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									}}>
 									{item.task}
 								</div>
-								<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
+								<div
+									style={{
+										fontSize: "0.85em",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
 									<span>
-										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
+										Tokens: ↑
+										{formatLargeNumber(item.tokensIn || 0)}{" "}
+										↓
 										{formatLargeNumber(item.tokensOut || 0)}
 									</span>
 									{!!item.cacheWrites && (
 										<>
 											{" • "}
 											<span>
-												Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
-												{formatLargeNumber(item.cacheReads || 0)}
+												Cache: +
+												{formatLargeNumber(
+													item.cacheWrites || 0,
+												)}{" "}
+												→{" "}
+												{formatLargeNumber(
+													item.cacheReads || 0,
+												)}
 											</span>
 										</>
 									)}
 									{!!item.totalCost && (
 										<>
 											{" • "}
-											<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
+											<span>
+												API Cost: $
+												{item.totalCost?.toFixed(4)}
+											</span>
 										</>
 									)}
 								</div>
 							</div>
 						</div>
 					))}
-				<div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+					}}>
 					<VSCodeButton
 						appearance="icon"
 						onClick={() => showHistoryView()}

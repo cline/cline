@@ -50,7 +50,9 @@ export class TerminalRegistry {
 	}
 
 	static getAllTerminals(): TerminalInfo[] {
-		this.terminals = this.terminals.filter((t) => !this.isTerminalClosed(t.terminal))
+		this.terminals = this.terminals.filter(
+			(t) => !this.isTerminalClosed(t.terminal),
+		)
 		return this.terminals
 	}
 

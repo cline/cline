@@ -20,22 +20,34 @@ import { ClineMessage } from "./ExtensionMessage"
  * const result = simpleCombineCommandSequences(messages);
  * // Result: [{ type: 'ask', ask: 'command', text: 'ls\nfile1.txt\nfile2.txt', ts: 1625097600000 }]
  */
-export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[] {
+export function combineCommandSequences(
+	messages: ClineMessage[],
+): ClineMessage[] {
 	const combinedCommands: ClineMessage[] = []
 
 	// First pass: combine commands with their outputs
 	for (let i = 0; i < messages.length; i++) {
-		if (messages[i].type === "ask" && (messages[i].ask === "command" || messages[i].say === "command")) {
+		if (
+			messages[i].type === "ask" &&
+			(messages[i].ask === "command" || messages[i].say === "command")
+		) {
 			let combinedText = messages[i].text || ""
 			let didAddOutput = false
 			let j = i + 1
 
 			while (j < messages.length) {
-				if (messages[j].type === "ask" && (messages[j].ask === "command" || messages[j].say === "command")) {
+				if (
+					messages[j].type === "ask" &&
+					(messages[j].ask === "command" ||
+						messages[j].say === "command")
+				) {
 					// Stop if we encounter the next command
 					break
 				}
-				if (messages[j].ask === "command_output" || messages[j].say === "command_output") {
+				if (
+					messages[j].ask === "command_output" ||
+					messages[j].say === "command_output"
+				) {
 					if (!didAddOutput) {
 						// Add a newline before the first output
 						combinedText += `\n${COMMAND_OUTPUT_STRING}`
@@ -61,10 +73,18 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 
 	// Second pass: remove command_outputs and replace original commands with combined ones
 	return messages
-		.filter((msg) => !(msg.ask === "command_output" || msg.say === "command_output"))
+		.filter(
+			(msg) =>
+				!(msg.ask === "command_output" || msg.say === "command_output"),
+		)
 		.map((msg) => {
-			if (msg.type === "ask" && (msg.ask === "command" || msg.say === "command")) {
-				const combinedCommand = combinedCommands.find((cmd) => cmd.ts === msg.ts)
+			if (
+				msg.type === "ask" &&
+				(msg.ask === "command" || msg.say === "command")
+			) {
+				const combinedCommand = combinedCommands.find(
+					(cmd) => cmd.ts === msg.ts,
+				)
 				return combinedCommand || msg
 			}
 			return msg

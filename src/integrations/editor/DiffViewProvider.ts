@@ -33,8 +33,8 @@ export class DiffViewProvider {
 		this.isEditing = true
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, absolutePath),
+			const existingDocument = vscode.workspace.textDocuments.find(
+				(doc) => arePathsEqual(doc.uri.fsPath, absolutePath),
 			)
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
@@ -62,7 +62,9 @@ export class DiffViewProvider {
 			.map((tg) => tg.tabs)
 			.flat()
 			.filter(
-				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath),
+				(tab) =>
+					tab.input instanceof vscode.TabInputText &&
+					arePathsEqual(tab.input.uri.fsPath, absolutePath),
 			)
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
@@ -71,16 +73,29 @@ export class DiffViewProvider {
 			this.documentWasOpen = true
 		}
 		this.activeDiffEditor = await this.openDiffEditor()
-		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
-		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
+		this.fadedOverlayController = new DecorationController(
+			"fadedOverlay",
+			this.activeDiffEditor,
+		)
+		this.activeLineController = new DecorationController(
+			"activeLine",
+			this.activeDiffEditor,
+		)
 		// Apply faded overlay to all lines initially
-		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
+		this.fadedOverlayController.addLines(
+			0,
+			this.activeDiffEditor.document.lineCount,
+		)
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
 	}
 
 	async update(accumulatedContent: string, isFinal: boolean) {
-		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
+		if (
+			!this.relPath ||
+			!this.activeLineController ||
+			!this.fadedOverlayController
+		) {
 			throw new Error("Required values not set")
 		}
 		this.newContent = accumulatedContent
@@ -98,7 +113,10 @@ export class DiffViewProvider {
 
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
-		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
+		diffEditor.selection = new vscode.Selection(
+			beginningOfDocument,
+			beginningOfDocument,
+		)
 
 		for (let i = 0; i < diffLines.length; i++) {
 			const currentLine = this.streamedLines.length + i
@@ -106,12 +124,16 @@ export class DiffViewProvider {
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
 			const edit = new vscode.WorkspaceEdit()
 			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+			const contentToReplace =
+				accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			edit.replace(document.uri, rangeToReplace, contentToReplace)
 			await vscode.workspace.applyEdit(edit)
 			// Update decorations
 			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
+			this.fadedOverlayController.updateOverlayAfterLine(
+				currentLine,
+				document.lineCount,
+			)
 			// Scroll to the current line
 			this.scrollEditorToLine(currentLine)
 		}
@@ -121,7 +143,15 @@ export class DiffViewProvider {
 			// Handle any remaining lines if the new content is shorter than the original
 			if (this.streamedLines.length < document.lineCount) {
 				const edit = new vscode.WorkspaceEdit()
-				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
+				edit.delete(
+					document.uri,
+					new vscode.Range(
+						this.streamedLines.length,
+						0,
+						document.lineCount,
+						0,
+					),
+				)
 				await vscode.workspace.applyEdit(edit)
 			}
 			// Add empty last line if original content had one
@@ -166,7 +196,9 @@ export class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = updatedDocument.getText()
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+			preview: false,
+		})
 		await this.closeAllDiffViews()
 
 		/*
@@ -195,14 +227,22 @@ export class DiffViewProvider {
 			this.cwd,
 		) // will be empty string if no errors
 		const newProblemsMessage =
-			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
+			newProblems.length > 0
+				? `\n\nNew problems detected after saving the file:\n${newProblems}`
+				: ""
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
+		const normalizedPreSaveContent =
+			preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent =
+			postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+		const normalizedNewContent =
+			this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL
 
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
@@ -228,7 +268,12 @@ export class DiffViewProvider {
 			)
 		}
 
-		return { newProblemsMessage, userEdits, autoFormattingEdits, finalContent: normalizedPostSaveContent }
+		return {
+			newProblemsMessage,
+			userEdits,
+			autoFormattingEdits,
+			finalContent: normalizedPostSaveContent,
+		}
 	}
 
 	async revertChanges(): Promise<void> {
@@ -247,7 +292,9 @@ export class DiffViewProvider {
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
-				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+				console.log(
+					`Directory ${this.createdDirs[i]} has been deleted.`,
+				)
 			}
 			console.log(`File ${absolutePath} has been deleted.`)
 		} else {
@@ -257,15 +304,24 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(0),
 				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
-			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
+			edit.replace(
+				updatedDocument.uri,
+				fullRange,
+				this.originalContent ?? "",
+			)
 			// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
-			console.log(`File ${absolutePath} has been reverted to its original content.`)
+			console.log(
+				`File ${absolutePath} has been reverted to its original content.`,
+			)
 			if (this.documentWasOpen) {
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
-					preview: false,
-				})
+				await vscode.window.showTextDocument(
+					vscode.Uri.file(absolutePath),
+					{
+						preview: false,
+					},
+				)
 			}
 			await this.closeAllDiffViews()
 		}
@@ -305,23 +361,32 @@ export class DiffViewProvider {
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
-			const editor = await vscode.window.showTextDocument(diffTab.input.modified)
+			const editor = await vscode.window.showTextDocument(
+				diffTab.input.modified,
+			)
 			return editor
 		}
 		// Open new diff editor
 		return new Promise<vscode.TextEditor>((resolve, reject) => {
 			const fileName = path.basename(uri.fsPath)
 			const fileExists = this.editType === "modify"
-			const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-				if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
-					disposable.dispose()
-					resolve(editor)
-				}
-			})
+			const disposable = vscode.window.onDidChangeActiveTextEditor(
+				(editor) => {
+					if (
+						editor &&
+						arePathsEqual(editor.document.uri.fsPath, uri.fsPath)
+					) {
+						disposable.dispose()
+						resolve(editor)
+					}
+				},
+			)
 			vscode.commands.executeCommand(
 				"vscode.diff",
 				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${fileName}`).with({
-					query: Buffer.from(this.originalContent ?? "").toString("base64"),
+					query: Buffer.from(this.originalContent ?? "").toString(
+						"base64",
+					),
 				}),
 				uri,
 				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
@@ -329,7 +394,11 @@ export class DiffViewProvider {
 			// This may happen on very slow machines ie project idx
 			setTimeout(() => {
 				disposable.dispose()
-				reject(new Error("Failed to open diff editor, please try again..."))
+				reject(
+					new Error(
+						"Failed to open diff editor, please try again...",
+					),
+				)
 			}, 10_000)
 		})
 	}

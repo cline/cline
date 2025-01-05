@@ -7,7 +7,9 @@ The Cline extension exposes an API that can be used by other extensions. To use 
 3. Get access to the API with the following code:
 
     ```ts
-    const clineExtension = vscode.extensions.getExtension<ClineAPI>("saoudrizwan.claude-dev")
+    const clineExtension = vscode.extensions.getExtension<ClineAPI>(
+    	"saoudrizwan.claude-dev",
+    )
 
     if (!clineExtension?.isActive) {
     	throw new Error("Cline extension is not activated")
@@ -29,7 +31,9 @@ The Cline extension exposes an API that can be used by other extensions. To use 
     	await cline.startNewTask("Hello, Cline! Let's make a new project...")
 
     	// Start a new task with an initial message and images
-    	await cline.startNewTask("Use this design language", ["data:image/webp;base64,..."])
+    	await cline.startNewTask("Use this design language", [
+    		"data:image/webp;base64,...",
+    	])
 
     	// Send a message to the current task
     	await cline.sendMessage("Can you fix the @problems?")

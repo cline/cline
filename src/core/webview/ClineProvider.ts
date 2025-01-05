@@ -14,15 +14,21 @@ import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { WebviewMessage } from "../../shared/WebviewMessage"
+import {
+	ClineCheckpointRestore,
+	WebviewMessage,
+} from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import {
+	AutoApprovalSettings,
+	DEFAULT_AUTO_APPROVAL_SETTINGS,
+} from "../../shared/AutoApprovalSettings"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -79,7 +85,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
-	private latestAnnouncementId = "dec-17-2024" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "jan-5-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -119,7 +125,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	public static getVisibleInstance(): ClineProvider | undefined {
-		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
+		return findLast(
+			Array.from(this.activeInstances),
+			(instance) => instance.view?.visible === true,
+		)
 	}
 
 	resolveWebviewView(
@@ -152,7 +161,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			webviewView.onDidChangeViewState(
 				() => {
 					if (this.view?.visible) {
-						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+						this.postMessageToWebview({
+							type: "action",
+							action: "didBecomeVisible",
+						})
 					}
 				},
 				null,
@@ -163,7 +175,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			webviewView.onDidChangeVisibility(
 				() => {
 					if (this.view?.visible) {
-						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+						this.postMessageToWebview({
+							type: "action",
+							action: "didBecomeVisible",
+						})
 					}
 				},
 				null,
@@ -186,7 +201,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
 					// Sends latest theme name to webview
-					await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
+					await this.postMessageToWebview({
+						type: "theme",
+						text: JSON.stringify(await getTheme()),
+					})
 				}
 			},
 			null,
@@ -201,13 +219,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, autoApprovalSettings, customInstructions, task, images)
+		const { apiConfiguration, customInstructions, autoApprovalSettings } =
+			await this.getState()
+		this.cline = new Cline(
+			this,
+			apiConfiguration,
+			autoApprovalSettings,
+			customInstructions,
+			task,
+			images,
+		)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings } = await this.getState()
+		const { apiConfiguration, customInstructions, autoApprovalSettings } =
+			await this.getState()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
@@ -248,7 +275,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"main.css",
 		])
 		// The JS file from the React build output
-		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
+		const scriptUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"build",
+			"static",
+			"js",
+			"main.js",
+		])
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
@@ -319,30 +352,42 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
-							this.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) }),
+							this.postMessageToWebview({
+								type: "theme",
+								text: JSON.stringify(theme),
+							}),
 						)
 						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
 							if (openRouterModels) {
-								this.postMessageToWebview({ type: "openRouterModels", openRouterModels })
+								this.postMessageToWebview({
+									type: "openRouterModels",
+									openRouterModels,
+								})
 							}
 						})
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
-						this.refreshOpenRouterModels().then(async (openRouterModels) => {
-							if (openRouterModels) {
-								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-								const { apiConfiguration } = await this.getState()
-								if (apiConfiguration.openRouterModelId) {
-									await this.updateGlobalState(
-										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId],
-									)
-									await this.postStateToWebview()
+						this.refreshOpenRouterModels().then(
+							async (openRouterModels) => {
+								if (openRouterModels) {
+									// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+									const { apiConfiguration } =
+										await this.getState()
+									if (apiConfiguration.openRouterModelId) {
+										await this.updateGlobalState(
+											"openRouterModelInfo",
+											openRouterModels[
+												apiConfiguration
+													.openRouterModelId
+											],
+										)
+										await this.postStateToWebview()
+									}
 								}
-							}
-						})
+							},
+						)
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -353,7 +398,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// Could also do this in extension .ts
 						//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 						// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-						await this.initClineWithTask(message.text, message.images)
+						await this.initClineWithTask(
+							message.text,
+							message.images,
+						)
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
@@ -384,33 +432,92 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 							} = message.apiConfiguration
-							await this.updateGlobalState("apiProvider", apiProvider)
-							await this.updateGlobalState("apiModelId", apiModelId)
+							await this.updateGlobalState(
+								"apiProvider",
+								apiProvider,
+							)
+							await this.updateGlobalState(
+								"apiModelId",
+								apiModelId,
+							)
 							await this.storeSecret("apiKey", apiKey)
-							await this.storeSecret("openRouterApiKey", openRouterApiKey)
+							await this.storeSecret(
+								"openRouterApiKey",
+								openRouterApiKey,
+							)
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
-							await this.storeSecret("awsSessionToken", awsSessionToken)
+							await this.storeSecret(
+								"awsSessionToken",
+								awsSessionToken,
+							)
 							await this.updateGlobalState("awsRegion", awsRegion)
-							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
-							await this.updateGlobalState("vertexProjectId", vertexProjectId)
-							await this.updateGlobalState("vertexRegion", vertexRegion)
-							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
+							await this.updateGlobalState(
+								"awsUseCrossRegionInference",
+								awsUseCrossRegionInference,
+							)
+							await this.updateGlobalState(
+								"vertexProjectId",
+								vertexProjectId,
+							)
+							await this.updateGlobalState(
+								"vertexRegion",
+								vertexRegion,
+							)
+							await this.updateGlobalState(
+								"openAiBaseUrl",
+								openAiBaseUrl,
+							)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
-							await this.updateGlobalState("openAiModelId", openAiModelId)
-							await this.updateGlobalState("ollamaModelId", ollamaModelId)
-							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
-							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
-							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
-							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+							await this.updateGlobalState(
+								"openAiModelId",
+								openAiModelId,
+							)
+							await this.updateGlobalState(
+								"ollamaModelId",
+								ollamaModelId,
+							)
+							await this.updateGlobalState(
+								"ollamaBaseUrl",
+								ollamaBaseUrl,
+							)
+							await this.updateGlobalState(
+								"lmStudioModelId",
+								lmStudioModelId,
+							)
+							await this.updateGlobalState(
+								"lmStudioBaseUrl",
+								lmStudioBaseUrl,
+							)
+							await this.updateGlobalState(
+								"anthropicBaseUrl",
+								anthropicBaseUrl,
+							)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
-							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
-							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
-							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							await this.updateGlobalState("openRouterModelId", openRouterModelId)
-							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.storeSecret(
+								"openAiNativeApiKey",
+								openAiNativeApiKey,
+							)
+							await this.storeSecret(
+								"deepSeekApiKey",
+								deepSeekApiKey,
+							)
+							await this.updateGlobalState(
+								"azureApiVersion",
+								azureApiVersion,
+							)
+							await this.updateGlobalState(
+								"openRouterModelId",
+								openRouterModelId,
+							)
+							await this.updateGlobalState(
+								"openRouterModelInfo",
+								openRouterModelInfo,
+							)
 							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
+								this.cline.api = buildApiHandler(
+									message.apiConfiguration,
+								)
 							}
 						}
 						await this.postStateToWebview()
@@ -420,15 +527,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "autoApprovalSettings":
 						if (message.autoApprovalSettings) {
-							await this.updateGlobalState("autoApprovalSettings", message.autoApprovalSettings)
+							await this.updateGlobalState(
+								"autoApprovalSettings",
+								message.autoApprovalSettings,
+							)
 							if (this.cline) {
-								this.cline.autoApprovalSettings = message.autoApprovalSettings
+								this.cline.autoApprovalSettings =
+									message.autoApprovalSettings
 							}
 							await this.postStateToWebview()
 						}
 						break
 					case "askResponse":
-						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
+						this.cline?.handleWebviewAskResponse(
+							message.askResponse!,
+							message.text,
+							message.images,
+						)
 						break
 					case "clearTask":
 						// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
@@ -436,12 +551,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "didShowAnnouncement":
-						await this.updateGlobalState("lastShownAnnouncementId", this.latestAnnouncementId)
+						await this.updateGlobalState(
+							"lastShownAnnouncementId",
+							this.latestAnnouncementId,
+						)
 						await this.postStateToWebview()
 						break
 					case "selectImages":
 						const images = await selectImages()
-						await this.postMessageToWebview({ type: "selectedImages", images })
+						await this.postMessageToWebview({
+							type: "selectedImages",
+							images,
+						})
 						break
 					case "exportCurrentTask":
 						const currentTaskId = this.cline?.taskId
@@ -462,12 +583,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.resetState()
 						break
 					case "requestOllamaModels":
-						const ollamaModels = await this.getOllamaModels(message.text)
-						this.postMessageToWebview({ type: "ollamaModels", ollamaModels })
+						const ollamaModels = await this.getOllamaModels(
+							message.text,
+						)
+						this.postMessageToWebview({
+							type: "ollamaModels",
+							ollamaModels,
+						})
 						break
 					case "requestLmStudioModels":
-						const lmStudioModels = await this.getLmStudioModels(message.text)
-						this.postMessageToWebview({ type: "lmStudioModels", lmStudioModels })
+						const lmStudioModels = await this.getLmStudioModels(
+							message.text,
+						)
+						this.postMessageToWebview({
+							type: "lmStudioModels",
+							lmStudioModels,
+						})
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
@@ -481,26 +612,53 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openMention":
 						openMention(message.text)
 						break
-					case "cancelTask":
-						if (this.cline) {
-							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
-							this.cline.abortTask()
-							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
-								timeout: 3_000,
-							}).catch(() => {
-								console.error("Failed to abort task")
-							})
-							if (this.cline) {
-								// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-								this.cline.abandoned = true
-							}
-							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
-							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+					case "checkpointDiff": {
+						if (message.number) {
+							await this.cline?.presentMultifileDiff(
+								message.number,
+								false,
+							)
 						}
-
+						break
+					}
+					case "checkpointRestore": {
+						await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superceded by a new message eg add deleted_api_reqs
+						// cancel task waits for any open editor to be reverted and starts a new cline instance
+						if (message.number) {
+							// wait for messages to be loaded
+							await pWaitFor(
+								() => this.cline?.isInitialized === true,
+								{
+									timeout: 3_000,
+								},
+							).catch(() => {
+								console.error(
+									"Failed to init new cline instance",
+								)
+							})
+							// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
+							await this.cline?.restoreCheckpoint(
+								message.number,
+								message.text! as ClineCheckpointRestore,
+							)
+						}
+						break
+					}
+					case "taskCompletionViewChanges": {
+						if (message.number) {
+							await this.cline?.presentMultifileDiff(
+								message.number,
+								true,
+							)
+						}
+						break
+					}
+					case "cancelTask":
+						this.cancelTask()
 						break
 					case "openMcpSettings": {
-						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+						const mcpSettingsFilePath =
+							await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
 							openFile(mcpSettingsFilePath)
 						}
@@ -510,7 +668,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							await this.mcpHub?.restartConnection(message.text!)
 						} catch (error) {
-							console.error(`Failed to retry connection for ${message.text}:`, error)
+							console.error(
+								`Failed to retry connection for ${message.text}:`,
+								error,
+							)
 						}
 						break
 					}
@@ -523,9 +684,40 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
+	async cancelTask() {
+		if (this.cline) {
+			const { historyItem } = await this.getTaskWithId(this.cline.taskId)
+			try {
+				await this.cline.abortTask()
+			} catch (error) {
+				console.error("Failed to abort task", error)
+			}
+			await pWaitFor(
+				() =>
+					this.cline === undefined ||
+					this.cline.isStreaming === false ||
+					this.cline.didFinishAbortingStream,
+				{
+					timeout: 3_000,
+				},
+			).catch(() => {
+				console.error("Failed to abort task")
+			})
+			if (this.cline) {
+				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
+				this.cline.abandoned = true
+			}
+			await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
+			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+		}
+	}
+
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
-		await this.updateGlobalState("customInstructions", instructions || undefined)
+		await this.updateGlobalState(
+			"customInstructions",
+			instructions || undefined,
+		)
 		if (this.cline) {
 			this.cline.customInstructions = instructions || undefined
 		}
@@ -535,7 +727,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// MCP
 
 	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		const mcpServersDir = path.join(
+			os.homedir(),
+			"Documents",
+			"Cline",
+			"MCP",
+		)
 		try {
 			await fs.mkdir(mcpServersDir, { recursive: true })
 		} catch (error) {
@@ -545,7 +742,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
+		const settingsDir = path.join(
+			this.context.globalStorageUri.fsPath,
+			"settings",
+		)
 		await fs.mkdir(settingsDir, { recursive: true })
 		return settingsDir
 	}
@@ -561,7 +761,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+			const modelsArray =
+				response.data?.models?.map((model: any) => model.name) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
 		} catch (error) {
@@ -580,7 +781,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/v1/models`)
-			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
+			const modelsArray =
+				response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
 		} catch (error) {
@@ -593,7 +795,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
-			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
+			const response = await axios.post(
+				"https://openrouter.ai/api/v1/auth/keys",
+				{ code },
+			)
 			if (response.data && response.data.key) {
 				apiKey = response.data.key
 			} else {
@@ -609,25 +814,36 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
+			this.cline.api = buildApiHandler({
+				apiProvider: openrouter,
+				openRouterApiKey: apiKey,
+			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
 
 	private async ensureCacheDirectoryExists(): Promise<string> {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		const cacheDir = path.join(
+			this.context.globalStorageUri.fsPath,
+			"cache",
+		)
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
 	}
 
-	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+	async readOpenRouterModels(): Promise<
+		Record<string, ModelInfo> | undefined
+	> {
 		const openRouterModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
 			GlobalFileNames.openRouterModels,
 		)
 		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 		if (fileExists) {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+			const fileContents = await fs.readFile(
+				openRouterModelsFilePath,
+				"utf8",
+			)
 			return JSON.parse(fileContents)
 		}
 		return undefined
@@ -641,7 +857,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		let models: Record<string, ModelInfo> = {}
 		try {
-			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			const response = await axios.get(
+				"https://openrouter.ai/api/v1/models",
+			)
 			/*
 			{
 				"id": "anthropic/claude-3.5-sonnet",
@@ -680,7 +898,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					const modelInfo: ModelInfo = {
 						maxTokens: rawModel.top_provider?.max_completion_tokens,
 						contextWindow: rawModel.context_length,
-						supportsImages: rawModel.architecture?.modality?.includes("image"),
+						supportsImages:
+							rawModel.architecture?.modality?.includes("image"),
 						supportsPromptCache: false,
 						inputPrice: parsePrice(rawModel.pricing?.prompt),
 						outputPrice: parsePrice(rawModel.pricing?.completion),
@@ -746,7 +965,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			console.error("Error fetching OpenRouter models:", error)
 		}
 
-		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
+		await this.postMessageToWebview({
+			type: "openRouterModels",
+			openRouterModels: models,
+		})
 		return models
 	}
 
@@ -759,15 +981,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		uiMessagesFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const history =
+			((await this.getGlobalState("taskHistory")) as
+				| HistoryItem[]
+				| undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
-			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
-			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+			const taskDirPath = path.join(
+				this.context.globalStorageUri.fsPath,
+				"tasks",
+				id,
+			)
+			const apiConversationHistoryFilePath = path.join(
+				taskDirPath,
+				GlobalFileNames.apiConversationHistory,
+			)
+			const uiMessagesFilePath = path.join(
+				taskDirPath,
+				GlobalFileNames.uiMessages,
+			)
+			const fileExists = await fileExistsAtPath(
+				apiConversationHistoryFilePath,
+			)
 			if (fileExists) {
-				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
+				const apiConversationHistory = JSON.parse(
+					await fs.readFile(apiConversationHistoryFilePath, "utf8"),
+				)
 				return {
 					historyItem,
 					taskDirPath,
@@ -789,11 +1028,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const { historyItem } = await this.getTaskWithId(id)
 			await this.initClineWithHistoryItem(historyItem) // clears existing task
 		}
-		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+		await this.postMessageToWebview({
+			type: "action",
+			action: "chatButtonClicked",
+		})
 	}
 
 	async exportTaskWithId(id: string) {
-		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
+		const { historyItem, apiConversationHistory } =
+			await this.getTaskWithId(id)
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
@@ -802,12 +1045,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.clearTask()
 		}
 
-		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+		const {
+			taskDirPath,
+			apiConversationHistoryFilePath,
+			uiMessagesFilePath,
+		} = await this.getTaskWithId(id)
 
 		await this.deleteTaskFromState(id)
 
 		// Delete the task files
-		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+		const apiConversationHistoryFileExists = await fileExistsAtPath(
+			apiConversationHistoryFilePath,
+		)
 		if (apiConversationHistoryFileExists) {
 			await fs.unlink(apiConversationHistoryFilePath)
 		}
@@ -815,16 +1064,37 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		if (uiMessagesFileExists) {
 			await fs.unlink(uiMessagesFilePath)
 		}
-		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+		const legacyMessagesFilePath = path.join(
+			taskDirPath,
+			"claude_messages.json",
+		)
 		if (await fileExistsAtPath(legacyMessagesFilePath)) {
 			await fs.unlink(legacyMessagesFilePath)
 		}
+
+		// Delete the checkpoints directory if it exists
+		const checkpointsDir = path.join(taskDirPath, "checkpoints")
+		if (await fileExistsAtPath(checkpointsDir)) {
+			try {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+			} catch (error) {
+				console.error(
+					`Failed to delete checkpoints directory for task ${id}:`,
+					error,
+				)
+				// Continue with deletion of task directory - don't throw since this is a cleanup operation
+			}
+		}
+
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 	}
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const taskHistory =
+			((await this.getGlobalState("taskHistory")) as
+				| HistoryItem[]
+				| undefined) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		await this.updateGlobalState("taskHistory", updatedTaskHistory)
 
@@ -837,17 +1107,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.postMessageToWebview({ type: "state", state })
 	}
 
-	async getStateToPostToWebview() {
-		const { apiConfiguration, lastShownAnnouncementId, customInstructions, taskHistory, autoApprovalSettings } =
-			await this.getState()
+	async getStateToPostToWebview(): Promise<ExtensionState> {
+		const {
+			apiConfiguration,
+			lastShownAnnouncementId,
+			customInstructions,
+			taskHistory,
+			autoApprovalSettings,
+		} = await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
 			uriScheme: vscode.env.uriScheme,
+			currentTaskItem: this.cline?.taskId
+				? (taskHistory || []).find(
+						(item) => item.id === this.cline?.taskId,
+					)
+				: undefined,
+			checkpointTrackerErrorMessage:
+				this.cline?.checkpointTrackerErrorMessage,
 			clineMessages: this.cline?.clineMessages || [],
-			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
-			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			taskHistory: (taskHistory || [])
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts),
+			shouldShowAnnouncement:
+				lastShownAnnouncementId !== this.latestAnnouncementId,
 			autoApprovalSettings,
 		}
 	}
@@ -935,7 +1220,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			autoApprovalSettings,
 		] = await Promise.all([
-			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
+			this.getGlobalState("apiProvider") as Promise<
+				ApiProvider | undefined
+			>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
@@ -943,27 +1230,51 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
-			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
-			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
+			this.getGlobalState("awsUseCrossRegionInference") as Promise<
+				boolean | undefined
+			>,
+			this.getGlobalState("vertexProjectId") as Promise<
+				string | undefined
+			>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
-			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("lmStudioModelId") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("lmStudioBaseUrl") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("anthropicBaseUrl") as Promise<
+				string | undefined
+			>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
-			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
-			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
-			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
+			this.getGlobalState("azureApiVersion") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("openRouterModelId") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("openRouterModelInfo") as Promise<
+				ModelInfo | undefined
+			>,
+			this.getGlobalState("lastShownAnnouncementId") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("customInstructions") as Promise<
+				string | undefined
+			>,
+			this.getGlobalState("taskHistory") as Promise<
+				HistoryItem[] | undefined
+			>,
+			this.getGlobalState("autoApprovalSettings") as Promise<
+				AutoApprovalSettings | undefined
+			>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1011,12 +1322,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
-			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+			autoApprovalSettings:
+				autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		}
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+		const history =
+			((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
@@ -1098,6 +1411,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
-		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+		await this.postMessageToWebview({
+			type: "action",
+			action: "chatButtonClicked",
+		})
 	}
 }

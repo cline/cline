@@ -1,4 +1,8 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodeTextArea,
+} from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -12,19 +16,34 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } =
-		useExtensionState()
-	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	const {
+		apiConfiguration,
+		version,
+		customInstructions,
+		setCustomInstructions,
+		openRouterModels,
+	} = useExtensionState()
+	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(
+		undefined,
+	)
+	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<
+		string | undefined
+	>(undefined)
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+		const modelIdValidationResult = validateModelId(
+			apiConfiguration,
+			openRouterModels,
+		)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
 		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({ type: "customInstructions", text: customInstructions })
+			vscode.postMessage({
+				type: "customInstructions",
+				text: customInstructions,
+			})
 			onDone()
 		}
 	}
@@ -71,11 +90,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					marginBottom: "17px",
 					paddingRight: 17,
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>
+					Settings
+				</h3>
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
-				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
+				style={{
+					flexGrow: 1,
+					overflowY: "scroll",
+					paddingRight: 8,
+					display: "flex",
+					flexDirection: "column",
+				}}>
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						showModelOptions={true}
@@ -92,8 +119,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						placeholder={
 							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
 						}
-						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+						onInput={(e: any) =>
+							setCustomInstructions(e.target?.value ?? "")
+						}>
+						<span style={{ fontWeight: "500" }}>
+							Custom Instructions
+						</span>
 					</VSCodeTextArea>
 					<p
 						style={{
@@ -101,14 +132,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						These instructions are added to the end of the system prompt sent with every request.
+						These instructions are added to the end of the system
+						prompt sent with every request.
 					</p>
 				</div>
 
 				{IS_DEV && (
 					<>
-						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
-						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>
+							Debug
+						</div>
+						<VSCodeButton
+							onClick={handleResetState}
+							style={{ marginTop: "5px", width: "auto" }}>
 							Reset State
 						</VSCodeButton>
 						<p
@@ -117,7 +153,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							This will reset all global state and secret storage in the extension.
+							This will reset all global state and secret storage
+							in the extension.
 						</p>
 					</>
 				)}
@@ -131,13 +168,28 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						marginTop: "auto",
 						padding: "10px 8px 15px 0px",
 					}}>
-					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
-						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+					<p
+						style={{
+							wordWrap: "break-word",
+							margin: 0,
+							padding: 0,
+						}}>
+						If you have any questions or feedback, feel free to open
+						an issue at{" "}
+						<VSCodeLink
+							href="https://github.com/cline/cline"
+							style={{ display: "inline" }}>
 							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
-					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
+					<p
+						style={{
+							fontStyle: "italic",
+							margin: "10px 0 0 0",
+							padding: 0,
+						}}>
+						v{version}
+					</p>
 				</div>
 			</div>
 		</div>

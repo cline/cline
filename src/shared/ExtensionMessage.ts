@@ -19,6 +19,7 @@ export interface ExtensionMessage {
 		| "partialMessage"
 		| "openRouterModels"
 		| "mcpServers"
+		| "relinquishControl"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -42,6 +43,8 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	uriScheme?: string
+	currentTaskItem?: HistoryItem
+	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
@@ -56,6 +59,9 @@ export interface ClineMessage {
 	text?: string
 	images?: string[]
 	partial?: boolean
+	lastCheckpointHash?: string
+	conversationHistoryIndex?: number
+	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
 
 export type ClineAsk =
@@ -93,6 +99,7 @@ export type ClineSay =
 	| "mcp_server_response"
 	| "use_mcp_server"
 	| "diff_error"
+	| "deleted_api_reqs"
 
 export interface ClineSayTool {
 	tool:
@@ -111,7 +118,14 @@ export interface ClineSayTool {
 }
 
 // must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+export const browserActions = [
+	"launch",
+	"click",
+	"type",
+	"scroll_down",
+	"scroll_up",
+	"close",
+] as const
 export type BrowserAction = (typeof browserActions)[number]
 
 export interface ClineSayBrowserAction {
@@ -147,3 +161,5 @@ export interface ClineApiReqInfo {
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+
+export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

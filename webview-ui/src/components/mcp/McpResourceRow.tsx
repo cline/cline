@@ -20,8 +20,13 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 					alignItems: "center",
 					marginBottom: "4px",
 				}}>
-				<span className={`codicon codicon-symbol-file`} style={{ marginRight: "6px" }} />
-				<span style={{ fontWeight: 500, wordBreak: "break-all" }}>{uri}</span>
+				<span
+					className={`codicon codicon-symbol-file`}
+					style={{ marginRight: "6px" }}
+				/>
+				<span style={{ fontWeight: 500, wordBreak: "break-all" }}>
+					{uri}
+				</span>
 			</div>
 			<div
 				style={{

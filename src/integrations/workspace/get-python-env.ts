@@ -33,7 +33,9 @@ export async function getPythonEnvPath(): Promise<string | undefined> {
 		return undefined
 	}
 	// Get the active python environment path for the current workspace
-	const pythonEnv = await pythonApi?.environments?.getActiveEnvironmentPath(workspaceFolder.uri)
+	const pythonEnv = await pythonApi?.environments?.getActiveEnvironmentPath(
+		workspaceFolder.uri,
+	)
 	if (pythonEnv && pythonEnv.path) {
 		return pythonEnv.path
 	} else {

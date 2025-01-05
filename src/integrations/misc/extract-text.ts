@@ -24,7 +24,9 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			if (!isBinary) {
 				return await fs.readFile(filePath, "utf8")
 			} else {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
+				throw new Error(
+					`Cannot read text for file type: ${fileExtension}`,
+				)
 			}
 	}
 }
@@ -46,7 +48,10 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	let extractedText = ""
 
 	for (const cell of notebook.cells) {
-		if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
+		if (
+			(cell.cell_type === "markdown" || cell.cell_type === "code") &&
+			cell.source
+		) {
 			extractedText += cell.source.join("\n") + "\n"
 		}
 	}

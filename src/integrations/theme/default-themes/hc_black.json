@@ -410,7 +410,11 @@
 		},
 		{
 			"name": "Variable and parameter name",
-			"scope": ["variable", "meta.definition.variable.name", "support.variable"],
+			"scope": [
+				"variable",
+				"meta.definition.variable.name",
+				"support.variable"
+			],
 			"settings": {
 				"foreground": "#9CDCFE"
 			}

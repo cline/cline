@@ -185,7 +185,10 @@
 			}
 		},
 		{
-			"scope": ["punctuation.definition.quote.begin.markdown", "punctuation.definition.list.begin.markdown"],
+			"scope": [
+				"punctuation.definition.quote.begin.markdown",
+				"punctuation.definition.list.begin.markdown"
+			],
 			"settings": {
 				"foreground": "#0451a5"
 			}
@@ -370,7 +373,10 @@
 			}
 		},
 		{
-			"scope": ["punctuation.section.embedded.begin.php", "punctuation.section.embedded.end.php"],
+			"scope": [
+				"punctuation.section.embedded.begin.php",
+				"punctuation.section.embedded.end.php"
+			],
 			"settings": {
 				"foreground": "#800000"
 			}

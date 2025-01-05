@@ -29,7 +29,11 @@ function lineTrimmedFallbackMatch(
 	}
 
 	// For each possible starting position in original content
-	for (let i = startLineNum; i <= originalLines.length - searchLines.length; i++) {
+	for (
+		let i = startLineNum;
+		i <= originalLines.length - searchLines.length;
+		i++
+	) {
 		let matches = true
 
 		// Try to match all search lines from this position
@@ -122,7 +126,11 @@ function blockAnchorFallbackMatch(
 	}
 
 	// Look for matching start and end anchors
-	for (let i = startLineNum; i <= originalLines.length - searchBlockSize; i++) {
+	for (
+		let i = startLineNum;
+		i <= originalLines.length - searchBlockSize;
+		i++
+	) {
 		// Check if first line matches
 		if (originalLines[i].trim() !== firstLineSearch) {
 			continue
@@ -231,7 +239,9 @@ export async function constructNewFileContent(
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
+		(lastLine.startsWith("<") ||
+			lastLine.startsWith("=") ||
+			lastLine.startsWith(">")) &&
 		lastLine !== "<<<<<<< SEARCH" &&
 		lastLine !== "=======" &&
 		lastLine !== ">>>>>>> REPLACE"
@@ -280,7 +290,10 @@ export async function constructNewFileContent(
 				// }
 
 				// Exact search match scenario
-				const exactIndex = originalContent.indexOf(currentSearchContent, lastProcessedIndex)
+				const exactIndex = originalContent.indexOf(
+					currentSearchContent,
+					lastProcessedIndex,
+				)
 				if (exactIndex !== -1) {
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
@@ -312,7 +325,10 @@ export async function constructNewFileContent(
 			}
 
 			// Output everything up to the match location
-			result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
+			result += originalContent.slice(
+				lastProcessedIndex,
+				searchMatchIndex,
+			)
 			continue
 		}
 

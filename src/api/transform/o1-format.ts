@@ -244,7 +244,10 @@ const toolNames = [
 	"attempt_completion",
 ]
 
-function parseAIResponse(response: string): { normalText: string; toolCalls: ToolCall[] } {
+function parseAIResponse(response: string): {
+	normalText: string
+	toolCalls: ToolCall[]
+} {
 	// Create a regex pattern to match any tool call opening tag
 	const toolCallPattern = new RegExp(`<(${toolNames.join("|")})`, "i")
 	const match = response.match(toolCallPattern)
@@ -269,7 +272,9 @@ function parseToolCalls(toolCallsText: string): ToolCall[] {
 	let remainingText = toolCallsText
 
 	while (remainingText.length > 0) {
-		const toolMatch = toolNames.find((tool) => new RegExp(`<${tool}`, "i").test(remainingText))
+		const toolMatch = toolNames.find((tool) =>
+			new RegExp(`<${tool}`, "i").test(remainingText),
+		)
 
 		if (!toolMatch) {
 			break // No more tool calls found
@@ -284,7 +289,10 @@ function parseToolCalls(toolCallsText: string): ToolCall[] {
 			break // Malformed XML, no closing tag found
 		}
 
-		const toolCallContent = remainingText.slice(startIndex, endIndex + endTag.length)
+		const toolCallContent = remainingText.slice(
+			startIndex,
+			endIndex + endTag.length,
+		)
 		remainingText = remainingText.slice(endIndex + endTag.length).trim()
 
 		const toolCall = parseToolCall(toolMatch, toolCallContent)
@@ -300,7 +308,9 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 	const tool_input: Record<string, string> = {}
 
 	// Remove the outer tool tags
-	const innerContent = content.replace(new RegExp(`^<${toolName}>|</${toolName}>$`, "g"), "").trim()
+	const innerContent = content
+		.replace(new RegExp(`^<${toolName}>|</${toolName}>$`, "g"), "")
+		.trim()
 
 	// Parse nested XML elements
 	const paramRegex = /<(\w+)>([\s\S]*?)<\/\1>/gs
@@ -321,7 +331,10 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 	return { tool: toolName, tool_input }
 }
 
-function validateToolInput(toolName: string, tool_input: Record<string, string>): boolean {
+function validateToolInput(
+	toolName: string,
+	tool_input: Record<string, string>,
+): boolean {
 	switch (toolName) {
 		case "execute_command":
 			return "command" in tool_input
@@ -363,7 +376,9 @@ export function convertO1ResponseToAnthropicMessage(
 	completion: OpenAI.Chat.Completions.ChatCompletion,
 ): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
-	const { normalText, toolCalls } = parseAIResponse(openAiMessage.content || "")
+	const { normalText, toolCalls } = parseAIResponse(
+		openAiMessage.content || "",
+	)
 
 	const anthropicMessage: Anthropic.Messages.Message = {
 		id: completion.id,
@@ -398,14 +413,16 @@ export function convertO1ResponseToAnthropicMessage(
 
 	if (toolCalls.length > 0) {
 		anthropicMessage.content.push(
-			...toolCalls.map((toolCall: ToolCall, index: number): Anthropic.ToolUseBlock => {
-				return {
-					type: "tool_use",
-					id: `call_${index}_${Date.now()}`, // Generate a unique ID for each tool call
-					name: toolCall.tool,
-					input: toolCall.tool_input,
-				}
-			}),
+			...toolCalls.map(
+				(toolCall: ToolCall, index: number): Anthropic.ToolUseBlock => {
+					return {
+						type: "tool_use",
+						id: `call_${index}_${Date.now()}`, // Generate a unique ID for each tool call
+						name: toolCall.tool,
+						input: toolCall.tool_input,
+					}
+				},
+			),
 		)
 	}
 

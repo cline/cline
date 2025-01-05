@@ -6,10 +6,21 @@ import * as vscode from "vscode"
  * @param newFileContent The new content of the file to check.
  * @returns True if a potential omission is detected, false otherwise.
  */
-function detectCodeOmission(originalFileContent: string, newFileContent: string): boolean {
+function detectCodeOmission(
+	originalFileContent: string,
+	newFileContent: string,
+): boolean {
 	const originalLines = originalFileContent.split("\n")
 	const newLines = newFileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "..."]
+	const omissionKeywords = [
+		"remain",
+		"remains",
+		"unchanged",
+		"rest",
+		"previous",
+		"existing",
+		"...",
+	]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
@@ -38,7 +49,10 @@ function detectCodeOmission(originalFileContent: string, newFileContent: string)
  * @param originalFileContent The original content of the file.
  * @param newFileContent The new content of the file to check.
  */
-export function showOmissionWarning(originalFileContent: string, newFileContent: string): void {
+export function showOmissionWarning(
+	originalFileContent: string,
+	newFileContent: string,
+): void {
 	if (detectCodeOmission(originalFileContent, newFileContent)) {
 		vscode.window
 			.showWarningMessage(
