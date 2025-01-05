@@ -1,4 +1,3 @@
-
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../"

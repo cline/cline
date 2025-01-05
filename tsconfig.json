@@ -20,7 +20,7 @@
 		"outDir": "./dist",
 		"rootDir": "./",
 		"baseUrl": "./",
-  "types": ["node", "vscode"],
+		"types": ["node", "vscode"],
 		"typeRoots": ["./node_modules/@types", "./node_modules/vscode/vscode.d.ts"]
 	},
 	"include": ["src/**/*.ts", "tests/**/*.ts"],

@@ -11,10 +11,6 @@ export function lineTrimmedFallbackMatch(
 	searchContent: string,
 	startIndex: number,
 ): [number, number] | false {
-	
-	
-	
-	
 	// Split both contents into lines
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
@@ -103,10 +99,6 @@ export function blockAnchorFallbackMatch(
 	searchContent: string,
 	startIndex: number,
 ): [number, number] | false {
-	
-	
-	
-	
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
 
@@ -227,9 +219,6 @@ export async function constructNewFileContent(
 	originalContent: string,
 	isFinal: boolean,
 ): Promise<string> {
-	
-	
-	
 	let result = ""
 	let lastProcessedIndex = 0
 

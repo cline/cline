@@ -21,7 +21,6 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -142,7 +141,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	
 	if (outputChannel) {
 		outputChannel.appendLine("Cline extension deactivated")
 	}

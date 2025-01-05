@@ -79,9 +79,9 @@ export class TerminalManager {
 		let disposable: vscode.Disposable | undefined
 		try {
 			// Use optional chaining and function check to improve testability
-			const onDidStartTerminalShellExecution = vscode.window?.onDidStartTerminalShellExecution;
-			
-			if (typeof onDidStartTerminalShellExecution === 'function') {
+			const onDidStartTerminalShellExecution = vscode.window?.onDidStartTerminalShellExecution
+
+			if (typeof onDidStartTerminalShellExecution === "function") {
 				disposable = onDidStartTerminalShellExecution(async (e) => {
 					// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 					e?.execution?.read?.()
@@ -91,7 +91,7 @@ export class TerminalManager {
 			// Optional logging or error handling
 			console.warn("Error setting up onDidStartTerminalShellExecution", error)
 		}
-		
+
 		if (disposable) {
 			this.disposables.push(disposable)
 		}
