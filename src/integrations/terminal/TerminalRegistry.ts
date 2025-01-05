@@ -65,6 +65,10 @@ export class TerminalRegistry {
 		return this.terminals;
 	}
 
+	static getNextTerminalId(): number {
+		return this.nextTerminalId++;
+	}
+
 	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)
 	private static isTerminalClosed(terminal: vscode.Terminal): boolean {
 		return terminal.exitStatus !== undefined;
