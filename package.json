@@ -132,7 +132,7 @@
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.cjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.cjs --production",
 		"build:webview": "cd webview-ui && npm run build",
 		"check-types": "tsc --noEmit",
 		"lint": "eslint src --ext ts",
