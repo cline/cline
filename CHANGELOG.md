@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.40
-
-### Patch Changes
+## [2.2.40]
 
 -   Add the Glama provider (thanks @punkpeye!)
 
