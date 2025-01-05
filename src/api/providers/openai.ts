@@ -100,6 +100,7 @@ export class OpenAiHandler implements ApiHandler {
 					}
 				}
 
+				// First yield the usage info with cache metrics
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
@@ -107,18 +108,39 @@ export class OpenAiHandler implements ApiHandler {
 					cacheWriteTokens: cacheWrites,
 					cacheReadTokens: cacheReads
 				};
+
+				// Include usage and cache metrics in the API request info
+				yield {
+					type: "text",
+					text: JSON.stringify({
+						say: "api_req_started",
+						request: "API Request",
+						usage: {
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+							cacheWriteTokens: cacheWrites,
+							cacheReadTokens: cacheReads
+						}
+					})
+				};
 			}
 		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const info: ModelInfo = {
+			...openAiModelInfoSaneDefaults,
+			supportsComputerUse: this.options.openAiSupportsComputerUse ?? false,
+			supportsPromptCache: this.options.openAiSupportsPromptCache ?? false,
+			// Add cache pricing info if prompt caching is enabled
+			...(this.options.openAiSupportsPromptCache && {
+				cacheWritesPrice: 3.75, // Using Anthropic's pricing as an example
+				cacheReadsPrice: 0.3
+			})
+		}
 		return {
 			id: this.options.openAiModelId ?? "",
-			info: {
-				...openAiModelInfoSaneDefaults,
-				supportsComputerUse: this.options.openAiSupportsComputerUse ?? false,
-				supportsPromptCache: this.options.openAiSupportsPromptCache ?? false,
-			},
+			info
 		}
 	}
 }
