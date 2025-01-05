@@ -4,6 +4,8 @@ import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionM
 import {
 	ApiConfiguration,
 	ModelInfo,
+	glamaDefaultModelId,
+	glamaDefaultModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 } from "../../../src/shared/api"
@@ -16,6 +18,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	theme: any
+	glamaModels: Record<string, ModelInfo>
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[],
 	mcpServers: McpServer[]
@@ -69,6 +72,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
+	const [glamaModels, setGlamaModels] = useState<Record<string, ModelInfo>>({
+		[glamaDefaultModelId]: glamaDefaultModelInfo,
+	})
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -85,6 +91,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				const hasKey = config
 					? [
 							config.apiKey,
+							config.glamaApiKey,
 							config.openRouterApiKey,
 							config.awsRegion,
 							config.vertexProjectId,
@@ -123,6 +130,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				})
 				break
 			}
+			case "glamaModels": {
+				const updatedModels = message.glamaModels ?? {}
+				setGlamaModels({
+					[glamaDefaultModelId]: glamaDefaultModelInfo, // in case the extension sent a model list without the default model
+					...updatedModels,
+				})
+				break
+			}
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
@@ -154,6 +169,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		didHydrateState,
 		showWelcome,
 		theme,
+		glamaModels,
 		openRouterModels,
 		openAiModels,
 		mcpServers,

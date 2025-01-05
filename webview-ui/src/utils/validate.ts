@@ -1,10 +1,15 @@
-import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
+import { ApiConfiguration, glamaDefaultModelId, openRouterDefaultModelId } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
 				if (!apiConfiguration.apiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "glama":
+				if (!apiConfiguration.glamaApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
@@ -59,10 +64,21 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,
+	glamaModels?: Record<string, ModelInfo>,
 	openRouterModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
+			case "glama":
+				const glamaModelId = apiConfiguration.glamaModelId || glamaDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				if (!glamaModelId) {
+					return "You must provide a model ID."
+				}
+				if (glamaModels && !Object.keys(glamaModels).includes(glamaModelId)) {
+					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
+					return "The model ID you provided is not available. Please choose a different model."
+				}
+				break
 			case "openrouter":
 				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {

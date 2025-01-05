@@ -37,6 +37,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		browserViewportSize,
 		setBrowserViewportSize,
 		openRouterModels,
+		glamaModels,
 		setAllowedCommands,
 		allowedCommands,
 		fuzzyMatchThreshold,
@@ -56,7 +57,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [commandInput, setCommandInput] = useState("")
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
@@ -94,10 +95,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	// Initial validation on mount
 	useEffect(() => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
-	}, [apiConfiguration, openRouterModels])
+	}, [apiConfiguration, glamaModels, openRouterModels])
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })

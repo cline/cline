@@ -16,6 +16,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
 - Support for DeepSeek V3
 - Support for Amazon Nova and Meta 3, 3.1, and 3.2 models via AWS Bedrock
+- Support for Glama
 - Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
 - Enable/disable individual MCP servers
@@ -135,7 +136,7 @@ Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.ant
 
 ### Use any API and Model
 
-Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
+Cline supports API providers like OpenRouter, Anthropic, Glama, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
 
 The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
 
