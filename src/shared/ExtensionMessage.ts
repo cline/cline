@@ -17,6 +17,7 @@ export interface ExtensionMessage {
 		| "workspaceUpdated"
 		| "invoke"
 		| "partialMessage"
+		| "glamaModels"
 		| "openRouterModels"
 		| "mcpServers"
 	text?: string
@@ -33,6 +34,7 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
+	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 }
