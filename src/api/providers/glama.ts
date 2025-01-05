@@ -115,8 +115,7 @@ export class GlamaHandler implements ApiHandler {
 				}
 			}			
 		} catch (error) {
-			// ignore if fails
-			console.error("Error fetching Glama generation details:", error)
+			console.error("Error fetching Glama completion details", error)
 		}
 	}
 
