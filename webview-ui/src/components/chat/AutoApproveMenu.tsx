@@ -2,7 +2,7 @@ import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/reac
 import { useCallback, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
 
 interface AutoApproveMenuProps {
@@ -49,7 +49,7 @@ const ACTION_METADATA: {
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const { autoApprovalSettings } = useExtensionState() || DEFAULT_AUTO_APPROVAL_SETTINGS
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
@@ -189,10 +189,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				<CollapsibleSection
 					isHovered={isHoveringCollapsibleSection}
 					style={{ cursor: "pointer" }}
-					onClick={() => {
-						// to prevent this from counteracting parent
+					onClick={(e) => {
+						e.stopPropagation(); // Prevent click from bubbling up
 						if (hasEnabledActions) {
-							setIsExpanded((prev) => !prev)
+							setIsExpanded((prev) => !prev);
 						}
 					}}>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
@@ -261,6 +261,40 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
 						}}>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
+						<VSCodeTextField
+							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
+							value={autoApprovalSettings?.maxHistoricalMessages?.toString() || "10"}
+							onInput={(e) => {
+								const input = e.target as HTMLInputElement
+								// Remove any non-numeric characters
+								input.value = input.value.replace(/[^0-9]/g, "")
+								const value = parseInt(input.value)
+								if (!isNaN(value) && value > 0) {
+									updateMaxHistoricalMessages(value)
+								}
+							}}
+							onKeyDown={(e) => {
+								// Prevent non-numeric keys (except for backspace, delete, arrows)
+								if (
+									!/^\d$/.test(e.key) &&
+									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+								) {
+									e.preventDefault()
+								}
+							}}
+							style={{ flex: 1 }}
+						/>
+					</div>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							marginTop: "10px",
+							marginBottom: "8px",
+							color: "var(--vscode-foreground)",
+						}}>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
@@ -295,48 +329,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						Cline will automatically make this many API requests before asking for approval to proceed with
 						the task.
 					</div>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-							marginTop: "10px",
-							marginBottom: "8px",
-							color: "var(--vscode-foreground)",
-						}}>
-						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
-						<VSCodeTextField
-							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
-							value={autoApprovalSettings.maxHistoricalMessages.toString()}
-							onInput={(e) => {
-								const input = e.target as HTMLInputElement
-								// Remove any non-numeric characters
-								input.value = input.value.replace(/[^0-9]/g, "")
-								const value = parseInt(input.value)
-								if (!isNaN(value) && value > 0) {
-									updateMaxHistoricalMessages(value)
-								}
-							}}
-							onKeyDown={(e) => {
-								// Prevent non-numeric keys (except for backspace, delete, arrows)
-								if (
-									!/^\d$/.test(e.key) &&
-									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-								) {
-									e.preventDefault()
-								}
-							}}
-							style={{ flex: 1 }}
-						/>
-					</div>
-					<div
-						style={{
-							color: "var(--vscode-descriptionForeground)",
-							fontSize: "12px",
-							marginBottom: "10px",
-						}}>
-						Cline will automatically keep this many historical messages when auto processing.
-					</div>
+					
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
 							checked={autoApprovalSettings.enableNotifications}
