@@ -34,13 +34,24 @@ vi.mock('vscode', async () => {
       onDidStartTerminalShellExecution: vi.fn(),
     },
   };
+});  
+
+vi.mock('./TerminalRegistry', async () => {
+  const actualTerminalRegistry = await vi.importActual<typeof import('./TerminalRegistry')>('./TerminalRegistry');
+  return {
+    ...actualTerminalRegistry,
+    TerminalRegistry: class TerminalRegistry extends actualTerminalRegistry.TerminalRegistry {}
+  }
 });
 
-vi.mock('./TerminalRegistry', () => ({
-  TerminalRegistry: {
-    removeTerminal: vi.fn()
+
+vi.mock('./TerminalProcess', async () => {
+  const actualTerminalProcess = await vi.importActual<typeof import('./TerminalProcess')>('./TerminalProcess');
+  return {
+    ...actualTerminalProcess,
+    TerminalProcess: class TerminalProcess extends actualTerminalProcess.TerminalProcess {} 
   }
-}));
+});
 
 describe('TerminalManager Constructor', () => {
   afterAll(() => {
@@ -115,6 +126,12 @@ describe('TerminalManager runCommand', () => {
     // Run the command
     const processPromise = terminalManager.runCommand(mockTerminalInfo, mockCommand);
 
+    // Log the state before assertions
+    console.log('mockTerminalInfo before assertions:', {
+      busy: mockTerminalInfo.busy,
+      lastCommand: mockTerminalInfo.lastCommand
+    });
+
     // Verify terminal info was updated
     expect(mockTerminalInfo.busy).toBe(true);
     expect(mockTerminalInfo.lastCommand).toBe(mockCommand);
@@ -126,6 +143,4 @@ describe('TerminalManager runCommand', () => {
     expect(mockProcess.run).toHaveBeenCalledWith(mockTerminal, mockCommand);
     expect(mockProcess.waitForShellIntegration).toBe(false);
   });
-
-  
 });
