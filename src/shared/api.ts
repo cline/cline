@@ -27,8 +27,9 @@ export interface ApiHandlerOptions {
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
-	openAiSupportsComputerUse?: boolean
-	openAiSupportsPromptCache?: boolean
+	// Optional flags to enable advanced capabilities in OpenAI provider
+	openAiSupportsComputerUse?: boolean // Enable computer use support (similar to Claude)
+	openAiSupportsPromptCache?: boolean // Enable prompt caching optimization
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string

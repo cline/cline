@@ -61,8 +61,9 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
-	| "openAiSupportsComputerUse"
-	| "openAiSupportsPromptCache"
+	// State keys for OpenAI provider capabilities
+	| "openAiSupportsComputerUse" // Tracks if computer use is enabled for OpenAI provider
+	| "openAiSupportsPromptCache" // Tracks if prompt caching is enabled for OpenAI provider
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -413,6 +414,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							// Update OpenAI provider capability flags in global state
 							await this.updateGlobalState("openAiSupportsComputerUse", openAiSupportsComputerUse)
 							await this.updateGlobalState("openAiSupportsPromptCache", openAiSupportsPromptCache)
 							if (this.cline) {

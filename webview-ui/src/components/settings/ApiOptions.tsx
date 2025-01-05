@@ -469,24 +469,27 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
-					<div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 5 }}>
-						<VSCodeCheckbox
-							checked={apiConfiguration?.openAiSupportsComputerUse || false}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked === true
-								setApiConfiguration({ ...apiConfiguration, openAiSupportsComputerUse: isChecked })
-							}}>
-							Model supports computer use
-						</VSCodeCheckbox>
-						<VSCodeCheckbox
-							checked={apiConfiguration?.openAiSupportsPromptCache || false}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked === true
-								setApiConfiguration({ ...apiConfiguration, openAiSupportsPromptCache: isChecked })
-							}}>
-							Model supports prompt caching
-						</VSCodeCheckbox>
-					</div>
+						{/* Advanced capabilities section for OpenAI provider */}
+						<div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 5 }}>
+							{/* Toggle for computer use support in OpenAI provider */}
+							<VSCodeCheckbox
+								checked={apiConfiguration?.openAiSupportsComputerUse || false}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									setApiConfiguration({ ...apiConfiguration, openAiSupportsComputerUse: isChecked })
+								}}>
+								Model supports computer use
+							</VSCodeCheckbox>
+							{/* Toggle for prompt caching support in OpenAI provider */}
+							<VSCodeCheckbox
+								checked={apiConfiguration?.openAiSupportsPromptCache || false}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									setApiConfiguration({ ...apiConfiguration, openAiSupportsPromptCache: isChecked })
+								}}>
+								Model supports prompt caching
+							</VSCodeCheckbox>
+						</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
@@ -880,6 +883,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				return {
 					selectedProvider: provider,
 					selectedModelId: apiConfiguration?.openAiModelId || "",
+					// Apply OpenAI provider capabilities to model info
 					selectedModelInfo: {
 						...openAiModelInfoSaneDefaults,
 						supportsPromptCache: apiConfiguration?.openAiSupportsPromptCache ?? false,

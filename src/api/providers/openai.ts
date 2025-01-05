@@ -37,7 +37,7 @@ export class OpenAiHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
-		// Add cache_control for prompt caching if enabled
+		// Port prompt caching capability to OpenAI provider
 		if (this.options.openAiSupportsPromptCache) {
 			// Add cache_control to system message
 			openAiMessages[0] = {
@@ -86,7 +86,8 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 			if (chunk.usage) {
-				// Add cache metrics if prompt caching is enabled
+				// Calculate estimated cache metrics for OpenAI provider
+				// This matches the token usage reporting format used by other providers
 				let cacheWrites = 0;
 				let cacheReads = 0;
 				if (this.options.openAiSupportsPromptCache) {
@@ -128,11 +129,13 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		// Report model capabilities and pricing for OpenAI provider
+		// Includes support for computer use and prompt caching if enabled
 		const info: ModelInfo = {
 			...openAiModelInfoSaneDefaults,
 			supportsComputerUse: this.options.openAiSupportsComputerUse ?? false,
 			supportsPromptCache: this.options.openAiSupportsPromptCache ?? false,
-			// Add cache pricing info if prompt caching is enabled
+			// Use standard cache pricing when prompt caching is enabled
 			...(this.options.openAiSupportsPromptCache && {
 				cacheWritesPrice: 3.75, // Using Anthropic's pricing as an example
 				cacheReadsPrice: 0.3
