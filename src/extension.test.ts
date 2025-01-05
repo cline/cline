@@ -1,11 +1,9 @@
-
-import { afterEach, describe, expect, test, vi, Mock, beforeEach } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import * as vscode from "vscode"
-
 import { activate, deactivate } from "./extension"
 
 describe("VSCode Extension", () => {
-	afterEach(() => {
+	beforeEach(() => {
 		vi.resetAllMocks()
 	})
 
@@ -43,24 +41,19 @@ describe("VSCode Extension", () => {
 				index: 0,
 			},
 		]
-		// @ts-ignore
-		vi.spyOn(vscode.window, "createOutputChannel").mockImplementation(
-      // @ts-ignore
-			(name: string) =>
-        // @ts-ignore
-				({
-					name,
-					append: vi.fn(),
-					appendLine: vi.fn(),
-					clear: vi.fn(),
-					show: vi.fn(),
-					hide: vi.fn(),
-					dispose: vi.fn(),
-				}) as vscode.OutputChannel,
-		)
+
+		vi.spyOn(vscode.window, "createOutputChannel").mockReturnValue({
+			name: "",
+			append: vi.fn(),
+			appendLine: vi.fn(),
+			clear: vi.fn(),
+			show: vi.fn(),
+			hide: vi.fn(),
+			dispose: vi.fn(),
+		} as vscode.OutputChannel)
 
 		vi.spyOn(vscode.workspace, "workspaceFolders", "get").mockReturnValue(mockWorkspaceFolders)
-    // @ts-ignore
+
 		await activate(context)
 
 		expect(vscode.workspace.workspaceFolders).toEqual(mockWorkspaceFolders)
