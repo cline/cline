@@ -44,7 +44,7 @@
 		"llama"
 	],
 	"activationEvents": [],
-	"main": "./dist/extension.js",
+	"main": "./dist/extension.cjs",
 	"contributes": {
 		"viewsContainers": {
 			"activitybar": [
