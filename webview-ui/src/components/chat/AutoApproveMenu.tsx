@@ -2,7 +2,7 @@ import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/reac
 import { useCallback, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../../src/shared/AutoApprovalSettings"
+import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
 
 interface AutoApproveMenuProps {
@@ -49,7 +49,7 @@ const ACTION_METADATA: {
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState() || DEFAULT_AUTO_APPROVAL_SETTINGS
+	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
@@ -176,10 +176,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				<CollapsibleSection
 					isHovered={isHoveringCollapsibleSection}
 					style={{ cursor: "pointer" }}
-					onClick={(e) => {
-						e.stopPropagation(); // Prevent click from bubbling up
+					onClick={() => {
+						// to prevent this from counteracting parent
 						if (hasEnabledActions) {
-							setIsExpanded((prev) => !prev);
+							setIsExpanded((prev) => !prev)
 						}
 					}}>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
@@ -239,16 +239,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							opacity: 0.2,
 						}}
 					/>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-							marginTop: "10px",
-							marginBottom: "8px",
-							color: "var(--vscode-foreground)",
-						}}>
-						
 					<div
 						style={{
 							display: "flex",
