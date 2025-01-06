@@ -54,6 +54,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
+
 	// Memoize the safe auto approval settings to prevent unnecessary re-renders
 	const safeAutoApprovalSettings = useMemo(() => ({
 		...DEFAULT_AUTO_APPROVAL_SETTINGS,
@@ -63,6 +64,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			...autoApprovalSettings?.actions,
 		},
 	}), [autoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS])
+
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
