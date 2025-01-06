@@ -12,6 +12,16 @@
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Debug Vitest Tests",
+			"program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+			"args": ["run", "--inspect-brk"],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen"
 		}
 	]
 }

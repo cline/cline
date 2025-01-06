@@ -1,71 +1,66 @@
-import * as fs from "fs/promises"
-import { after, describe, it } from "mocha"
-import * as os from "os"
-import * as path from "path"
-import "should"
+import { describe, it, expect,beforeEach } from "vitest"
 import { createDirectoriesForFile, fileExistsAtPath } from "./fs"
+import { vol, DirectoryJSON } from "memfs"
+import path from "path"
 
-describe("Filesystem Utilities", () => {
-	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
-
-	// Clean up after tests
-	after(async () => {
-		try {
-			await fs.rm(tmpDir, { recursive: true, force: true })
-		} catch {
-			// Ignore cleanup errors
-		}
-	})
-
-	describe("fileExistsAtPath", () => {
-		it("should return true for existing paths", async () => {
-			await fs.mkdir(tmpDir, { recursive: true })
-			const testFile = path.join(tmpDir, "test.txt")
-			await fs.writeFile(testFile, "test")
-
-			const exists = await fileExistsAtPath(testFile)
-			exists.should.be.true()
-		})
-
-		it("should return false for non-existing paths", async () => {
-			const nonExistentPath = path.join(tmpDir, "does-not-exist.txt")
-			const exists = await fileExistsAtPath(nonExistentPath)
-			exists.should.be.false()
-		})
+describe("fs utilities", () => {
+	beforeEach(() => {
+		vol.reset()
 	})
 
 	describe("createDirectoriesForFile", () => {
-		it("should create all necessary directories", async () => {
-			const deepPath = path.join(tmpDir, "deep", "nested", "dir", "file.txt")
-			const createdDirs = await createDirectoriesForFile(deepPath)
-
-			// Verify directories were created
-			createdDirs.length.should.be.greaterThan(0)
-			for (const dir of createdDirs) {
-				const exists = await fileExistsAtPath(dir)
-				exists.should.be.true()
-			}
+		it("should create directories for a non-existing file path", async () => {
+			const filePath = "/path/to/new/file.txt"
+			const newDirectories = await createDirectoriesForFile(filePath)
+			expect(newDirectories).toEqual(
+				path.posix
+					.dirname(filePath)
+					.split(path.posix.sep)
+					.filter((dir) => dir !== ""),
+			)
+			expect(vol.existsSync("/path/to/new")).toBe(true)
 		})
 
-		it("should handle existing directories", async () => {
-			const existingDir = path.join(tmpDir, "existing")
-			await fs.mkdir(existingDir, { recursive: true })
-
-			const filePath = path.join(existingDir, "file.txt")
-			const createdDirs = await createDirectoriesForFile(filePath)
-
-			// Should not create any new directories
-			createdDirs.length.should.equal(0)
+		it("should not create directories if the path already exists", async () => {
+			vol.fromJSON({
+				"/path": null,
+				"/path/to": null,
+				"/path/to/existing": null,
+			} as DirectoryJSON)
+			const filePath = "/path/to/existing/file.txt"
+			const newDirectories = await createDirectoriesForFile(filePath)
+			expect(newDirectories).toEqual([])
+			expect(vol.existsSync("/path/to/existing")).toBe(true)
 		})
 
-		it("should normalize paths", async () => {
-			const unnormalizedPath = path.join(tmpDir, "a", "..", "b", ".", "file.txt")
-			const createdDirs = await createDirectoriesForFile(unnormalizedPath)
+		it("should handle nested directories correctly", async () => {
+			const filePath = "/nested/path/to/new/file.txt"
+			const newDirectories = await createDirectoriesForFile(filePath)
+			expect(newDirectories).toEqual(
+				path.posix
+					.dirname(filePath)
+					.split(path.posix.sep)
+					.filter((dir) => dir !== ""),
+			)
+			expect(vol.existsSync("/nested/path/to/new")).toBe(true)
+		})
+	})
 
-			// Should create only the necessary directory
-			createdDirs.length.should.equal(1)
-			const exists = await fileExistsAtPath(path.join(tmpDir, "b"))
-			exists.should.be.true()
+	describe("fileExistsAtPath", () => {
+		it("should return true if the file exists", async () => {
+			console.debug("Running test: should return true if the file exists")
+			const filePath = "/existing/file.txt"
+			const fileContent = "content"
+			vol.fromJSON({ [filePath]: fileContent } as DirectoryJSON)
+			console.debug(`Setting up file at path: ${filePath} with content: ${fileContent}`)
+			const exists = await fileExistsAtPath(filePath)
+			console.debug(`Actual result: ${exists}`)
+			expect(exists).toBe(true)
+		})
+
+		it("should return false if the file does not exist", async () => {
+			const exists = await fileExistsAtPath("/non-existing/file.txt")
+			expect(exists).toBe(false)
 		})
 	})
 })

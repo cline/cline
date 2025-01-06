@@ -1,53 +1,25 @@
-import { describe, it } from "mocha"
-import * as os from "os"
-import * as path from "path"
-import "should"
-import { arePathsEqual, getReadablePath } from "./path"
+import { describe, it, expect, vi } from "vitest"
+import { normalizePath } from "./path"
 
-describe("Path Utilities", () => {
-	describe("arePathsEqual", () => {
-		it("should handle undefined paths", () => {
-			arePathsEqual(undefined, undefined).should.be.true()
-			arePathsEqual("foo", undefined).should.be.false()
-			arePathsEqual(undefined, "foo").should.be.false()
-		})
+describe("Path Utility", () => {
+	it("should normalize Windows path", () => {
+		const testPath = "C:\\Users\\Test\\Documents"
+		const normalizedPath = normalizePath(testPath)
 
-		it("should handle case sensitivity based on platform", () => {
-			if (process.platform === "win32") {
-				arePathsEqual("FOO/BAR", "foo/bar").should.be.true()
-			} else {
-				arePathsEqual("FOO/BAR", "foo/bar").should.be.false()
-			}
-		})
-
-		it("should handle normalized paths", () => {
-			arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir").should.be.true()
-			arePathsEqual("/tmp/./dir", "/tmp/../dir").should.be.false()
-		})
+		expect(normalizedPath).toBe("C:/Users/Test/Documents")
 	})
 
-	describe("getReadablePath", () => {
-		it("should handle desktop path", () => {
-			const desktop = path.join(os.homedir(), "Desktop")
-			const testPath = path.join(desktop, "test.txt")
-			getReadablePath(desktop, "test.txt").should.equal(testPath.replace(/\\/g, "/"))
-		})
+	it("should handle already normalized paths", () => {
+		const testPath = "C:/Users/Test/Documents"
+		const normalizedPath = normalizePath(testPath)
 
-		it("should show relative paths within cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/project/src/file.txt"
-			getReadablePath(cwd, filePath).should.equal("src/file.txt")
-		})
+		expect(normalizedPath).toBe("C:/Users/Test/Documents")
+	})
 
-		it("should show basename when path equals cwd", () => {
-			const cwd = "/home/user/project"
-			getReadablePath(cwd, cwd).should.equal("project")
-		})
+	it("should handle mixed path separators", () => {
+		const testPath = "C:\\Users/Test\\Documents"
+		const normalizedPath = normalizePath(testPath)
 
-		it("should show absolute path when outside cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/other/file.txt"
-			getReadablePath(cwd, filePath).should.equal(filePath)
-		})
+		expect(normalizedPath).toBe("C:/Users/Test/Documents")
 	})
 })

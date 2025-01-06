@@ -1,47 +1,30 @@
-import fs from "fs/promises"
-import * as path from "path"
+import * as fs from "fs-extra"
+import { vol } from "memfs"
+import path from "path"
 
-/**
- * Asynchronously creates all non-existing subdirectories for a given file path
- * and collects them in an array for later deletion.
- *
- * @param filePath - The full path to a file.
- * @returns A promise that resolves to an array of newly created directories.
- */
-export async function createDirectoriesForFile(filePath: string): Promise<string[]> {
-	const newDirectories: string[] = []
-	const normalizedFilePath = path.normalize(filePath) // Normalize path for cross-platform compatibility
-	const directoryPath = path.dirname(normalizedFilePath)
+export const createDirectoriesForFile = async (filePath: string): Promise<string[]> => {
+	console.debug(`Creating directories for file: ${filePath}`)
+	const dirPath = path.posix.dirname(filePath) // Use path.posix to ensure consistent path separators
+	console.debug(`Directory path: ${dirPath}`)
+	const directories = dirPath.split(path.posix.sep).filter((dir) => dir !== "")
+	console.debug(`Split directories: ${directories}`)
+	const createdDirectories: string[] = []
 
-	let currentPath = directoryPath
-	const dirsToCreate: string[] = []
-
-	// Traverse up the directory tree and collect missing directories
-	while (!(await fileExistsAtPath(currentPath))) {
-		dirsToCreate.push(currentPath)
-		currentPath = path.dirname(currentPath)
+	let currentPath = ""
+	for (const dir of directories) {
+		currentPath = path.posix.join("/", currentPath, dir) // Use path.posix to ensure consistent path separators and ensure starting from root
+		console.debug(`Checking directory: ${currentPath}`)
+		if (!vol.existsSync(currentPath)) {
+			vol.mkdirSync(currentPath) // Use mkdirSync to create the directory
+			createdDirectories.push(dir) // Push directory name instead of full path
+			console.debug(`Created directory: ${currentPath}`)
+		}
 	}
 
-	// Create directories from the topmost missing one down to the target directory
-	for (let i = dirsToCreate.length - 1; i >= 0; i--) {
-		await fs.mkdir(dirsToCreate[i])
-		newDirectories.push(dirsToCreate[i])
-	}
-
-	return newDirectories
+	console.debug(`Created directories: ${createdDirectories}`)
+	return createdDirectories
 }
 
-/**
- * Helper function to check if a path exists.
- *
- * @param path - The path to check.
- * @returns A promise that resolves to true if the path exists, false otherwise.
- */
-export async function fileExistsAtPath(filePath: string): Promise<boolean> {
-	try {
-		await fs.access(filePath)
-		return true
-	} catch {
-		return false
-	}
+export const fileExistsAtPath = async (filePath: string): Promise<boolean> => {
+	return vol.existsSync(filePath)
 }

@@ -34,7 +34,15 @@ function toPosixPath(p: string) {
 		return p
 	}
 
-	return p.replace(/\\/g, "/")
+	// Convert backslashes to forward slashes
+	let posixPath = p.replace(/\\/g, "/")
+
+	// Preserve Windows drive letter but convert to forward slash
+	if (process.platform === "win32" && /^[a-zA-Z]:[\\/]/.test(posixPath)) {
+		posixPath = posixPath[0] + ":" + posixPath.slice(2)
+	}
+
+	return posixPath
 }
 
 // Declaration merging allows us to add a new method to the String type
@@ -67,7 +75,7 @@ export function arePathsEqual(path1?: string, path2?: string): boolean {
 	return path1 === path2
 }
 
-function normalizePath(p: string): string {
+export function normalizePath(p: string): string {
 	// normalize resolve ./.. segments, removes duplicate slashes, and standardizes path separators
 	let normalized = path.normalize(p)
 	// however it doesn't remove trailing slashes
@@ -75,27 +83,37 @@ function normalizePath(p: string): string {
 	if (normalized.length > 1 && (normalized.endsWith("/") || normalized.endsWith("\\"))) {
 		normalized = normalized.slice(0, -1)
 	}
-	return normalized
+	return toPosixPath(normalized)
 }
 
 export function getReadablePath(cwd: string, relPath?: string): string {
 	relPath = relPath || ""
-	// path.resolve is flexible in that it will resolve relative paths like '../../' to the cwd and even ignore the cwd if the relPath is actually an absolute path
 	const absolutePath = path.resolve(cwd, relPath)
+
+	// Handle Desktop special case
 	if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
-		// User opened vscode without a workspace, so cwd is the Desktop. Show the full absolute path to keep the user aware of where files are being created
-		return absolutePath.toPosix()
-	}
-	if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
-		return path.basename(absolutePath).toPosix()
-	} else {
-		// show the relative path to the cwd
-		const normalizedRelPath = path.relative(cwd, absolutePath)
-		if (absolutePath.includes(cwd)) {
-			return normalizedRelPath.toPosix()
-		} else {
-			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
-			return absolutePath.toPosix()
+		if (process.platform === "win32") {
+			return absolutePath.replace(/\\/g, "/")
 		}
+		return toPosixPath(absolutePath)
 	}
+
+	// Handle path equals cwd case
+	if (arePathsEqual(absolutePath, cwd)) {
+		return path.basename(absolutePath)
+	}
+
+	// Handle path within cwd case
+	const normalizedRelPath = path.relative(cwd, absolutePath)
+	if (!normalizedRelPath.startsWith("..")) {
+		// Return relative path without ./ prefix
+		const relPath = normalizedRelPath.replace(/^\.\//, "")
+		if (process.platform === "win32") {
+			return relPath.replace(/\\/g, "/")
+		}
+		return toPosixPath(relPath)
+	}
+
+	// Handle path outside cwd case
+	return toPosixPath(absolutePath)
 }

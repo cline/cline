@@ -141,5 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	outputChannel.appendLine("Cline extension deactivated")
+	if (outputChannel) {
+		outputChannel.appendLine("Cline extension deactivated")
+	}
 }

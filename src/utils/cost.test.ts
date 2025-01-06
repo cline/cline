@@ -1,67 +1,114 @@
-import { describe, it } from "mocha"
-import "should"
-import { calculateApiCost } from "./cost"
+import { describe, it, expect } from "vitest"
+import { calculateApiCost } from "../utils/cost"
 import { ModelInfo } from "../shared/api"
 
-describe("Cost Utilities", () => {
-	describe("calculateApiCost", () => {
-		it("should calculate basic input/output costs", () => {
-			const modelInfo: ModelInfo = {
-				supportsPromptCache: false,
-				inputPrice: 3.0, // $3 per million tokens
-				outputPrice: 15.0, // $15 per million tokens
-			}
+describe("calculateApiCost", () => {
+	it("should calculate cost with all parameters", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: 10,
+			outputPrice: 20,
+			cacheWritesPrice: 5,
+			cacheReadsPrice: 3,
+			supportsPromptCache: true, // or false, depending on the expected behavior
+		}
+		const inputTokens = 1000
+		const outputTokens = 2000
+		const cacheCreationInputTokens = 500
+		const cacheReadInputTokens = 300
 
-			const cost = calculateApiCost(modelInfo, 1000, 500)
-			// Input: (3.0 / 1_000_000) * 1000 = 0.003
-			// Output: (15.0 / 1_000_000) * 500 = 0.0075
-			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
-		})
+		const expectedCost =
+			(5 / 1_000_000) * 500 + (3 / 1_000_000) * 300 + (10 / 1_000_000) * 1000 + (20 / 1_000_000) * 2000
+		expect(
+			calculateApiCost(modelInfo, inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens),
+		).toBe(expectedCost)
+	})
 
-		it("should handle missing prices", () => {
-			const modelInfo: ModelInfo = {
-				supportsPromptCache: true,
-				// No prices specified
-			}
+	it("should calculate cost without cache creation tokens", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: 10,
+			outputPrice: 20,
+			cacheWritesPrice: 5,
+			cacheReadsPrice: 3,
+			supportsPromptCache: true, // or false, depending on the expected behavior
+		}
+		const inputTokens = 1000
+		const outputTokens = 2000
+		const cacheReadInputTokens = 300
 
-			const cost = calculateApiCost(modelInfo, 1000, 500)
-			cost.should.equal(0)
-		})
+		const expectedCost = (3 / 1_000_000) * 300 + (10 / 1_000_000) * 1000 + (20 / 1_000_000) * 2000
+		expect(calculateApiCost(modelInfo, inputTokens, outputTokens, undefined, cacheReadInputTokens)).toBe(
+			expectedCost,
+		)
+	})
 
-		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
-			const modelInfo: ModelInfo = {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsComputerUse: true,
-				supportsPromptCache: true,
-				inputPrice: 3.0,
-				outputPrice: 15.0,
-				cacheWritesPrice: 3.75,
-				cacheReadsPrice: 0.3,
-			}
+	it("should calculate cost without cache read tokens", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: 10,
+			outputPrice: 20,
+			cacheWritesPrice: 5,
+			cacheReadsPrice: 3,
+			supportsPromptCache: true, // or false, depending on the expected behavior
+		}
+		const inputTokens = 1000
+		const outputTokens = 2000
+		const cacheCreationInputTokens = 500
 
-			const cost = calculateApiCost(modelInfo, 2000, 1000, 1500, 500)
-			// Cache writes: (3.75 / 1_000_000) * 1500 = 0.005625
-			// Cache reads: (0.3 / 1_000_000) * 500 = 0.00015
-			// Input: (3.0 / 1_000_000) * 2000 = 0.006
-			// Output: (15.0 / 1_000_000) * 1000 = 0.015
-			// Total: 0.005625 + 0.00015 + 0.006 + 0.015 = 0.026775
-			cost.should.equal(0.026775)
-		})
+		const expectedCost = (5 / 1_000_000) * 500 + (10 / 1_000_000) * 1000 + (20 / 1_000_000) * 2000
+		expect(calculateApiCost(modelInfo, inputTokens, outputTokens, cacheCreationInputTokens, undefined)).toBe(
+			expectedCost,
+		)
+	})
 
-		it("should handle zero token counts", () => {
-			const modelInfo: ModelInfo = {
-				supportsPromptCache: true,
-				inputPrice: 3.0,
-				outputPrice: 15.0,
-				cacheWritesPrice: 3.75,
-				cacheReadsPrice: 0.3,
-			}
+	it("should calculate cost with zero input and output tokens", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: 10,
+			outputPrice: 20,
+			cacheWritesPrice: 5,
+			cacheReadsPrice: 3,
+			supportsPromptCache: true, // or false, depending on the expected behavior
+		}
+		const inputTokens = 0
+		const outputTokens = 0
+		const cacheCreationInputTokens = 500
+		const cacheReadInputTokens = 300
 
-			const cost = calculateApiCost(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
-		})
+		const expectedCost = (5 / 1_000_000) * 500 + (3 / 1_000_000) * 300
+		expect(
+			calculateApiCost(modelInfo, inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens),
+		).toBe(expectedCost)
+	})
+
+	it("should calculate cost with zero cache tokens", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: 10,
+			outputPrice: 20,
+			cacheWritesPrice: 5,
+			cacheReadsPrice: 3,
+			supportsPromptCache: true, // or false, depending on the expected behavior
+		}
+		const inputTokens = 1000
+		const outputTokens = 2000
+
+		const expectedCost = (10 / 1_000_000) * 1000 + (20 / 1_000_000) * 2000
+		expect(calculateApiCost(modelInfo, inputTokens, outputTokens)).toBe(expectedCost)
+	})
+
+	it("should calculate cost with undefined model prices", () => {
+		const modelInfo: ModelInfo = {
+			inputPrice: undefined,
+			outputPrice: undefined,
+			cacheWritesPrice: undefined,
+			cacheReadsPrice: undefined,
+			supportsPromptCache: false, // or true, depending on the expected behavior
+		}
+		const inputTokens = 1000
+		const outputTokens = 2000
+		const cacheCreationInputTokens = 500
+		const cacheReadInputTokens = 300
+
+		const expectedCost = 0
+		expect(
+			calculateApiCost(modelInfo, inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens),
+		).toBe(expectedCost)
 	})
 })

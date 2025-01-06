@@ -6,7 +6,7 @@
  *
  * Returns [matchIndexStart, matchIndexEnd] if found, or false if not found.
  */
-function lineTrimmedFallbackMatch(
+export function lineTrimmedFallbackMatch(
 	originalContent: string,
 	searchContent: string,
 	startIndex: number,
@@ -54,7 +54,10 @@ function lineTrimmedFallbackMatch(
 			// Find end character index
 			let matchEndIndex = matchStartIndex
 			for (let k = 0; k < searchLines.length; k++) {
-				matchEndIndex += originalLines[i + k].length + 1 // +1 for \n
+				matchEndIndex += originalLines[i + k].length
+				if (k < searchLines.length - 1) {
+					matchEndIndex += 1 // Include the newline character for each line except the last one
+				}
 			}
 
 			return [matchStartIndex, matchEndIndex]
@@ -91,7 +94,7 @@ function lineTrimmedFallbackMatch(
  * @param startIndex - The character index in originalContent where to start searching
  * @returns A tuple of [startIndex, endIndex] if a match is found, false otherwise
  */
-function blockAnchorFallbackMatch(
+export function blockAnchorFallbackMatch(
 	originalContent: string,
 	searchContent: string,
 	startIndex: number,
@@ -141,7 +144,10 @@ function blockAnchorFallbackMatch(
 
 		let matchEndIndex = matchStartIndex
 		for (let k = 0; k < searchBlockSize; k++) {
-			matchEndIndex += originalLines[i + k].length + 1
+			matchEndIndex += originalLines[i + k].length
+			if (k < searchBlockSize - 1) {
+				matchEndIndex += 1
+			}
 		}
 
 		return [matchStartIndex, matchEndIndex]
@@ -349,7 +355,11 @@ export async function constructNewFileContent(
 			currentReplaceContent += line + "\n"
 			// Output replacement lines immediately if we know the insertion point
 			if (searchMatchIndex !== -1) {
-				result += line + "\n"
+				if (line !== lines[lines.length - 1]) {
+					result += line + "\n"
+				} else {
+					result += line
+				}
 			}
 		}
 	}
