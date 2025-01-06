@@ -60,7 +60,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</li>
 			</ul>
 			<p style={{ margin: "8px 0" }}>
-				<VSCodeLink href="https://x.com/sdrzn/status/1876374390104846730" style={{ display: "inline" }}>
+				<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
 					See a demo of Checkpoints here!
 				</VSCodeLink>
 			</p>
