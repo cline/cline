@@ -6,32 +6,36 @@ import { McpServer } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
-	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-		| "openRouterModels"
-		| "openAiModels"
-		| "mcpServers"
-		| "enhancedPrompt"
+type:
+| "action"
+| "state"
+| "selectedImages"
+| "ollamaModels"
+| "lmStudioModels"
+| "vsCodeLmModels"
+| "vsCodeLmApiAvailable"
+| "requestVsCodeLmModels"
+| "theme"
+| "workspaceUpdated"
+| "invoke"
+| "partialMessage"
+| "openRouterModels"
+| "openAiModels"
+| "mcpServers"
+| "enhancedPrompt"
 	text?: string
 	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
+	| "chatButtonClicked"
+	| "mcpButtonClicked"
+	| "settingsButtonClicked"
+	| "historyButtonClicked"
+	| "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
@@ -109,14 +113,14 @@ export type ClineSay =
 
 export interface ClineSayTool {
 	tool:
-		| "editedExistingFile"
-		| "appliedDiff"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
+	| "editedExistingFile"
+	| "appliedDiff"
+	| "newFileCreated"
+	| "readFile"
+	| "listFilesTopLevel"
+	| "listFilesRecursive"
+	| "listCodeDefinitionNames"
+	| "searchFiles"
 	path?: string
 	diff?: string
 	content?: string

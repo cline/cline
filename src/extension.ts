@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context.globalState.update('allowedCommands', defaultCommands);
 	}
 
-	const sidebarProvider = new ClineProvider(context, outputChannel)
+	const sidebarProvider = new ClineProvider(context, outputChannel);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
