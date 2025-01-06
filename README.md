@@ -18,6 +18,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Support for Amazon Nova and Meta 3, 3.1, and 3.2 models via AWS Bedrock
 - Support for Glama
 - Support for listing models from OpenAI-compatible providers
+- Support for adding OpenAI-compatible models with or without streaming
 - Per-tool MCP auto-approval
 - Enable/disable individual MCP servers
 - Enable/disable the MCP feature overall
