@@ -1,8 +1,8 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useMemo } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
 
 interface AutoApproveMenuProps {
@@ -15,47 +15,60 @@ const ACTION_METADATA: {
 	shortName: string
 	description: string
 }[] = [
-	{
-		id: "readFiles",
-		label: "Read files and directories",
-		shortName: "Read",
-		description: "Allows access to read any file on your computer.",
-	},
-	{
-		id: "editFiles",
-		label: "Edit files",
-		shortName: "Edit",
-		description: "Allows modification of any files on your computer.",
-	},
-	{
-		id: "executeCommands",
-		label: "Execute safe commands",
-		shortName: "Commands",
-		description:
-			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
-	},
-	{
-		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
-		description: "Allows ability to launch and interact with any website in a headless browser.",
-	},
-	{
-		id: "useMcp",
-		label: "Use MCP servers",
-		shortName: "MCP",
-		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
-	},
-]
+		{
+			id: "readFiles",
+			label: "Read files and directories",
+			shortName: "Read",
+			description: "Allows access to read any file on your computer.",
+		},
+		{
+			id: "editFiles",
+			label: "Edit files",
+			shortName: "Edit",
+			description: "Allows modification of any files on your computer.",
+		},
+		{
+			id: "executeCommands",
+			label: "Execute safe commands",
+			shortName: "Commands",
+			description:
+				"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+		},
+		{
+			id: "useBrowser",
+			label: "Use the browser",
+			shortName: "Browser",
+			description: "Allows ability to launch and interact with any website in a headless browser.",
+		},
+		{
+			id: "useMcp",
+			label: "Use MCP servers",
+			shortName: "MCP",
+			description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
+		},
+	]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+
+	const { autoApprovalSettings } = useExtensionState() || DEFAULT_AUTO_APPROVAL_SETTINGS
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
+
+	// Memoize the safe auto approval settings to prevent unnecessary re-renders
+	const safeAutoApprovalSettings = useMemo(() => ({
+		...DEFAULT_AUTO_APPROVAL_SETTINGS,
+		...autoApprovalSettings,
+		actions: {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+			...autoApprovalSettings?.actions,
+		},
+	}), [autoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS])
+
+
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
-	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
+	const enabledActions = ACTION_METADATA.filter((action) => safeAutoApprovalSettings.actions[action.id])
 	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
 	const hasEnabledActions = enabledActions.length > 0
 
@@ -64,19 +77,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					enabled,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
 		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
 			// Calculate what the new actions state will be
 			const newActions = {
-				...autoApprovalSettings.actions,
+				...safeAutoApprovalSettings.actions,
 				[actionId]: value,
 			}
 
@@ -86,14 +99,14 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
+					enabled: willHaveEnabledActions ? safeAutoApprovalSettings.enabled : false,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
@@ -101,12 +114,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					maxRequests,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
@@ -114,12 +127,25 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					enableNotifications,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
+	)
+
+	const updateMaxHistoricalMessages = useCallback(
+		(maxHistoricalMessages: number) => {
+			vscode.postMessage({
+				type: "autoApprovalSettings",
+				autoApprovalSettings: {
+					...safeAutoApprovalSettings,
+					maxHistoricalMessages,
+				},
+			})
+		},
+		[safeAutoApprovalSettings],
 	)
 
 	return (
@@ -132,7 +158,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					: "none",
 				overflowY: "auto",
 				...style,
-			}}>
+			}}
+		>
 			<div
 				style={{
 					display: "flex",
@@ -155,10 +182,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					if (!hasEnabledActions) {
 						setIsExpanded((prev) => !prev)
 					}
-				}}>
+				}}
+			>
 				<VSCodeCheckbox
 					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
-					checked={hasEnabledActions && autoApprovalSettings.enabled}
+					checked={hasEnabledActions && safeAutoApprovalSettings.enabled}
 					disabled={!hasEnabledActions}
 					// onChange={(e) => {
 					// 	const checked = (e.target as HTMLInputElement).checked
@@ -170,7 +198,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						*/
 						if (!hasEnabledActions) return
 						e.stopPropagation() // stops click from bubbling up to the parent, in this case stopping the expanding/collapsing
-						updateEnabled(!autoApprovalSettings.enabled)
+						updateEnabled(!safeAutoApprovalSettings.enabled)
 					}}
 				/>
 				<CollapsibleSection
@@ -181,14 +209,16 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						if (hasEnabledActions) {
 							setIsExpanded((prev) => !prev)
 						}
-					}}>
+					}}
+				>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
 					<span
 						style={{
 							whiteSpace: "nowrap",
 							overflow: "hidden",
 							textOverflow: "ellipsis",
-						}}>
+						}}
+					>
 						{enabledActions.length === 0 ? "None" : enabledActionsList}
 					</span>
 					<span
@@ -207,18 +237,20 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "10px",
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
-						}}>
+						}}
+					>
 						Auto-approve allows Cline to perform the following actions without asking for permission. Please
 						use with caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox
-								checked={autoApprovalSettings.actions[action.id]}
+								checked={safeAutoApprovalSettings.actions[action.id]}
 								onChange={(e) => {
 									const checked = (e.target as HTMLInputElement).checked
 									updateAction(action.id, checked)
-								}}>
+								}}
+							>
 								{action.label}
 							</VSCodeCheckbox>
 							<div
@@ -226,7 +258,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 									marginLeft: "28px",
 									color: "var(--vscode-descriptionForeground)",
 									fontSize: "12px",
-								}}>
+								}}
+							>
 								{action.description}
 							</div>
 						</div>
@@ -247,11 +280,56 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginTop: "10px",
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
-						}}>
+						}}
+					>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
+						<VSCodeTextField
+							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
+							value={safeAutoApprovalSettings.maxHistoricalMessages.toString() || "0"}
+							onInput={(e) => {
+								const input = e.target as HTMLInputElement
+								// Remove any non-numeric characters
+								input.value = input.value.replace(/[^0-9]/g, "")
+								const value = parseInt(input.value)
+								if (!isNaN(value) && value > 0) {
+									updateMaxHistoricalMessages(value)
+								}
+							}}
+							onKeyDown={(e) => {
+								// Prevent non-numeric keys (except for backspace, delete, arrows)
+								if (
+									!/^\d$/.test(e.key) &&
+									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+								) {
+									e.preventDefault()
+								}
+							}}
+							style={{ flex: 1 }}
+						/>
+					</div>
+					<div
+						style={{
+							color: "var(--vscode-descriptionForeground)",
+							fontSize: "12px",
+							marginBottom: "10px",
+						}}
+					>
+						Cline will only keep the last x messages in its history + include the first message. Set 0 to disable.
+					</div>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							marginTop: "10px",
+							marginBottom: "8px",
+							color: "var(--vscode-foreground)",
+						}}
+					>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
-							value={autoApprovalSettings.maxRequests.toString()}
+							value={safeAutoApprovalSettings.maxRequests.toString()}
 							onInput={(e) => {
 								const input = e.target as HTMLInputElement
 								// Remove any non-numeric characters
@@ -278,17 +356,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 							marginBottom: "10px",
-						}}>
+						}}
+					>
 						Cline will automatically make this many API requests before asking for approval to proceed with
 						the task.
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
-							checked={autoApprovalSettings.enableNotifications}
+							checked={safeAutoApprovalSettings.enableNotifications}
 							onChange={(e) => {
 								const checked = (e.target as HTMLInputElement).checked
 								updateNotifications(checked)
-							}}>
+							}}
+						>
 							Enable Notifications
 						</VSCodeCheckbox>
 						<div
@@ -296,7 +376,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								marginLeft: "28px",
 								color: "var(--vscode-descriptionForeground)",
 								fontSize: "12px",
-							}}>
+							}}
+						>
 							Receive system notifications when Cline requires approval to proceed or when a task is
 							completed.
 						</div>

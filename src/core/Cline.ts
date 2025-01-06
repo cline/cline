@@ -145,6 +145,10 @@ export class Cline {
 		return []
 	}
 
+	/**
+	 * Appends a message to the task's API conversation history and saves it to disk.
+	 * @param message The message to append.
+	 */
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
 		await this.saveApiConversationHistory()
@@ -793,6 +797,13 @@ export class Cline {
 		return false
 	}
 
+	/**
+	 * Creates an API request stream, first generating a system prompt and optionally adding custom instructions from settings or a .clinerules file.
+	 * If the previous request's total token usage is close to the context window, truncates the conversation history to free up space for the new request.
+	 * If the first chunk of the request throws an error, asks the user if they want to retry.
+	 * @param previousApiReqIndex The index of the previous API request in the clineMessages array. If -1, the context window is not checked.
+	 * @yields The generated system prompt and all subsequent chunks from the API request stream.
+	 */
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -2281,6 +2292,12 @@ export class Cline {
 			throw new Error("Cline instance aborted")
 		}
 
+		// Limit messages based on MAX_API_MESSAGES setting
+		if (this.autoApprovalSettings.maxHistoricalMessages !== 0 && (userContent.length + 2) > this.autoApprovalSettings.maxHistoricalMessages) {
+			// Slice to keep only the most recent messages, but also keep the first one in the array
+			userContent = [...userContent.slice(0, 2), ...userContent.slice(-this.autoApprovalSettings.maxHistoricalMessages + 2)]
+		}
+
 		if (this.consecutiveMistakeCount >= 3) {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -2329,8 +2346,9 @@ export class Cline {
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds.
+		// This can cause a delay in presenting the user with a prompt, so we show a placeholder api_req_started message with a loading spinner as this happens.
+		// This placeholder is updated later when the actual request is made, at which point we parse the user content and put it in the actual request message.
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
@@ -2339,6 +2357,8 @@ export class Cline {
 			}),
 		)
 
+		// loadContext parses any mentions in the user content (e.g. <answer> or <feedback>), and also adds environment details to the user content as a separate text block. We use this parsed content as the new userContent for the rest of the function
+		// includeFileDetails is false on subsequent iterations, so we only get the environment details on the first iteration
 		const [parsedUserContent, environmentDetails] = await this.loadContext(userContent, includeFileDetails)
 		userContent = parsedUserContent
 		// add environment details as its own text block, separate from tool results

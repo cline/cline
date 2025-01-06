@@ -832,9 +832,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.postStateToWebview()
 	}
 
+	/**
+	 * Post the current state to the webview.
+	 * This is called whenever the state changes, and is also called when the webview is first created.
+	 * @returns {Promise<void>} A promise that resolves when the state has been sent to the webview.
+	 */
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		this.postMessageToWebview({ type: "state", state })
+		await this.postMessageToWebview({ type: "state", state })
 	}
 
 	async getStateToPostToWebview() {

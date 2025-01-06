@@ -83,7 +83,7 @@ const extensionConfig = {
 async function main() {
 	const extensionCtx = await esbuild.context(extensionConfig)
 	if (watch) {
-		await extensionCtx.watch()
+			await extensionCtx.watch()
 	} else {
 		await extensionCtx.rebuild()
 		await extensionCtx.dispose()
