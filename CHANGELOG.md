@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.42]
+
+-   Add a Git section to the context mentions
+
 ## [2.2.41]
 
 -   Checkbox to disable streaming for OpenAI-compatible providers
