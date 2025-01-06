@@ -12,9 +12,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 				padding: "3px 0",
 			}}>
 			<div style={{ display: "flex" }}>
-				<span
-					className="codicon codicon-symbol-method"
-					style={{ marginRight: "6px" }}></span>
+				<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
 				<span style={{ fontWeight: 500 }}>{tool.name}</span>
 			</div>
 			{tool.description && (
@@ -30,8 +28,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 			)}
 			{tool.inputSchema &&
 				"properties" in tool.inputSchema &&
-				Object.keys(tool.inputSchema.properties as Record<string, any>)
-					.length > 0 && (
+				Object.keys(tool.inputSchema.properties as Record<string, any>).length > 0 && (
 					<div
 						style={{
 							marginTop: "8px",
@@ -49,9 +46,7 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 							}}>
 							Parameters
 						</div>
-						{Object.entries(
-							tool.inputSchema.properties as Record<string, any>,
-						).map(([paramName, schema]) => {
+						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(([paramName, schema]) => {
 							const isRequired =
 								tool.inputSchema &&
 								"required" in tool.inputSchema &&

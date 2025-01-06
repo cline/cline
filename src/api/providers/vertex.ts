@@ -1,13 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	vertexDefaultModelId,
-	VertexModelId,
-	vertexModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
@@ -24,10 +18,7 @@ export class VertexHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const stream = await this.client.messages.create({
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens || 8192,

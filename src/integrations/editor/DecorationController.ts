@@ -1,12 +1,10 @@
 import * as vscode from "vscode"
 
-const fadedOverlayDecorationType = vscode.window.createTextEditorDecorationType(
-	{
-		backgroundColor: "rgba(255, 255, 0, 0.1)",
-		opacity: "0.4",
-		isWholeLine: true,
-	},
-)
+const fadedOverlayDecorationType = vscode.window.createTextEditorDecorationType({
+	backgroundColor: "rgba(255, 255, 0, 0.1)",
+	opacity: "0.4",
+	isWholeLine: true,
+})
 
 const activeLineDecorationType = vscode.window.createTextEditorDecorationType({
 	backgroundColor: "rgba(255, 255, 0, 0.3)",
@@ -44,20 +42,10 @@ export class DecorationController {
 
 		const lastRange = this.ranges[this.ranges.length - 1]
 		if (lastRange && lastRange.end.line === startIndex - 1) {
-			this.ranges[this.ranges.length - 1] = lastRange.with(
-				undefined,
-				lastRange.end.translate(numLines),
-			)
+			this.ranges[this.ranges.length - 1] = lastRange.with(undefined, lastRange.end.translate(numLines))
 		} else {
 			const endLine = startIndex + numLines - 1
-			this.ranges.push(
-				new vscode.Range(
-					startIndex,
-					0,
-					endLine,
-					Number.MAX_SAFE_INTEGER,
-				),
-			)
+			this.ranges.push(new vscode.Range(startIndex, 0, endLine, Number.MAX_SAFE_INTEGER))
 		}
 
 		this.editor.setDecorations(this.getDecoration(), this.ranges)
@@ -75,13 +63,7 @@ export class DecorationController {
 		// Add a new range for all lines after the current line
 		if (line < totalLines - 1) {
 			this.ranges.push(
-				new vscode.Range(
-					new vscode.Position(line + 1, 0),
-					new vscode.Position(
-						totalLines - 1,
-						Number.MAX_SAFE_INTEGER,
-					),
-				),
+				new vscode.Range(new vscode.Position(line + 1, 0), new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER)),
 			)
 		}
 

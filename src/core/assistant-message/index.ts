@@ -60,9 +60,7 @@ export interface ToolUse {
 export interface ExecuteCommandToolUse extends ToolUse {
 	name: "execute_command"
 	// Pick<Record<ToolParamName, string>, "command"> makes "command" required, but Partial<> makes it optional
-	params: Partial<
-		Pick<Record<ToolParamName, string>, "command" | "requires_approval">
-	>
+	params: Partial<Pick<Record<ToolParamName, string>, "command" | "requires_approval">>
 }
 
 export interface ReadFileToolUse extends ToolUse {
@@ -82,9 +80,7 @@ export interface ReplaceInFileToolUse extends ToolUse {
 
 export interface SearchFilesToolUse extends ToolUse {
 	name: "search_files"
-	params: Partial<
-		Pick<Record<ToolParamName, string>, "path" | "regex" | "file_pattern">
-	>
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "regex" | "file_pattern">>
 }
 
 export interface ListFilesToolUse extends ToolUse {
@@ -99,22 +95,12 @@ export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 
 export interface BrowserActionToolUse extends ToolUse {
 	name: "browser_action"
-	params: Partial<
-		Pick<
-			Record<ToolParamName, string>,
-			"action" | "url" | "coordinate" | "text"
-		>
-	>
+	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text">>
 }
 
 export interface UseMcpToolToolUse extends ToolUse {
 	name: "use_mcp_tool"
-	params: Partial<
-		Pick<
-			Record<ToolParamName, string>,
-			"server_name" | "tool_name" | "arguments"
-		>
-	>
+	params: Partial<Pick<Record<ToolParamName, string>, "server_name" | "tool_name" | "arguments">>
 }
 
 export interface AccessMcpResourceToolUse extends ToolUse {

@@ -22,20 +22,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.getModel().id) {
 			case "o1-preview":
 			case "o1-mini": {
 				// o1 doesnt support streaming, non-1 temp, or system prompt
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
-					messages: [
-						{ role: "user", content: systemPrompt },
-						...convertToOpenAiMessages(messages),
-					],
+					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 				})
 				yield {
 					type: "text",
@@ -53,10 +47,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					model: this.getModel().id,
 					// max_completion_tokens: this.getModel().info.maxTokens,
 					temperature: 0,
-					messages: [
-						{ role: "system", content: systemPrompt },
-						...convertToOpenAiMessages(messages),
-					],
+					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
 				})

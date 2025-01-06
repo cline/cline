@@ -1,13 +1,6 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, {
-	KeyboardEvent,
-	memo,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
+import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
@@ -18,11 +11,8 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const OpenRouterModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } =
-		useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(
-		apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
-	)
+	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -50,10 +40,7 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (
-				dropdownRef.current &&
-				!dropdownRef.current.contains(event.target as Node)
-			) {
+			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
 				setIsDropdownVisible(false)
 			}
 		}
@@ -101,9 +88,7 @@ const OpenRouterModelPicker: React.FC = () => {
 		switch (event.key) {
 			case "ArrowDown":
 				event.preventDefault()
-				setSelectedIndex((prev) =>
-					prev < modelSearchResults.length - 1 ? prev + 1 : prev,
-				)
+				setSelectedIndex((prev) => (prev < modelSearchResults.length - 1 ? prev + 1 : prev))
 				break
 			case "ArrowUp":
 				event.preventDefault()
@@ -111,10 +96,7 @@ const OpenRouterModelPicker: React.FC = () => {
 				break
 			case "Enter":
 				event.preventDefault()
-				if (
-					selectedIndex >= 0 &&
-					selectedIndex < modelSearchResults.length
-				) {
+				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
 					handleModelChange(modelSearchResults[selectedIndex].id)
 					setIsDropdownVisible(false)
 				}
@@ -127,9 +109,7 @@ const OpenRouterModelPicker: React.FC = () => {
 	}
 
 	const hasInfo = useMemo(() => {
-		return modelIds.some(
-			(id) => id.toLowerCase() === searchTerm.toLowerCase(),
-		)
+		return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 	}, [modelIds, searchTerm])
 
 	useEffect(() => {
@@ -168,11 +148,7 @@ const OpenRouterModelPicker: React.FC = () => {
 						placeholder="Search and select a model..."
 						value={searchTerm}
 						onInput={(e) => {
-							handleModelChange(
-								(
-									e.target as HTMLInputElement
-								)?.value?.toLowerCase(),
-							)
+							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
 							setIsDropdownVisible(true)
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
@@ -236,26 +212,17 @@ const OpenRouterModelPicker: React.FC = () => {
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest list of
-					models available on{" "}
-					<VSCodeLink
-						style={{ display: "inline", fontSize: "inherit" }}
-						href="https://openrouter.ai/models">
+					The extension automatically fetches the latest list of models available on{" "}
+					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
 						OpenRouter.
 					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best
-					with{" "}
+					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
 						style={{ display: "inline", fontSize: "inherit" }}
-						onClick={() =>
-							handleModelChange(
-								"anthropic/claude-3.5-sonnet:beta",
-							)
-						}>
+						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
 						anthropic/claude-3.5-sonnet:beta.
 					</VSCodeLink>
-					You can also try searching "free" for no-cost options
-					currently available.
+					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
 		</>
@@ -293,10 +260,7 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 	word-break: break-all;
 	white-space: normal;
 
-	background-color: ${({ isSelected }) =>
-		isSelected
-			? "var(--vscode-list-activeSelectionBackground)"
-			: "inherit"};
+	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
@@ -385,9 +349,7 @@ export const ModelDescriptionMarkdown = memo(
 		}, [reactContent, setIsExpanded])
 
 		return (
-			<StyledMarkdown
-				key={key}
-				style={{ display: "inline-block", marginBottom: 0 }}>
+			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
 				<div
 					ref={textContainerRef}
 					style={{
@@ -422,8 +384,7 @@ export const ModelDescriptionMarkdown = memo(
 								style={{
 									width: 30,
 									height: "1.2em",
-									background:
-										"linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
+									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
 								}}
 							/>
 							<VSCodeLink
@@ -433,8 +394,7 @@ export const ModelDescriptionMarkdown = memo(
 									fontSize: "inherit",
 									paddingRight: 0,
 									paddingLeft: 3,
-									backgroundColor:
-										"var(--vscode-sideBar-background)",
+									backgroundColor: "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
 								See more

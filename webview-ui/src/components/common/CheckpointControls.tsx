@@ -14,8 +14,7 @@ interface CheckpointOverlayProps {
 export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
-	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] =
-		useState(false)
+	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
 	const [restoreBothDisabled, setRestoreBothDisabled] = useState(false)
 	const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
 	const [hasMouseEntered, setHasMouseEntered] = useState(false)
@@ -118,10 +117,7 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 						number: messageTs,
 					})
 				}}>
-				<i
-					className="codicon codicon-diff-multiple"
-					style={{ position: "absolute" }}
-				/>
+				<i className="codicon codicon-diff-multiple" style={{ position: "absolute" }} />
 			</VSCodeButton>
 			<div style={{ position: "relative" }} ref={containerRef}>
 				<VSCodeButton
@@ -129,64 +125,42 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 					appearance="secondary"
 					style={{ cursor: "pointer" }}
 					onClick={() => setShowRestoreConfirm(true)}>
-					<i
-						className="codicon codicon-discard"
-						style={{ position: "absolute" }}
-					/>
+					<i className="codicon codicon-discard" style={{ position: "absolute" }} />
 				</VSCodeButton>
 				{showRestoreConfirm && (
-					<RestoreConfirmTooltip
-						ref={tooltipRef}
-						onMouseEnter={handleMouseEnter}
-						onMouseLeave={handleMouseLeave}>
+					<RestoreConfirmTooltip ref={tooltipRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
 						<RestoreOption>
 							<VSCodeButton
 								onClick={handleRestoreBoth}
 								disabled={restoreBothDisabled}
 								style={{
-									cursor: restoreBothDisabled
-										? "wait"
-										: "pointer",
+									cursor: restoreBothDisabled ? "wait" : "pointer",
 								}}>
 								Restore Task and Workspace
 							</VSCodeButton>
-							<p>
-								Restores the task and your project's files back
-								to a snapshot taken at this point
-							</p>
+							<p>Restores the task and your project's files back to a snapshot taken at this point</p>
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
 								onClick={handleRestoreTask}
 								disabled={restoreTaskDisabled}
 								style={{
-									cursor: restoreTaskDisabled
-										? "wait"
-										: "pointer",
+									cursor: restoreTaskDisabled ? "wait" : "pointer",
 								}}>
 								Restore Task Only
 							</VSCodeButton>
-							<p>
-								Deletes messages after this point (does not
-								affect workspace)
-							</p>
+							<p>Deletes messages after this point (does not affect workspace)</p>
 						</RestoreOption>
 						<RestoreOption>
 							<VSCodeButton
 								onClick={handleRestoreWorkspace}
 								disabled={restoreWorkspaceDisabled}
 								style={{
-									cursor: restoreWorkspaceDisabled
-										? "wait"
-										: "pointer",
+									cursor: restoreWorkspaceDisabled ? "wait" : "pointer",
 								}}>
 								Restore Workspace Only
 							</VSCodeButton>
-							<p>
-								Restores your project's files to a snapshot
-								taken at this point (task may become out of
-								sync)
-							</p>
+							<p>Restores your project's files to a snapshot taken at this point (task may become out of sync)</p>
 						</RestoreOption>
 					</RestoreConfirmTooltip>
 				)}

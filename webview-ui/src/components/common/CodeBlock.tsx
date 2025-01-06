@@ -5,8 +5,7 @@ import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
-export const CODE_BLOCK_BG_COLOR =
-	"var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
+export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 
 /*
 overflowX: auto + inner div with padding results in an issue where the top/left/bottom padding renders but the right padding inside does not count as overflow as the width of the element is not exceeded. Once the inner div is outside the boundaries of the parent it counts as overflow.
@@ -60,10 +59,7 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 		word-wrap: break-word;
 		border-radius: 5px;
 		background-color: ${CODE_BLOCK_BG_COLOR};
-		font-size: var(
-			--vscode-editor-font-size,
-			var(--vscode-font-size, 12px)
-		);
+		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
 		font-family: var(--vscode-editor-font-family);
 	}
 
@@ -139,9 +135,7 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, ...preProps }: any) => (
-					<StyledPre {...preProps} theme={theme} />
-				),
+				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} theme={theme} />,
 			},
 		},
 	})
@@ -157,9 +151,7 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 				maxHeight: forceWrap ? "none" : "100%",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown forceWrap={forceWrap}>
-				{reactContent}
-			</StyledMarkdown>
+			<StyledMarkdown forceWrap={forceWrap}>{reactContent}</StyledMarkdown>
 		</div>
 	)
 })

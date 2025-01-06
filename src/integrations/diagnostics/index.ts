@@ -11,10 +11,7 @@ export function getNewDiagnostics(
 
 	for (const [uri, newDiags] of newDiagnostics) {
 		const oldDiags = oldMap.get(uri) || []
-		const newProblemsForUri = newDiags.filter(
-			(newDiag) =>
-				!oldDiags.some((oldDiag) => deepEqual(oldDiag, newDiag)),
-		)
+		const newProblemsForUri = newDiags.filter((newDiag) => !oldDiags.some((oldDiag) => deepEqual(oldDiag, newDiag)))
 
 		if (newProblemsForUri.length > 0) {
 			newProblems.push([uri, newProblemsForUri])
@@ -80,9 +77,7 @@ export function diagnosticsToProblemsString(
 ): string {
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {
-		const problems = fileDiagnostics.filter((d) =>
-			severities.includes(d.severity),
-		)
+		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))
 		if (problems.length > 0) {
 			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
 			for (const diagnostic of problems) {

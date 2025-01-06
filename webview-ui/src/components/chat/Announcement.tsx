@@ -16,18 +16,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
-				backgroundColor:
-					"var(--vscode-editor-inactiveSelectionBackground)",
+				backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
 				borderRadius: "3px",
 				padding: "12px 16px",
 				margin: "5px 15px 5px 15px",
 				position: "relative",
 				flexShrink: 0,
 			}}>
-			<VSCodeButton
-				appearance="icon"
-				onClick={hideAnnouncement}
-				style={{ position: "absolute", top: "8px", right: "8px" }}>
+			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={{ margin: "0 0 8px" }}>
@@ -35,9 +31,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Checkpoints are here!</b> Cline now saves a snapshot of
-					your workspace at each step of the task. Hover over any
-					message to see two new buttons:
+					<b>Checkpoints are here!</b> Cline now saves a snapshot of your workspace at each step of the task. Hover over
+					any message to see two new buttons:
 					<ul style={{ margin: "4px 0", paddingLeft: 22 }}>
 						<li>
 							<span
@@ -46,8 +41,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 									fontSize: "12px",
 									marginRight: "4px",
 								}}></span>
-							<b>Compare</b> shows you a diff between the snapshot
-							and your current workspace
+							<b>Compare</b> shows you a diff between the snapshot and your current workspace
 						</li>
 						<li>
 							<span
@@ -56,21 +50,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 									fontSize: "12px",
 									marginRight: "4px",
 								}}></span>
-							<b>Restore</b> lets you revert your project's files
-							back to that point in the task
+							<b>Restore</b> lets you revert your project's files back to that point in the task
 						</li>
 					</ul>
 				</li>
 				<li>
-					<b>'See new changes' button</b> when a task is completed,
-					showing you an overview of all the changes Cline made to
-					your workspace throughout the task
+					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes Cline
+					made to your workspace throughout the task
 				</li>
 			</ul>
 			<p style={{ margin: "8px 0" }}>
-				<VSCodeLink
-					href="https://x.com/sdrzn/status/1867271665086074969"
-					style={{ display: "inline" }}>
+				<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
 					See a demo of Checkpoints here!
 				</VSCodeLink>
 			</p>
@@ -131,9 +121,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			/>
 			<p style={{ margin: "0" }}>
 				Join
-				<VSCodeLink
-					style={{ display: "inline" }}
-					href="https://discord.gg/cline">
+				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
 					discord.gg/cline
 				</VSCodeLink>
 				for more updates!

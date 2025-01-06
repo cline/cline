@@ -21,12 +21,7 @@ export interface ExtensionMessage {
 		| "mcpServers"
 		| "relinquishControl"
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
+	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -118,14 +113,7 @@ export interface ClineSayTool {
 }
 
 // must keep in sync with system prompt
-export const browserActions = [
-	"launch",
-	"click",
-	"type",
-	"scroll_down",
-	"scroll_up",
-	"close",
-] as const
+export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
 export interface ClineSayBrowserAction {

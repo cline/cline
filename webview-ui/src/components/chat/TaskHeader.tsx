@@ -30,8 +30,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	onClose,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } =
-		useExtensionState()
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
@@ -83,11 +82,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		if (textRef.current && textContainerRef.current) {
 			let textContainerHeight = textContainerRef.current.clientHeight
 			if (!textContainerHeight) {
-				textContainerHeight =
-					textContainerRef.current.getBoundingClientRect().height
+				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
 			}
-			const isOverflowing =
-				textRef.current.scrollHeight > textContainerHeight
+			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 			// necessary to show see more button again if user resizes window to expand and then back to collapse
 			if (!isOverflowing) {
 				setIsTextExpanded(false)
@@ -105,9 +102,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		)
 	}, [apiConfiguration?.apiProvider])
 
-	const shouldShowPromptCacheInfo =
-		doesModelSupportPromptCache &&
-		apiConfiguration?.apiProvider !== "openrouter"
+	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
 
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
@@ -149,8 +144,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								alignItems: "center",
 								flexShrink: 0,
 							}}>
-							<span
-								className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`}></span>
+							<span className={`codicon codicon-chevron-${isTaskExpanded ? "down" : "right"}`}></span>
 						</div>
 						<div
 							style={{
@@ -161,22 +155,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
-							<span style={{ fontWeight: "bold" }}>
-								Task{!isTaskExpanded && ":"}
-							</span>
-							{!isTaskExpanded && (
-								<span style={{ marginLeft: 4 }}>
-									{highlightMentions(task.text, false)}
-								</span>
-							)}
+							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
+							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
 						<div
 							style={{
 								marginLeft: 10,
-								backgroundColor:
-									"color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
+								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 70%, transparent)",
 								color: "var(--vscode-badge-background)",
 								padding: "2px 4px",
 								borderRadius: "500px",
@@ -188,10 +175,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					<VSCodeButton
-						appearance="icon"
-						onClick={onClose}
-						style={{ marginLeft: 6, flexShrink: 0 }}>
+					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -211,9 +195,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								ref={textRef}
 								style={{
 									display: "-webkit-box",
-									WebkitLineClamp: isTextExpanded
-										? "unset"
-										: 3,
+									WebkitLineClamp: isTextExpanded ? "unset" : 3,
 									WebkitBoxOrient: "vertical",
 									overflow: "hidden",
 									whiteSpace: "pre-wrap",
@@ -235,8 +217,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										style={{
 											width: 30,
 											height: "1.2em",
-											background:
-												"linear-gradient(to right, transparent, var(--vscode-badge-background))",
+											background: "linear-gradient(to right, transparent, var(--vscode-badge-background))",
 										}}
 									/>
 									<div
@@ -245,12 +226,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											color: "var(--vscode-textLink-foreground)",
 											paddingRight: 0,
 											paddingLeft: 3,
-											backgroundColor:
-												"var(--vscode-badge-background)",
+											backgroundColor: "var(--vscode-badge-background)",
 										}}
-										onClick={() =>
-											setIsTextExpanded(!isTextExpanded)
-										}>
+										onClick={() => setIsTextExpanded(!isTextExpanded)}>
 										See more
 									</div>
 								</div>
@@ -265,15 +243,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									textAlign: "right",
 									paddingRight: 2,
 								}}
-								onClick={() =>
-									setIsTextExpanded(!isTextExpanded)
-								}>
+								onClick={() => setIsTextExpanded(!isTextExpanded)}>
 								See less
 							</div>
 						)}
-						{task.images && task.images.length > 0 && (
-							<Thumbnails images={task.images} />
-						)}
+						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
 						<div
 							style={{
 								display: "flex",
@@ -293,9 +267,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										gap: "4px",
 										flexWrap: "wrap",
 									}}>
-									<span style={{ fontWeight: "bold" }}>
-										Tokens:
-									</span>
+									<span style={{ fontWeight: "bold" }}>Tokens:</span>
 									<span
 										style={{
 											display: "flex",
@@ -330,65 +302,53 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</span>
 								</div>
 								{!isCostAvailable && (
-									<DeleteButton
-										taskSize={formatSize(
-											currentTaskItem?.size,
-										)}
-										taskId={currentTaskItem?.id}
-									/>
+									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								)}
 							</div>
 
-							{shouldShowPromptCacheInfo &&
-								(cacheReads !== undefined ||
-									cacheWrites !== undefined) && (
-									<div
+							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										flexWrap: "wrap",
+									}}>
+									<span style={{ fontWeight: "bold" }}>Cache:</span>
+									<span
 										style={{
 											display: "flex",
 											alignItems: "center",
-											gap: "4px",
-											flexWrap: "wrap",
+											gap: "3px",
 										}}>
-										<span style={{ fontWeight: "bold" }}>
-											Cache:
-										</span>
-										<span
+										<i
+											className="codicon codicon-database"
 											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-											}}>
-											<i
-												className="codicon codicon-database"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: "-1px",
-												}}
-											/>
-											+
-											{formatLargeNumber(
-												cacheWrites || 0,
-											)}
-										</span>
-										<span
+												fontSize: "12px",
+												fontWeight: "bold",
+												marginBottom: "-1px",
+											}}
+										/>
+										+{formatLargeNumber(cacheWrites || 0)}
+									</span>
+									<span
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "3px",
+										}}>
+										<i
+											className="codicon codicon-arrow-right"
 											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-											}}>
-											<i
-												className="codicon codicon-arrow-right"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: 0,
-												}}
-											/>
-											{formatLargeNumber(cacheReads || 0)}
-										</span>
-									</div>
-								)}
+												fontSize: "12px",
+												fontWeight: "bold",
+												marginBottom: 0,
+											}}
+										/>
+										{formatLargeNumber(cacheReads || 0)}
+									</span>
+								</div>
+							)}
 							{isCostAvailable && (
 								<div
 									style={{
@@ -402,17 +362,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											alignItems: "center",
 											gap: "4px",
 										}}>
-										<span style={{ fontWeight: "bold" }}>
-											API Cost:
-										</span>
+										<span style={{ fontWeight: "bold" }}>API Cost:</span>
 										<span>${totalCost?.toFixed(4)}</span>
 									</div>
-									<DeleteButton
-										taskSize={formatSize(
-											currentTaskItem?.size,
-										)}
-										taskId={currentTaskItem?.id}
-									/>
+									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								</div>
 							)}
 							{checkpointTrackerErrorMessage && (
@@ -427,17 +380,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<i className="codicon codicon-warning" />
 									<span>
 										{checkpointTrackerErrorMessage}
-										{checkpointTrackerErrorMessage.includes(
-											"Git must be installed to use checkpoints.",
-										) && (
+										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
 												{" "}
 												<a
 													href="https://github.com/cline/cline/wiki/Installing-Git-for-Checkpoints"
 													style={{
 														color: "inherit",
-														textDecoration:
-															"underline",
+														textDecoration: "underline",
 													}}>
 													See here for instructions.
 												</a>
@@ -494,15 +444,9 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 			return (
 				<span
 					key={index}
-					className={
-						withShadow
-							? "mention-context-highlight-with-shadow"
-							: "mention-context-highlight"
-					}
+					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
 					style={{ cursor: "pointer" }}
-					onClick={() =>
-						vscode.postMessage({ type: "openMention", text: part })
-					}>
+					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
 					@{part}
 				</span>
 			)
@@ -516,9 +460,7 @@ const DeleteButton: React.FC<{
 }> = ({ taskSize, taskId }) => (
 	<VSCodeButton
 		appearance="icon"
-		onClick={() =>
-			vscode.postMessage({ type: "deleteTaskWithId", text: taskId })
-		}
+		onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: taskId })}
 		style={{ padding: "0px 0px" }}>
 		<div
 			style={{

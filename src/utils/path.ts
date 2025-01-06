@@ -72,10 +72,7 @@ function normalizePath(p: string): string {
 	let normalized = path.normalize(p)
 	// however it doesn't remove trailing slashes
 	// remove trailing slash, except for root paths
-	if (
-		normalized.length > 1 &&
-		(normalized.endsWith("/") || normalized.endsWith("\\"))
-	) {
+	if (normalized.length > 1 && (normalized.endsWith("/") || normalized.endsWith("\\"))) {
 		normalized = normalized.slice(0, -1)
 	}
 	return normalized

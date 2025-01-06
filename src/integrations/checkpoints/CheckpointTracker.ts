@@ -21,15 +21,10 @@ class CheckpointTracker {
 		this.cwd = cwd
 	}
 
-	public static async create(
-		taskId: string,
-		provider?: ClineProvider,
-	): Promise<CheckpointTracker> {
+	public static async create(taskId: string, provider?: ClineProvider): Promise<CheckpointTracker> {
 		try {
 			if (!provider) {
-				throw new Error(
-					"Provider is required to create a checkpoint tracker",
-				)
+				throw new Error("Provider is required to create a checkpoint tracker")
 			}
 
 			// Check if git is installed by attempting to get version
@@ -50,13 +45,9 @@ class CheckpointTracker {
 	}
 
 	private static async getWorkingDirectory(): Promise<string> {
-		const cwd = vscode.workspace.workspaceFolders
-			?.map((folder) => folder.uri.fsPath)
-			.at(0)
+		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 		if (!cwd) {
-			throw new Error(
-				"No workspace detected. Please open Cline in a workspace to use checkpoints.",
-			)
+			throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
 		}
 		const homedir = os.homedir()
 		const desktopPath = path.join(homedir, "Desktop")
@@ -78,37 +69,22 @@ class CheckpointTracker {
 	}
 
 	private async getShadowGitPath(): Promise<string> {
-		const globalStoragePath =
-			this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
-		const checkpointsDir = path.join(
-			globalStoragePath,
-			"tasks",
-			this.taskId,
-			"checkpoints",
-		)
+		const checkpointsDir = path.join(globalStoragePath, "tasks", this.taskId, "checkpoints")
 		await fs.mkdir(checkpointsDir, { recursive: true })
 		const gitPath = path.join(checkpointsDir, ".git")
 		return gitPath
 	}
 
-	public static async doesShadowGitExist(
-		taskId: string,
-		provider?: ClineProvider,
-	): Promise<boolean> {
+	public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
 		const globalStoragePath = provider?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			return false
 		}
-		const gitPath = path.join(
-			globalStoragePath,
-			"tasks",
-			taskId,
-			"checkpoints",
-			".git",
-		)
+		const gitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
 		return await fileExistsAtPath(gitPath)
 	}
 
@@ -118,10 +94,7 @@ class CheckpointTracker {
 			// Make sure it's the same cwd as the configured worktree
 			const worktree = await this.getShadowGitConfigWorkTree()
 			if (worktree !== this.cwd) {
-				throw new Error(
-					"Checkpoints can only be used in the original workspace: " +
-						worktree,
-				)
+				throw new Error("Checkpoints can only be used in the original workspace: " + worktree)
 			}
 
 			return gitPath
@@ -250,8 +223,7 @@ class CheckpointTracker {
 			const gitPath = await this.getShadowGitPath()
 			const git = simpleGit(path.dirname(gitPath))
 			const worktree = await git.getConfig("core.worktree")
-			this.lastRetrievedShadowGitConfigWorkTree =
-				worktree.value || undefined
+			this.lastRetrievedShadowGitConfigWorkTree = worktree.value || undefined
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
 			console.error("Failed to get shadow git config worktree:", error)
@@ -323,11 +295,7 @@ class CheckpointTracker {
 		// If lhsHash is missing, use the initial commit of the repo
 		let baseHash = lhsHash
 		if (!baseHash) {
-			const rootCommit = await git.raw([
-				"rev-list",
-				"--max-parents=0",
-				"HEAD",
-			])
+			const rootCommit = await git.raw(["rev-list", "--max-parents=0", "HEAD"])
 			baseHash = rootCommit.trim()
 		}
 
@@ -336,14 +304,11 @@ class CheckpointTracker {
 		await git.add(".")
 		await this.renameNestedGitRepos(false)
 
-		const diffSummary = rhsHash
-			? await git.diffSummary([`${baseHash}..${rhsHash}`])
-			: await git.diffSummary([baseHash])
+		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
 
 		// For each changed file, gather before/after content
 		const result = []
-		const cwdPath =
-			(await this.getShadowGitConfigWorkTree()) || this.cwd || ""
+		const cwdPath = (await this.getShadowGitConfigWorkTree()) || this.cwd || ""
 
 		for (const file of diffSummary.files) {
 			const filePath = file.file
@@ -387,16 +352,13 @@ class CheckpointTracker {
 	// Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's requirement of using submodules for nested repos.
 	async renameNestedGitRepos(disable: boolean) {
 		// Find all .git directories that are not at the root level
-		const gitPaths = await globby(
-			"**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX),
-			{
-				cwd: this.cwd,
-				onlyDirectories: true,
-				ignore: [".git"], // Ignore root level .git
-				dot: true,
-				markDirectories: false,
-			},
-		)
+		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
+			cwd: this.cwd,
+			onlyDirectories: true,
+			ignore: [".git"], // Ignore root level .git
+			dot: true,
+			markDirectories: false,
+		})
 
 		// For each nested .git directory, rename it based on operation
 		for (const gitPath of gitPaths) {
@@ -405,21 +367,14 @@ class CheckpointTracker {
 			if (disable) {
 				newPath = fullPath + GIT_DISABLED_SUFFIX
 			} else {
-				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX)
-					? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length)
-					: fullPath
+				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX) ? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length) : fullPath
 			}
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(
-					`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`,
-				)
+				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
-				console.error(
-					`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`,
-					error,
-				)
+				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
 	}

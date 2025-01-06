@@ -1,12 +1,4 @@
-import {
-	AssistantMessageContent,
-	TextContent,
-	ToolUse,
-	ToolParamName,
-	toolParamNames,
-	toolUseNames,
-	ToolUseName,
-} from "."
+import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "."
 
 export function parseAssistantMessage(assistantMessage: string) {
 	let contentBlocks: AssistantMessageContent[] = []
@@ -24,15 +16,11 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 		// there should not be a param without a tool use
 		if (currentToolUse && currentParamName) {
-			const currentParamValue = accumulator.slice(
-				currentParamValueStartIndex,
-			)
+			const currentParamValue = accumulator.slice(currentParamValueStartIndex)
 			const paramClosingTag = `</${currentParamName}>`
 			if (currentParamValue.endsWith(paramClosingTag)) {
 				// end of param value
-				currentToolUse.params[currentParamName] = currentParamValue
-					.slice(0, -paramClosingTag.length)
-					.trim()
+				currentToolUse.params[currentParamName] = currentParamValue.slice(0, -paramClosingTag.length).trim()
 				currentParamName = undefined
 				continue
 			} else {
@@ -53,16 +41,11 @@ export function parseAssistantMessage(assistantMessage: string) {
 				currentToolUse = undefined
 				continue
 			} else {
-				const possibleParamOpeningTags = toolParamNames.map(
-					(name) => `<${name}>`,
-				)
+				const possibleParamOpeningTags = toolParamNames.map((name) => `<${name}>`)
 				for (const paramOpeningTag of possibleParamOpeningTags) {
 					if (accumulator.endsWith(paramOpeningTag)) {
 						// start of a new parameter
-						currentParamName = paramOpeningTag.slice(
-							1,
-							-1,
-						) as ToolParamName
+						currentParamName = paramOpeningTag.slice(1, -1) as ToolParamName
 						currentParamValueStartIndex = accumulator.length
 						break
 					}
@@ -72,28 +55,14 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
 				const contentParamName: ToolParamName = "content"
-				if (
-					currentToolUse.name === "write_to_file" &&
-					accumulator.endsWith(`</${contentParamName}>`)
-				) {
-					const toolContent = accumulator.slice(
-						currentToolUseStartIndex,
-					)
+				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
+					const toolContent = accumulator.slice(currentToolUseStartIndex)
 					const contentStartTag = `<${contentParamName}>`
 					const contentEndTag = `</${contentParamName}>`
-					const contentStartIndex =
-						toolContent.indexOf(contentStartTag) +
-						contentStartTag.length
-					const contentEndIndex =
-						toolContent.lastIndexOf(contentEndTag)
-					if (
-						contentStartIndex !== -1 &&
-						contentEndIndex !== -1 &&
-						contentEndIndex > contentStartIndex
-					) {
-						currentToolUse.params[contentParamName] = toolContent
-							.slice(contentStartIndex, contentEndIndex)
-							.trim()
+					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
+					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
+					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
+						currentToolUse.params[contentParamName] = toolContent.slice(contentStartIndex, contentEndIndex).trim()
 					}
 				}
 
@@ -105,9 +74,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 		// no currentToolUse
 
 		let didStartToolUse = false
-		const possibleToolUseOpeningTags = toolUseNames.map(
-			(name) => `<${name}>`,
-		)
+		const possibleToolUseOpeningTags = toolUseNames.map((name) => `<${name}>`)
 		for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
 			if (accumulator.endsWith(toolUseOpeningTag)) {
 				// start of a new tool use
@@ -151,9 +118,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 		// stream did not complete tool call, add it as partial
 		if (currentParamName) {
 			// tool call has a parameter that was not completed
-			currentToolUse.params[currentParamName] = accumulator
-				.slice(currentParamValueStartIndex)
-				.trim()
+			currentToolUse.params[currentParamName] = accumulator.slice(currentParamValueStartIndex).trim()
 		}
 		contentBlocks.push(currentToolUse)
 	}

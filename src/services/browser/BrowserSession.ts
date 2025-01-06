@@ -1,13 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import {
-	Browser,
-	Page,
-	ScreenshotOptions,
-	TimeoutError,
-	launch,
-} from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
@@ -85,9 +79,7 @@ export class BrowserSession {
 		return {}
 	}
 
-	async doAction(
-		action: (page: Page) => Promise<void>,
-	): Promise<BrowserActionResult> {
+	async doAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
 		if (!this.page) {
 			throw new Error(
 				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",

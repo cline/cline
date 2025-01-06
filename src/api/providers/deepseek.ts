@@ -1,13 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	DeepSeekModelId,
-	ModelInfo,
-	deepSeekDefaultModelId,
-	deepSeekModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -23,18 +17,12 @@ export class DeepSeekHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,
-			messages: [
-				{ role: "system", content: systemPrompt },
-				...convertToOpenAiMessages(messages),
-			],
+			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
 		})

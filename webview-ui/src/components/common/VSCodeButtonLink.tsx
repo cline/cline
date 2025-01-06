@@ -7,11 +7,7 @@ interface VSCodeButtonLinkProps {
 	[key: string]: any
 }
 
-const VSCodeButtonLink: React.FC<VSCodeButtonLinkProps> = ({
-	href,
-	children,
-	...props
-}) => {
+const VSCodeButtonLink: React.FC<VSCodeButtonLinkProps> = ({ href, children, ...props }) => {
 	return (
 		<a
 			href={href}

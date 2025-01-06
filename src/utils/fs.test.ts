@@ -6,10 +6,7 @@ import "should"
 import { createDirectoriesForFile, fileExistsAtPath } from "./fs"
 
 describe("Filesystem Utilities", () => {
-	const tmpDir = path.join(
-		os.tmpdir(),
-		"cline-test-" + Math.random().toString(36).slice(2),
-	)
+	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
 
 	// Clean up after tests
 	after(async () => {
@@ -39,13 +36,7 @@ describe("Filesystem Utilities", () => {
 
 	describe("createDirectoriesForFile", () => {
 		it("should create all necessary directories", async () => {
-			const deepPath = path.join(
-				tmpDir,
-				"deep",
-				"nested",
-				"dir",
-				"file.txt",
-			)
+			const deepPath = path.join(tmpDir, "deep", "nested", "dir", "file.txt")
 			const createdDirs = await createDirectoriesForFile(deepPath)
 
 			// Verify directories were created
@@ -68,14 +59,7 @@ describe("Filesystem Utilities", () => {
 		})
 
 		it("should normalize paths", async () => {
-			const unnormalizedPath = path.join(
-				tmpDir,
-				"a",
-				"..",
-				"b",
-				".",
-				"file.txt",
-			)
+			const unnormalizedPath = path.join(tmpDir, "a", "..", "b", ".", "file.txt")
 			const createdDirs = await createDirectoriesForFile(unnormalizedPath)
 
 			// Should create only the necessary directory

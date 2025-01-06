@@ -21,8 +21,7 @@ const StyledButton = styled(VSCodeButton)`
 	}
 `
 
-interface SuccessButtonProps
-	extends React.ComponentProps<typeof VSCodeButton> {}
+interface SuccessButtonProps extends React.ComponentProps<typeof VSCodeButton> {}
 
 const SuccessButton: React.FC<SuccessButtonProps> = (props) => {
 	return <StyledButton {...props} />

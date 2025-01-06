@@ -18,12 +18,7 @@ type TooltipProps = {
 	align?: "left" | "center" | "right"
 }
 
-const Tooltip: React.FC<TooltipProps> = ({
-	text,
-	isVisible,
-	position,
-	align = "center",
-}) => {
+const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "center" }) => {
 	let leftPosition = position.x
 	let triangleStyle: React.CSSProperties = {
 		left: "50%",
@@ -54,8 +49,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 				transform: align === "center" ? "translateX(-50%)" : "none",
 				opacity: isVisible ? 1 : 0,
 				visibility: isVisible ? "visible" : "hidden",
-				transition:
-					"opacity 0.1s ease-out 0.1s, visibility 0.1s ease-out 0.1s",
+				transition: "opacity 0.1s ease-out 0.1s, visibility 0.1s ease-out 0.1s",
 				backgroundColor: "var(--vscode-editorHoverWidget-background)",
 				color: "var(--vscode-editorHoverWidget-foreground)",
 				padding: "4px 8px",
@@ -75,8 +69,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 					...triangleStyle,
 					borderLeft: "5px solid transparent",
 					borderRight: "5px solid transparent",
-					borderBottom:
-						"5px solid var(--vscode-editorHoverWidget-border)",
+					borderBottom: "5px solid var(--vscode-editorHoverWidget-border)",
 				}}
 			/>
 			<div
@@ -86,8 +79,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 					...triangleStyle,
 					borderLeft: "5px solid transparent",
 					borderRight: "5px solid transparent",
-					borderBottom:
-						"5px solid var(--vscode-editorHoverWidget-background)",
+					borderBottom: "5px solid var(--vscode-editorHoverWidget-background)",
 				}}
 			/>
 			{text}
@@ -95,11 +87,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 	)
 }
 
-const TabNavbar = ({
-	onPlusClick,
-	onHistoryClick,
-	onSettingsClick,
-}: TabNavbarProps) => {
+const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarProps) => {
 	const [tooltip, setTooltip] = useState<TooltipProps>({
 		text: "",
 		isVisible: false,
@@ -107,11 +95,7 @@ const TabNavbar = ({
 		align: "center",
 	})
 
-	const showTooltip = (
-		text: string,
-		event: React.MouseEvent,
-		align: "left" | "center" | "right" = "center",
-	) => {
+	const showTooltip = (text: string, event: React.MouseEvent, align: "left" | "center" | "right" = "center") => {
 		const rect = event.currentTarget.getBoundingClientRect()
 		setTooltip({
 			text,

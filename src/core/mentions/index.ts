@@ -15,18 +15,13 @@ export function openMention(mention?: string): void {
 
 	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		const cwd = vscode.workspace.workspaceFolders
-			?.map((folder) => folder.uri.fsPath)
-			.at(0)
+		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 		if (!cwd) {
 			return
 		}
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand(
-				"revealInExplorer",
-				vscode.Uri.file(absPath),
-			)
+			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
 			// vscode.commands.executeCommand("vscode.openFolder", , { forceNewWindow: false }) opens in new window
 		} else {
 			openFile(absPath)
@@ -38,11 +33,7 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(
-	text: string,
-	cwd: string,
-	urlContentFetcher: UrlContentFetcher,
-): Promise<string> {
+export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -59,18 +50,14 @@ export async function parseMentions(
 		return match
 	})
 
-	const urlMention = Array.from(mentions).find((mention) =>
-		mention.startsWith("http"),
-	)
+	const urlMention = Array.from(mentions).find((mention) => mention.startsWith("http"))
 	let launchBrowserError: Error | undefined
 	if (urlMention) {
 		try {
 			await urlContentFetcher.launchBrowser()
 		} catch (error) {
 			launchBrowserError = error
-			vscode.window.showErrorMessage(
-				`Error fetching content for ${urlMention}: ${error.message}`,
-			)
+			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
 		}
 	}
 
@@ -81,13 +68,10 @@ export async function parseMentions(
 				result = `Error fetching content: ${launchBrowserError.message}`
 			} else {
 				try {
-					const markdown =
-						await urlContentFetcher.urlToMarkdown(mention)
+					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
 				} catch (error) {
-					vscode.window.showErrorMessage(
-						`Error fetching content for ${mention}: ${error.message}`,
-					)
+					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
 					result = `Error fetching content: ${error.message}`
 				}
 			}
@@ -129,10 +113,7 @@ export async function parseMentions(
 	return parsedText
 }
 
-async function getFileOrFolderContent(
-	mentionPath: string,
-	cwd: string,
-): Promise<string> {
+async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
 	try {
@@ -160,14 +141,11 @@ async function getFileOrFolderContent(
 					fileContentPromises.push(
 						(async () => {
 							try {
-								const isBinary = await isBinaryFile(
-									absoluteFilePath,
-								).catch(() => false)
+								const isBinary = await isBinaryFile(absoluteFilePath).catch(() => false)
 								if (isBinary) {
 									return undefined
 								}
-								const content =
-									await extractTextFromFile(absoluteFilePath)
+								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {
 								return undefined
@@ -181,17 +159,13 @@ async function getFileOrFolderContent(
 					folderContent += `${linePrefix}${entry.name}\n`
 				}
 			})
-			const fileContents = (
-				await Promise.all(fileContentPromises)
-			).filter((content) => content)
+			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
 			return `${folderContent}\n${fileContents.join("\n\n")}`.trim()
 		} else {
 			return `(Failed to read contents of ${mentionPath})`
 		}
 	} catch (error) {
-		throw new Error(
-			`Failed to access path "${mentionPath}": ${error.message}`,
-		)
+		throw new Error(`Failed to access path "${mentionPath}": ${error.message}`)
 	}
 }
 
