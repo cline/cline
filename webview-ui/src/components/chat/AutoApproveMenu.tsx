@@ -248,31 +248,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
 						}}>
-						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
-						<VSCodeTextField
-							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
-							value={autoApprovalSettings?.maxHistoricalMessages?.toString() || "10"}
-							onInput={(e) => {
-								const input = e.target as HTMLInputElement
-								// Remove any non-numeric characters
-								input.value = input.value.replace(/[^0-9]/g, "")
-								const value = parseInt(input.value)
-								if (!isNaN(value) && value > 0) {
-									updateMaxHistoricalMessages(value)
-								}
-							}}
-							onKeyDown={(e) => {
-								// Prevent non-numeric keys (except for backspace, delete, arrows)
-								if (
-									!/^\d$/.test(e.key) &&
-									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-								) {
-									e.preventDefault()
-								}
-							}}
-							style={{ flex: 1 }}
-						/>
-					</div>
+						
 					<div
 						style={{
 							display: "flex",
