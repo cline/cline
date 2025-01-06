@@ -35,6 +35,10 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import OpenRouterModelPicker, {
+	ModelDescriptionMarkdown,
+	OPENROUTER_MODEL_PICKER_Z_INDEX,
+} from "./OpenRouterModelPicker"
 import GlamaModelPicker from "./GlamaModelPicker"
 
 interface ApiOptionsProps {
