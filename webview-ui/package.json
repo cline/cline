@@ -3,8 +3,11 @@
 	"version": "0.1.0",
 	"private": true,
 	"dependencies": {
+		"@testing-library/jest-dom": "^5.17.0",
+		"@testing-library/react": "^13.4.0",
 		"@testing-library/user-event": "^13.5.0",
 		"@types/jest": "^27.5.2",
+		"@types/node": "^16.18.101",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
@@ -27,9 +30,7 @@
 	"scripts": {
 		"start": "react-scripts start",
 		"build": "node ./scripts/build-react-no-split.js",
-		"test": "vitest run",
-		"test:watch": "vitest --watch",
-		"test:coverage": "vitest run --coverage",
+		"test": "react-scripts test",
 		"eject": "react-scripts eject"
 	},
 	"eslintConfig": {
@@ -51,13 +52,6 @@
 		]
 	},
 	"devDependencies": {
-		"@testing-library/jest-dom": "^6.6.3",
-		"@testing-library/react": "^16.1.0",
-		"@types/node": "^18.19.69",
-		"@types/vscode-webview": "^1.57.5",
-		"@vitest/coverage-v8": "^2.1.8",
-		"@vitejs/plugin-react": "^4.2.1",
-		"jsdom": "^25.0.1",
-		"vitest": "^2.1.8"
+		"@types/vscode-webview": "^1.57.5"
 	}
 }
