@@ -88,3 +88,37 @@ export function stripLineNumbers(content: string): string {
 	const lineEnding = content.includes('\r\n') ? '\r\n' : '\n'
 	return processedLines.join(lineEnding)
 }
+
+/**
+ * Truncates multi-line output while preserving context from both the beginning and end.
+ * When truncation is needed, it keeps 20% of the lines from the start and 80% from the end,
+ * with a clear indicator of how many lines were omitted in between.
+ *
+ * @param content The multi-line string to truncate
+ * @param lineLimit Optional maximum number of lines to keep. If not provided or 0, returns the original content
+ * @returns The truncated string with an indicator of omitted lines, or the original content if no truncation needed
+ *
+ * @example
+ * // With 10 line limit on 25 lines of content:
+ * // - Keeps first 2 lines (20% of 10)
+ * // - Keeps last 8 lines (80% of 10)
+ * // - Adds "[...15 lines omitted...]" in between
+ */
+export function truncateOutput(content: string, lineLimit?: number): string {
+	if (!lineLimit) {
+		return content
+	}
+
+	const lines = content.split('\n')
+	if (lines.length <= lineLimit) {
+		return content
+	}
+
+	const beforeLimit = Math.floor(lineLimit * 0.2) // 20% of lines before
+	const afterLimit = lineLimit - beforeLimit // remaining 80% after
+	return [
+		...lines.slice(0, beforeLimit),
+		`\n[...${lines.length - lineLimit} lines omitted...]\n`,
+		...lines.slice(-afterLimit)
+	].join('\n')
+}
