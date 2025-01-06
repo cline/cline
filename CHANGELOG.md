@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.41]
+
+-   Checkbox to disable streaming for OpenAI-compatible providers
+
 ## [2.2.40]
 
 -   Add the Glama provider (thanks @punkpeye!)
