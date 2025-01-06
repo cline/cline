@@ -32,6 +32,14 @@ interface ApipieModel {
 	output_cost: number
 }
 
+interface ChatCompletionCreateParams {
+	model: string
+	messages: OpenAI.Chat.ChatCompletionMessageParam[]
+	temperature?: number
+	stream?: boolean
+	tools_model?: string // Added tools_model property
+}
+
 export class ApipieHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -106,7 +114,7 @@ export class ApipieHandler implements ApiHandler {
 			id: this.modelInfo?.route || this.options.apiModelId || "openai/gpt-4o-mini",
 			info: {
 				maxTokens: this.modelInfo?.max_tokens || 128000,
-				contextWindow: this.modelInfo?.max_response_tokens || 4096,
+				contextWindow: this.modelInfo?.max_response_tokens || 8192,
 				supportsImages: false,
 				supportsPromptCache: false,
 				inputPrice: this.modelInfo?.input_cost || 0,
