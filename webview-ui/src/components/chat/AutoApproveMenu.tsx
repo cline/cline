@@ -49,13 +49,25 @@ const ACTION_METADATA: {
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+
+	const { autoApprovalSettings } = useExtensionState() || DEFAULT_AUTO_APPROVAL_SETTINGS
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
+	// Ensure all settings are populated with defaults if missing
+	const safeAutoApprovalSettings: AutoApprovalSettings = {
+    ...DEFAULT_AUTO_APPROVAL_SETTINGS,
+    ...autoApprovalSettings,
+    actions: {
+        ...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+        ...autoApprovalSettings?.actions,
+    },
+}
+	
+
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
-	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
+	const enabledActions = ACTION_METADATA.filter((action) => safeAutoApprovalSettings.actions[action.id])
 	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
 	const hasEnabledActions = enabledActions.length > 0
 
@@ -64,19 +76,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					enabled,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
 		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
 			// Calculate what the new actions state will be
 			const newActions = {
-				...autoApprovalSettings.actions,
+				...safeAutoApprovalSettings.actions,
 				[actionId]: value,
 			}
 
@@ -86,14 +98,14 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
+					enabled: willHaveEnabledActions ? safeAutoApprovalSettings.enabled : false,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
@@ -101,12 +113,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					maxRequests,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
@@ -114,12 +126,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					enableNotifications,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	const updateMaxHistoricalMessages = useCallback(
@@ -127,12 +139,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...safeAutoApprovalSettings,
 					maxHistoricalMessages,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[safeAutoApprovalSettings],
 	)
 
 	return (
@@ -171,7 +183,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				}}>
 				<VSCodeCheckbox
 					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
-					checked={hasEnabledActions && autoApprovalSettings.enabled}
+					checked={hasEnabledActions && safeAutoApprovalSettings.enabled}
 					disabled={!hasEnabledActions}
 					// onChange={(e) => {
 					// 	const checked = (e.target as HTMLInputElement).checked
@@ -183,7 +195,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						*/
 						if (!hasEnabledActions) return
 						e.stopPropagation() // stops click from bubbling up to the parent, in this case stopping the expanding/collapsing
-						updateEnabled(!autoApprovalSettings.enabled)
+						updateEnabled(!safeAutoApprovalSettings.enabled)
 					}}
 				/>
 				<CollapsibleSection
@@ -227,7 +239,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox
-								checked={autoApprovalSettings.actions[action.id]}
+								checked={safeAutoApprovalSettings.actions[action.id]}
 								onChange={(e) => {
 									const checked = (e.target as HTMLInputElement).checked
 									updateAction(action.id, checked)
@@ -264,7 +276,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
-							value={autoApprovalSettings?.maxHistoricalMessages.toString() ?? "0"}
+							value={safeAutoApprovalSettings.maxHistoricalMessages.toString() || "0"}
 							onInput={(e) => {
 								const input = e.target as HTMLInputElement
 								// Remove any non-numeric characters
@@ -306,7 +318,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
-							value={autoApprovalSettings.maxRequests.toString()}
+							value={safeAutoApprovalSettings.maxRequests.toString()}
 							onInput={(e) => {
 								const input = e.target as HTMLInputElement
 								// Remove any non-numeric characters
@@ -339,7 +351,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
-							checked={autoApprovalSettings.enableNotifications}
+							checked={safeAutoApprovalSettings.enableNotifications}
 							onChange={(e) => {
 								const checked = (e.target as HTMLInputElement).checked
 								updateNotifications(checked)
