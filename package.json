@@ -150,6 +150,7 @@
 	},
 	"type": "module",
 	"devDependencies": {
+		"@types/vscode-webview": "^1.57.5",
 		"@types/diff": "^5.2.1",
 		"@types/fs-extra": "^11.0.4",
 		"@types/jasmine": "^5.1.5",
@@ -159,8 +160,7 @@
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^8.0.0",
 		"@typescript-eslint/parser": "^8.0.0",
-		"@typescript-eslint/eslint-plugin": "^8.0.0",
-		"@typescript-eslint/parser": "^8.0.0",	
+
 		"@vitest/coverage-v8": "^1.6.0",
 		"@vitest/ui": "^1.6.0",
 		"c8": "^9.1.0",
