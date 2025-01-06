@@ -27,7 +27,9 @@
 	"scripts": {
 		"start": "react-scripts start",
 		"build": "node ./scripts/build-react-no-split.js",
-		"test": "react-scripts test",
+		"test": "vitest run",
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest run --coverage",
 		"eject": "react-scripts eject"
 	},
 	"eslintConfig": {
@@ -54,6 +56,7 @@
 		"@types/node": "^18.19.69",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitest/coverage-v8": "^2.1.8",
+		"@vitejs/plugin-react": "^4.2.1",
 		"jsdom": "^25.0.1",
 		"vitest": "^2.1.8"
 	}
