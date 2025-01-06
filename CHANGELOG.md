@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.42
-
-### Patch Changes
+## [2.2.42]
 
 -   Add a Git section to the context mentions
 
