@@ -8,7 +8,7 @@ import {
 	glamaDefaultModelId,
 	glamaDefaultModelInfo,
 	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
+	openRouterDefaultModelInfo
 } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
@@ -30,7 +30,9 @@ interface ExtensionStateContextType extends ExtensionState {
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
-export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ExtensionStateContextProvider: React.FC<{
+	children: React.ReactNode
+}> = ({ children }) => {
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
 		clineMessages: [],
@@ -137,9 +139,21 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		openRouterModels,
 		mcpServers,
 		filePaths,
-		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
-		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
-		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setApiConfiguration: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				apiConfiguration: value,
+			})),
+		setCustomInstructions: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				customInstructions: value,
+			})),
+		setShowAnnouncement: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				shouldShowAnnouncement: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

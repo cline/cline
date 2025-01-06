@@ -63,10 +63,7 @@ export class DecorationController {
 		// Add a new range for all lines after the current line
 		if (line < totalLines - 1) {
 			this.ranges.push(
-				new vscode.Range(
-					new vscode.Position(line + 1, 0),
-					new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER),
-				),
+				new vscode.Range(new vscode.Position(line + 1, 0), new vscode.Position(totalLines - 1, Number.MAX_SAFE_INTEGER)),
 			)
 		}
 

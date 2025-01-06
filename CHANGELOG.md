@@ -1,5 +1,13 @@
 # Change Log
 
+## [3.1.0]
+
+- Added checkpoints: Snapshots of workspace are automatically created whenever Cline uses a tool
+  - Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
+  - Restore options: Choose to restore just the task state, just the workspace files, or both
+- New 'See new changes' button appears after task completion, providing an overview of all workspace changes
+- Task header now shows disk space usage with a delete button to help manage snapshot storage
+
 ## [3.0.12]
 
 - Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)

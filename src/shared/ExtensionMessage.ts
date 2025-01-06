@@ -20,13 +20,9 @@ export interface ExtensionMessage {
 		| "glamaModels"
 		| "openRouterModels"
 		| "mcpServers"
+		| "relinquishControl"
 	text?: string
-	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
+	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -44,6 +40,8 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	uriScheme?: string
+	currentTaskItem?: HistoryItem
+	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
@@ -58,6 +56,9 @@ export interface ClineMessage {
 	text?: string
 	images?: string[]
 	partial?: boolean
+	lastCheckpointHash?: string
+	conversationHistoryIndex?: number
+	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
 
 export type ClineAsk =
@@ -95,6 +96,7 @@ export type ClineSay =
 	| "mcp_server_response"
 	| "use_mcp_server"
 	| "diff_error"
+	| "deleted_api_reqs"
 
 export interface ClineSayTool {
 	tool:
@@ -149,3 +151,5 @@ export interface ClineApiReqInfo {
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+
+export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

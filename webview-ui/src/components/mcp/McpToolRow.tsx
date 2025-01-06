@@ -38,47 +38,55 @@ const McpToolRow = ({ tool }: McpToolRowProps) => {
 							padding: "8px",
 						}}>
 						<div
-							style={{ marginBottom: "4px", opacity: 0.8, fontSize: "11px", textTransform: "uppercase" }}>
+							style={{
+								marginBottom: "4px",
+								opacity: 0.8,
+								fontSize: "11px",
+								textTransform: "uppercase",
+							}}>
 							Parameters
 						</div>
-						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(
-							([paramName, schema]) => {
-								const isRequired =
-									tool.inputSchema &&
-									"required" in tool.inputSchema &&
-									Array.isArray(tool.inputSchema.required) &&
-									tool.inputSchema.required.includes(paramName)
+						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(([paramName, schema]) => {
+							const isRequired =
+								tool.inputSchema &&
+								"required" in tool.inputSchema &&
+								Array.isArray(tool.inputSchema.required) &&
+								tool.inputSchema.required.includes(paramName)
 
-								return (
-									<div
-										key={paramName}
+							return (
+								<div
+									key={paramName}
+									style={{
+										display: "flex",
+										alignItems: "baseline",
+										marginTop: "4px",
+									}}>
+									<code
 										style={{
-											display: "flex",
-											alignItems: "baseline",
-											marginTop: "4px",
+											color: "var(--vscode-textPreformat-foreground)",
+											marginRight: "8px",
 										}}>
-										<code
-											style={{
-												color: "var(--vscode-textPreformat-foreground)",
-												marginRight: "8px",
-											}}>
-											{paramName}
-											{isRequired && (
-												<span style={{ color: "var(--vscode-errorForeground)" }}>*</span>
-											)}
-										</code>
-										<span
-											style={{
-												opacity: 0.8,
-												overflowWrap: "break-word",
-												wordBreak: "break-word",
-											}}>
-											{schema.description || "No description"}
-										</span>
-									</div>
-								)
-							},
-						)}
+										{paramName}
+										{isRequired && (
+											<span
+												style={{
+													color: "var(--vscode-errorForeground)",
+												}}>
+												*
+											</span>
+										)}
+									</code>
+									<span
+										style={{
+											opacity: 0.8,
+											overflowWrap: "break-word",
+											wordBreak: "break-word",
+										}}>
+										{schema.description || "No description"}
+									</span>
+								</div>
+							)
+						})}
 					</div>
 				)}
 		</div>
