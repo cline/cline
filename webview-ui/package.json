@@ -3,11 +3,8 @@
 	"version": "0.1.0",
 	"private": true,
 	"dependencies": {
-		"@testing-library/jest-dom": "^5.17.0",
-		"@testing-library/react": "^13.4.0",
 		"@testing-library/user-event": "^13.5.0",
 		"@types/jest": "^27.5.2",
-		"@types/node": "^16.18.101",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
@@ -52,6 +49,11 @@
 		]
 	},
 	"devDependencies": {
-		"@types/vscode-webview": "^1.57.5"
+		"@testing-library/jest-dom": "^6.6.3",
+		"@testing-library/react": "^16.1.0",
+		"@types/node": "^18.19.69",
+		"@types/vscode-webview": "^1.57.5",
+		"jsdom": "^25.0.1",
+		"vitest": "^2.1.8"
 	}
 }
