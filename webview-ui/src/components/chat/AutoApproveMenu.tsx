@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useMemo } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../../src/shared/AutoApprovalSettings"
@@ -15,38 +15,38 @@ const ACTION_METADATA: {
 	shortName: string
 	description: string
 }[] = [
-	{
-		id: "readFiles",
-		label: "Read files and directories",
-		shortName: "Read",
-		description: "Allows access to read any file on your computer.",
-	},
-	{
-		id: "editFiles",
-		label: "Edit files",
-		shortName: "Edit",
-		description: "Allows modification of any files on your computer.",
-	},
-	{
-		id: "executeCommands",
-		label: "Execute safe commands",
-		shortName: "Commands",
-		description:
-			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
-	},
-	{
-		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
-		description: "Allows ability to launch and interact with any website in a headless browser.",
-	},
-	{
-		id: "useMcp",
-		label: "Use MCP servers",
-		shortName: "MCP",
-		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
-	},
-]
+		{
+			id: "readFiles",
+			label: "Read files and directories",
+			shortName: "Read",
+			description: "Allows access to read any file on your computer.",
+		},
+		{
+			id: "editFiles",
+			label: "Edit files",
+			shortName: "Edit",
+			description: "Allows modification of any files on your computer.",
+		},
+		{
+			id: "executeCommands",
+			label: "Execute safe commands",
+			shortName: "Commands",
+			description:
+				"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+		},
+		{
+			id: "useBrowser",
+			label: "Use the browser",
+			shortName: "Browser",
+			description: "Allows ability to launch and interact with any website in a headless browser.",
+		},
+		{
+			id: "useMcp",
+			label: "Use MCP servers",
+			shortName: "MCP",
+			description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
+		},
+	]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
@@ -54,16 +54,17 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
-	// Ensure all settings are populated with defaults if missing
-	const safeAutoApprovalSettings: AutoApprovalSettings = {
-    ...DEFAULT_AUTO_APPROVAL_SETTINGS,
-    ...autoApprovalSettings,
-    actions: {
-        ...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
-        ...autoApprovalSettings?.actions,
-    },
-}
-	
+
+	// Memoize the safe auto approval settings to prevent unnecessary re-renders
+	const safeAutoApprovalSettings = useMemo(() => ({
+		...DEFAULT_AUTO_APPROVAL_SETTINGS,
+		...autoApprovalSettings,
+		actions: {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+			...autoApprovalSettings?.actions,
+		},
+	}), [autoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS])
+
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
@@ -157,7 +158,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					: "none",
 				overflowY: "auto",
 				...style,
-			}}>
+			}}
+		>
 			<div
 				style={{
 					display: "flex",
@@ -180,7 +182,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					if (!hasEnabledActions) {
 						setIsExpanded((prev) => !prev)
 					}
-				}}>
+				}}
+			>
 				<VSCodeCheckbox
 					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
 					checked={hasEnabledActions && safeAutoApprovalSettings.enabled}
@@ -206,14 +209,16 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						if (hasEnabledActions) {
 							setIsExpanded((prev) => !prev)
 						}
-					}}>
+					}}
+				>
 					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
 					<span
 						style={{
 							whiteSpace: "nowrap",
 							overflow: "hidden",
 							textOverflow: "ellipsis",
-						}}>
+						}}
+					>
 						{enabledActions.length === 0 ? "None" : enabledActionsList}
 					</span>
 					<span
@@ -232,7 +237,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "10px",
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
-						}}>
+						}}
+					>
 						Auto-approve allows Cline to perform the following actions without asking for permission. Please
 						use with caution and only enable if you understand the risks.
 					</div>
@@ -243,7 +249,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								onChange={(e) => {
 									const checked = (e.target as HTMLInputElement).checked
 									updateAction(action.id, checked)
-								}}>
+								}}
+							>
 								{action.label}
 							</VSCodeCheckbox>
 							<div
@@ -251,7 +258,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 									marginLeft: "28px",
 									color: "var(--vscode-descriptionForeground)",
 									fontSize: "12px",
-								}}>
+								}}
+							>
 								{action.description}
 							</div>
 						</div>
@@ -272,7 +280,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginTop: "10px",
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
-						}}>
+						}}
+					>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Historical Messages:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
@@ -303,7 +312,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 							marginBottom: "10px",
-						}}>
+						}}
+					>
 						Cline will only keep the last x messages in its history + include the first message. Set 0 to disable.
 					</div>
 					<div
@@ -314,7 +324,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginTop: "10px",
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
-						}}>
+						}}
+					>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
@@ -345,7 +356,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 							marginBottom: "10px",
-						}}>
+						}}
+					>
 						Cline will automatically make this many API requests before asking for approval to proceed with
 						the task.
 					</div>
@@ -355,7 +367,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							onChange={(e) => {
 								const checked = (e.target as HTMLInputElement).checked
 								updateNotifications(checked)
-							}}>
+							}}
+						>
 							Enable Notifications
 						</VSCodeCheckbox>
 						<div
@@ -363,7 +376,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								marginLeft: "28px",
 								color: "var(--vscode-descriptionForeground)",
 								fontSize: "12px",
-							}}>
+							}}
+						>
 							Receive system notifications when Cline requires approval to proceed or when a task is
 							completed.
 						</div>
