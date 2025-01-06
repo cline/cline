@@ -2293,9 +2293,9 @@ export class Cline {
 		}
 
 		// Limit messages based on MAX_API_MESSAGES setting
-		if (this.autoApprovalSettings.maxHistoricalMessages !== 0 && userContent.length > this.autoApprovalSettings.maxHistoricalMessages) {
+		if (this.autoApprovalSettings.maxHistoricalMessages !== 0 && (userContent.length + 2) > this.autoApprovalSettings.maxHistoricalMessages) {
 			// Slice to keep only the most recent messages, but also keep the first one in the array
-			userContent = [userContent[0], ...userContent.slice(1, -this.autoApprovalSettings.maxHistoricalMessages + 2)]
+			userContent = [...userContent.slice(0, 2), ...userContent.slice(-this.autoApprovalSettings.maxHistoricalMessages + 2)]
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
