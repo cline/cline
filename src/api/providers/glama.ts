@@ -107,14 +107,15 @@ export class GlamaHandler implements ApiHandler {
 			if (completionRequest.tokenUsage) {
 				yield {
 					type: "usage",
+					cacheWriteTokens: completionRequest.tokenUsage.cacheCreationInputTokens,
+					cacheReadTokens: completionRequest.tokenUsage.cacheReadInputTokens,
 					inputTokens: completionRequest.tokenUsage.promptTokens,
 					outputTokens: completionRequest.tokenUsage.completionTokens,
-					totalCost: completionRequest.totalCostUsd,
+					totalCost: parseFloat(completionRequest.totalCostUsd),
 				}
 			}			
 		} catch (error) {
-			// ignore if fails
-			console.error("Error fetching Glama generation details:", error)
+			console.error("Error fetching Glama completion details", error)
 		}
 	}
 
