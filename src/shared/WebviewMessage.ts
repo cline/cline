@@ -51,6 +51,9 @@ export interface WebviewMessage {
 	| "deleteMessage"
 	| "terminalOutputLineLimit"
 	| "mcpEnabled"
+	| "refreshGlamaModels"
+	| "searchCommits"
+
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -65,6 +68,7 @@ export interface WebviewMessage {
 	alwaysAllow?: boolean
 	dataUrls?: string[]
 	values?: Record<string, any>
+	query?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { GlamaHandler } from "./providers/glama"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
@@ -28,6 +29,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
   switch (apiProvider) {
     case "anthropic":
       return new AnthropicHandler(options)
+    case "glama":
+      return new GlamaHandler(options)
     case "openrouter":
       return new OpenRouterHandler(options)
     case "bedrock":

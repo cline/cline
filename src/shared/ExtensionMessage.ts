@@ -3,26 +3,31 @@
 import { ApiConfiguration, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
+import { GitCommit } from "../utils/git"
 
 // webview will hold state
 export interface ExtensionMessage {
-type:
-| "action"
-| "state"
-| "selectedImages"
-| "ollamaModels"
-| "lmStudioModels"
-| "vsCodeLmModels"
-| "vsCodeLmApiAvailable"
-| "requestVsCodeLmModels"
-| "theme"
-| "workspaceUpdated"
-| "invoke"
-| "partialMessage"
-| "openRouterModels"
-| "openAiModels"
-| "mcpServers"
-| "enhancedPrompt"
+
+	type:
+	| "action"
+	| "state"
+	| "selectedImages"
+	| "ollamaModels"
+	| "lmStudioModels"
+	| "vsCodeLmModels"
+	| "vsCodeLmApiAvailable"
+	| "requestVsCodeLmModels"
+	| "theme"
+	| "workspaceUpdated"
+	| "invoke"
+	| "partialMessage"
+	| "glamaModels"
+	| "openRouterModels"
+	| "openAiModels"
+	| "mcpServers"
+	| "enhancedPrompt"
+	| "commitSearchResults"
+
 	text?: string
 	action?:
 	| "chatButtonClicked"
@@ -38,9 +43,11 @@ type:
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
+	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	commits?: GitCommit[]
 }
 
 export interface ExtensionState {

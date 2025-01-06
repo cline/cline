@@ -1,5 +1,17 @@
 # Roo Cline Changelog
 
+## [2.2.42]
+
+-   Add a Git section to the context mentions
+
+## [2.2.41]
+
+-   Checkbox to disable streaming for OpenAI-compatible providers
+
+## [2.2.40]
+
+-   Add the Glama provider (thanks @punkpeye!)
+
 ## [2.2.39]
 
 -   Add toggle to enable/disable the MCP-related sections of the system prompt (thanks @daniel-lxs!)
