@@ -105,20 +105,22 @@ export class OpenAiHandler implements ApiHandler {
 					cacheReadTokens: cacheReads
 				};
 
-				// Include usage and cache metrics in the API request info
-				yield {
-					type: "text",
-					text: JSON.stringify({
-						say: "api_req_started",
-						request: "API Request",
-						usage: {
-							inputTokens: chunk.usage.prompt_tokens || 0,
-							outputTokens: chunk.usage.completion_tokens || 0,
-							cacheWriteTokens: cacheWrites,
-							cacheReadTokens: cacheReads
-						}
-					})
-				};
+				if (this.options.openAiSupportsPromptCache) {
+					// Include usage and cache metrics in the API request info
+					yield {
+						type: "text",
+						text: JSON.stringify({
+							say: "api_req_started",
+							request: "API Request",
+							usage: {
+								inputTokens: chunk.usage.prompt_tokens || 0,
+								outputTokens: chunk.usage.completion_tokens || 0,
+								cacheWriteTokens: cacheWrites,
+								cacheReadTokens: cacheReads
+							}
+						})
+					};
+				}
 			}
 		}
 	}
