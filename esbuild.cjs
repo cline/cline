@@ -76,7 +76,7 @@ const extensionConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	outfile: "dist/extension.js",
+	outfile: "dist/extension.cjs",
 	external: ["vscode"],
 }
 
