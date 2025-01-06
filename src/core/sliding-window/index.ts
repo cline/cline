@@ -20,7 +20,7 @@ export function truncateHalfConversation(
 	let totalTokens = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0)
 	
 	// If under limit, return all messages
-	if (totalTokens <= 65536) {
+	if (totalTokens <= 128000) {
 		return messages
 	}
 
