@@ -9,7 +9,6 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
-	| "alibabacloud"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -36,9 +35,6 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	azureApiVersion?: string
-	alibabaCloudApiKey?: string
-	alibabaCloudBaseUrl?: string
-	alibabaCloudModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -353,70 +349,6 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
-
-// Alibaba Cloud
-export type AlibabaCloudModelId = 
-	| "qwen-plus"
-	| "qwen-turbo"
-	| "qwen-max"
-
-export const alibabaCloudDefaultModelId: AlibabaCloudModelId = "qwen-plus"
-export const alibabaCloudModels = {
-	"qwen-plus": {
-		maxTokens: 8192,
-		contextWindow: 32_000,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	},
-	"qwen-turbo": {
-		maxTokens: 6144,
-		contextWindow: 8_000,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	},
-	"qwen-max": {
-		maxTokens: 16384,
-		contextWindow: 32_000,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	},
-	"qwen2-72b-instruct": {
-		maxTokens: 128_000,
-		contextWindow: 131_072,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	},
-	"qwen2-57b-a14b-instruct": {
-		maxTokens: 128_000,
-		contextWindow: 131_072,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	},
-	"qwen2-7b-instruct": {
-		maxTokens: 128_000,
-		contextWindow: 131_072,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0, // Time-limited Free Trial
-		outputPrice: 0, // Time-limited Free Trial
-	}
-} as const satisfies Record<string, ModelInfo>;
 
 // DeepSeek
 // https://api-docs.deepseek.com/quick_start/pricing

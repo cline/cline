@@ -138,7 +138,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="alibabacloud">Alibaba Cloud</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -636,48 +635,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-			{selectedProvider === "alibabacloud" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.alibabaCloudApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("alibabaCloudApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Alibaba Cloud API Key</span>
-					</VSCodeTextField>
-					<VSCodeDropdown
-						id="alibabacloud-model-id"
-						value={apiConfiguration?.alibabaCloudModelId || "qwen-plus"}
-						onChange={handleInputChange("alibabaCloudModelId")}
-						style={{ width: "100%" }}>
-						<VSCodeOption value="qwen-plus">Qwen Plus</VSCodeOption>
-						<VSCodeOption value="qwen-turbo">Qwen Turbo</VSCodeOption>
-						<VSCodeOption value="qwen-max">Qwen Max</VSCodeOption>
-						<VSCodeOption value="qwen2-72b-instruct">Qwen 2 - 72B Instruct</VSCodeOption>
-						<VSCodeOption value="qwen2-57b-a14b-instruct">
-							Qwen 2 - 57B A14B Instruct
-						</VSCodeOption>
-						<VSCodeOption value="qwen2-7b-instruct">Qwen 2 - 7B Instruct</VSCodeOption>
-					</VSCodeDropdown>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.alibabaCloudApiKey && (
-							<VSCodeLink
-								href="https://www.alibabacloud.com/"
-								style={{ display: "inline", fontSize: "inherit" }}>
-								You can get an Alibaba Cloud API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
-			)}
-
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -917,12 +874,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
-		case "alibabacloud":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.alibabaCloudModelId || "qwen-plus",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:

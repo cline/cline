@@ -130,9 +130,9 @@
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.cjs",
 		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.cjs --watch",
+		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.cjs --production",
+		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
 		"build:webview": "cd webview-ui && npm run build",
 		"check-types": "tsc --noEmit",
 		"lint": "eslint src --ext ts",
@@ -157,8 +157,8 @@
 		"@types/node": "^22.10.5",
 		"@types/should": "^11.2.0",
 		"@types/vscode": "^1.84.0",
-		"@typescript-eslint/eslint-plugin": "^8.19.0",
-		"@typescript-eslint/parser": "^8.19.0",
+		"@typescript-eslint/eslint-plugin": "^7.14.1",
+		"@typescript-eslint/parser": "^7.11.0",
 		"@vitest/coverage-v8": "^1.6.0",
 		"@vitest/ui": "^1.6.0",
 		"c8": "^9.1.0",
@@ -170,6 +170,7 @@
 		"memfs": "^4.15.3",
 		"prettier": "^3.3.3",
 		"ts-jest": "^29.2.5",
+		"typescript": "^5.6.0",
 		"vitest": "^1.6.0"
 	},
 	"dependencies": {
@@ -181,7 +182,6 @@
 		"@types/clone-deep": "^4.0.4",
 		"@types/pdf-parse": "^1.1.4",
 		"@types/turndown": "^5.0.5",
-		
 		"@vscode/codicons": "^0.0.36",
 		"@vscode/test-cli": "^0.0.10",
 		"axios": "^1.7.4",

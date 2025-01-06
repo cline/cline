@@ -1,6 +1,5 @@
-import { ApiConfiguration, openRouterDefaultModelId, ApiProvider } from "../../../src/shared/api"
+import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
-
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
@@ -58,11 +57,6 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model ID."
 				}
 				break
-			case "alibabacloud":
-				if (!apiConfiguration.alibabaCloudApiKey) {
-					return "You must provide a valid API key or choose a different provider."
-				}
-				break
 		}
 	}
 	return undefined
@@ -87,48 +81,4 @@ export function validateModelId(
 		}
 	}
 	return undefined
-}
-
-export const validateApiKey = (
-	provider: ApiProvider, 
-	apiKey: string
-): boolean => {
-	switch (provider) {
-		case "anthropic":
-		case "openrouter":
-		case "gemini":
-		case "openai-native":
-		case "deepseek":
-		case "openai":
-			return apiKey.trim().length > 0;
-		case "alibabacloud":
-			return apiKey.trim().length > 10 && apiKey.startsWith('sk-');
-		default:
-			return false;
-	}
-}
-
-export const validateApiConfigurationNew = (
-	provider: ApiProvider, 
-	configuration: ApiConfiguration
-): boolean => {
-	switch (provider) {
-		case "anthropic":
-		case "openrouter":
-		case "gemini":
-		case "openai-native":
-		case "deepseek":
-		case "openai":
-			return !!(
-				configuration.apiKey && 
-				validateApiKey(provider, configuration.apiKey)
-			);
-		case "alibabacloud":
-			return !!(
-				configuration.alibabaCloudApiKey && 
-				validateApiKey("alibabacloud", configuration.alibabaCloudApiKey)
-			);
-		default:
-			return false;
-	}
 }

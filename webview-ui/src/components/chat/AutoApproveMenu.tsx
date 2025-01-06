@@ -109,19 +109,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		[autoApprovalSettings],
 	)
 
-	const updateMaxHistoricalMessages = useCallback(
-		(maxHistoricalMessages: number) => {
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					maxHistoricalMessages,
-				},
-			})
-		},
-		[autoApprovalSettings],
-	)
-
 	const updateNotifications = useCallback(
 		(enableNotifications: boolean) => {
 			vscode.postMessage({
@@ -329,7 +316,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						Cline will automatically make this many API requests before asking for approval to proceed with
 						the task.
 					</div>
-					
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
 							checked={autoApprovalSettings.enableNotifications}
