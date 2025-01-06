@@ -12,8 +12,8 @@ import {
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
-
 import { vscode } from "../../utils/vscode"
+import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -46,6 +46,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, apiConfiguration } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [gitCommits, setGitCommits] = useState<any[]>([])
 
 		// Handle enhanced prompt response
 		useEffect(() => {
@@ -54,6 +55,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (message.type === 'enhancedPrompt' && message.text) {
 					setInputValue(message.text)
 					setIsEnhancingPrompt(false)
+				} else if (message.type === 'commitSearchResults') {
+					const commits = message.commits.map((commit: any) => ({
+						type: ContextMenuOptionType.Git,
+						value: commit.hash,
+						label: commit.subject,
+						description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+						icon: "$(git-commit)"
+					}))
+					setGitCommits(commits)
 				}
 			}
 			window.addEventListener('message', messageHandler)
@@ -73,29 +83,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
-
 		const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false)
+
+		// Fetch git commits when Git is selected or when typing a hash
+		useEffect(() => {
+			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
+				const message: WebviewMessage = {
+					type: "searchCommits",
+					query: searchQuery || ""
+				} as const
+				vscode.postMessage(message)
+			}
+		}, [selectedType, searchQuery])
 		
 		const handleEnhancePrompt = useCallback(() => {
-		    if (!textAreaDisabled) {
-		        const trimmedInput = inputValue.trim()
-		        if (trimmedInput) {
-		            setIsEnhancingPrompt(true)
-		            const message = {
-		                type: "enhancePrompt" as const,
-		                text: trimmedInput,
-		            }
-		            vscode.postMessage(message)
-		        } else {
-		            const promptDescription = "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
-		            setInputValue(promptDescription)
-		        }
-		    }
+			if (!textAreaDisabled) {
+				const trimmedInput = inputValue.trim()
+				if (trimmedInput) {
+					setIsEnhancingPrompt(true)
+					const message = {
+						type: "enhancePrompt" as const,
+						text: trimmedInput,
+					}
+					vscode.postMessage(message)
+				} else {
+					const promptDescription = "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
+					setInputValue(promptDescription)
+				}
+			}
 		}, [inputValue, textAreaDisabled, setInputValue])
 
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
+				...gitCommits,
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
@@ -103,7 +124,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value: path,
 					})),
 			]
-		}, [filePaths])
+		}, [filePaths, gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -130,7 +151,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
-				if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+				if (type === ContextMenuOptionType.File ||
+					type === ContextMenuOptionType.Folder ||
+					type === ContextMenuOptionType.Git) {
 					if (!value) {
 						setSelectedType(type)
 						setSearchQuery("")
@@ -149,6 +172,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
+					} else if (type === ContextMenuOptionType.Git) {
+						insertValue = value || ""
 					}
 
 					const { newValue, mentionIndex } = insertMention(
@@ -161,7 +186,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
-					// textAreaRef.current.focus()
 
 					// scroll to cursor
 					setTimeout(() => {
@@ -179,7 +203,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				if (showContextMenu) {
 					if (event.key === "Escape") {
-						// event.preventDefault()
 						setSelectedType(null)
 						setSelectedMenuIndex(3) // File by default
 						return
@@ -356,19 +379,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setShowContextMenu(false)
 
 					// Scroll to new cursor position
-					// https://stackoverflow.com/questions/29899364/how-do-you-scroll-to-the-position-of-the-cursor-in-a-textarea/40951875#40951875
 					setTimeout(() => {
 						if (textAreaRef.current) {
 							textAreaRef.current.blur()
 							textAreaRef.current.focus()
 						}
 					}, 0)
-					// NOTE: callbacks dont utilize return function to cleanup, but it's fine since this timeout immediately executes and will be cleaned up by the browser (no chance component unmounts before it executes)
 
 					return
 				}
 
-				const acceptedTypes = ["png", "jpeg", "webp"] // supported by anthropic and openrouter (jpg is just a file extension but the image will be recognized as jpeg)
+				const acceptedTypes = ["png", "jpeg", "webp"]
 				const imageItems = Array.from(items).filter((item) => {
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
@@ -397,7 +418,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					})
 					const imageDataArray = await Promise.all(imagePromises)
 					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
 						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
 					} else {
@@ -602,7 +622,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						boxSizing: "border-box",
 						backgroundColor: "transparent",
 						color: "var(--vscode-input-foreground)",
-						//border: "1px solid var(--vscode-input-border)",
 						borderRadius: 2,
 						fontFamily: "var(--vscode-font-family)",
 						fontSize: "var(--vscode-editor-font-size)",
@@ -610,18 +629,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						resize: "none",
 						overflowX: "hidden",
 						overflowY: "scroll",
-						// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-						// borderTop: "9px solid transparent",
 						borderLeft: 0,
 						borderRight: 0,
 						borderTop: 0,
 						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 						borderColor: "transparent",
 						padding: "9px 9px 25px 9px",
-						// borderRight: "54px solid transparent",
-						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 						zIndex: 1,
@@ -645,21 +658,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)}
 				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 2, justifyContent: "flex-end" }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-				    {apiConfiguration?.apiProvider === "openrouter" && (
-				      <div style={{ display: "flex", alignItems: "center" }}>
-				        {isEnhancingPrompt && <span style={{ marginRight: 10, color: "var(--vscode-input-foreground)", opacity: 0.5 }}>Enhancing prompt...</span>}
-				        <span
-				          role="button"
-				          aria-label="enhance prompt"
-				          data-testid="enhance-prompt-button"
-				          className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
-				          onClick={() => !textAreaDisabled && handleEnhancePrompt()}
-				          style={{ fontSize: 16.5 }}
-				        />
-				      </div>
-				    )}
-				    <span className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`} onClick={() => !shouldDisableImages && onSelectImages()} style={{ fontSize: 16.5 }} />
-				    <span className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`} onClick={() => !textAreaDisabled && onSend()} style={{ fontSize: 15 }} />
+					{apiConfiguration?.apiProvider === "openrouter" && (
+					  <div style={{ display: "flex", alignItems: "center" }}>
+						{isEnhancingPrompt && <span style={{ marginRight: 10, color: "var(--vscode-input-foreground)", opacity: 0.5 }}>Enhancing prompt...</span>}
+						<span
+						  role="button"
+						  aria-label="enhance prompt"
+						  data-testid="enhance-prompt-button"
+						  className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
+						  onClick={() => !textAreaDisabled && handleEnhancePrompt()}
+						  style={{ fontSize: 16.5 }}
+						/>
+					  </div>
+					)}
+					<span className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`} onClick={() => !shouldDisableImages && onSelectImages()} style={{ fontSize: 16.5 }} />
+					<span className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`} onClick={() => !textAreaDisabled && onSend()} style={{ fontSize: 15 }} />
 				  </span>
 				</div>
 			</div>

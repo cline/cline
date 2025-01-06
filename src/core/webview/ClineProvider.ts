@@ -24,6 +24,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 import { enhancePrompt } from "../../utils/enhance-prompt"
+import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -732,6 +733,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 						}
 						break
+
+
+					case "searchCommits": {
+						const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+						if (cwd) {
+							try {
+								const commits = await searchCommits(message.query || "", cwd)
+								await this.postMessageToWebview({
+									type: "commitSearchResults",
+									commits
+								})
+							} catch (error) {
+								console.error("Error searching commits:", error)
+								vscode.window.showErrorMessage("Failed to search commits")
+							}
+						}
+						break
+					}
 				}
 			},
 			null,

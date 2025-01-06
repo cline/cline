@@ -2,27 +2,28 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { openFile } from "../../integrations/misc/open-file"
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
-import { mentionRegexGlobal } from "../../shared/context-mentions"
+import { mentionRegexGlobal, formatGitSuggestion, type MentionSuggestion } from "../../shared/context-mentions"
 import fs from "fs/promises"
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
+import { getCommitInfo, getWorkingState } from "../../utils/git"
 
-export function openMention(mention?: string): void {
+export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
+		return
+	}
+
+	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	if (!cwd) {
 		return
 	}
 
 	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		if (!cwd) {
-			return
-		}
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
-			// vscode.commands.executeCommand("vscode.openFolder", , { forceNewWindow: false }) opens in new window
 		} else {
 			openFile(absPath)
 		}
@@ -40,12 +41,16 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
 		} else if (mention.startsWith("/")) {
-			const mentionPath = mention.slice(1) // Remove the leading '/'
+			const mentionPath = mention.slice(1)
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
+		} else if (mention === "git-changes") {
+			return `Working directory changes (see below for details)`
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
 	})
@@ -99,6 +104,20 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
 			}
+		} else if (mention === "git-changes") {
+			try {
+				const workingState = await getWorkingState(cwd)
+				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+			} catch (error) {
+				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+			}
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			try {
+				const commitInfo = await getCommitInfo(mention, cwd)
+				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+			} catch (error) {
+				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
+			}
 		}
 	}
 
@@ -137,7 +156,6 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 					folderContent += `${linePrefix}${entry.name}\n`
 					const filePath = path.join(mentionPath, entry.name)
 					const absoluteFilePath = path.resolve(absPath, entry.name)
-					// const relativeFilePath = path.relative(cwd, absoluteFilePath);
 					fileContentPromises.push(
 						(async () => {
 							try {
@@ -154,7 +172,6 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 					)
 				} else if (entry.isDirectory()) {
 					folderContent += `${linePrefix}${entry.name}/\n`
-					// not recursively getting folder contents
 				} else {
 					folderContent += `${linePrefix}${entry.name}\n`
 				}

@@ -12,7 +12,7 @@ import { ApiHandler, SingleCompletionHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile, addLineNumbers, stripLineNumbers, everyLineHasLineNumbers } from "../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers, stripLineNumbers, everyLineHasLineNumbers, truncateOutput } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -716,22 +716,6 @@ export class Cline {
 			}
 		})
 
-		const getFormattedOutput = async () => {
-			const { terminalOutputLineLimit } = await this.providerRef.deref()?.getState() ?? {}
-			const limit = terminalOutputLineLimit ?? 0
-			
-			if (limit > 0 && lines.length > limit) {
-				const beforeLimit = Math.floor(limit * 0.2) // 20% of lines before
-				const afterLimit = limit - beforeLimit // remaining 80% after
-				return [
-					...lines.slice(0, beforeLimit),
-					`\n[...${lines.length - limit} lines omitted...]\n`,
-					...lines.slice(-afterLimit)
-				].join('\n')
-			}
-			return lines.join('\n')
-		}
-
 		let completed = false
 		process.once("completed", () => {
 			completed = true
@@ -750,7 +734,8 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		const output = await getFormattedOutput()
+		const { terminalOutputLineLimit } = await this.providerRef.deref()?.getState() ?? {}
+		const output = truncateOutput(lines.join('\n'), terminalOutputLineLimit)
 		const result = output.trim()
 
 		if (userFeedback) {

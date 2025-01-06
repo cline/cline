@@ -51,12 +51,16 @@ export enum ContextMenuOptionType {
 	Folder = "folder",
 	Problems = "problems",
 	URL = "url",
+	Git = "git",
 	NoResults = "noResults",
 }
 
 export interface ContextMenuQueryItem {
 	type: ContextMenuOptionType
 	value?: string
+	label?: string
+	description?: string
+	icon?: string
 }
 
 export function getContextMenuOptions(
@@ -64,6 +68,14 @@ export function getContextMenuOptions(
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 ): ContextMenuQueryItem[] {
+	const workingChanges: ContextMenuQueryItem = {
+		type: ContextMenuOptionType.Git,
+		value: "git-changes",
+		label: "Working changes",
+		description: "Current uncommitted changes",
+		icon: "$(git-commit)"
+	}
+
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
@@ -79,30 +91,88 @@ export function getContextMenuOptions(
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
+		if (selectedType === ContextMenuOptionType.Git) {
+			const commits = queryItems
+				.filter((item) => item.type === ContextMenuOptionType.Git)
+			return commits.length > 0 ? [workingChanges, ...commits] : [workingChanges]
+		}
+
 		return [
-			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Problems },
+			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Folder },
 			{ type: ContextMenuOptionType.File },
+			{ type: ContextMenuOptionType.Git },
 		]
 	}
 
 	const lowerQuery = query.toLowerCase()
+	const suggestions: ContextMenuQueryItem[] = []
 
+	// Check for top-level option matches
+	if ("git".startsWith(lowerQuery)) {
+		suggestions.push({ 
+			type: ContextMenuOptionType.Git,
+			label: "Git Commits",
+			description: "Search repository history",
+			icon: "$(git-commit)"
+		})
+	} else if ("git-changes".startsWith(lowerQuery)) {
+		suggestions.push(workingChanges)
+	}
+	if ("problems".startsWith(lowerQuery)) {
+		suggestions.push({ type: ContextMenuOptionType.Problems })
+	}
 	if (query.startsWith("http")) {
-		return [{ type: ContextMenuOptionType.URL, value: query }]
-	} else {
-		const matchingItems = queryItems.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
+		suggestions.push({ type: ContextMenuOptionType.URL, value: query })
+	}
 
-		if (matchingItems.length > 0) {
-			return matchingItems.map((item) => ({
-				type: item.type,
-				value: item.value,
-			}))
+	// Add exact SHA matches to suggestions
+	if (/^[a-f0-9]{7,40}$/i.test(lowerQuery)) {
+		const exactMatches = queryItems.filter((item) =>
+			item.type === ContextMenuOptionType.Git &&
+			item.value?.toLowerCase() === lowerQuery
+		)
+		if (exactMatches.length > 0) {
+			suggestions.push(...exactMatches)
 		} else {
-			return [{ type: ContextMenuOptionType.NoResults }]
+			// If no exact match but valid SHA format, add as option
+			suggestions.push({
+				type: ContextMenuOptionType.Git,
+				value: lowerQuery,
+				label: `Commit ${lowerQuery}`,
+				description: "Git commit hash",
+				icon: "$(git-commit)"
+			})
 		}
 	}
+
+	// Get matching items, separating by type
+	const matchingItems = queryItems.filter((item) =>
+		item.value?.toLowerCase().includes(lowerQuery) ||
+		item.label?.toLowerCase().includes(lowerQuery) ||
+		item.description?.toLowerCase().includes(lowerQuery)
+	)
+
+	const fileMatches = matchingItems.filter(item =>
+		item.type === ContextMenuOptionType.File ||
+		item.type === ContextMenuOptionType.Folder
+	)
+	const gitMatches = matchingItems.filter(item =>
+		item.type === ContextMenuOptionType.Git
+	)
+	const otherMatches = matchingItems.filter(item =>
+		item.type !== ContextMenuOptionType.File &&
+		item.type !== ContextMenuOptionType.Folder &&
+		item.type !== ContextMenuOptionType.Git
+	)
+
+	// Combine suggestions with matching items in the desired order
+	if (suggestions.length > 0 || matchingItems.length > 0) {
+		return [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+	}
+
+	return [{ type: ContextMenuOptionType.NoResults }]
 }
 
 export function shouldShowContextMenu(text: string, position: number): boolean {

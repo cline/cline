@@ -3,6 +3,7 @@
 import { ApiConfiguration, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
+import { GitCommit } from "../utils/git"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -21,6 +22,7 @@ export interface ExtensionMessage {
 		| "openAiModels"
 		| "mcpServers"
 		| "enhancedPrompt"
+		| "commitSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -39,6 +41,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	commits?: GitCommit[]
 }
 
 export interface ExtensionState {
