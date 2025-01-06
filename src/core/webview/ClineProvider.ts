@@ -66,7 +66,7 @@ type GlobalStateKey =
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
-	| "includeStreamOptions"
+	| "openAiStreamingEnabled"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "openRouterUseMiddleOutTransform"
@@ -447,7 +447,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								azureApiVersion,
-								includeStreamOptions,
+								openAiStreamingEnabled,
 								openRouterModelId,
 								openRouterModelInfo,
 								openRouterUseMiddleOutTransform,
@@ -478,7 +478,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", message.apiConfiguration.deepSeekApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							await this.updateGlobalState("includeStreamOptions", includeStreamOptions)
+							await this.updateGlobalState("openAiStreamingEnabled", openAiStreamingEnabled)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
@@ -1295,7 +1295,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			azureApiVersion,
-			includeStreamOptions,
+			openAiStreamingEnabled,
 			openRouterModelId,
 			openRouterModelInfo,
 			openRouterUseMiddleOutTransform,
@@ -1345,7 +1345,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
-			this.getGlobalState("includeStreamOptions") as Promise<boolean | undefined>,
+			this.getGlobalState("openAiStreamingEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("openRouterUseMiddleOutTransform") as Promise<boolean | undefined>,
@@ -1412,7 +1412,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiNativeApiKey,
 				deepSeekApiKey,
 				azureApiVersion,
-				includeStreamOptions,
+				openAiStreamingEnabled,
 				openRouterModelId,
 				openRouterModelInfo,
 				openRouterUseMiddleOutTransform,
