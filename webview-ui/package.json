@@ -53,6 +53,7 @@
 		"@testing-library/react": "^16.1.0",
 		"@types/node": "^18.19.69",
 		"@types/vscode-webview": "^1.57.5",
+		"@vitest/coverage-v8": "^2.1.8",
 		"jsdom": "^25.0.1",
 		"vitest": "^2.1.8"
 	}
