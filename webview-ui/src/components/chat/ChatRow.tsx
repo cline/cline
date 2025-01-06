@@ -637,7 +637,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							gap: 10,
 							padding: 8,
 							fontSize: "12px",
-							color: "var(--vscode-errorForeground)",
+							color: "var(--vscode-editorWarning-foreground)",
 						}}>
 						<i className="codicon codicon-warning"></i>
 						<span>The model has determined this command requires explicit approval.</span>
