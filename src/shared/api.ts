@@ -41,7 +41,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
-	includeStreamOptions?: boolean
+	openAiStreamingEnabled?: boolean
 	setAzureApiVersion?: boolean
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
