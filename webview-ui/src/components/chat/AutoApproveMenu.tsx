@@ -15,38 +15,38 @@ const ACTION_METADATA: {
 	shortName: string
 	description: string
 }[] = [
-	{
-		id: "readFiles",
-		label: "Read files and directories",
-		shortName: "Read",
-		description: "Allows access to read any file on your computer.",
-	},
-	{
-		id: "editFiles",
-		label: "Edit files",
-		shortName: "Edit",
-		description: "Allows modification of any files on your computer.",
-	},
-	{
-		id: "executeCommands",
-		label: "Execute safe commands",
-		shortName: "Commands",
-		description:
-			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
-	},
-	{
-		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
-		description: "Allows ability to launch and interact with any website in a headless browser.",
-	},
-	{
-		id: "useMcp",
-		label: "Use MCP servers",
-		shortName: "MCP",
-		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
-	},
-]
+		{
+			id: "readFiles",
+			label: "Read files and directories",
+			shortName: "Read",
+			description: "Allows access to read any file on your computer.",
+		},
+		{
+			id: "editFiles",
+			label: "Edit files",
+			shortName: "Edit",
+			description: "Allows modification of any files on your computer.",
+		},
+		{
+			id: "executeCommands",
+			label: "Execute safe commands",
+			shortName: "Commands",
+			description:
+				"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+		},
+		{
+			id: "useBrowser",
+			label: "Use the browser",
+			shortName: "Browser",
+			description: "Allows ability to launch and interact with any website in a headless browser.",
+		},
+		{
+			id: "useMcp",
+			label: "Use MCP servers",
+			shortName: "MCP",
+			description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
+		},
+	]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
@@ -56,14 +56,14 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	// Ensure all settings are populated with defaults if missing
 	const safeAutoApprovalSettings: AutoApprovalSettings = {
-    ...DEFAULT_AUTO_APPROVAL_SETTINGS,
-    ...autoApprovalSettings,
-    actions: {
-        ...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
-        ...autoApprovalSettings?.actions,
-    },
-}
-	
+		...DEFAULT_AUTO_APPROVAL_SETTINGS,
+		...autoApprovalSettings,
+		actions: {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+			...autoApprovalSettings?.actions,
+		},
+	}
+
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
