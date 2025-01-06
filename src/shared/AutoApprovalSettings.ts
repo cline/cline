@@ -11,7 +11,9 @@ export interface AutoApprovalSettings {
 	}
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
+	maxHistoricalMessages: number // Maximum number of historical messages to keep
 	enableNotifications: boolean // Show notifications for approval and task completion
+
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
@@ -24,5 +26,6 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		useMcp: false,
 	},
 	maxRequests: 20,
+	maxHistoricalMessages: 10,
 	enableNotifications: false,
 }
