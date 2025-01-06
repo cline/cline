@@ -1,16 +1,6 @@
-import {
-	VSCodeBadge,
-	VSCodeProgressRing,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, {
-	memo,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
@@ -21,20 +11,12 @@ import {
 	ExtensionMessage,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "../../../../src/shared/ExtensionMessage"
-import {
-	COMMAND_OUTPUT_STRING,
-	COMMAND_REQ_APP_STRING,
-} from "../../../../src/shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
-import {
-	CheckpointControls,
-	CheckpointOverlay,
-} from "../common/CheckpointControls"
-import CodeAccordian, {
-	removeLeadingNonAlphanumeric,
-} from "../common/CodeAccordian"
+import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
+import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import SuccessButton from "../common/SuccessButton"
@@ -84,16 +66,13 @@ const ChatRow = memo(
 
 		if (shouldShowCheckpoints && isLast) {
 			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" ||
-				lastModifiedMessage?.ask === "resume_task"
+				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 		}
 
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>
 				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && (
-					<CheckpointOverlay messageTs={message.ts} />
-				)}
+				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
 			</ChatRowContainer>,
 		)
 
@@ -102,12 +81,7 @@ const ChatRow = memo(
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
 			// height starts off at Infinity
-			if (
-				isLast &&
-				height !== 0 &&
-				height !== Infinity &&
-				height !== prevHeightRef.current
-			) {
+			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
 				if (!isInitialRender) {
 					onHeightChange(height > prevHeightRef.current)
 				}
@@ -124,29 +98,18 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({
-	message,
-	isExpanded,
-	onToggleExpand,
-	lastModifiedMessage,
-	isLast,
-}: ChatRowContentProps) => {
+export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const { mcpServers } = useExtensionState()
 
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
-	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] =
-		useMemo(() => {
-			if (message.text != null && message.say === "api_req_started") {
-				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [
-					info.cost,
-					info.cancelReason,
-					info.streamingFailedMessage,
-				]
-			}
-			return [undefined, undefined, undefined]
-		}, [message.text, message.say])
+	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
+		if (message.text != null && message.say === "api_req_started") {
+			const info: ClineApiReqInfo = JSON.parse(message.text)
+			return [info.cost, info.cancelReason, info.streamingFailedMessage]
+		}
+		return [undefined, undefined, undefined]
+	}, [message.text, message.say])
 	// when resuming task, last wont be api_req_failed but a resume_task message, so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
@@ -154,12 +117,10 @@ export const ChatRowContent = ({
 			: undefined
 	const isCommandExecuting =
 		isLast &&
-		(lastModifiedMessage?.ask === "command" ||
-			lastModifiedMessage?.say === "command") &&
+		(lastModifiedMessage?.ask === "command" || lastModifiedMessage?.say === "command") &&
 		lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
 
-	const isMcpServerResponding =
-		isLast && lastModifiedMessage?.say === "mcp_server_request_started"
+	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
 	const type = message.type === "ask" ? message.ask : message.say
 
@@ -190,9 +151,7 @@ export const ChatRowContent = ({
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>
-						Error
-					</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Error</span>,
 				]
 			case "mistake_limit_reached":
 				return [
@@ -202,9 +161,7 @@ export const ChatRowContent = ({
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>
-						Cline is having trouble...
-					</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
 			case "auto_approval_max_req_reached":
 				return [
@@ -214,9 +171,7 @@ export const ChatRowContent = ({
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>
-						Maximum Requests Reached
-					</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
 				]
 			case "command":
 				return [
@@ -231,15 +186,11 @@ export const ChatRowContent = ({
 							}}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{message.type === "ask"
-							? "Cline wants to execute this command:"
-							: "Cline executed this command:"}
+						{message.type === "ask" ? "Cline wants to execute this command:" : "Cline executed this command:"}
 					</span>,
 				]
 			case "use_mcp_server":
-				const mcpServerUse = JSON.parse(
-					message.text || "{}",
-				) as ClineAskUseMcpServer
+				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 				return [
 					isMcpServerResponding ? (
 						<ProgressIndicator />
@@ -254,21 +205,13 @@ export const ChatRowContent = ({
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
 						{message.type === "ask" ? (
 							<>
-								Cline wants to{" "}
-								{mcpServerUse.type === "use_mcp_tool"
-									? "use a tool"
-									: "access a resource"}{" "}
-								on the <code>{mcpServerUse.serverName}</code>{" "}
-								MCP server:
+								Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
 						) : (
 							<>
-								Cline{" "}
-								{mcpServerUse.type === "use_mcp_tool"
-									? "used a tool"
-									: "accessed a resource"}{" "}
-								on the <code>{mcpServerUse.serverName}</code>{" "}
-								MCP server:
+								Cline {mcpServerUse.type === "use_mcp_tool" ? "used a tool" : "accessed a resource"} on the{" "}
+								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
 						)}
 					</span>,
@@ -281,9 +224,7 @@ export const ChatRowContent = ({
 							color: successColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: successColor, fontWeight: "bold" }}>
-						Task Completed
-					</span>,
+					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
 			case "api_req_started":
 				const getIconSpan = (iconName: string, color: string) => (
@@ -337,19 +278,11 @@ export const ChatRowContent = ({
 							</span>
 						)
 					) : cost != null ? (
-						<span
-							style={{ color: normalColor, fontWeight: "bold" }}>
-							API Request
-						</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
-						<span style={{ color: errorColor, fontWeight: "bold" }}>
-							API Request Failed
-						</span>
+						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 					) : (
-						<span
-							style={{ color: normalColor, fontWeight: "bold" }}>
-							API Request...
-						</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
 					),
 				]
 			case "followup":
@@ -360,9 +293,7 @@ export const ChatRowContent = ({
 							color: normalColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Cline has a question:
-					</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 				]
 			default:
 				return [null, null]
@@ -416,9 +347,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("edit")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to edit this file:"
-									: "Cline is editing this file:"}
+								{message.type === "ask" ? "Cline wants to edit this file:" : "Cline is editing this file:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -436,9 +365,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to create a new file:"
-									: "Cline is creating a new file:"}
+								{message.type === "ask" ? "Cline wants to create a new file:" : "Cline is creating a new file:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -456,9 +383,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask"
-									? "Cline wants to read this file:"
-									: "Cline read this file:"}
+								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -502,9 +427,7 @@ export const ChatRowContent = ({
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{removeLeadingNonAlphanumeric(
-										tool.path ?? "",
-									) + "\u200E"}
+									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
@@ -584,25 +507,18 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<>
-										Cline wants to search this directory for{" "}
-										<code>{tool.regex}</code>:
+										Cline wants to search this directory for <code>{tool.regex}</code>:
 									</>
 								) : (
 									<>
-										Cline searched this directory for{" "}
-										<code>{tool.regex}</code>:
+										Cline searched this directory for <code>{tool.regex}</code>:
 									</>
 								)}
 							</span>
 						</div>
 						<CodeAccordian
 							code={tool.content!}
-							path={
-								tool.path! +
-								(tool.filePattern
-									? `/(${tool.filePattern})`
-									: "")
-							}
+							path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
 							language="plaintext"
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
@@ -673,9 +589,7 @@ export const ChatRowContent = ({
 		const { command: rawCommand, output } = splitMessage(message.text || "")
 
 		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
-		const command = requestsApproval
-			? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length)
-			: rawCommand
+		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
 
 		return (
 			<>
@@ -694,10 +608,7 @@ export const ChatRowContent = ({
 						overflow: "hidden",
 						backgroundColor: CODE_BLOCK_BG_COLOR,
 					}}>
-					<CodeBlock
-						source={`${"```"}shell\n${command}\n${"```"}`}
-						forceWrap={true}
-					/>
+					<CodeBlock source={`${"```"}shell\n${command}\n${"```"}`} forceWrap={true} />
 					{output.length > 0 && (
 						<div style={{ width: "100%" }}>
 							<div
@@ -711,17 +622,10 @@ export const ChatRowContent = ({
 									cursor: "pointer",
 									padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
 								}}>
-								<span
-									className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-								<span style={{ fontSize: "0.8em" }}>
-									Command Output
-								</span>
+								<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+								<span style={{ fontSize: "0.8em" }}>Command Output</span>
 							</div>
-							{isExpanded && (
-								<CodeBlock
-									source={`${"```"}shell\n${output}\n${"```"}`}
-								/>
-							)}
+							{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
 						</div>
 					)}
 				</div>
@@ -736,10 +640,7 @@ export const ChatRowContent = ({
 							color: "var(--vscode-errorForeground)",
 						}}>
 						<i className="codicon codicon-warning"></i>
-						<span>
-							The model has determined this command requires
-							explicit approval.
-						</span>
+						<span>The model has determined this command requires explicit approval.</span>
 					</div>
 				)}
 			</>
@@ -747,12 +648,8 @@ export const ChatRowContent = ({
 	}
 
 	if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
-		const useMcpServer = JSON.parse(
-			message.text || "{}",
-		) as ClineAskUseMcpServer
-		const server = mcpServers.find(
-			(server) => server.name === useMcpServer.serverName,
-		)
+		const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+		const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 		return (
 			<>
 				<div style={headerStyle}>
@@ -792,33 +689,28 @@ export const ChatRowContent = ({
 								tool={{
 									name: useMcpServer.toolName || "",
 									description:
-										server?.tools?.find(
-											(tool) =>
-												tool.name ===
-												useMcpServer.toolName,
-										)?.description || "",
+										server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
 								}}
 							/>
-							{useMcpServer.arguments &&
-								useMcpServer.arguments !== "{}" && (
-									<div style={{ marginTop: "8px" }}>
-										<div
-											style={{
-												marginBottom: "4px",
-												opacity: 0.8,
-												fontSize: "12px",
-												textTransform: "uppercase",
-											}}>
-											Arguments
-										</div>
-										<CodeAccordian
-											code={useMcpServer.arguments}
-											language="json"
-											isExpanded={true}
-											onToggleExpand={onToggleExpand}
-										/>
+							{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
+								<div style={{ marginTop: "8px" }}>
+									<div
+										style={{
+											marginBottom: "4px",
+											opacity: 0.8,
+											fontSize: "12px",
+											textTransform: "uppercase",
+										}}>
+										Arguments
 									</div>
-								)}
+									<CodeAccordian
+										code={useMcpServer.arguments}
+										language="json"
+										isExpanded={true}
+										onToggleExpand={onToggleExpand}
+									/>
+								</div>
+							)}
 						</>
 					)}
 				</div>
@@ -836,11 +728,7 @@ export const ChatRowContent = ({
 								style={{
 									...headerStyle,
 									marginBottom:
-										(cost == null &&
-											apiRequestFailedMessage) ||
-										apiReqStreamingFailedMessage
-											? 10
-											: 0,
+										(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
 									justifyContent: "space-between",
 									cursor: "pointer",
 									userSelect: "none",
@@ -860,42 +748,31 @@ export const ChatRowContent = ({
 									{/* Need to render this everytime since it affects height of row by 2px */}
 									<VSCodeBadge
 										style={{
-											opacity:
-												cost != null && cost > 0
-													? 1
-													: 0,
+											opacity: cost != null && cost > 0 ? 1 : 0,
 										}}>
 										${Number(cost || 0)?.toFixed(4)}
 									</VSCodeBadge>
 								</div>
-								<span
-									className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
-							{((cost == null && apiRequestFailedMessage) ||
-								apiReqStreamingFailedMessage) && (
+							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
 									<p
 										style={{
 											...pStyle,
 											color: "var(--vscode-errorForeground)",
 										}}>
-										{apiRequestFailedMessage ||
-											apiReqStreamingFailedMessage}
-										{apiRequestFailedMessage
-											?.toLowerCase()
-											.includes("powershell") && (
+										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
 												<br />
-												It seems like you're having
-												Windows PowerShell issues,
-												please see this{" "}
+												It seems like you're having Windows PowerShell issues, please see this{" "}
 												<a
 													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
 													style={{
 														color: "inherit",
-														textDecoration:
-															"underline",
+														textDecoration: "underline",
 													}}>
 													troubleshooting guide
 												</a>
@@ -942,10 +819,7 @@ export const ChatRowContent = ({
 							{isExpanded && (
 								<div style={{ marginTop: "10px" }}>
 									<CodeAccordian
-										code={
-											JSON.parse(message.text || "{}")
-												.request
-										}
+										code={JSON.parse(message.text || "{}").request}
 										language="markdown"
 										isExpanded={true}
 										onToggleExpand={onToggleExpand}
@@ -966,29 +840,21 @@ export const ChatRowContent = ({
 					return (
 						<div
 							style={{
-								backgroundColor:
-									"var(--vscode-badge-background)",
+								backgroundColor: "var(--vscode-badge-background)",
 								color: "var(--vscode-badge-foreground)",
 								borderRadius: "3px",
 								padding: "9px",
 								whiteSpace: "pre-line",
 								wordWrap: "break-word",
 							}}>
-							<span style={{ display: "block" }}>
-								{highlightMentions(message.text)}
-							</span>
+							<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
 							{message.images && message.images.length > 0 && (
-								<Thumbnails
-									images={message.images}
-									style={{ marginTop: "8px" }}
-								/>
+								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
 							)}
 						</div>
 					)
 				case "user_feedback_diff":
-					const tool = JSON.parse(
-						message.text || "{}",
-					) as ClineSayTool
+					const tool = JSON.parse(message.text || "{}") as ClineSayTool
 					return (
 						<div
 							style={{
@@ -1055,24 +921,15 @@ export const ChatRowContent = ({
 									</span>
 								</div>
 								<div>
-									This usually happens when the model uses
-									search patterns that don't match anything in
-									the file. Retrying...
+									This usually happens when the model uses search patterns that don't match anything in the
+									file. Retrying...
 								</div>
 							</div>
 						</>
 					)
 				case "completion_result":
-					const hasChanges =
-						message.text?.endsWith(
-							COMPLETION_RESULT_CHANGES_FLAG,
-						) ?? false
-					const text = hasChanges
-						? message.text?.slice(
-								0,
-								-COMPLETION_RESULT_CHANGES_FLAG.length,
-							)
-						: message.text
+					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+					const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 					return (
 						<>
 							<div
@@ -1103,14 +960,9 @@ export const ChatRowContent = ({
 										}}
 										style={{
 											width: "100%",
-											cursor: seeNewChangesDisabled
-												? "wait"
-												: "pointer",
+											cursor: seeNewChangesDisabled ? "wait" : "pointer",
 										}}>
-										<i
-											className="codicon codicon-new-file"
-											style={{ marginRight: 6 }}
-										/>
+										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 										See new changes
 									</SuccessButton>
 								</div>
@@ -1151,14 +1003,10 @@ export const ChatRowContent = ({
 									</span>
 								</div>
 								<div>
-									Cline won't be able to view the command's
-									output. Please update VSCode (
-									<code>CMD/CTRL + Shift + P</code> →
-									"Update") and make sure you're using a
-									supported shell: zsh, bash, fish, or
-									PowerShell (
-									<code>CMD/CTRL + Shift + P</code> →
-									"Terminal: Select Default Profile").{" "}
+									Cline won't be able to view the command's output. Please update VSCode (
+									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
+									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
+									Profile").{" "}
 									<a
 										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
 										style={{
@@ -1245,16 +1093,8 @@ export const ChatRowContent = ({
 				case "completion_result":
 					if (message.text) {
 						// FIXME: is this ever even used?
-						const hasChanges =
-							message.text.endsWith(
-								COMPLETION_RESULT_CHANGES_FLAG,
-							) ?? false
-						const text = hasChanges
-							? message.text.slice(
-									0,
-									-COMPLETION_RESULT_CHANGES_FLAG.length,
-								)
-							: message.text
+						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
 							<div>
 								<div
@@ -1277,9 +1117,7 @@ export const ChatRowContent = ({
 												appearance="secondary"
 												disabled={seeNewChangesDisabled}
 												onClick={() => {
-													setSeeNewChangesDisabled(
-														true,
-													)
+													setSeeNewChangesDisabled(true)
 													vscode.postMessage({
 														type: "taskCompletionViewChanges",
 														number: message.ts,
@@ -1289,9 +1127,7 @@ export const ChatRowContent = ({
 													className="codicon codicon-new-file"
 													style={{
 														marginRight: 6,
-														cursor: seeNewChangesDisabled
-															? "wait"
-															: "pointer",
+														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
 												See new changes

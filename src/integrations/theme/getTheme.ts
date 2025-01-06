@@ -32,10 +32,7 @@ function parseThemeString(themeString: string | undefined): any {
 
 export async function getTheme() {
 	let currentTheme = undefined
-	const colorTheme =
-		vscode.workspace
-			.getConfiguration("workbench")
-			.get<string>("colorTheme") || "Default Dark Modern"
+	const colorTheme = vscode.workspace.getConfiguration("workbench").get<string>("colorTheme") || "Default Dark Modern"
 
 	try {
 		for (let i = vscode.extensions.all.length - 1; i >= 0; i--) {
@@ -46,10 +43,7 @@ export async function getTheme() {
 			if (extension.packageJSON?.contributes?.themes?.length > 0) {
 				for (const theme of extension.packageJSON.contributes.themes) {
 					if (theme.label === colorTheme) {
-						const themePath = path.join(
-							extension.extensionPath,
-							theme.path,
-						)
+						const themePath = path.join(extension.extensionPath, theme.path)
 						currentTheme = await fs.readFile(themePath, "utf-8")
 						break
 					}
@@ -60,14 +54,7 @@ export async function getTheme() {
 		if (currentTheme === undefined && defaultThemes[colorTheme]) {
 			const filename = `${defaultThemes[colorTheme]}.json`
 			currentTheme = await fs.readFile(
-				path.join(
-					getExtensionUri().fsPath,
-					"src",
-					"integrations",
-					"theme",
-					"default-themes",
-					filename,
-				),
+				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", filename),
 				"utf-8",
 			)
 		}
@@ -77,14 +64,7 @@ export async function getTheme() {
 
 		if (parsed.include) {
 			const includeThemeString = await fs.readFile(
-				path.join(
-					getExtensionUri().fsPath,
-					"src",
-					"integrations",
-					"theme",
-					"default-themes",
-					parsed.include,
-				),
+				path.join(getExtensionUri().fsPath, "src", "integrations", "theme", "default-themes", parsed.include),
 				"utf-8",
 			)
 			const includeTheme = parseThemeString(includeThemeString)
@@ -94,11 +74,7 @@ export async function getTheme() {
 		const converted = convertTheme(parsed)
 
 		converted.base = (
-			["vs", "hc-black"].includes(converted.base)
-				? converted.base
-				: colorTheme.includes("Light")
-					? "vs"
-					: "vs-dark"
+			["vs", "hc-black"].includes(converted.base) ? converted.base : colorTheme.includes("Light") ? "vs" : "vs-dark"
 		) as any
 
 		return converted
@@ -134,11 +110,7 @@ export function mergeJson(
 					// Merge keys are used to determine whether an item form the second object should override one from the first
 					const keptFromFirst: any[] = []
 					firstValue.forEach((item: any) => {
-						if (
-							!secondValue.some((item2: any) =>
-								mergeKeys[key](item, item2),
-							)
-						) {
+						if (!secondValue.some((item2: any) => mergeKeys[key](item, item2))) {
 							keptFromFirst.push(item)
 						}
 					})
@@ -146,16 +118,9 @@ export function mergeJson(
 				} else {
 					copyOfFirst[key] = [...firstValue, ...secondValue]
 				}
-			} else if (
-				typeof secondValue === "object" &&
-				typeof firstValue === "object"
-			) {
+			} else if (typeof secondValue === "object" && typeof firstValue === "object") {
 				// Object
-				copyOfFirst[key] = mergeJson(
-					firstValue,
-					secondValue,
-					mergeBehavior,
-				)
+				copyOfFirst[key] = mergeJson(firstValue, secondValue, mergeBehavior)
 			} else {
 				// Other (boolean, number, string)
 				copyOfFirst[key] = secondValue
@@ -172,6 +137,5 @@ export function mergeJson(
 }
 
 function getExtensionUri(): vscode.Uri {
-	return vscode.extensions.getExtension("saoudrizwan.claude-dev")!
-		.extensionUri
+	return vscode.extensions.getExtension("saoudrizwan.claude-dev")!.extensionUri
 }

@@ -1,9 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeTextField,
-	VSCodeRadioGroup,
-	VSCodeRadio,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
@@ -16,33 +11,19 @@ type HistoryViewProps = {
 	onDone: () => void
 }
 
-type SortOption =
-	| "newest"
-	| "oldest"
-	| "mostExpensive"
-	| "mostTokens"
-	| "mostRelevant"
+type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const { taskHistory } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
-	const [lastNonRelevantSort, setLastNonRelevantSort] =
-		useState<SortOption | null>("newest")
+	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 
 	useEffect(() => {
-		if (
-			searchQuery &&
-			sortOption !== "mostRelevant" &&
-			!lastNonRelevantSort
-		) {
+		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
 			setLastNonRelevantSort(sortOption)
 			setSortOption("mostRelevant")
-		} else if (
-			!searchQuery &&
-			sortOption === "mostRelevant" &&
-			lastNonRelevantSort
-		) {
+		} else if (!searchQuery && sortOption === "mostRelevant" && lastNonRelevantSort) {
 			setSortOption(lastNonRelevantSort)
 			setLastNonRelevantSort(null)
 		}
@@ -88,9 +69,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [presentableTasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		let results = searchQuery
-			? highlight(fuse.search(searchQuery))
-			: presentableTasks
+		let results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
@@ -104,10 +83,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						(b.tokensOut || 0) +
 						(b.cacheWrites || 0) +
 						(b.cacheReads || 0) -
-						((a.tokensIn || 0) +
-							(a.tokensOut || 0) +
-							(a.cacheWrites || 0) +
-							(a.cacheReads || 0))
+						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
 					)
 				case "mostRelevant":
 					// NOTE: you must never sort directly on object since it will cause members to be reordered
@@ -182,14 +158,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							placeholder="Fuzzy search history..."
 							value={searchQuery}
 							onInput={(e) => {
-								const newValue = (e.target as HTMLInputElement)
-									?.value
+								const newValue = (e.target as HTMLInputElement)?.value
 								setSearchQuery(newValue)
-								if (
-									newValue &&
-									!searchQuery &&
-									sortOption !== "mostRelevant"
-								) {
+								if (newValue && !searchQuery && sortOption !== "mostRelevant") {
 									setLastNonRelevantSort(sortOption)
 									setSortOption("mostRelevant")
 								}
@@ -220,24 +191,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						<VSCodeRadioGroup
 							style={{ display: "flex", flexWrap: "wrap" }}
 							value={sortOption}
-							onChange={(e) =>
-								setSortOption(
-									(e.target as HTMLInputElement)
-										.value as SortOption,
-								)
-							}>
+							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
 							<VSCodeRadio value="newest">Newest</VSCodeRadio>
 							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-							<VSCodeRadio value="mostExpensive">
-								Most Expensive
-							</VSCodeRadio>
-							<VSCodeRadio value="mostTokens">
-								Most Tokens
-							</VSCodeRadio>
-							<VSCodeRadio
-								value="mostRelevant"
-								disabled={!searchQuery}
-								style={{ opacity: searchQuery ? 1 : 0.5 }}>
+							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
+							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
+							<VSCodeRadio value="mostRelevant" disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }}>
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
@@ -273,9 +232,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								style={{
 									cursor: "pointer",
 									borderBottom:
-										index < taskHistory.length - 1
-											? "1px solid var(--vscode-panel-border)"
-											: "none",
+										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
 								}}
 								onClick={() => handleHistorySelect(item.id)}>
 								<div
@@ -376,13 +333,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														style={{
 															fontSize: "12px",
 															fontWeight: "bold",
-															marginBottom:
-																"-2px",
+															marginBottom: "-2px",
 														}}
 													/>
-													{formatLargeNumber(
-														item.tokensIn || 0,
-													)}
+													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
 												<span
 													style={{
@@ -396,20 +350,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														style={{
 															fontSize: "12px",
 															fontWeight: "bold",
-															marginBottom:
-																"-2px",
+															marginBottom: "-2px",
 														}}
 													/>
-													{formatLargeNumber(
-														item.tokensOut || 0,
-													)}
+													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 											</div>
-											{!item.totalCost && (
-												<ExportButton
-													itemId={item.id}
-												/>
-											)}
+											{!item.totalCost && <ExportButton itemId={item.id} />}
 										</div>
 
 										{!!item.cacheWrites && (
@@ -439,14 +386,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														style={{
 															fontSize: "12px",
 															fontWeight: "bold",
-															marginBottom:
-																"-1px",
+															marginBottom: "-1px",
 														}}
 													/>
-													+
-													{formatLargeNumber(
-														item.cacheWrites || 0,
-													)}
+													+{formatLargeNumber(item.cacheWrites || 0)}
 												</span>
 												<span
 													style={{
@@ -463,9 +406,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															marginBottom: 0,
 														}}
 													/>
-													{formatLargeNumber(
-														item.cacheReads || 0,
-													)}
+													{formatLargeNumber(item.cacheReads || 0)}
 												</span>
 											</div>
 										)}
@@ -473,8 +414,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											<div
 												style={{
 													display: "flex",
-													justifyContent:
-														"space-between",
+													justifyContent: "space-between",
 													alignItems: "center",
 													marginTop: -2,
 												}}>
@@ -495,15 +435,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														style={{
 															color: "var(--vscode-descriptionForeground)",
 														}}>
-														$
-														{item.totalCost?.toFixed(
-															4,
-														)}
+														${item.totalCost?.toFixed(4)}
 													</span>
 												</div>
-												<ExportButton
-													itemId={item.id}
-												/>
+												<ExportButton itemId={item.id} />
 											</div>
 										)}
 									</div>
@@ -525,17 +460,12 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 			e.stopPropagation()
 			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
 		}}>
-		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>
-			EXPORT
-		</div>
+		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 	</VSCodeButton>
 )
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (
-	fuseSearchResult: FuseResult<any>[],
-	highlightClassName: string = "history-item-highlight",
-) => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
@@ -571,10 +501,7 @@ export const highlight = (
 		return merged
 	}
 
-	const generateHighlightedText = (
-		inputText: string,
-		regions: [number, number][] = [],
-	) => {
+	const generateHighlightedText = (inputText: string, regions: [number, number][] = []) => {
 		if (regions.length === 0) {
 			return inputText
 		}
@@ -591,10 +518,7 @@ export const highlight = (
 			const lastRegionNextIndex = end + 1
 
 			content += [
-				inputText.substring(
-					nextUnhighlightedRegionStartingIndex,
-					start,
-				),
+				inputText.substring(nextUnhighlightedRegionStartingIndex, start),
 				`<span class="${highlightClassName}">`,
 				inputText.substring(start, lastRegionNextIndex),
 				"</span>",
@@ -614,18 +538,10 @@ export const highlight = (
 			const highlightedItem = { ...item }
 
 			matches?.forEach((match) => {
-				if (
-					match.key &&
-					typeof match.value === "string" &&
-					match.indices
-				) {
+				if (match.key && typeof match.value === "string" && match.indices) {
 					// Merge overlapping regions before generating highlighted text
 					const mergedIndices = mergeRegions([...match.indices])
-					set(
-						highlightedItem,
-						match.key,
-						generateHighlightedText(match.value, mergedIndices),
-					)
+					set(highlightedItem, match.key, generateHighlightedText(match.value, mergedIndices))
 				}
 			})
 

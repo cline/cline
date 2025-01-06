@@ -1,11 +1,6 @@
-import {
-	ApiConfiguration,
-	openRouterDefaultModelId,
-} from "../../../src/shared/api"
+import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
-export function validateApiConfiguration(
-	apiConfiguration?: ApiConfiguration,
-): string | undefined {
+export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
@@ -24,10 +19,7 @@ export function validateApiConfiguration(
 				}
 				break
 			case "vertex":
-				if (
-					!apiConfiguration.vertexProjectId ||
-					!apiConfiguration.vertexRegion
-				) {
+				if (!apiConfiguration.vertexProjectId || !apiConfiguration.vertexRegion) {
 					return "You must provide a valid Google Cloud Project ID and Region."
 				}
 				break
@@ -47,11 +39,7 @@ export function validateApiConfiguration(
 				}
 				break
 			case "openai":
-				if (
-					!apiConfiguration.openAiBaseUrl ||
-					!apiConfiguration.openAiApiKey ||
-					!apiConfiguration.openAiModelId
-				) {
+				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !apiConfiguration.openAiModelId) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
@@ -77,16 +65,11 @@ export function validateModelId(
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "openrouter":
-				const modelId =
-					apiConfiguration.openRouterModelId ||
-					openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
 				}
-				if (
-					openRouterModels &&
-					!Object.keys(openRouterModels).includes(modelId)
-				) {
+				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
 					return "The model ID you provided is not available. Please choose a different model."
 				}

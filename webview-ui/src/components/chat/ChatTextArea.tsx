@@ -1,17 +1,6 @@
-import React, {
-	forwardRef,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import {
-	mentionRegex,
-	mentionRegexGlobal,
-} from "../../../../src/shared/context-mentions"
+import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -56,9 +45,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const { filePaths } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
-		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<
-			number | undefined
-		>(undefined)
+		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
 		const [cursorPosition, setCursorPosition] = useState(0)
 		const [searchQuery, setSearchQuery] = useState("")
@@ -66,13 +53,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isMouseDownOnMenu, setIsMouseDownOnMenu] = useState(false)
 		const highlightLayerRef = useRef<HTMLDivElement>(null)
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
-		const [selectedType, setSelectedType] =
-			useState<ContextMenuOptionType | null>(null)
-		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] =
-			useState(false)
-		const [intendedCursorPosition, setIntendedCursorPosition] = useState<
-			number | null
-		>(null)
+		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
+		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
+		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const queryItems = useMemo(() => {
@@ -81,9 +64,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
-						type: path.endsWith("/")
-							? ContextMenuOptionType.Folder
-							: ContextMenuOptionType.File,
+						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
 						value: path,
 					})),
 			]
@@ -91,12 +72,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
-				if (
-					contextMenuContainerRef.current &&
-					!contextMenuContainerRef.current.contains(
-						event.target as Node,
-					)
-				) {
+				if (contextMenuContainerRef.current && !contextMenuContainerRef.current.contains(event.target as Node)) {
 					setShowContextMenu(false)
 				}
 			}
@@ -116,10 +92,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
-				if (
-					type === ContextMenuOptionType.File ||
-					type === ContextMenuOptionType.Folder
-				) {
+				if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
 					if (!value) {
 						setSelectedType(type)
 						setSearchQuery("")
@@ -134,27 +107,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					let insertValue = value || ""
 					if (type === ContextMenuOptionType.URL) {
 						insertValue = value || ""
-					} else if (
-						type === ContextMenuOptionType.File ||
-						type === ContextMenuOptionType.Folder
-					) {
+					} else if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
 					}
 
-					const { newValue, mentionIndex } = insertMention(
-						textAreaRef.current.value,
-						cursorPosition,
-						insertValue,
-					)
+					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
 
 					setInputValue(newValue)
-					const newCursorPosition =
-						newValue.indexOf(
-							" ",
-							mentionIndex + insertValue.length,
-						) + 1
+					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
 					// textAreaRef.current.focus()
@@ -185,11 +147,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(
-								searchQuery,
-								selectedType,
-								queryItems,
-							)
+							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -197,54 +155,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Find selectable options (non-URL types)
 							const selectableOptions = options.filter(
 								(option) =>
-									option.type !== ContextMenuOptionType.URL &&
-									option.type !==
-										ContextMenuOptionType.NoResults,
+									option.type !== ContextMenuOptionType.URL && option.type !== ContextMenuOptionType.NoResults,
 							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
 
 							// Find the index of the next selectable option
-							const currentSelectableIndex =
-								selectableOptions.findIndex(
-									(option) => option === options[prevIndex],
-								)
+							const currentSelectableIndex = selectableOptions.findIndex((option) => option === options[prevIndex])
 
 							const newSelectableIndex =
-								(currentSelectableIndex +
-									direction +
-									selectableOptions.length) %
-								selectableOptions.length
+								(currentSelectableIndex + direction + selectableOptions.length) % selectableOptions.length
 
 							// Find the index of the selected option in the original options array
-							return options.findIndex(
-								(option) =>
-									option ===
-									selectableOptions[newSelectableIndex],
-							)
+							return options.findIndex((option) => option === selectableOptions[newSelectableIndex])
 						})
 						return
 					}
-					if (
-						(event.key === "Enter" || event.key === "Tab") &&
-						selectedMenuIndex !== -1
-					) {
+					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(
-							searchQuery,
-							selectedType,
-							queryItems,
-						)[selectedMenuIndex]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
-							selectedOption.type !==
-								ContextMenuOptionType.NoResults
+							selectedOption.type !== ContextMenuOptionType.NoResults
 						) {
-							handleMentionSelect(
-								selectedOption.type,
-								selectedOption.value,
-							)
+							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
 						return
 					}
@@ -261,37 +196,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const charAfterCursor = inputValue[cursorPosition + 1]
 
 					const charBeforeIsWhitespace =
-						charBeforeCursor === " " ||
-						charBeforeCursor === "\n" ||
-						charBeforeCursor === "\r\n"
+						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
-						charAfterCursor === " " ||
-						charAfterCursor === "\n" ||
-						charAfterCursor === "\r\n"
+						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
 					// checks if char before cusor is whitespace after a mention
 					if (
 						charBeforeIsWhitespace &&
-						inputValue
-							.slice(0, cursorPosition - 1)
-							.match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
 					) {
 						const newCursorPosition = cursorPosition - 1
 						// if mention is followed by another word, then instead of deleting the space separating them we just move the cursor to the end of the mention
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
-							textAreaRef.current?.setSelectionRange(
-								newCursorPosition,
-								newCursorPosition,
-							)
+							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
 							setCursorPosition(newCursorPosition)
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterMention(true)
 					} else if (justDeletedSpaceAfterMention) {
-						const { newText, newPosition } = removeMention(
-							inputValue,
-							cursorPosition,
-						)
+						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
 						if (newText !== inputValue) {
 							event.preventDefault()
 							setInputValue(newText)
@@ -321,10 +244,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		useLayoutEffect(() => {
 			if (intendedCursorPosition !== null && textAreaRef.current) {
-				textAreaRef.current.setSelectionRange(
-					intendedCursorPosition,
-					intendedCursorPosition,
-				)
+				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
 				setIntendedCursorPosition(null) // Reset the state
 			}
 		}, [inputValue, intendedCursorPosition])
@@ -335,21 +255,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const newCursorPosition = e.target.selectionStart
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
-				const showMenu = shouldShowContextMenu(
-					newValue,
-					newCursorPosition,
-				)
+				const showMenu = shouldShowContextMenu(newValue, newCursorPosition)
 
 				setShowContextMenu(showMenu)
 				if (showMenu) {
-					const lastAtIndex = newValue.lastIndexOf(
-						"@",
-						newCursorPosition - 1,
-					)
-					const query = newValue.slice(
-						lastAtIndex + 1,
-						newCursorPosition,
-					)
+					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
+					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
 					if (query.length > 0) {
 						setSelectedMenuIndex(0)
@@ -388,14 +299,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (urlRegex.test(pastedText.trim())) {
 					e.preventDefault()
 					const trimmedUrl = pastedText.trim()
-					const newValue =
-						inputValue.slice(0, cursorPosition) +
-						trimmedUrl +
-						" " +
-						inputValue.slice(cursorPosition)
+					const newValue = inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
 					setInputValue(newValue)
-					const newCursorPosition =
-						cursorPosition + trimmedUrl.length + 1
+					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
 					setCursorPosition(newCursorPosition)
 					setIntendedCursorPosition(newCursorPosition)
 					setShowContextMenu(false)
@@ -430,47 +336,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const reader = new FileReader()
 							reader.onloadend = () => {
 								if (reader.error) {
-									console.error(
-										"Error reading file:",
-										reader.error,
-									)
+									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(
-										typeof result === "string"
-											? result
-											: null,
-									)
+									resolve(typeof result === "string" ? result : null)
 								}
 							}
 							reader.readAsDataURL(blob)
 						})
 					})
 					const imageDataArray = await Promise.all(imagePromises)
-					const dataUrls = imageDataArray.filter(
-						(dataUrl): dataUrl is string => dataUrl !== null,
-					)
+					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
-						setSelectedImages((prevImages) =>
-							[...prevImages, ...dataUrls].slice(
-								0,
-								MAX_IMAGES_PER_MESSAGE,
-							),
-						)
+						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
 					} else {
 						console.warn("No valid images were processed")
 					}
 				}
 			},
-			[
-				shouldDisableImages,
-				setSelectedImages,
-				cursorPosition,
-				setInputValue,
-				inputValue,
-			],
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -494,18 +380,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			highlightLayerRef.current.innerHTML = text
 				.replace(/\n$/, "\n\n")
-				.replace(
-					/[<>&]/g,
-					(c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c,
-				)
-				.replace(
-					mentionRegexGlobal,
-					'<mark class="mention-context-textarea-highlight">$&</mark>',
-				)
+				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
+				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
-			highlightLayerRef.current.scrollLeft =
-				textAreaRef.current.scrollLeft
+			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
 		}, [])
 
 		useLayoutEffect(() => {
@@ -520,16 +399,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const handleKeyUp = useCallback(
 			(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-				if (
-					[
-						"ArrowLeft",
-						"ArrowRight",
-						"ArrowUp",
-						"ArrowDown",
-						"Home",
-						"End",
-					].includes(e.key)
-				) {
+				if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
 					updateCursorPosition()
 				}
 			},
@@ -618,10 +488,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onSelect={updateCursorPosition}
 					onMouseUp={updateCursorPosition}
 					onHeightChange={(height) => {
-						if (
-							textAreaBaseHeight === undefined ||
-							height < textAreaBaseHeight
-						) {
+						if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
 							setTextAreaBaseHeight(height)
 						}
 						onHeightChange?.(height)
@@ -693,9 +560,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							alignItems: "center",
 						}}>
 						<div
-							className={`input-icon-button ${
-								shouldDisableImages ? "disabled" : ""
-							} codicon codicon-device-camera`}
+							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 							onClick={() => {
 								if (!shouldDisableImages) {
 									onSelectImages()

@@ -10,26 +10,9 @@ const hljsToTextMate: Record<string, string[]> = {
 	".hljs-variable.language_": ["keyword"],
 	".hljs-title": ["title", "function", "class"],
 	".hljs-title.class_": ["title", "function", "class", "variable"],
-	".hljs-title.class_.inherited__": [
-		"title",
-		"function",
-		"class",
-		"variable",
-	],
-	".hljs-title.function_": [
-		"support.function",
-		"entity.name.function",
-		"title",
-		"function",
-		"class",
-	],
-	".hljs-built_in": [
-		"support.function",
-		"entity.name.function",
-		"title",
-		"function",
-		"class",
-	],
+	".hljs-title.class_.inherited__": ["title", "function", "class", "variable"],
+	".hljs-title.function_": ["support.function", "entity.name.function", "title", "function", "class"],
+	".hljs-built_in": ["support.function", "entity.name.function", "title", "function", "class"],
 	".hljs-name": ["constant"],
 	".hljs-attr": ["variable", "operator", "number"],
 	".hljs-attribute": ["attribute", "variable", "operator", "number"],
@@ -85,9 +68,7 @@ function constructTheme(tmTheme: FullColorTheme): Record<string, string> {
 
 function fallbackTheme() {
 	const styles = getComputedStyle(document.body)
-	const backgroundColor = styles.getPropertyValue(
-		"--vscode-editor-background",
-	)
+	const backgroundColor = styles.getPropertyValue("--vscode-editor-background")
 	const { r, g, b } = parseHexColor(backgroundColor)
 	const avg = (r + g + b) / 3
 

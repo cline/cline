@@ -2,10 +2,7 @@ import * as vscode from "vscode"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { ClineAPI } from "./cline"
 
-export function createClineAPI(
-	outputChannel: vscode.OutputChannel,
-	sidebarProvider: ClineProvider,
-): ClineAPI {
+export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClineAPI {
 	const api: ClineAPI = {
 		setCustomInstructions: async (value: string) => {
 			await sidebarProvider.updateCustomInstructions(value)
@@ -13,9 +10,7 @@ export function createClineAPI(
 		},
 
 		getCustomInstructions: async () => {
-			return (await sidebarProvider.getGlobalState(
-				"customInstructions",
-			)) as string | undefined
+			return (await sidebarProvider.getGlobalState("customInstructions")) as string | undefined
 		},
 
 		startNewTask: async (task?: string, images?: string[]) => {

@@ -122,12 +122,7 @@ async function execRipgrep(bin: string, args: string[]): Promise<string> {
 	})
 }
 
-export async function regexSearchFiles(
-	cwd: string,
-	directoryPath: string,
-	regex: string,
-	filePattern?: string,
-): Promise<string> {
+export async function regexSearchFiles(cwd: string, directoryPath: string, regex: string, filePattern?: string): Promise<string> {
 	const vscodeAppRoot = vscode.env.appRoot
 	const rgPath = await getBinPath(vscodeAppRoot)
 
@@ -135,16 +130,7 @@ export async function regexSearchFiles(
 		throw new Error("Could not find ripgrep binary")
 	}
 
-	const args = [
-		"--json",
-		"-e",
-		regex,
-		"--glob",
-		filePattern || "*",
-		"--context",
-		"1",
-		directoryPath,
-	]
+	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
 	let output: string
 	try {
@@ -173,9 +159,7 @@ export async function regexSearchFiles(
 					}
 				} else if (parsed.type === "context" && currentResult) {
 					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext!.push(
-							parsed.data.lines.text,
-						)
+						currentResult.beforeContext!.push(parsed.data.lines.text)
 					} else {
 						currentResult.afterContext!.push(parsed.data.lines.text)
 					}
@@ -216,11 +200,7 @@ function formatResults(results: SearchResult[], cwd: string): string {
 		output += `${filePath.toPosix()}\n│----\n`
 
 		fileResults.forEach((result, index) => {
-			const allLines = [
-				...result.beforeContext,
-				result.match,
-				...result.afterContext,
-			]
+			const allLines = [...result.beforeContext, result.match, ...result.afterContext]
 			allLines.forEach((line) => {
 				output += `│${line?.trimEnd() ?? ""}\n`
 			})

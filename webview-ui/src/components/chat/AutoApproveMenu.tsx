@@ -1,7 +1,4 @@
-import {
-	VSCodeCheckbox,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -41,32 +38,25 @@ const ACTION_METADATA: {
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
-		description:
-			"Allows ability to launch and interact with any website in a headless browser.",
+		description: "Allows ability to launch and interact with any website in a headless browser.",
 	},
 	{
 		id: "useMcp",
 		label: "Use MCP servers",
 		shortName: "MCP",
-		description:
-			"Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
+		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
 	},
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
-	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] =
-		useState(false)
+	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
-	const enabledActions = ACTION_METADATA.filter(
-		(action) => autoApprovalSettings.actions[action.id],
-	)
-	const enabledActionsList = enabledActions
-		.map((action) => action.shortName)
-		.join(", ")
+	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
+	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
 	const hasEnabledActions = enabledActions.length > 0
 
 	const updateEnabled = useCallback(
@@ -91,8 +81,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			}
 
 			// Check if this will result in any enabled actions
-			const willHaveEnabledActions =
-				Object.values(newActions).some(Boolean)
+			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
 
 			vscode.postMessage({
 				type: "autoApprovalSettings",
@@ -100,9 +89,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					...autoApprovalSettings,
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions
-						? autoApprovalSettings.enabled
-						: false,
+					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
 				},
 			})
 		},
@@ -210,9 +197,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							overflow: "hidden",
 							textOverflow: "ellipsis",
 						}}>
-						{enabledActions.length === 0
-							? "None"
-							: enabledActionsList}
+						{enabledActions.length === 0 ? "None" : enabledActionsList}
 					</span>
 					<span
 						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
@@ -231,20 +216,15 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 						}}>
-						Auto-approve allows Cline to perform the following
-						actions without asking for permission. Please use with
+						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
 						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox
-								checked={
-									autoApprovalSettings.actions[action.id]
-								}
+								checked={autoApprovalSettings.actions[action.id]}
 								onChange={(e) => {
-									const checked = (
-										e.target as HTMLInputElement
-									).checked
+									const checked = (e.target as HTMLInputElement).checked
 									updateAction(action.id, checked)
 								}}>
 								{action.label}
@@ -262,8 +242,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<div
 						style={{
 							height: "0.5px",
-							background:
-								"var(--vscode-titleBar-inactiveForeground)",
+							background: "var(--vscode-titleBar-inactiveForeground)",
 							margin: "15px 0",
 							opacity: 0.2,
 						}}
@@ -277,9 +256,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "8px",
 							color: "var(--vscode-foreground)",
 						}}>
-						<span style={{ flexShrink: 1, minWidth: 0 }}>
-							Max Requests:
-						</span>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
 							value={autoApprovalSettings.maxRequests.toString()}
@@ -294,15 +271,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}
 							onKeyDown={(e) => {
 								// Prevent non-numeric keys (except for backspace, delete, arrows)
-								if (
-									!/^\d$/.test(e.key) &&
-									![
-										"Backspace",
-										"Delete",
-										"ArrowLeft",
-										"ArrowRight",
-									].includes(e.key)
-								) {
+								if (!/^\d$/.test(e.key) && !["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)) {
 									e.preventDefault()
 								}
 							}}
@@ -315,15 +284,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							fontSize: "12px",
 							marginBottom: "10px",
 						}}>
-						Cline will automatically make this many API requests
-						before asking for approval to proceed with the task.
+						Cline will automatically make this many API requests before asking for approval to proceed with the task.
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
 							checked={autoApprovalSettings.enableNotifications}
 							onChange={(e) => {
-								const checked = (e.target as HTMLInputElement)
-									.checked
+								const checked = (e.target as HTMLInputElement).checked
 								updateNotifications(checked)
 							}}>
 							Enable Notifications
@@ -334,8 +301,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								color: "var(--vscode-descriptionForeground)",
 								fontSize: "12px",
 							}}>
-							Receive system notifications when Cline requires
-							approval to proceed or when a task is completed.
+							Receive system notifications when Cline requires approval to proceed or when a task is completed.
 						</div>
 					</div>
 				</div>
@@ -348,10 +314,7 @@ const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	color: ${(props) =>
-		props.isHovered
-			? "var(--vscode-foreground)"
-			: "var(--vscode-descriptionForeground)"};
+	color: ${(props) => (props.isHovered ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	flex: 1;
 	min-width: 0;
 

@@ -62,20 +62,10 @@ export function convertAnthropicContentToGemini(
 					} as FunctionResponsePart
 				} else {
 					// The only case when tool_result could be array is when the tool failed and we're providing ie user feedback potentially with images
-					const textParts = block.content.filter(
-						(part) => part.type === "text",
-					)
-					const imageParts = block.content.filter(
-						(part) => part.type === "image",
-					)
-					const text =
-						textParts.length > 0
-							? textParts.map((part) => part.text).join("\n\n")
-							: ""
-					const imageText =
-						imageParts.length > 0
-							? "\n\n(See next part for image)"
-							: ""
+					const textParts = block.content.filter((part) => part.type === "text")
+					const imageParts = block.content.filter((part) => part.type === "image")
+					const text = textParts.length > 0 ? textParts.map((part) => part.text).join("\n\n") : ""
+					const imageText = imageParts.length > 0 ? "\n\n(See next part for image)" : ""
 					return [
 						{
 							functionResponse: {
@@ -98,40 +88,32 @@ export function convertAnthropicContentToGemini(
 					]
 				}
 			default:
-				throw new Error(
-					`Unsupported content block type: ${(block as any).type}`,
-				)
+				throw new Error(`Unsupported content block type: ${(block as any).type}`)
 		}
 	})
 }
 
-export function convertAnthropicMessageToGemini(
-	message: Anthropic.Messages.MessageParam,
-): Content {
+export function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam): Content {
 	return {
 		role: message.role === "assistant" ? "model" : "user",
 		parts: convertAnthropicContentToGemini(message.content),
 	}
 }
 
-export function convertAnthropicToolToGemini(
-	tool: Anthropic.Messages.Tool,
-): FunctionDeclaration {
+export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): FunctionDeclaration {
 	return {
 		name: tool.name,
 		description: tool.description || "",
 		parameters: {
 			type: SchemaType.OBJECT,
 			properties: Object.fromEntries(
-				Object.entries(tool.input_schema.properties || {}).map(
-					([key, value]) => [
-						key,
-						{
-							type: (value as any).type.toUpperCase(),
-							description: (value as any).description || "",
-						},
-					],
-				),
+				Object.entries(tool.input_schema.properties || {}).map(([key, value]) => [
+					key,
+					{
+						type: (value as any).type.toUpperCase(),
+						description: (value as any).description || "",
+					},
+				]),
 			),
 			required: (tool.input_schema.required as string[]) || [],
 		},
@@ -142,17 +124,10 @@ export function convertAnthropicToolToGemini(
 It looks like gemini likes to double escape certain characters when writing file contents: https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
 */
 export function unescapeGeminiContent(content: string) {
-	return content
-		.replace(/\\n/g, "\n")
-		.replace(/\\'/g, "'")
-		.replace(/\\"/g, '"')
-		.replace(/\\r/g, "\r")
-		.replace(/\\t/g, "\t")
+	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
 }
 
-export function convertGeminiResponseToAnthropic(
-	response: EnhancedGenerateContentResponse,
-): Anthropic.Messages.Message {
+export function convertGeminiResponseToAnthropic(response: EnhancedGenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 
 	// Add the main text response
@@ -165,10 +140,7 @@ export function convertGeminiResponseToAnthropic(
 	const functionCalls = response.functionCalls()
 	if (functionCalls) {
 		functionCalls.forEach((call, index) => {
-			if (
-				"content" in call.args &&
-				typeof call.args.content === "string"
-			) {
+			if ("content" in call.args && typeof call.args.content === "string") {
 				call.args.content = unescapeGeminiContent(call.args.content)
 			}
 			content.push({

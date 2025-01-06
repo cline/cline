@@ -2,12 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import delay from "delay"
@@ -28,10 +23,7 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -66,18 +58,14 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 				// Add cache_control to the last two user messages
 				// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
-				const lastTwoUserMessages = openAiMessages
-					.filter((msg) => msg.role === "user")
-					.slice(-2)
+				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
 				lastTwoUserMessages.forEach((msg) => {
 					if (typeof msg.content === "string") {
 						msg.content = [{ type: "text", text: msg.content }]
 					}
 					if (Array.isArray(msg.content)) {
 						// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
-						let lastTextPart = msg.content
-							.filter((part) => part.type === "text")
-							.pop()
+						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
 						if (!lastTextPart) {
 							lastTextPart = { type: "text", text: "..." }
@@ -109,8 +97,7 @@ export class OpenRouterHandler implements ApiHandler {
 		}
 
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-		let shouldApplyMiddleOutTransform =
-			!this.getModel().info.supportsPromptCache
+		let shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
 		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
 		if (this.getModel().id === "deepseek/deepseek-chat") {
 			shouldApplyMiddleOutTransform = true
@@ -123,9 +110,7 @@ export class OpenRouterHandler implements ApiHandler {
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
-			transforms: shouldApplyMiddleOutTransform
-				? ["middle-out"]
-				: undefined,
+			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		})
 
 		let genId: string | undefined
@@ -134,12 +119,8 @@ export class OpenRouterHandler implements ApiHandler {
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			if ("error" in chunk) {
 				const error = chunk.error as { message?: string; code?: number }
-				console.error(
-					`OpenRouter API Error: ${error?.code} - ${error?.message}`,
-				)
-				throw new Error(
-					`OpenRouter API Error ${error?.code}: ${error?.message}`,
-				)
+				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
+				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
 			}
 
 			if (!genId && chunk.id) {
@@ -165,15 +146,12 @@ export class OpenRouterHandler implements ApiHandler {
 		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 
 		try {
-			const response = await axios.get(
-				`https://openrouter.ai/api/v1/generation?id=${genId}`,
-				{
-					headers: {
-						Authorization: `Bearer ${this.options.openRouterApiKey}`,
-					},
-					timeout: 5_000, // this request hangs sometimes
+			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+				headers: {
+					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
-			)
+				timeout: 5_000, // this request hangs sometimes
+			})
 
 			const generation = response.data?.data
 			console.log("OpenRouter generation details:", response.data)
@@ -188,10 +166,7 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 		} catch (error) {
 			// ignore if fails
-			console.error(
-				"Error fetching OpenRouter generation details:",
-				error,
-			)
+			console.error("Error fetching OpenRouter generation details:", error)
 		}
 	}
 

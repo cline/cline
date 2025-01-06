@@ -6,11 +6,7 @@
  *
  * Returns [matchIndexStart, matchIndexEnd] if found, or false if not found.
  */
-function lineTrimmedFallbackMatch(
-	originalContent: string,
-	searchContent: string,
-	startIndex: number,
-): [number, number] | false {
+function lineTrimmedFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number] | false {
 	// Split both contents into lines
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
@@ -29,11 +25,7 @@ function lineTrimmedFallbackMatch(
 	}
 
 	// For each possible starting position in original content
-	for (
-		let i = startLineNum;
-		i <= originalLines.length - searchLines.length;
-		i++
-	) {
+	for (let i = startLineNum; i <= originalLines.length - searchLines.length; i++) {
 		let matches = true
 
 		// Try to match all search lines from this position
@@ -95,11 +87,7 @@ function lineTrimmedFallbackMatch(
  * @param startIndex - The character index in originalContent where to start searching
  * @returns A tuple of [startIndex, endIndex] if a match is found, false otherwise
  */
-function blockAnchorFallbackMatch(
-	originalContent: string,
-	searchContent: string,
-	startIndex: number,
-): [number, number] | false {
+function blockAnchorFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number] | false {
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
 
@@ -126,11 +114,7 @@ function blockAnchorFallbackMatch(
 	}
 
 	// Look for matching start and end anchors
-	for (
-		let i = startLineNum;
-		i <= originalLines.length - searchBlockSize;
-		i++
-	) {
+	for (let i = startLineNum; i <= originalLines.length - searchBlockSize; i++) {
 		// Check if first line matches
 		if (originalLines[i].trim() !== firstLineSearch) {
 			continue
@@ -216,11 +200,7 @@ function blockAnchorFallbackMatch(
  * - If the search block cannot be matched using any of the available matching strategies,
  *   an error is thrown.
  */
-export async function constructNewFileContent(
-	diffContent: string,
-	originalContent: string,
-	isFinal: boolean,
-): Promise<string> {
+export async function constructNewFileContent(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -239,9 +219,7 @@ export async function constructNewFileContent(
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") ||
-			lastLine.startsWith("=") ||
-			lastLine.startsWith(">")) &&
+		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
 		lastLine !== "<<<<<<< SEARCH" &&
 		lastLine !== "=======" &&
 		lastLine !== ">>>>>>> REPLACE"
@@ -290,29 +268,18 @@ export async function constructNewFileContent(
 				// }
 
 				// Exact search match scenario
-				const exactIndex = originalContent.indexOf(
-					currentSearchContent,
-					lastProcessedIndex,
-				)
+				const exactIndex = originalContent.indexOf(currentSearchContent, lastProcessedIndex)
 				if (exactIndex !== -1) {
 					searchMatchIndex = exactIndex
 					searchEndIndex = exactIndex + currentSearchContent.length
 				} else {
 					// Attempt fallback line-trimmed matching
-					const lineMatch = lineTrimmedFallbackMatch(
-						originalContent,
-						currentSearchContent,
-						lastProcessedIndex,
-					)
+					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 					if (lineMatch) {
 						;[searchMatchIndex, searchEndIndex] = lineMatch
 					} else {
 						// Try block anchor fallback for larger blocks
-						const blockMatch = blockAnchorFallbackMatch(
-							originalContent,
-							currentSearchContent,
-							lastProcessedIndex,
-						)
+						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {
@@ -325,10 +292,7 @@ export async function constructNewFileContent(
 			}
 
 			// Output everything up to the match location
-			result += originalContent.slice(
-				lastProcessedIndex,
-				searchMatchIndex,
-			)
+			result += originalContent.slice(lastProcessedIndex, searchMatchIndex)
 			continue
 		}
 

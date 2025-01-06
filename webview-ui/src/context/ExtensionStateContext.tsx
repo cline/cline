@@ -1,22 +1,8 @@
-import React, {
-	createContext,
-	useCallback,
-	useContext,
-	useEffect,
-	useState,
-} from "react"
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
-import {
-	ExtensionMessage,
-	ExtensionState,
-} from "../../../src/shared/ExtensionMessage"
-import {
-	ApiConfiguration,
-	ModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-} from "../../../src/shared/api"
+import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -34,9 +20,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setShowAnnouncement: (value: boolean) => void
 }
 
-const ExtensionStateContext = createContext<
-	ExtensionStateContextType | undefined
->(undefined)
+const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
@@ -52,9 +36,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
-	const [openRouterModels, setOpenRouterModels] = useState<
-		Record<string, ModelInfo>
-	>({
+	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -97,10 +79,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				const partialMessage = message.partialMessage!
 				setState((prevState) => {
 					// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-					const lastIndex = findLastIndex(
-						prevState.clineMessages,
-						(msg) => msg.ts === partialMessage.ts,
-					)
+					const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
 					if (lastIndex !== -1) {
 						const newClineMessages = [...prevState.clineMessages]
 						newClineMessages[lastIndex] = partialMessage
@@ -156,19 +135,13 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 	}
 
-	return (
-		<ExtensionStateContext.Provider value={contextValue}>
-			{children}
-		</ExtensionStateContext.Provider>
-	)
+	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
 }
 
 export const useExtensionState = () => {
 	const context = useContext(ExtensionStateContext)
 	if (context === undefined) {
-		throw new Error(
-			"useExtensionState must be used within an ExtensionStateContextProvider",
-		)
+		throw new Error("useExtensionState must be used within an ExtensionStateContextProvider")
 	}
 	return context
 }

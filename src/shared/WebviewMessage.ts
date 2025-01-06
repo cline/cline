@@ -38,9 +38,6 @@ export interface WebviewMessage {
 	autoApprovalSettings?: AutoApprovalSettings
 }
 
-export type ClineAskResponse =
-	| "yesButtonClicked"
-	| "noButtonClicked"
-	| "messageResponse"
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"

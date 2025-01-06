@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react"
-import {
-	ContextMenuOptionType,
-	ContextMenuQueryItem,
-	getContextMenuOptions,
-} from "../../utils/context-mentions"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
 import { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 
 interface ContextMenuProps {
@@ -34,16 +30,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	useEffect(() => {
 		if (menuRef.current) {
-			const selectedElement = menuRef.current.children[
-				selectedIndex
-			] as HTMLElement
+			const selectedElement = menuRef.current.children[selectedIndex] as HTMLElement
 			if (selectedElement) {
 				const menuRect = menuRef.current.getBoundingClientRect()
 				const selectedRect = selectedElement.getBoundingClientRect()
 
 				if (selectedRect.bottom > menuRect.bottom) {
-					menuRef.current.scrollTop +=
-						selectedRect.bottom - menuRect.bottom
+					menuRef.current.scrollTop += selectedRect.bottom - menuRect.bottom
 				} else if (selectedRect.top < menuRect.top) {
 					menuRef.current.scrollTop -= menuRect.top - selectedRect.top
 				}
@@ -74,21 +67,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{removeLeadingNonAlphanumeric(
-									option.value || "",
-								) + "\u200E"}
+								{removeLeadingNonAlphanumeric(option.value || "") + "\u200E"}
 							</span>
 						</>
 					)
 				} else {
-					return (
-						<span>
-							Add{" "}
-							{option.type === ContextMenuOptionType.File
-								? "File"
-								: "Folder"}
-						</span>
-					)
+					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
 				}
 		}
 	}
@@ -111,10 +95,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}
 
 	const isOptionSelectable = (option: ContextMenuQueryItem): boolean => {
-		return (
-			option.type !== ContextMenuOptionType.NoResults &&
-			option.type !== ContextMenuOptionType.URL
-		)
+		return option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL
 	}
 
 	return (
@@ -144,35 +125,24 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				{filteredOptions.map((option, index) => (
 					<div
 						key={`${option.type}-${option.value || index}`}
-						onClick={() =>
-							isOptionSelectable(option) &&
-							onSelect(option.type, option.value)
-						}
+						onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
 						style={{
 							padding: "8px 12px",
-							cursor: isOptionSelectable(option)
-								? "pointer"
-								: "default",
+							cursor: isOptionSelectable(option) ? "pointer" : "default",
 							color:
-								index === selectedIndex &&
-								isOptionSelectable(option)
+								index === selectedIndex && isOptionSelectable(option)
 									? "var(--vscode-quickInputList-focusForeground)"
 									: "",
-							borderBottom:
-								"1px solid var(--vscode-editorGroup-border)",
+							borderBottom: "1px solid var(--vscode-editorGroup-border)",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
 							backgroundColor:
-								index === selectedIndex &&
-								isOptionSelectable(option)
+								index === selectedIndex && isOptionSelectable(option)
 									? "var(--vscode-quickInputList-focusBackground)"
 									: "",
 						}}
-						onMouseEnter={() =>
-							isOptionSelectable(option) &&
-							setSelectedIndex(index)
-						}>
+						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
 						<div
 							style={{
 								display: "flex",
@@ -191,8 +161,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							/>
 							{renderOptionContent(option)}
 						</div>
-						{(option.type === ContextMenuOptionType.File ||
-							option.type === ContextMenuOptionType.Folder) &&
+						{(option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
 							!option.value && (
 								<i
 									className="codicon codicon-chevron-right"
@@ -204,8 +173,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								/>
 							)}
 						{(option.type === ContextMenuOptionType.Problems ||
-							((option.type === ContextMenuOptionType.File ||
-								option.type === ContextMenuOptionType.Folder) &&
+							((option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
 								option.value)) && (
 							<i
 								className="codicon codicon-add"

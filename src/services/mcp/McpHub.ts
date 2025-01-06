@@ -1,8 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import {
-	StdioClientTransport,
-	StdioServerParameters,
-} from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -17,18 +14,8 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import {
-	ClineProvider,
-	GlobalFileNames,
-} from "../../core/webview/ClineProvider"
-import {
-	McpResource,
-	McpResourceResponse,
-	McpResourceTemplate,
-	McpServer,
-	McpTool,
-	McpToolCallResponse,
-} from "../../shared/mcp"
+import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
+import { McpResource, McpResourceResponse, McpResourceTemplate, McpServer, McpTool, McpToolCallResponse } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 
@@ -81,10 +68,7 @@ export class McpHub {
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
-		const mcpSettingsFilePath = path.join(
-			await provider.ensureSettingsDirectoryExists(),
-			GlobalFileNames.mcpSettings,
-		)
+		const mcpSettingsFilePath = path.join(await provider.ensureSettingsDirectoryExists(), GlobalFileNames.mcpSettings)
 		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
 		if (!fileExists) {
 			await fs.writeFile(
@@ -120,20 +104,11 @@ export class McpHub {
 						return
 					}
 					try {
-						vscode.window.showInformationMessage(
-							"Updating MCP servers...",
-						)
-						await this.updateServerConnections(
-							result.data.mcpServers || {},
-						)
-						vscode.window.showInformationMessage(
-							"MCP servers updated",
-						)
+						vscode.window.showInformationMessage("Updating MCP servers...")
+						await this.updateServerConnections(result.data.mcpServers || {})
+						vscode.window.showInformationMessage("MCP servers updated")
 					} catch (error) {
-						console.error(
-							"Failed to process MCP settings change:",
-							error,
-						)
+						console.error("Failed to process MCP settings change:", error)
 					}
 				}
 			}),
@@ -151,23 +126,16 @@ export class McpHub {
 		}
 	}
 
-	private async connectToServer(
-		name: string,
-		config: StdioServerParameters,
-	): Promise<void> {
+	private async connectToServer(name: string, config: StdioServerParameters): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
-		this.connections = this.connections.filter(
-			(conn) => conn.server.name !== name,
-		)
+		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
 		try {
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
 					name: "Cline",
-					version:
-						this.providerRef.deref()?.context.extension?.packageJSON
-							?.version ?? "1.0.0",
+					version: this.providerRef.deref()?.context.extension?.packageJSON?.version ?? "1.0.0",
 				},
 				{
 					capabilities: {},
@@ -187,9 +155,7 @@ export class McpHub {
 
 			transport.onerror = async (error) => {
 				console.error(`Transport error for "${name}":`, error)
-				const connection = this.connections.find(
-					(conn) => conn.server.name === name,
-				)
+				const connection = this.connections.find((conn) => conn.server.name === name)
 				if (connection) {
 					connection.server.status = "disconnected"
 					this.appendErrorMessage(connection, error.message)
@@ -198,9 +164,7 @@ export class McpHub {
 			}
 
 			transport.onclose = async () => {
-				const connection = this.connections.find(
-					(conn) => conn.server.name === name,
-				)
+				const connection = this.connections.find((conn) => conn.server.name === name)
 				if (connection) {
 					connection.server.status = "disconnected"
 				}
@@ -209,9 +173,7 @@ export class McpHub {
 
 			// If the config is invalid, show an error
 			if (!StdioConfigSchema.safeParse(config).success) {
-				console.error(
-					`Invalid config for "${name}": missing or invalid parameters`,
-				)
+				console.error(`Invalid config for "${name}": missing or invalid parameters`)
 				const connection: McpConnection = {
 					server: {
 						name,
@@ -246,9 +208,7 @@ export class McpHub {
 				stderrStream.on("data", async (data: Buffer) => {
 					const errorOutput = data.toString()
 					console.error(`Server "${name}" stderr:`, errorOutput)
-					const connection = this.connections.find(
-						(conn) => conn.server.name === name,
-					)
+					const connection = this.connections.find((conn) => conn.server.name === name)
 					if (connection) {
 						// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
 						this.appendErrorMessage(connection, errorOutput)
@@ -293,28 +253,20 @@ export class McpHub {
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates =
-				await this.fetchResourceTemplatesList(name)
+			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
 		} catch (error) {
 			// Update status with error
-			const connection = this.connections.find(
-				(conn) => conn.server.name === name,
-			)
+			const connection = this.connections.find((conn) => conn.server.name === name)
 			if (connection) {
 				connection.server.status = "disconnected"
-				this.appendErrorMessage(
-					connection,
-					error instanceof Error ? error.message : String(error),
-				)
+				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
 			}
 			throw error
 		}
 	}
 
 	private appendErrorMessage(connection: McpConnection, error: string) {
-		const newError = connection.server.error
-			? `${connection.server.error}\n${error}`
-			: error
+		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
 		connection.server.error = newError //.slice(0, 800)
 	}
 
@@ -322,10 +274,7 @@ export class McpHub {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
-				?.client.request(
-					{ method: "tools/list" },
-					ListToolsResultSchema,
-				)
+				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
 			return response?.tools || []
 		} catch (error) {
 			// console.error(`Failed to fetch tools for ${serverName}:`, error)
@@ -333,16 +282,11 @@ export class McpHub {
 		}
 	}
 
-	private async fetchResourcesList(
-		serverName: string,
-	): Promise<McpResource[]> {
+	private async fetchResourcesList(serverName: string): Promise<McpResource[]> {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
-				?.client.request(
-					{ method: "resources/list" },
-					ListResourcesResultSchema,
-				)
+				?.client.request({ method: "resources/list" }, ListResourcesResultSchema)
 			return response?.resources || []
 		} catch (error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
@@ -350,16 +294,11 @@ export class McpHub {
 		}
 	}
 
-	private async fetchResourceTemplatesList(
-		serverName: string,
-	): Promise<McpResourceTemplate[]> {
+	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[]> {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
-				?.client.request(
-					{ method: "resources/templates/list" },
-					ListResourceTemplatesResultSchema,
-				)
+				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
 			return response?.resourceTemplates || []
 		} catch (error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
@@ -368,9 +307,7 @@ export class McpHub {
 	}
 
 	async deleteConnection(name: string): Promise<void> {
-		const connection = this.connections.find(
-			(conn) => conn.server.name === name,
-		)
+		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
 				// connection.client.removeNotificationHandler("notifications/tools/list_changed")
@@ -382,20 +319,14 @@ export class McpHub {
 			} catch (error) {
 				console.error(`Failed to close transport for ${name}:`, error)
 			}
-			this.connections = this.connections.filter(
-				(conn) => conn.server.name !== name,
-			)
+			this.connections = this.connections.filter((conn) => conn.server.name !== name)
 		}
 	}
 
-	async updateServerConnections(
-		newServers: Record<string, any>,
-	): Promise<void> {
+	async updateServerConnections(newServers: Record<string, any>): Promise<void> {
 		this.isConnecting = true
 		this.removeAllFileWatchers()
-		const currentNames = new Set(
-			this.connections.map((conn) => conn.server.name),
-		)
+		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
 		// Delete removed servers
@@ -408,9 +339,7 @@ export class McpHub {
 
 		// Update or add servers
 		for (const [name, config] of Object.entries(newServers)) {
-			const currentConnection = this.connections.find(
-				(conn) => conn.server.name === name,
-			)
+			const currentConnection = this.connections.find((conn) => conn.server.name === name)
 
 			if (!currentConnection) {
 				// New server
@@ -418,27 +347,17 @@ export class McpHub {
 					this.setupFileWatcher(name, config)
 					await this.connectToServer(name, config)
 				} catch (error) {
-					console.error(
-						`Failed to connect to new MCP server ${name}:`,
-						error,
-					)
+					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (
-				!deepEqual(JSON.parse(currentConnection.server.config), config)
-			) {
+			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
 					this.setupFileWatcher(name, config)
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config)
-					console.log(
-						`Reconnected MCP server with updated config: ${name}`,
-					)
+					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
-					console.error(
-						`Failed to reconnect MCP server ${name}:`,
-						error,
-					)
+					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			}
 			// If server exists with same config, do nothing
@@ -448,9 +367,7 @@ export class McpHub {
 	}
 
 	private setupFileWatcher(name: string, config: any) {
-		const filePath = config.args?.find((arg: string) =>
-			arg.includes("build/index.js"),
-		)
+		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
 			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
 			const watcher = chokidar.watch(filePath, {
@@ -460,9 +377,7 @@ export class McpHub {
 			})
 
 			watcher.on("change", () => {
-				console.log(
-					`Detected change in ${filePath}. Restarting server ${name}...`,
-				)
+				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
 				this.restartConnection(name)
 			})
 
@@ -483,14 +398,10 @@ export class McpHub {
 		}
 
 		// Get existing connection and update its status
-		const connection = this.connections.find(
-			(conn) => conn.server.name === serverName,
-		)
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
-			vscode.window.showInformationMessage(
-				`Restarting ${serverName} MCP server...`,
-			)
+			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
@@ -499,17 +410,10 @@ export class McpHub {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config))
-				vscode.window.showInformationMessage(
-					`${serverName} MCP server connected`,
-				)
+				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
-				console.error(
-					`Failed to restart connection for ${serverName}:`,
-					error,
-				)
-				vscode.window.showErrorMessage(
-					`Failed to connect to ${serverName} MCP server`,
-				)
+				console.error(`Failed to restart connection for ${serverName}:`, error)
+				vscode.window.showErrorMessage(`Failed to connect to ${serverName} MCP server`)
 			}
 		}
 
@@ -537,13 +441,8 @@ export class McpHub {
 
 	// Using server
 
-	async readResource(
-		serverName: string,
-		uri: string,
-	): Promise<McpResourceResponse> {
-		const connection = this.connections.find(
-			(conn) => conn.server.name === serverName,
-		)
+	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(`No connection found for server: ${serverName}`)
 		}
@@ -558,14 +457,8 @@ export class McpHub {
 		)
 	}
 
-	async callTool(
-		serverName: string,
-		toolName: string,
-		toolArguments?: Record<string, unknown>,
-	): Promise<McpToolCallResponse> {
-		const connection = this.connections.find(
-			(conn) => conn.server.name === serverName,
-		)
+	async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<McpToolCallResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(
 				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
@@ -589,10 +482,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(connection.server.name)
 			} catch (error) {
-				console.error(
-					`Failed to close connection for ${connection.server.name}:`,
-					error,
-				)
+				console.error(`Failed to close connection for ${connection.server.name}:`, error)
 			}
 		}
 		this.connections = []

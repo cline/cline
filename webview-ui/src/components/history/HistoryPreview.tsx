@@ -78,10 +78,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (
-						<div
-							key={item.id}
-							className="history-preview-item"
-							onClick={() => handleHistorySelect(item.id)}>
+						<div key={item.id} className="history-preview-item" onClick={() => handleHistorySelect(item.id)}>
 							<div style={{ padding: "12px" }}>
 								<div style={{ marginBottom: "8px" }}>
 									<span
@@ -115,33 +112,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										color: "var(--vscode-descriptionForeground)",
 									}}>
 									<span>
-										Tokens: ↑
-										{formatLargeNumber(item.tokensIn || 0)}{" "}
-										↓
-										{formatLargeNumber(item.tokensOut || 0)}
+										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓{formatLargeNumber(item.tokensOut || 0)}
 									</span>
 									{!!item.cacheWrites && (
 										<>
 											{" • "}
 											<span>
-												Cache: +
-												{formatLargeNumber(
-													item.cacheWrites || 0,
-												)}{" "}
-												→{" "}
-												{formatLargeNumber(
-													item.cacheReads || 0,
-												)}
+												Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+												{formatLargeNumber(item.cacheReads || 0)}
 											</span>
 										</>
 									)}
 									{!!item.totalCost && (
 										<>
 											{" • "}
-											<span>
-												API Cost: $
-												{item.totalCost?.toFixed(4)}
-											</span>
+											<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
 										</>
 									)}
 								</div>

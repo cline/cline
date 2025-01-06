@@ -7,9 +7,7 @@ interface NotificationOptions {
 	message: string
 }
 
-async function showMacOSNotification(
-	options: NotificationOptions,
-): Promise<void> {
+async function showMacOSNotification(options: NotificationOptions): Promise<void> {
 	const { title, subtitle = "", message } = options
 
 	const script = `display notification "${message}" with title "${title}" subtitle "${subtitle}" sound name "Tink"`
@@ -21,9 +19,7 @@ async function showMacOSNotification(
 	}
 }
 
-async function showWindowsNotification(
-	options: NotificationOptions,
-): Promise<void> {
+async function showWindowsNotification(options: NotificationOptions): Promise<void> {
 	const { subtitle, message } = options
 
 	const script = `
@@ -54,9 +50,7 @@ async function showWindowsNotification(
 	}
 }
 
-async function showLinuxNotification(
-	options: NotificationOptions,
-): Promise<void> {
+async function showLinuxNotification(options: NotificationOptions): Promise<void> {
 	const { title = "", subtitle = "", message } = options
 
 	// Combine subtitle and message if subtitle exists
@@ -69,9 +63,7 @@ async function showLinuxNotification(
 	}
 }
 
-export async function showSystemNotification(
-	options: NotificationOptions,
-): Promise<void> {
+export async function showSystemNotification(options: NotificationOptions): Promise<void> {
 	try {
 		const { title = "Cline", message } = options
 
