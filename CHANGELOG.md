@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.41
-
-### Patch Changes
+## [2.2.41]
 
 -   Checkbox to disable streaming for OpenAI-compatible providers
 
