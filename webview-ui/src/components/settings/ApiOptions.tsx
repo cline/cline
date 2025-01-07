@@ -33,10 +33,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, {
-	ModelDescriptionMarkdown,
-	OPENROUTER_MODEL_PICKER_Z_INDEX,
-} from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -53,7 +50,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
+		setApiConfiguration({
+			...apiConfiguration,
+			[field]: event.target.value,
+		})
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -63,9 +63,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
-			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
+			vscode.postMessage({
+				type: "requestOllamaModels",
+				text: apiConfiguration?.ollamaBaseUrl,
+			})
 		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
+			vscode.postMessage({
+				type: "requestLmStudioModels",
+				text: apiConfiguration?.lmStudioBaseUrl,
+			})
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
@@ -127,7 +133,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
+					style={{
+						minWidth: 130,
+						position: "relative",
+						zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1,
+					}}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -158,7 +168,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							const isChecked = e.target.checked === true
 							setAnthropicBaseUrlSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+								setApiConfiguration({
+									...apiConfiguration,
+									anthropicBaseUrl: "",
+								})
 							}
 						}}>
 						Use custom base URL
@@ -184,7 +197,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.apiKey && (
 							<VSCodeLink
 								href="https://console.anthropic.com/settings/keys"
-								style={{ display: "inline", fontSize: "inherit" }}>
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -212,7 +228,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.openAiNativeApiKey && (
 							<VSCodeLink
 								href="https://platform.openai.com/api-keys"
-								style={{ display: "inline", fontSize: "inherit" }}>
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
 								You can get an OpenAI API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -240,7 +259,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.deepSeekApiKey && (
 							<VSCodeLink
 								href="https://www.deepseek.com/"
-								style={{ display: "inline", fontSize: "inherit" }}>
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
 								You can get a DeepSeek API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -284,7 +306,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			)}
 
 			{selectedProvider === "bedrock" && (
-				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: 5,
+					}}>
 					<VSCodeTextField
 						value={apiConfiguration?.awsAccessKey || ""}
 						style={{ width: "100%" }}
@@ -350,7 +377,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
+							setApiConfiguration({
+								...apiConfiguration,
+								awsUseCrossRegionInference: isChecked,
+							})
 						}}>
 						Use cross-region inference
 					</VSCodeCheckbox>
@@ -360,15 +390,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Authenticate by either providing the keys above or use the default AWS credential providers,
-						i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to
-						make API requests from this extension.
+						Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
+						~/.aws/credentials or environment variables. These credentials are only used locally to make API requests
+						from this extension.
 					</p>
 				</div>
 			)}
 
 			{apiConfiguration?.apiProvider === "vertex" && (
-				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: 5,
+					}}>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
@@ -403,9 +438,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						<VSCodeLink
 							href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
 							style={{ display: "inline", fontSize: "inherit" }}>
-							{
-								"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"
-							}
+							{"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"}
 						</VSCodeLink>{" "}
 						<VSCodeLink
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
@@ -436,7 +469,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.geminiApiKey && (
 							<VSCodeLink
 								href="https://ai.google.dev/"
-								style={{ display: "inline", fontSize: "inherit" }}>
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
 								You can get a Gemini API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -475,7 +511,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							const isChecked = e.target.checked === true
 							setAzureApiVersionSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
+								setApiConfiguration({
+									...apiConfiguration,
+									azureApiVersion: "",
+								})
 							}
 						}}>
 						Set Azure API version
@@ -495,8 +534,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
-							with Claude models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -536,10 +575,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 								}
 							}}>
 							{lmStudioModels.map((model) => (
-								<VSCodeRadio
-									key={model}
-									value={model}
-									checked={apiConfiguration?.lmStudioModelId === model}>
+								<VSCodeRadio key={model} value={model} checked={apiConfiguration?.lmStudioModelId === model}>
 									{model}
 								</VSCodeRadio>
 							))}
@@ -551,8 +587,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						LM Studio allows you to run models locally on your computer. For instructions on how to get
-						started, see their
+						LM Studio allows you to run models locally on your computer. For instructions on how to get started, see
+						their
 						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
 						</VSCodeLink>
@@ -564,8 +600,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						</VSCodeLink>{" "}
 						feature to use it with this extension.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
-							with Claude models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -605,10 +641,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 								}
 							}}>
 							{ollamaModels.map((model) => (
-								<VSCodeRadio
-									key={model}
-									value={model}
-									checked={apiConfiguration?.ollamaModelId === model}>
+								<VSCodeRadio key={model} value={model} checked={apiConfiguration?.ollamaModelId === model}>
 									{model}
 								</VSCodeRadio>
 							))}
@@ -620,16 +653,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Ollama allows you to run models locally on your computer. For instructions on how to get
-						started, see their
+						Ollama allows you to run models locally on your computer. For instructions on how to get started, see
+						their
 						<VSCodeLink
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
-							with Claude models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -756,26 +789,25 @@ export const ModelInfoView = ({
 		),
 		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
 			<span key="cacheWritesPrice">
-				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
-				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
+				<span style={{ fontWeight: 500 }}>Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}
+				/million tokens
 			</span>
 		),
 		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
 			<span key="cacheReadsPrice">
-				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
-				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
+				<span style={{ fontWeight: 500 }}>Cache reads price:</span> {formatPrice(modelInfo.cacheReadsPrice || 0)}/million
+				tokens
 			</span>
 		),
 		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
 			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
-				tokens
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
 			</span>
 		),
 		isGemini && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
-				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
-				After that, billing depends on prompt size.{" "}
+				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
+				billing depends on prompt size.{" "}
 				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
 					For more info, see pricing details.
 				</VSCodeLink>
@@ -784,7 +816,12 @@ export const ModelInfoView = ({
 	].filter(Boolean)
 
 	return (
-		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
+		<p
+			style={{
+				fontSize: "12px",
+				marginTop: "2px",
+				color: "var(--vscode-descriptionForeground)",
+			}}>
 			{infoItems.map((item, index) => (
 				<Fragment key={index}>
 					{item}
@@ -837,7 +874,11 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			selectedModelId = defaultId
 			selectedModelInfo = models[defaultId]
 		}
-		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
+		return {
+			selectedProvider: provider,
+			selectedModelId,
+			selectedModelInfo,
+		}
 	}
 	switch (provider) {
 		case "anthropic":

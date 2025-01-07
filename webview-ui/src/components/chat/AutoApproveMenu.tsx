@@ -157,7 +157,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					}
 				}}>
 				<VSCodeCheckbox
-					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
+					style={{
+						pointerEvents: hasEnabledActions ? "auto" : "none",
+					}}
 					checked={hasEnabledActions && autoApprovalSettings.enabled}
 					disabled={!hasEnabledActions}
 					// onChange={(e) => {
@@ -182,7 +184,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							setIsExpanded((prev) => !prev)
 						}
 					}}>
-					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
+					<span
+						style={{
+							color: "var(--vscode-foreground)",
+							whiteSpace: "nowrap",
+						}}>
+						Auto-approve:
+					</span>
 					<span
 						style={{
 							whiteSpace: "nowrap",
@@ -208,8 +216,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 						}}>
-						Auto-approve allows Cline to perform the following actions without asking for permission. Please
-						use with caution and only enable if you understand the risks.
+						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
+						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
@@ -263,10 +271,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}
 							onKeyDown={(e) => {
 								// Prevent non-numeric keys (except for backspace, delete, arrows)
-								if (
-									!/^\d$/.test(e.key) &&
-									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-								) {
+								if (!/^\d$/.test(e.key) && !["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)) {
 									e.preventDefault()
 								}
 							}}
@@ -279,8 +284,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							fontSize: "12px",
 							marginBottom: "10px",
 						}}>
-						Cline will automatically make this many API requests before asking for approval to proceed with
-						the task.
+						Cline will automatically make this many API requests before asking for approval to proceed with the task.
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
@@ -297,8 +301,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								color: "var(--vscode-descriptionForeground)",
 								fontSize: "12px",
 							}}>
-							Receive system notifications when Cline requires approval to proceed or when a task is
-							completed.
+							Receive system notifications when Cline requires approval to proceed or when a task is completed.
 						</div>
 					</div>
 				</div>

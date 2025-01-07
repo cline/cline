@@ -1,12 +1,4 @@
-import {
-	AssistantMessageContent,
-	TextContent,
-	ToolUse,
-	ToolParamName,
-	toolParamNames,
-	toolUseNames,
-	ToolUseName,
-} from "."
+import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "."
 
 export function parseAssistantMessage(assistantMessage: string) {
 	let contentBlocks: AssistantMessageContent[] = []
@@ -70,9 +62,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
 					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
 					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
-						currentToolUse.params[contentParamName] = toolContent
-							.slice(contentStartIndex, contentEndIndex)
-							.trim()
+						currentToolUse.params[contentParamName] = toolContent.slice(contentStartIndex, contentEndIndex).trim()
 					}
 				}
 

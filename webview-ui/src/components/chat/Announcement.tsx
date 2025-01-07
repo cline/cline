@@ -23,10 +23,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				position: "relative",
 				flexShrink: 0,
 			}}>
-			<VSCodeButton
-				appearance="icon"
-				onClick={hideAnnouncement}
-				style={{ position: "absolute", top: "8px", right: "8px" }}>
+			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={{ margin: "0 0 8px" }}>
@@ -34,40 +31,39 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Auto-approve menu:</b> You can now specify which tools require approval, set a max # of
-					auto-approved API requests, and enable system notifications for when Cline completes a task.
+					<b>Checkpoints are here!</b> Cline now saves a snapshot of your workspace at each step of the task. Hover over
+					any message to see two new buttons:
+					<ul style={{ margin: "4px 0", paddingLeft: 22 }}>
+						<li>
+							<span
+								className="codicon codicon-diff-multiple"
+								style={{
+									fontSize: "12px",
+									marginRight: "4px",
+								}}></span>
+							<b>Compare</b> shows you a diff between the snapshot and your current workspace
+						</li>
+						<li>
+							<span
+								className="codicon codicon-discard"
+								style={{
+									fontSize: "12px",
+									marginRight: "4px",
+								}}></span>
+							<b>Restore</b> lets you revert your project's files back to that point in the task
+						</li>
+					</ul>
 				</li>
 				<li>
-					<b>New diff editing for large files:</b> Cline now uses an efficient search & replace approach when
-					modifying large files for faster, more reliable edits (no more "
-					<code>{"// rest of code here"}</code>" deletions).
-				</li>
-				<li>
-					<b>.clinerules:</b> Add a root-level <code>.clinerules</code> file to specify custom instructions
-					for the project.
+					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes Cline
+					made to your workspace throughout the task
 				</li>
 			</ul>
-			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>v2.2 Updates:</p>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				<li>
-					Add and configure{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-						MCP servers
-					</VSCodeLink>
-					by clicking the new <span className="codicon codicon-server" style={{ fontSize: "10px" }}></span>{" "}
-					icon in the menu bar.
-				</li>
-				<li>
-					Cline can also create custom tools–just say "add a tool that...", and watch him create the MCP
-					server and install it in the extension, ready to use in future tasks.
-				</li>
-				<li>
-					Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
-					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-						see a demo of MCP in action here.
-					</VSCodeLink>
-				</li>
-			</ul>
+			<p style={{ margin: "8px 0" }}>
+				<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
+					See a demo of Checkpoints here!
+				</VSCodeLink>
+			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
