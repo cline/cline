@@ -815,16 +815,7 @@ export class Cline {
 				// Automatically retry with delay
 				await this.say(
 					"error",
-					`Error (${
-					  error.message?.toLowerCase().includes("429") ||
-					  error.message?.toLowerCase().includes("rate limit") ||
-					  error.message?.toLowerCase().includes("too many requests") ||
-					  error.message?.toLowerCase().includes("throttled")
-					    ? "rate limit"
-					    : error.message?.includes("500") || error.message?.includes("503")
-					      ? "internal server error"
-					      : "unknown"
-					}). ↺ Retrying in ${requestDelay} seconds...`,
+					`${error.message ?? "Unknown error"} ↺ Retrying in ${requestDelay} seconds...`,
 				)
 				await this.say("api_req_retry_delayed")
 				await delay(requestDelay * 1000)
