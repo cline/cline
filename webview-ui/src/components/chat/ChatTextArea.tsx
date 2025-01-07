@@ -13,6 +13,8 @@ import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 
+declare const vscode: any
+
 interface ChatTextAreaProps {
 	inputValue: string
 	setInputValue: (value: string) => void
@@ -72,10 +74,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
-				if (
-					contextMenuContainerRef.current &&
-					!contextMenuContainerRef.current.contains(event.target as Node)
-				) {
+				if (contextMenuContainerRef.current && !contextMenuContainerRef.current.contains(event.target as Node)) {
 					setShowContextMenu(false)
 				}
 			}
@@ -116,11 +115,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = "problems"
 					}
 
-					const { newValue, mentionIndex } = insertMention(
-						textAreaRef.current.value,
-						cursorPosition,
-						insertValue,
-					)
+					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
 
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
@@ -162,20 +157,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Find selectable options (non-URL types)
 							const selectableOptions = options.filter(
 								(option) =>
-									option.type !== ContextMenuOptionType.URL &&
-									option.type !== ContextMenuOptionType.NoResults,
+									option.type !== ContextMenuOptionType.URL && option.type !== ContextMenuOptionType.NoResults,
 							)
 
 							if (selectableOptions.length === 0) return -1 // No selectable options
 
 							// Find the index of the next selectable option
-							const currentSelectableIndex = selectableOptions.findIndex(
-								(option) => option === options[prevIndex],
-							)
+							const currentSelectableIndex = selectableOptions.findIndex((option) => option === options[prevIndex])
 
 							const newSelectableIndex =
-								(currentSelectableIndex + direction + selectableOptions.length) %
-								selectableOptions.length
+								(currentSelectableIndex + direction + selectableOptions.length) % selectableOptions.length
 
 							// Find the index of the selected option in the original options array
 							return options.findIndex((option) => option === selectableOptions[newSelectableIndex])
@@ -184,9 +175,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[
-							selectedMenuIndex
-						]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
@@ -312,8 +301,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (urlRegex.test(pastedText.trim())) {
 					e.preventDefault()
 					const trimmedUrl = pastedText.trim()
-					const newValue =
-						inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
+					const newValue = inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
 					setInputValue(newValue)
 					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
 					setCursorPosition(newCursorPosition)
@@ -427,6 +415,69 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					opacity: textAreaDisabled ? 0.5 : 1,
 					position: "relative",
 					display: "flex",
+				}}
+				onDrop={async (e) => {
+					e.preventDefault()
+
+					const files = Array.from(e.dataTransfer.files)
+					const text = e.dataTransfer.getData("text")
+
+					// Handle text drop
+					if (text) {
+						const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+						setInputValue(newValue)
+						const newCursorPosition = cursorPosition + text.length
+						setCursorPosition(newCursorPosition)
+						setIntendedCursorPosition(newCursorPosition)
+						return
+					}
+
+					// Handle image drop
+					const acceptedTypes = ["png", "jpeg", "webp"]
+					const imageFiles = files.filter((file) => {
+						const [type, subtype] = file.type.split("/")
+						return type === "image" && acceptedTypes.includes(subtype)
+					})
+
+					if (shouldDisableImages || imageFiles.length === 0) return
+
+					// Read image files and convert to data URLs
+					const imagePromises = imageFiles.map(
+						(file) =>
+							new Promise<string | null>((resolve) => {
+								const reader = new FileReader()
+								reader.onloadend = () => {
+									if (reader.error) {
+										console.error("Error reading file:", reader.error)
+										resolve(null)
+									} else {
+										const result = reader.result
+										console.log("File read successfully", result)
+										resolve(typeof result === "string" ? result : null)
+									}
+								}
+								reader.readAsDataURL(file)
+							}),
+					)
+
+					const imageDataArray = await Promise.all(imagePromises)
+					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+
+					if (dataUrls.length > 0) {
+						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+
+						if (typeof vscode !== "undefined") {
+							vscode.postMessage({
+								type: "draggedImages",
+								dataUrls,
+							})
+						}
+					} else {
+						console.warn("No valid images were processed")
+					}
+				}}
+				onDragOver={(e) => {
+					e.preventDefault()
 				}}>
 				{showContextMenu && (
 					<div ref={contextMenuContainerRef}>
@@ -508,7 +559,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onHeightChange?.(height)
 					}}
 					placeholder={placeholderText}
-					maxRows={10}
+					minRows={2}
+					maxRows={20}
 					autoFocus={true}
 					style={{
 						width: "100%",
@@ -523,7 +575,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						resize: "none",
 						overflowX: "hidden",
 						overflowY: "scroll",
-						scrollbarWidth: "none",
 						// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
 						// borderTop: "9px solid transparent",
 						borderLeft: 0,
@@ -560,18 +611,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<div
 					style={{
 						position: "absolute",
-						right: 23,
+						right: 28,
 						display: "flex",
-						alignItems: "flex-center",
+						alignItems: "flex-end",
 						height: textAreaBaseHeight || 31,
-						bottom: 9.5, // should be 10 but doesnt look good on mac
+						bottom: 18,
 						zIndex: 2,
 					}}>
-					<div style={{ display: "flex", flexDirection: "row", alignItems: "center" }}>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+						}}>
 						<div
-							className={`input-icon-button ${
-								shouldDisableImages ? "disabled" : ""
-							} codicon codicon-device-camera`}
+							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 							onClick={() => {
 								if (!shouldDisableImages) {
 									onSelectImages()

@@ -59,7 +59,10 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				}}>
 				<span
 					className="codicon codicon-comment-discussion"
-					style={{ marginRight: "4px", transform: "scale(0.9)" }}></span>
+					style={{
+						marginRight: "4px",
+						transform: "scale(0.9)",
+					}}></span>
 				<span
 					style={{
 						fontWeight: 500,
@@ -75,10 +78,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (
-						<div
-							key={item.id}
-							className="history-preview-item"
-							onClick={() => handleHistorySelect(item.id)}>
+						<div key={item.id} className="history-preview-item" onClick={() => handleHistorySelect(item.id)}>
 							<div style={{ padding: "12px" }}>
 								<div style={{ marginBottom: "8px" }}>
 									<span
@@ -106,10 +106,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									}}>
 									{item.task}
 								</div>
-								<div style={{ fontSize: "0.85em", color: "var(--vscode-descriptionForeground)" }}>
+								<div
+									style={{
+										fontSize: "0.85em",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
 									<span>
-										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
-										{formatLargeNumber(item.tokensOut || 0)}
+										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓{formatLargeNumber(item.tokensOut || 0)}
 									</span>
 									{!!item.cacheWrites && (
 										<>
@@ -130,7 +133,12 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							</div>
 						</div>
 					))}
-				<div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+					}}>
 					<VSCodeButton
 						appearance="icon"
 						onClick={() => showHistoryView()}
