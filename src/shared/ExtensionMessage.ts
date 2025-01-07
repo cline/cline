@@ -56,6 +56,8 @@ export interface ExtensionState {
 	alwaysAllowExecute?: boolean
 	alwaysAllowBrowser?: boolean
 	alwaysAllowMcp?: boolean
+	alwaysApproveResubmit?: boolean
+	requestDelaySeconds: number
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
@@ -103,6 +105,7 @@ export type ClineSay =
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "api_req_retried"
+	| "api_req_retry_delayed"
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"

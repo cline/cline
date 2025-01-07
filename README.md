@@ -23,6 +23,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Per-tool MCP auto-approval
 - Enable/disable individual MCP servers
 - Enable/disable the MCP feature overall
+- Automatically retry failed API requests with a configurable delay
 - Configurable delay after auto-writes to allow diagnostics to detect potential problems
 - Control the number of terminal output lines to pass to the model when executing commands
 - Runs alongside the original Cline

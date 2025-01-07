@@ -52,6 +52,8 @@ export interface WebviewMessage {
 		| "terminalOutputLineLimit"
 		| "mcpEnabled"
 		| "searchCommits"
+		| "alwaysApproveResubmit"
+		| "requestDelaySeconds"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

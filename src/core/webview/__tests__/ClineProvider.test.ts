@@ -263,6 +263,7 @@ describe('ClineProvider', () => {
             browserViewportSize: "900x600",
             fuzzyMatchThreshold: 1.0,
             mcpEnabled: true,
+            requestDelaySeconds: 5
         }
         
         const message: ExtensionMessage = { 
@@ -379,6 +380,42 @@ describe('ClineProvider', () => {
         await messageHandler({ type: 'soundEnabled', bool: false })
         expect(setSoundEnabled).toHaveBeenCalledWith(false)
         expect(mockContext.globalState.update).toHaveBeenCalledWith('soundEnabled', false)
+        expect(mockPostMessage).toHaveBeenCalled()
+    })
+
+    test('requestDelaySeconds defaults to 5 seconds', async () => {
+        // Mock globalState.get to return undefined for requestDelaySeconds
+        (mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'requestDelaySeconds') {
+                return undefined
+            }
+            return null
+        })
+
+        const state = await provider.getState()
+        expect(state.requestDelaySeconds).toBe(5)
+    })
+
+    test('alwaysApproveResubmit defaults to false', async () => {
+        // Mock globalState.get to return undefined for alwaysApproveResubmit
+        (mockContext.globalState.get as jest.Mock).mockReturnValue(undefined)
+
+        const state = await provider.getState()
+        expect(state.alwaysApproveResubmit).toBe(false)
+    })
+
+    test('handles request delay settings messages', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        // Test alwaysApproveResubmit
+        await messageHandler({ type: 'alwaysApproveResubmit', bool: true })
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('alwaysApproveResubmit', true)
+        expect(mockPostMessage).toHaveBeenCalled()
+
+        // Test requestDelaySeconds
+        await messageHandler({ type: 'requestDelaySeconds', value: 10 })
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('requestDelaySeconds', 10)
         expect(mockPostMessage).toHaveBeenCalled()
     })
 

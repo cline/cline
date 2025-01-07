@@ -83,6 +83,8 @@ type GlobalStateKey =
 	| "writeDelayMs"
 	| "terminalOutputLineLimit"
 	| "mcpEnabled"
+	| "alwaysApproveResubmit"
+	| "requestDelaySeconds"
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -675,6 +677,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("fuzzyMatchThreshold", message.value)
 						await this.postStateToWebview()
 						break
+					case "alwaysApproveResubmit":
+						await this.updateGlobalState("alwaysApproveResubmit", message.bool ?? false)
+						await this.postStateToWebview()
+						break
+					case "requestDelaySeconds":
+						await this.updateGlobalState("requestDelaySeconds", message.value ?? 5)
+						await this.postStateToWebview()
+						break
 					case "preferredLanguage":
 						await this.updateGlobalState("preferredLanguage", message.text)
 						await this.postStateToWebview()
@@ -1224,9 +1234,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async getStateToPostToWebview() {
-		const { 
-			apiConfiguration, 
-			lastShownAnnouncementId, 
+		const {
+			apiConfiguration,
+			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
 			alwaysAllowWrite,
@@ -1244,6 +1254,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit,
 			fuzzyMatchThreshold,
 			mcpEnabled,
+			alwaysApproveResubmit,
+			requestDelaySeconds,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -1276,6 +1288,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
+			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
+			requestDelaySeconds: requestDelaySeconds ?? 5,
 		}
 	}
 
@@ -1381,6 +1395,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality,
 			terminalOutputLineLimit,
 			mcpEnabled,
+			alwaysApproveResubmit,
+			requestDelaySeconds,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1431,6 +1447,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
 			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
 			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysApproveResubmit") as Promise<boolean | undefined>,
+			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1525,6 +1543,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return langMap[vscodeLang.split('-')[0]] ?? 'English';
 			})(),
 			mcpEnabled: mcpEnabled ?? true,
+			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
+			requestDelaySeconds: requestDelaySeconds ?? 5,
 		}
 	}
 
