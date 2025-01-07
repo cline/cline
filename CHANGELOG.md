@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.1.2]
+
+- Fix issue where LFS files would be not be ignored when creating checkpoints
+
 ## [3.1.0]
 
 - Added checkpoints: Snapshots of workspace are automatically created whenever Cline uses a tool

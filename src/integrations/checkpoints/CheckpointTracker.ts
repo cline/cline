@@ -105,6 +105,21 @@ class CheckpointTracker {
 
 			await git.addConfig("core.worktree", this.cwd) // sets the working tree to the current workspace
 
+			// Get LFS patterns from workspace if they exist
+			let lfsPatterns: string[] = []
+			try {
+				const attributesPath = path.join(this.cwd, ".gitattributes")
+				if (await fileExistsAtPath(attributesPath)) {
+					const attributesContent = await fs.readFile(attributesPath, "utf8")
+					lfsPatterns = attributesContent
+						.split("\n")
+						.filter((line) => line.includes("filter=lfs"))
+						.map((line) => line.split(" ")[0].trim())
+				}
+			} catch (error) {
+				console.warn("Failed to read .gitattributes:", error)
+			}
+
 			// Add basic excludes directly in git config, while respecting any .gitignore in the workspace
 			// .git/info/exclude is local to the shadow git repo, so it's not shared with the main repo - and won't conflict with user's .gitignore
 			// TODO: let user customize these
@@ -198,6 +213,7 @@ class CheckpointTracker {
 					"npm-debug.log*",
 					"yarn-debug.log*",
 					"yarn-error.log*",
+					...lfsPatterns,
 				].join("\n"),
 			)
 
