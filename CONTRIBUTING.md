@@ -19,15 +19,15 @@ If you're planning to work on a bigger feature, please create an issue first so 
 ## Development Setup
 
 1. **VS Code Extensions**
-   - When opening the project, VS Code will prompt you to install recommended extensions
-   - These extensions are required for development - please accept all installation prompts
-   - If you dismissed the prompts, you can install them manually from the Extensions panel
+
+    - When opening the project, VS Code will prompt you to install recommended extensions
+    - These extensions are required for development - please accept all installation prompts
+    - If you dismissed the prompts, you can install them manually from the Extensions panel
 
 2. **Local Development**
-   - Run `npm install` to install dependencies
-   - Use `npm run watch` for development with hot reload
-   - Run `npm run test` to run tests locally
-   - Before submitting PR, run `npm run format` which includes prettier --write
+    - Run `npm install` to install dependencies
+    - Run `npm run test` to run tests locally
+    - Before submitting PR, run `npm run format` which includes prettier --write
 
 ## Writing and Submitting Code
 
