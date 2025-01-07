@@ -34,4 +34,9 @@ export interface ClineAPI {
 	 * Simulates pressing the secondary button in the chat interface.
 	 */
 	pressSecondaryButton(): Promise<void>
+
+	/**
+	 * The sidebar provider instance.
+	 */
+	sidebarProvider: ClineSidebarProvider
 }
