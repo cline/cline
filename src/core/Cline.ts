@@ -205,10 +205,10 @@ export class Cline {
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
-					)
+				findLastIndex(
+					this.clineMessages,
+					(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
+				)
 				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
@@ -390,8 +390,7 @@ export class Cline {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -449,7 +448,7 @@ export class Cline {
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
-		await this.getSavedApiConversationHistory()
+			await this.getSavedApiConversationHistory()
 
 		// Now present the cline messages to the user and ask if they want to resume
 
@@ -560,8 +559,8 @@ export class Cline {
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
-							? previousAssistantMessage.content
-							: [{ type: "text", text: previousAssistantMessage.content }]
+						? previousAssistantMessage.content
+						: [{ type: "text", text: previousAssistantMessage.content }]
 
 					const toolUseBlocks = assistantContent.filter(
 						(block) => block.type === "tool_use",
@@ -626,10 +625,9 @@ export class Cline {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
-					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
-						: ""
+				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${wasRecent
+					? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+					: ""
 				}` +
 				(responseText
 					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
@@ -743,8 +741,7 @@ export class Cline {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
 				),
@@ -756,8 +753,7 @@ export class Cline {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -766,7 +762,7 @@ export class Cline {
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let mcpHub: McpHub | undefined
 
-		const { mcpEnabled } = await this.providerRef.deref()?.getState() ?? {}
+		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } = await this.providerRef.deref()?.getState() ?? {}
 
 		if (mcpEnabled ?? true) {
 			mcpHub = this.providerRef.deref()?.mcpHub
@@ -810,18 +806,41 @@ export class Cline {
 			yield firstChunk.value
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-			const { response } = await this.ask(
-				"api_req_failed",
-				error.message ?? JSON.stringify(serializeError(error), null, 2),
-			)
-			if (response !== "yesButtonClicked") {
-				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-				throw new Error("API request failed")
+			if (alwaysApproveResubmit) {
+				// Automatically retry with delay
+				await this.say(
+					"error",
+					`Error (${
+					  error.message?.toLowerCase().includes("429") ||
+					  error.message?.toLowerCase().includes("rate limit") ||
+					  error.message?.toLowerCase().includes("too many requests") ||
+					  error.message?.toLowerCase().includes("throttled")
+					    ? "rate limit"
+					    : error.message?.includes("500") || error.message?.includes("503")
+					      ? "internal server error"
+					      : "unknown"
+					}). ↺ Retrying...`,
+				)
+				await this.say("api_req_retry_delayed")
+				await delay((requestDelaySeconds || 5) * 1000)
+				await this.say("api_req_retried")
+				// delegate generator output from the recursive call
+				yield* this.attemptApiRequest(previousApiReqIndex)
+				return
+			} else {
+				const { response } = await this.ask(
+					"api_req_failed",
+					error.message ?? JSON.stringify(serializeError(error), null, 2),
+				)
+				if (response !== "yesButtonClicked") {
+					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
+					throw new Error("API request failed")
+				}
+				await this.say("api_req_retried")
+				// delegate generator output from the recursive call
+				yield* this.attemptApiRequest(previousApiReqIndex)
+				return
 			}
-			await this.say("api_req_retried")
-			// delegate generator output from the recursive call
-			yield* this.attemptApiRequest(previousApiReqIndex)
-			return
 		}
 
 		// no error, so we can continue to yield all remaining chunks
@@ -912,9 +931,8 @@ export class Cline {
 						case "apply_diff":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${
-								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-							}]`
+							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+								}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -1100,7 +1118,7 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1136,7 +1154,7 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent, true)
@@ -1174,10 +1192,10 @@ export class Cline {
 									content: fileExists ? undefined : newContent,
 									diff: fileExists
 										? formatResponse.createPrettyPatch(
-												relPath,
-												this.diffViewProvider.originalContent,
-												newContent,
-											)
+											relPath,
+											this.diffViewProvider.originalContent,
+											newContent,
+										)
 										: undefined,
 								} satisfies ClineSayTool)
 								const didApprove = await askApproval("tool", completeMessage)
@@ -1199,13 +1217,13 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`,
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`,
 									)
 								} else {
 									pushToolResult(
@@ -1234,7 +1252,7 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!relPath) {
@@ -1263,9 +1281,9 @@ export class Cline {
 
 								// Apply the diff to the original content
 								const diffResult = this.diffStrategy?.applyDiff(
-									originalContent, 
-									diffContent, 
-									parseInt(block.params.start_line ?? ''), 
+									originalContent,
+									diffContent,
+									parseInt(block.params.start_line ?? ''),
 									parseInt(block.params.end_line ?? '')
 								) ?? {
 									success: false,
@@ -1317,13 +1335,13 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`,
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`,
 									)
 								} else {
 									pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
@@ -1349,7 +1367,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!relPath) {
@@ -1391,7 +1409,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!relDirPath) {
@@ -1431,7 +1449,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!relDirPath) {
@@ -1476,7 +1494,7 @@ export class Cline {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!relDirPath) {
@@ -1531,7 +1549,7 @@ export class Cline {
 										"browser_action_launch",
 										removeClosingTag("url", url),
 										block.partial
-									).catch(() => {})
+									).catch(() => { })
 								} else {
 									await this.say(
 										"browser_action",
@@ -1631,8 +1649,7 @@ export class Cline {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
-													browserActionResult.logs || "(No new logs)"
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
@@ -1659,7 +1676,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {}
+									() => { }
 								)
 								break
 							} else {
@@ -1700,7 +1717,7 @@ export class Cline {
 									toolName: removeClosingTag("tool_name", tool_name),
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
-								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!server_name) {
@@ -1761,19 +1778,19 @@ export class Cline {
 								// TODO: add progress indicator and ability to parse images and non-text responses
 								const toolResultPretty =
 									(toolResult?.isError ? "Error:\n" : "") +
-										toolResult?.content
-											.map((item) => {
-												if (item.type === "text") {
-													return item.text
-												}
-												if (item.type === "resource") {
-													const { blob, ...rest } = item.resource
-													return JSON.stringify(rest, null, 2)
-												}
-												return ""
-											})
-											.filter(Boolean)
-											.join("\n\n") || "(No response)"
+									toolResult?.content
+										.map((item) => {
+											if (item.type === "text") {
+												return item.text
+											}
+											if (item.type === "resource") {
+												const { blob, ...rest } = item.resource
+												return JSON.stringify(rest, null, 2)
+											}
+											return ""
+										})
+										.filter(Boolean)
+										.join("\n\n") || "(No response)"
 								await this.say("mcp_server_response", toolResultPretty)
 								pushToolResult(formatResponse.toolResult(toolResultPretty))
 								break
@@ -1793,7 +1810,7 @@ export class Cline {
 									serverName: removeClosingTag("server_name", server_name),
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
-								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
+								await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
 								break
 							} else {
 								if (!server_name) {
@@ -1849,7 +1866,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(
-									() => {},
+									() => { },
 								)
 								break
 							} else {
@@ -1908,7 +1925,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial,
-										).catch(() => {})
+										).catch(() => { })
 									} else {
 										// last message is completion_result
 										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
@@ -1922,7 +1939,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial,
-										).catch(() => {})
+										).catch(() => { })
 									}
 								} else {
 									// no command, still outputting partial result
@@ -2148,10 +2165,9 @@ export class Cline {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+								`\n\n[${cancelReason === "streaming_failed"
+									? "Response interrupted by API Error"
+									: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -2405,7 +2421,7 @@ export class Cline {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch(() => { })
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc

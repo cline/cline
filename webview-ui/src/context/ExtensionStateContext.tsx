@@ -46,6 +46,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTerminalOutputLineLimit: (value: number) => void
 	mcpEnabled: boolean
 	setMcpEnabled: (value: boolean) => void
+	alwaysApproveResubmit?: boolean
+	setAlwaysApproveResubmit: (value: boolean) => void
+	requestDelaySeconds: number
+	setRequestDelaySeconds: (value: number) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -67,6 +71,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		screenshotQuality: 75,
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
+		alwaysApproveResubmit: false,
+		requestDelaySeconds: 5
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -90,18 +96,18 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				const config = message.state?.apiConfiguration
 				const hasKey = config
 					? [
-							config.apiKey,
-							config.glamaApiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-						].some((key) => key !== undefined)
+						config.apiKey,
+						config.glamaApiKey,
+						config.openRouterApiKey,
+						config.awsRegion,
+						config.vertexProjectId,
+						config.openAiApiKey,
+						config.ollamaModelId,
+						config.lmStudioModelId,
+						config.geminiApiKey,
+						config.openAiNativeApiKey,
+						config.deepSeekApiKey,
+					].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
@@ -201,6 +207,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setScreenshotQuality: (value) => setState((prevState) => ({ ...prevState, screenshotQuality: value })),
 		setTerminalOutputLineLimit: (value) => setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
+		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
+		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value }))
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

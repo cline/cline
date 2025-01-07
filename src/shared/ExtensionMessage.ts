@@ -8,28 +8,28 @@ import { GitCommit } from "../utils/git"
 // webview will hold state
 export interface ExtensionMessage {
 	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-		| "glamaModels"
-		| "openRouterModels"
-		| "openAiModels"
-		| "mcpServers"
-		| "enhancedPrompt"
-		| "commitSearchResults"
+	| "action"
+	| "state"
+	| "selectedImages"
+	| "ollamaModels"
+	| "lmStudioModels"
+	| "theme"
+	| "workspaceUpdated"
+	| "invoke"
+	| "partialMessage"
+	| "glamaModels"
+	| "openRouterModels"
+	| "openAiModels"
+	| "mcpServers"
+	| "enhancedPrompt"
+	| "commitSearchResults"
 	text?: string
 	action?:
-		| "chatButtonClicked"
-		| "mcpButtonClicked"
-		| "settingsButtonClicked"
-		| "historyButtonClicked"
-		| "didBecomeVisible"
+	| "chatButtonClicked"
+	| "mcpButtonClicked"
+	| "settingsButtonClicked"
+	| "historyButtonClicked"
+	| "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -56,6 +56,8 @@ export interface ExtensionState {
 	alwaysAllowExecute?: boolean
 	alwaysAllowBrowser?: boolean
 	alwaysAllowMcp?: boolean
+	alwaysApproveResubmit?: boolean
+	requestDelaySeconds: number
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
@@ -103,6 +105,7 @@ export type ClineSay =
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "api_req_retried"
+	| "api_req_retry_delayed"
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
@@ -114,14 +117,14 @@ export type ClineSay =
 
 export interface ClineSayTool {
 	tool:
-		| "editedExistingFile"
-		| "appliedDiff"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
+	| "editedExistingFile"
+	| "appliedDiff"
+	| "newFileCreated"
+	| "readFile"
+	| "listFilesTopLevel"
+	| "listFilesRecursive"
+	| "listCodeDefinitionNames"
+	| "searchFiles"
 	path?: string
 	diff?: string
 	content?: string
