@@ -29,7 +29,10 @@ export function combineApiRequests(messages: ClineMessage[]): ClineMessage[] {
 			while (j < messages.length) {
 				if (messages[j].type === "say" && messages[j].say === "api_req_finished") {
 					let finishedRequest = JSON.parse(messages[j].text || "{}")
-					let combinedRequest = { ...startedRequest, ...finishedRequest }
+					let combinedRequest = {
+						...startedRequest,
+						...finishedRequest,
+					}
 
 					combinedApiRequests.push({
 						...messages[i],
