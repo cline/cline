@@ -143,10 +143,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							onClick={() => {
 								vscode.postMessage({
 									type: "confirmClearAllHistory",
-									text: "Are you sure you want to clear all history? This action cannot be undone."
+									text: "Are you sure you want to clear all history? This action cannot be undone.",
 								})
-							}}
-						>
+							}}>
 							Clear all
 						</VSCodeButton>
 						<VSCodeButton onClick={onDone}>Done</VSCodeButton>

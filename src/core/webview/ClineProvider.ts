@@ -534,46 +534,50 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							message.text!,
 							{ modal: true },
 							"Yes",
-							"No"
-						);
+							"No",
+						)
 						if (confirm === "Yes") {
 							// Clear current task if exists
 							if (this.cline) {
-								await this.clearTask();
+								await this.clearTask()
 							}
 
 							// Get all task IDs from history
-							const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || [];
-							const taskIds = taskHistory.map(item => item.id);
+							const taskHistory =
+								((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+							const taskIds = taskHistory.map((item) => item.id)
 
 							// Delete each task's files
-							const tasksDir = path.join(this.context.globalStorageUri.fsPath, "tasks");
+							const tasksDir = path.join(this.context.globalStorageUri.fsPath, "tasks")
 							try {
 								for (const id of taskIds) {
-									const taskDir = path.join(tasksDir, id);
+									const taskDir = path.join(tasksDir, id)
 									if (await fileExistsAtPath(taskDir)) {
 										// Delete task files
-										const apiHistoryPath = path.join(taskDir, GlobalFileNames.apiConversationHistory);
-										const uiMessagesPath = path.join(taskDir, GlobalFileNames.uiMessages);
+										const apiHistoryPath = path.join(
+											taskDir,
+											GlobalFileNames.apiConversationHistory,
+										)
+										const uiMessagesPath = path.join(taskDir, GlobalFileNames.uiMessages)
 										if (await fileExistsAtPath(apiHistoryPath)) {
-											await fs.unlink(apiHistoryPath);
+											await fs.unlink(apiHistoryPath)
 										}
 										if (await fileExistsAtPath(uiMessagesPath)) {
-											await fs.unlink(uiMessagesPath);
+											await fs.unlink(uiMessagesPath)
 										}
 										// Delete task directory
-										await fs.rmdir(taskDir);
+										await fs.rmdir(taskDir)
 									}
 								}
 							} catch (error) {
-								console.error("Error deleting task files:", error);
+								console.error("Error deleting task files:", error)
 							}
 
 							// Clear history state
-							await this.updateGlobalState("taskHistory", []);
-							await this.postStateToWebview();
+							await this.updateGlobalState("taskHistory", [])
+							await this.postStateToWebview()
 						}
-						break;
+						break
 					}
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
