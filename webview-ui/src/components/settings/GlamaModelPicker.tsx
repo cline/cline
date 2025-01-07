@@ -302,8 +302,7 @@ const StyledMarkdown = styled.div`
 
 	a {
 		text-decoration: none;
-	}
-	a {
+	
 		&:hover {
 			text-decoration: underline;
 		}
