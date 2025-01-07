@@ -2,12 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
-import {
-	ApiConfiguration,
-	ModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-} from "../../../src/shared/api"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -27,7 +22,9 @@ interface ExtensionStateContextType extends ExtensionState {
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
-export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ExtensionStateContextProvider: React.FC<{
+	children: React.ReactNode
+}> = ({ children }) => {
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
 		clineMessages: [],
@@ -61,6 +58,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 							config.lmStudioModelId,
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
+							config.deepSeekApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
@@ -120,9 +118,21 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		openRouterModels,
 		mcpServers,
 		filePaths,
-		setApiConfiguration: (value) => setState((prevState) => ({ ...prevState, apiConfiguration: value })),
-		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
-		setShowAnnouncement: (value) => setState((prevState) => ({ ...prevState, shouldShowAnnouncement: value })),
+		setApiConfiguration: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				apiConfiguration: value,
+			})),
+		setCustomInstructions: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				customInstructions: value,
+			})),
+		setShowAnnouncement: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				shouldShowAnnouncement: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

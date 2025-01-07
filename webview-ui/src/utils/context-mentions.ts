@@ -1,10 +1,6 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
 
-export function insertMention(
-	text: string,
-	position: number,
-	value: string,
-): { newValue: string; mentionIndex: number } {
+export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
@@ -68,14 +64,20 @@ export function getContextMenuOptions(
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
-				.map((item) => ({ type: ContextMenuOptionType.File, value: item.value }))
+				.map((item) => ({
+					type: ContextMenuOptionType.File,
+					value: item.value,
+				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
 			const folders = queryItems
 				.filter((item) => item.type === ContextMenuOptionType.Folder)
-				.map((item) => ({ type: ContextMenuOptionType.Folder, value: item.value }))
+				.map((item) => ({
+					type: ContextMenuOptionType.Folder,
+					value: item.value,
+				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
 

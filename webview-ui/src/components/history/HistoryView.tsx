@@ -5,6 +5,7 @@ import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "../../utils/format"
+import { formatSize } from "../../utils/size"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -152,7 +153,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					</div>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
-					<div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: "6px",
+						}}>
 						<VSCodeTextField
 							style={{ width: "100%" }}
 							placeholder="Fuzzy search history..."
@@ -168,7 +174,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<div
 								slot="start"
 								className="codicon codicon-search"
-								style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}></div>
+								style={{
+									fontSize: 13,
+									marginTop: 2.5,
+									opacity: 0.8,
+								}}></div>
 							{searchQuery && (
 								<div
 									className="input-icon-button codicon codicon-close"
@@ -192,10 +202,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
 							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
 							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
-							<VSCodeRadio
-								value="mostRelevant"
-								disabled={!searchQuery}
-								style={{ opacity: searchQuery ? 1 : 0.5 }}>
+							<VSCodeRadio value="mostRelevant" disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }}>
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
@@ -231,9 +238,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								style={{
 									cursor: "pointer",
 									borderBottom:
-										index < taskHistory.length - 1
-											? "1px solid var(--vscode-panel-border)"
-											: "none",
+										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
 								}}
 								onClick={() => handleHistorySelect(item.id)}>
 								<div
@@ -265,8 +270,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												e.stopPropagation()
 												handleDeleteHistoryItem(item.id)
 											}}
-											className="delete-button">
-											<span className="codicon codicon-trash"></span>
+											className="delete-button"
+											style={{ padding: "0px 0px" }}>
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "3px",
+													fontSize: "11px",
+													// fontWeight: "bold",
+												}}>
+												<span className="codicon codicon-trash"></span>
+												{formatSize(item.size)}
+											</div>
 										</VSCodeButton>
 									</div>
 									<div
@@ -281,9 +297,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											wordBreak: "break-word",
 											overflowWrap: "anywhere",
 										}}
-										dangerouslySetInnerHTML={{ __html: item.task }}
+										dangerouslySetInnerHTML={{
+											__html: item.task,
+										}}
 									/>
-									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: "4px",
+										}}>
 										<div
 											style={{
 												display: "flex",
@@ -401,7 +424,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													alignItems: "center",
 													marginTop: -2,
 												}}>
-												<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+												<div
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "4px",
+													}}>
 													<span
 														style={{
 															fontWeight: 500,
@@ -409,7 +437,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														}}>
 														API Cost:
 													</span>
-													<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+													<span
+														style={{
+															color: "var(--vscode-descriptionForeground)",
+														}}>
 														${item.totalCost?.toFixed(4)}
 													</span>
 												</div>
@@ -440,10 +471,7 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 )
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (
-	fuseSearchResult: FuseResult<any>[],
-	highlightClassName: string = "history-item-highlight",
-) => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
