@@ -28,5 +28,5 @@ export interface DiffStrategy {
      * @param endLine Optional line number where the search block ends. If not provided, searches the entire file.
      * @returns A DiffResult object containing either the successful result or error details
      */
-    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult
+    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): Promise<DiffResult>
 }

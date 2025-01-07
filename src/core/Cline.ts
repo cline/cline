@@ -1277,7 +1277,7 @@ export class Cline {
 								const originalContent = await fs.readFile(absolutePath, "utf-8")
 
 								// Apply the diff to the original content
-								const diffResult = this.diffStrategy?.applyDiff(
+								const diffResult = await this.diffStrategy?.applyDiff(
 									originalContent, 
 									diffContent, 
 									parseInt(block.params.start_line ?? ''), 
@@ -1286,6 +1286,7 @@ export class Cline {
 									success: false,
 									error: "No diff strategy available"
 								}
+								console.log("diffResult", diffResult)
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
 									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
