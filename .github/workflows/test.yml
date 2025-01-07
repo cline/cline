@@ -50,6 +50,9 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Install vsce globally
+              run: npm install -g @vscode/vsce
+
             # Run checks and tests
             - name: Type Check
               run: npm run check-types
@@ -59,6 +62,12 @@ jobs:
 
             - name: Run Tests with Coverage
               run: npm run test:coverage:vitest
+
+            - name: Run Package
+              run: npm run package
+
+            - name: Run VSCE
+              run: vsce package
 
             # Upload coverage to Codecov
             - name: Upload coverage reports to Codecov
