@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.44]
+
+-   Automatically retry failed API requests with a configurable delay (thanks @RaySinner!)
+
 ## [2.2.43]
 
 -   Allow deleting single messages or all subsequent messages
