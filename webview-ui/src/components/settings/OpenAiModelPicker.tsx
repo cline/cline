@@ -8,7 +8,7 @@ import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 
 const OpenAiModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, openAiModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openAiModels, onUpdateApiConfig } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openAiModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -18,10 +18,13 @@ const OpenAiModelPicker: React.FC = () => {
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
+		const apiConfig = {
 			...apiConfiguration,
 			openAiModelId: newModelId,
-		})
+		}
+		setApiConfiguration(apiConfig)
+		onUpdateApiConfig(apiConfig)
+
 		setSearchTerm(newModelId)
 	}
 

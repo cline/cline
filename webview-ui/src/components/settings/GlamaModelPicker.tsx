@@ -11,7 +11,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const GlamaModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, glamaModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, glamaModels, onUpdateApiConfig } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.glamaModelId || glamaDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -22,11 +22,14 @@ const GlamaModelPicker: React.FC = () => {
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
+		const apiConfig = {
 			...apiConfiguration,
 			glamaModelId: newModelId,
 			glamaModelInfo: glamaModels[newModelId],
-		})
+		}
+		setApiConfiguration(apiConfig)
+		onUpdateApiConfig(apiConfig)
+
 		setSearchTerm(newModelId)
 	}
 

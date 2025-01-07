@@ -46,11 +46,10 @@ interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
-	onSelectProvider: (apiProvider: any) => void
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, onSelectProvider }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
+	const { apiConfiguration, setApiConfiguration, uriScheme, onUpdateApiConfig } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
@@ -58,7 +57,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, on
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
+		const apiConfig = { ...apiConfiguration, [field]: event.target.value }
+		onUpdateApiConfig(apiConfig)
+		setApiConfiguration(apiConfig)
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -131,10 +132,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, on
 				<VSCodeDropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={(event: any) => {
-						onSelectProvider(event.target.value);
-						handleInputChange("apiProvider")(event);
-					}}
+					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>

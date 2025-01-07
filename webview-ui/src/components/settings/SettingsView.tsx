@@ -199,16 +199,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
-						onSelectProvider={(apiProvider: any) => {
-							vscode.postMessage({
-								type: "upsertApiConfiguration",
-								text: currentApiConfigName,
-								apiConfiguration: {
-									...apiConfiguration,
-									apiProvider: apiProvider,
-								}
-							})
-						}}
 					/>
 				</div>
 

@@ -11,7 +11,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const OpenRouterModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, onUpdateApiConfig } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -22,11 +22,14 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
+		const apiConfig = {
 			...apiConfiguration,
 			openRouterModelId: newModelId,
 			openRouterModelInfo: openRouterModels[newModelId],
-		})
+		}
+
+		setApiConfiguration(apiConfig)
+		onUpdateApiConfig(apiConfig)
 		setSearchTerm(newModelId)
 	}
 

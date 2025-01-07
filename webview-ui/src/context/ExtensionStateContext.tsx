@@ -55,6 +55,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setRequestDelaySeconds: (value: number) => void
 	setCurrentApiConfigName: (value: string) => void
 	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
+	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -97,6 +98,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 
 	const setListApiConfigMeta = useCallback((value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })), [setState])
+
+	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
+		vscode.postMessage({
+			type: "upsertApiConfiguration",
+			text: state.currentApiConfigName,
+			apiConfiguration: apiConfig,
+		})
+	}, [state])
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -210,7 +219,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
 		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
 		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
-		setListApiConfigMeta
+		setListApiConfigMeta,
+		onUpdateApiConfig
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
