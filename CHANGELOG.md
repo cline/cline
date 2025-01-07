@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.43
-
-### Patch Changes
+## [2.2.43]
 
 -   Allow deleting single messages or all subsequent messages
 
