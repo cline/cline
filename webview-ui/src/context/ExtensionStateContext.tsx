@@ -8,7 +8,7 @@ import {
 	glamaDefaultModelId,
 	glamaDefaultModelInfo,
 	openRouterDefaultModelId,
-	openRouterDefaultModelInfo
+	openRouterDefaultModelInfo,
 } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"

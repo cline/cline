@@ -366,10 +366,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 								const { apiConfiguration } = await this.getState()
 								if (apiConfiguration.glamaModelId) {
-									await this.updateGlobalState(
-										"glamaModelInfo",
-										glamaModels[apiConfiguration.glamaModelId],
-									)
+									await this.updateGlobalState("glamaModelInfo", glamaModels[apiConfiguration.glamaModelId])
 									await this.postStateToWebview()
 								}
 							}
@@ -516,7 +513,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						})
 						break
 					case "refreshGlamaModels":
-							await this.refreshGlamaModels()
+						await this.refreshGlamaModels()
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
@@ -710,10 +707,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const glamaModelsFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.glamaModels,
-		)
+		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
 		const fileExists = await fileExistsAtPath(glamaModelsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(glamaModelsFilePath, "utf8")
@@ -723,10 +717,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async refreshGlamaModels() {
-		const glamaModelsFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.glamaModels,
-		)
+		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
 
 		let models: Record<string, ModelInfo> = {}
 		try {
@@ -761,7 +752,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			*/
 			if (response.data) {
-				const rawModels = response.data;
+				const rawModels = response.data
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000

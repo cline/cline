@@ -72,17 +72,17 @@ export class GlamaHandler implements ApiHandler {
 			maxTokens = 8_192
 		}
 
-		const { data: completion, response } = await this.client.chat.completions.create({
-			model: this.getModel().id,
-			max_tokens: maxTokens,
-			temperature: 0,
-			messages: openAiMessages,
-			stream: true,
-		}).withResponse();
+		const { data: completion, response } = await this.client.chat.completions
+			.create({
+				model: this.getModel().id,
+				max_tokens: maxTokens,
+				temperature: 0,
+				messages: openAiMessages,
+				stream: true,
+			})
+			.withResponse()
 
-		const completionRequestId = response.headers.get(
-			'x-completion-request-id',
-		);
+		const completionRequestId = response.headers.get("x-completion-request-id")
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
@@ -102,7 +102,7 @@ export class GlamaHandler implements ApiHandler {
 				},
 			})
 
-			const completionRequest = response.data;
+			const completionRequest = response.data
 
 			if (completionRequest.tokenUsage) {
 				yield {
@@ -113,7 +113,7 @@ export class GlamaHandler implements ApiHandler {
 					outputTokens: completionRequest.tokenUsage.completionTokens,
 					totalCost: parseFloat(completionRequest.totalCostUsd),
 				}
-			}			
+			}
 		} catch (error) {
 			console.error("Error fetching Glama completion details", error)
 		}
@@ -126,7 +126,7 @@ export class GlamaHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		
+
 		return { id: glamaDefaultModelId, info: glamaDefaultModelInfo }
 	}
 }

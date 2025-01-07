@@ -302,7 +302,7 @@ const StyledMarkdown = styled.div`
 
 	a {
 		text-decoration: none;
-	
+
 		&:hover {
 			text-decoration: underline;
 		}
@@ -372,8 +372,7 @@ export const ModelDescriptionMarkdown = memo(
 								style={{
 									width: 30,
 									height: "1.2em",
-									background:
-										"linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
+									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
 								}}
 							/>
 							<VSCodeLink

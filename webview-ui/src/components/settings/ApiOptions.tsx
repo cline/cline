@@ -35,10 +35,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, {
-	ModelDescriptionMarkdown,
-	OPENROUTER_MODEL_PICKER_Z_INDEX,
-} from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import GlamaModelPicker from "./GlamaModelPicker"
 
 interface ApiOptionsProps {
@@ -226,9 +223,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.glamaApiKey && (
-						<VSCodeLink
-							href="https://glama.ai/settings/api-keys"
-							style={{ display: "inline", fontSize: "inherit" }}>
+						<VSCodeLink href="https://glama.ai/settings/api-keys" style={{ display: "inline", fontSize: "inherit" }}>
 							You can get an Glama API key by signing up here.
 						</VSCodeLink>
 					)}
