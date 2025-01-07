@@ -27,7 +27,7 @@ If you're planning to work on a bigger feature, please create an issue first so 
 2. **Local Development**
     - Run `npm install` to install dependencies
     - Run `npm run test` to run tests locally
-    - Before submitting PR, run `npm run format` which includes prettier --write
+    - Before submitting PR, run `npm run format:fix` to format your code
 
 ## Writing and Submitting Code
 
