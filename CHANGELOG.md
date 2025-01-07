@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.43]
+
+-   Allow deleting single messages or all subsequent messages
+
 ## [2.2.42]
 
 -   Add a Git section to the context mentions
