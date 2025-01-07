@@ -6,11 +6,7 @@
  *
  * Returns [matchIndexStart, matchIndexEnd] if found, or false if not found.
  */
-export function lineTrimmedFallbackMatch(
-	originalContent: string,
-	searchContent: string,
-	startIndex: number,
-): [number, number] | false {
+function lineTrimmedFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number] | false {
 	// Split both contents into lines
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
@@ -94,11 +90,7 @@ export function lineTrimmedFallbackMatch(
  * @param startIndex - The character index in originalContent where to start searching
  * @returns A tuple of [startIndex, endIndex] if a match is found, false otherwise
  */
-export function blockAnchorFallbackMatch(
-	originalContent: string,
-	searchContent: string,
-	startIndex: number,
-): [number, number] | false {
+function blockAnchorFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number] | false {
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
 
@@ -214,11 +206,7 @@ export function blockAnchorFallbackMatch(
  * - If the search block cannot be matched using any of the available matching strategies,
  *   an error is thrown.
  */
-export async function constructNewFileContent(
-	diffContent: string,
-	originalContent: string,
-	isFinal: boolean,
-): Promise<string> {
+export async function constructNewFileContent(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -292,20 +280,12 @@ export async function constructNewFileContent(
 					searchEndIndex = exactIndex + currentSearchContent.length
 				} else {
 					// Attempt fallback line-trimmed matching
-					const lineMatch = lineTrimmedFallbackMatch(
-						originalContent,
-						currentSearchContent,
-						lastProcessedIndex,
-					)
+					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 					if (lineMatch) {
 						;[searchMatchIndex, searchEndIndex] = lineMatch
 					} else {
 						// Try block anchor fallback for larger blocks
-						const blockMatch = blockAnchorFallbackMatch(
-							originalContent,
-							currentSearchContent,
-							lastProcessedIndex,
-						)
+						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {

@@ -39,13 +39,19 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+			await sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "mcpButtonClicked",
+			})
 		}),
 	)
 
@@ -88,13 +94,19 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "historyButtonClicked",
+			})
 		}),
 	)
 
@@ -110,9 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
 			return Buffer.from(uri.query, "base64").toString("utf-8")
 		}
 	})()
-	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider),
-	)
+	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {

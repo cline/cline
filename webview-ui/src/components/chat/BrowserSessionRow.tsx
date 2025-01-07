@@ -1,16 +1,14 @@
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import {
-	BrowserAction,
-	BrowserActionResult,
-	ClineMessage,
-	ClineSayBrowserAction,
-} from "../../../../src/shared/ExtensionMessage"
+import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../../../src/shared/ExtensionMessage"
 import { vscode } from "../../utils/vscode"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent, ProgressIndicator } from "./ChatRow"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import styled from "styled-components"
+import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
+import { findLast } from "../../../../src/shared/array"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -98,11 +96,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				// Reset for next page
 				currentStateMessages = []
 				nextActionMessages = []
-			} else if (
-				message.say === "api_req_started" ||
-				message.say === "text" ||
-				message.say === "browser_action"
-			) {
+			} else if (message.say === "api_req_started" || message.say === "text" || message.say === "browser_action") {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
 			} else {
@@ -137,17 +131,18 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	// Get initial URL from launch message
 	const initialUrl = useMemo(() => {
-		const launchMessage = messages.find(
-			(m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch",
-		)
+		const launchMessage = messages.find((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
 		return launchMessage?.text || ""
 	}, [messages])
 
 	const isAutoApproved = useMemo(() => {
-		const launchMessage = messages.find(
-			(m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch",
-		)
+		const launchMessage = messages.find((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
 		return launchMessage?.say === "browser_action_launch"
+	}, [messages])
+
+	const lastCheckpointMessageTs = useMemo(() => {
+		const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
+		return lastCheckpointMessage?.ts
 	}, [messages])
 
 	// Find the latest available URL and screenshot
@@ -163,7 +158,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				}
 			}
 		}
-		return { url: undefined, mousePosition: undefined, consoleLogs: undefined, screenshot: undefined }
+		return {
+			url: undefined,
+			mousePosition: undefined,
+			consoleLogs: undefined,
+			screenshot: undefined,
+		}
 	}, [pages])
 
 	const currentPage = pages[currentPageIndex]
@@ -187,12 +187,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent
-					key={message.ts}
-					{...props}
-					message={message}
-					setMaxActionHeight={setMaxActionHeight}
-				/>
+				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
@@ -230,15 +225,29 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// Use latest click position while browsing, otherwise use display state
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
 
+	let shouldShowCheckpoints = true
+	if (isLast) {
+		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+	}
+
 	const [browserSessionRow, { height }] = useSize(
-		<div style={{ padding: "10px 6px 10px 15px", marginBottom: -10 }}>
-			<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: "10px",
+					marginBottom: "10px",
+				}}>
 				{isBrowsing ? (
 					<ProgressIndicator />
 				) : (
 					<span
 						className={`codicon codicon-inspect`}
-						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
+						style={{
+							color: "var(--vscode-foreground)",
+							marginBottom: "-1.5px",
+						}}></span>
 				)}
 				<span style={{ fontWeight: "bold" }}>
 					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
@@ -265,9 +274,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
-						color: displayState.url
-							? "var(--vscode-input-foreground)"
-							: "var(--vscode-descriptionForeground)",
+						color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 					}}>
 					<div
@@ -320,7 +327,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							}}>
 							<span
 								className="codicon codicon-globe"
-								style={{ fontSize: "80px", color: "var(--vscode-descriptionForeground)" }}
+								style={{
+									fontSize: "80px",
+									color: "var(--vscode-descriptionForeground)",
+								}}
 							/>
 						</div>
 					)}
@@ -390,7 +400,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					</div>
 				</div>
 			)}
-		</div>,
+
+			{shouldShowCheckpoints && <CheckpointOverlay messageTs={lastCheckpointMessageTs} />}
+		</BrowserSessionRowContainer>,
 	)
 
 	// Height change effect
@@ -490,15 +502,7 @@ const BrowserSessionRowContent = ({
 	}
 }
 
-const BrowserActionBox = ({
-	action,
-	coordinate,
-	text,
-}: {
-	action: BrowserAction
-	coordinate?: string
-	text?: string
-}) => {
+const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction; coordinate?: string; text?: string }) => {
 	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
 		switch (action) {
 			case "launch":
@@ -563,5 +567,14 @@ const BrowserCursor: React.FC<{ style?: React.CSSProperties }> = ({ style }) => 
 		/>
 	)
 }
+
+const BrowserSessionRowContainer = styled.div`
+	padding: 10px 6px 10px 15px;
+	position: relative;
+
+	&:hover ${CheckpointControls} {
+		opacity: 1;
+	}
+`
 
 export default BrowserSessionRow

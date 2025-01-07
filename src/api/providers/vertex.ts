@@ -81,6 +81,9 @@ export class VertexHandler implements ApiHandler {
 			const id = modelId as VertexModelId
 			return { id, info: vertexModels[id] }
 		}
-		return { id: vertexDefaultModelId, info: vertexModels[vertexDefaultModelId] }
+		return {
+			id: vertexDefaultModelId,
+			info: vertexModels[vertexDefaultModelId],
+		}
 	}
 }
