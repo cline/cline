@@ -164,6 +164,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
+					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
 					<ApiConfigManager
 						currentApiConfigName={currentApiConfigName}
 						listApiConfigMeta={listApiConfigMeta}
@@ -193,14 +194,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								apiConfiguration
 							})
 						}}
-						// setDraftNewConfig={(mode: boolean) => {
-						// 	setDraftNewMode(mode)
-						// }}
 					/>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
 					<ApiOptions
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
