@@ -1,7 +1,7 @@
 out
 dist
 node_modules
-.vscode-test/
+coverage/
 
 .DS_Store
 
@@ -14,3 +14,4 @@ roo-cline-*.vsix
 
 # Test environment
 .test_env
+.vscode-test/
