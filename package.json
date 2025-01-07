@@ -20,9 +20,6 @@
     "url": "https://github.com/RooVetGit/Roo-Cline"
   },
   "homepage": "https://github.com/RooVetGit/Roo-Cline",
-  "enabledApiProposals": [
-    "extensionRuntime"
-  ],
   "categories": [
     "AI",
     "Chat",
