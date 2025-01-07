@@ -811,6 +811,7 @@ export class Cline {
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			if (alwaysApproveResubmit) {
+				const requestDelay = requestDelaySeconds || 5
 				// Automatically retry with delay
 				await this.say(
 					"error",
@@ -823,10 +824,10 @@ export class Cline {
 					    : error.message?.includes("500") || error.message?.includes("503")
 					      ? "internal server error"
 					      : "unknown"
-					}). ↺ Retrying...`,
+					}). ↺ Retrying in ${requestDelay} seconds...`,
 				)
 				await this.say("api_req_retry_delayed")
-				await delay((requestDelaySeconds || 5) * 1000)
+				await delay(requestDelay * 1000)
 				await this.say("api_req_retried")
 				// delegate generator output from the recursive call
 				yield* this.attemptApiRequest(previousApiReqIndex)

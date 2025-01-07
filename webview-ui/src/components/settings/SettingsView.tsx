@@ -370,10 +370,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<VSCodeCheckbox
 							checked={alwaysApproveResubmit}
 							onChange={(e: any) => setAlwaysApproveResubmit(e.target.checked)}>
-							<span style={{ fontWeight: "500" }}>Always approve resubmit request</span>
+							<span style={{ fontWeight: "500" }}>Always retry failed API requests</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-							Automatically retry request when server returns an error response, with a configurable delay
+							Automatically retry failed API requests when server returns an error response
 						</p>
 						{alwaysApproveResubmit && (
 							<div style={{ marginTop: 10 }}>
