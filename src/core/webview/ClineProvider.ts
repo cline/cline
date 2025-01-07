@@ -689,21 +689,65 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "deleteMessage": {
 						const answer = await vscode.window.showInformationMessage(
-							"Are you sure you want to delete this message and all subsequent messages?",
+							"What would you like to delete?",
 							{ modal: true },
-							"Yes",
-							"No"
+							"Just this message",
+							"This and all subsequent messages",
 						)
-						if (answer === "Yes" && this.cline && typeof message.value === 'number' && message.value) {
+						if ((answer === "Just this message" || answer === "This and all subsequent messages") &&
+							this.cline && typeof message.value === 'number' && message.value) {
 							const timeCutoff = message.value - 1000; // 1 second buffer before the message to delete
-							const messageIndex = this.cline.clineMessages.findIndex(msg =>  msg.ts && msg.ts >= timeCutoff)
+							const messageIndex = this.cline.clineMessages.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
 							const apiConversationHistoryIndex = this.cline.apiConversationHistory.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
+							
 							if (messageIndex !== -1) {
 								const { historyItem } = await this.getTaskWithId(this.cline.taskId)
-								await this.cline.overwriteClineMessages(this.cline.clineMessages.slice(0, messageIndex))
-								if (apiConversationHistoryIndex !== -1) {
-									await this.cline.overwriteApiConversationHistory(this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex))
+								
+								if (answer === "Just this message") {
+									// Find the next user message first
+									const nextUserMessage = this.cline.clineMessages
+										.slice(messageIndex + 1)
+										.find(msg => msg.type === "say" && msg.say === "user_feedback")
+									
+									// Handle UI messages
+									if (nextUserMessage) {
+										// Find absolute index of next user message
+										const nextUserMessageIndex = this.cline.clineMessages.findIndex(msg => msg === nextUserMessage)
+										// Keep messages before current message and after next user message
+										await this.cline.overwriteClineMessages([
+											...this.cline.clineMessages.slice(0, messageIndex),
+											...this.cline.clineMessages.slice(nextUserMessageIndex)
+										])
+									} else {
+										// If no next user message, keep only messages before current message
+										await this.cline.overwriteClineMessages(
+											this.cline.clineMessages.slice(0, messageIndex)
+										)
+									}
+									
+									// Handle API messages
+									if (apiConversationHistoryIndex !== -1) {
+										if (nextUserMessage && nextUserMessage.ts) {
+											// Keep messages before current API message and after next user message
+											await this.cline.overwriteApiConversationHistory([
+												...this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex),
+												...this.cline.apiConversationHistory.filter(msg => msg.ts && msg.ts >= nextUserMessage.ts)
+											])
+										} else {
+											// If no next user message, keep only messages before current API message
+											await this.cline.overwriteApiConversationHistory(
+												this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex)
+											)
+										}
+									}
+								} else if (answer === "This and all subsequent messages") {
+									// Delete this message and all that follow
+									await this.cline.overwriteClineMessages(this.cline.clineMessages.slice(0, messageIndex))
+									if (apiConversationHistoryIndex !== -1) {
+										await this.cline.overwriteApiConversationHistory(this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex))
+									}
 								}
+								
 								await this.initClineWithHistoryItem(historyItem)
 							}
 						}
