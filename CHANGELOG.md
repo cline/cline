@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.44
-
-### Patch Changes
+## [2.2.44]
 
 -   Automatically retry failed API requests with a configurable delay (thanks @RaySinner!)
 
