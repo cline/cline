@@ -863,13 +863,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.text) {
 
 							const answer = await vscode.window.showInformationMessage(
-								"What would you like to delete this api config?",
+								"Are you sure you want to delete this configuration profile?",
 								{ modal: true },
 								"Yes",
-								"No",
 							)
 
-							if (answer === "No" || answer === undefined) {
+							if (answer !== "Yes") {
 								break
 							}
 
