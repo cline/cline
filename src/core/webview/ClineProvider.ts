@@ -235,7 +235,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			fuzzyMatchThreshold
 		} = await this.getState()
-
+		
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
@@ -255,7 +255,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			fuzzyMatchThreshold
 		} = await this.getState()
-
+		
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
@@ -321,15 +321,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
-		content security policy of your webview to only allow scripts that have a specific nonce
-		create a content security policy meta tag so that only loading scripts with a nonce is allowed
-		As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
+        content security policy of your webview to only allow scripts that have a specific nonce
+        create a content security policy meta tag so that only loading scripts with a nonce is allowed
+        As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
 		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
 
-		in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
-		*/
+        in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
+        */
 		const nonce = getNonce()
 
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
@@ -557,7 +557,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postMessageToWebview({ type: "lmStudioModels", lmStudioModels })
 						break
 					case "refreshGlamaModels":
-						await this.refreshGlamaModels()
+							await this.refreshGlamaModels()
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
@@ -566,7 +566,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message?.values?.baseUrl && message?.values?.apiKey) {
 							const openAiModels = await this.getOpenAiModels(message?.values?.baseUrl, message?.values?.apiKey)
 							this.postMessageToWebview({ type: "openAiModels", openAiModels })
-						}
+						}	
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -1257,7 +1257,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysApproveResubmit,
 			requestDelaySeconds,
 		} = await this.getState()
-
+		
 		const allowedCommands = vscode.workspace
 			.getConfiguration('roo-cline')
 			.get<string[]>('allowedCommands') || []
