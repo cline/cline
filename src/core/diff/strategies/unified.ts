@@ -108,7 +108,7 @@ Your diff here
 </apply_diff>`
     }
 
-    applyDiff(originalContent: string, diffContent: string): DiffResult {
+    async applyDiff(originalContent: string, diffContent: string): Promise<DiffResult> {
         try {
             const result = applyPatch(originalContent, diffContent)
             if (result === false) {
