@@ -42,7 +42,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 2. **Code Quality**
 
     - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code (includes prettier --write)
+    - Run `npm run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any ESLint warnings or errors before submitting
     - Follow TypeScript best practices and maintain type safety
