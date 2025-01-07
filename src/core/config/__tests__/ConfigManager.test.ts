@@ -1,7 +1,6 @@
 import { ExtensionContext } from 'vscode'
-import { ConfigManager } from '../ConfigManager'
+import { ConfigManager, ApiConfigData } from '../ConfigManager'
 import { ApiConfiguration } from '../../../shared/api'
-import { ApiConfigData } from '../ConfigManager'
 
 // Mock VSCode ExtensionContext
 const mockSecrets = {
@@ -342,6 +341,43 @@ describe('ConfigManager', () => {
 
       await expect(configManager.SetCurrentConfig('test')).rejects.toThrow(
         'Failed to set current config: Error: Failed to write config to secrets: Error: Storage failed'
+      )
+    })
+  })
+
+  describe('HasConfig', () => {
+    it('should return true for existing config', async () => {
+      const existingConfig: ApiConfigData = {
+        currentApiConfigName: 'default',
+        apiConfigs: {
+          default: {},
+          test: {
+            apiProvider: 'anthropic'
+          }
+        }
+      }
+
+      mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
+
+      const hasConfig = await configManager.HasConfig('test')
+      expect(hasConfig).toBe(true)
+    })
+
+    it('should return false for non-existent config', async () => {
+      mockSecrets.get.mockResolvedValue(JSON.stringify({
+        currentApiConfigName: 'default',
+        apiConfigs: { default: {} }
+      }))
+
+      const hasConfig = await configManager.HasConfig('nonexistent')
+      expect(hasConfig).toBe(false)
+    })
+
+    it('should throw error if secrets storage fails', async () => {
+      mockSecrets.get.mockRejectedValue(new Error('Storage failed'))
+
+      await expect(configManager.HasConfig('test')).rejects.toThrow(
+        'Failed to check config existence: Error: Failed to read config from secrets: Error: Storage failed'
       )
     })
   })

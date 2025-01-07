@@ -125,6 +125,18 @@ export class ConfigManager {
     }
   }
 
+  /**
+   * Check if a config exists by name
+   */
+  async HasConfig(name: string): Promise<boolean> {
+    try {
+      const config = await this.readConfig()
+      return name in config.apiConfigs
+    } catch (error) {
+      throw new Error(`Failed to check config existence: ${error}`)
+    }
+  }
+
   private async readConfig(): Promise<ApiConfigData> {
     try {
       const configKey = `${this.SCOPE_PREFIX}api_config`

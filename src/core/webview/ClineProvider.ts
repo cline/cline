@@ -45,7 +45,6 @@ type SecretKey =
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
-	| "apiConfigPassword"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -428,14 +427,36 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 							if (listApiConfig.length === 1) {
 								// check if first time init then sync with exist config
-								if (!checkExistKey(listApiConfig[0]) && listApiConfig[0].name === "default") {
+								if (!checkExistKey(listApiConfig[0])) {
 									const {
 										apiConfiguration,
 									} = await this.getState()
-									await this.configManager.SaveConfig("default", apiConfiguration)
+									await this.configManager.SaveConfig(listApiConfig[0].name ?? "default", apiConfiguration)
 									listApiConfig[0].apiProvider = apiConfiguration.apiProvider
 								}
 							}
+
+							let currentConfigName = await this.getGlobalState("currentApiConfigName") as string
+
+							if (currentConfigName) {
+								if (!await this.configManager.HasConfig(currentConfigName)) {
+									// current config name not valid, get first config in list
+									await this.updateGlobalState("currentApiConfigName", listApiConfig?.[0]?.name)
+									if (listApiConfig?.[0]?.name) {
+										const apiConfig = await this.configManager.LoadConfig(listApiConfig?.[0]?.name);
+
+										await Promise.all([
+											this.updateGlobalState("listApiConfigMeta", listApiConfig),
+											this.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
+											this.updateApiConfiguration(apiConfig),
+										])
+										await this.postStateToWebview()
+										return
+									}
+
+								}
+							}
+
 
 							await Promise.all(
 								[
@@ -785,6 +806,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								let listApiConfig = await this.configManager.ListConfig();
 
 								await Promise.all([
+									this.updateApiConfiguration(message.apiConfiguration),
 									this.updateGlobalState("currentApiConfigName", message.text),
 									this.updateGlobalState("listApiConfigMeta", listApiConfig),
 								])
@@ -800,7 +822,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.values && message.apiConfiguration) {
 							try {
 
-								const {oldName, newName} = message.values
+								const { oldName, newName } = message.values
 
 								await this.configManager.SaveConfig(newName, message.apiConfiguration);
 
@@ -839,17 +861,37 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "deleteApiConfiguration":
 						if (message.text) {
+
+							const answer = await vscode.window.showInformationMessage(
+								"What would you like to delete this api config?",
+								{ modal: true },
+								"Yes",
+								"No",
+							)
+
+							if (answer === "No" || answer === undefined) {
+								break
+							}
+
 							try {
 								await this.configManager.DeleteConfig(message.text);
-								let currentApiConfigName = (await this.getGlobalState("currentApiConfigName") as string) ?? "default"
+								let listApiConfig = await this.configManager.ListConfig()
+								let currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 
 								if (message.text === currentApiConfigName) {
-									await this.updateGlobalState("currentApiConfigName", "default")
+									await this.updateGlobalState("currentApiConfigName", listApiConfig?.[0]?.name)
+									if (listApiConfig?.[0]?.name) {
+										const apiConfig = await this.configManager.LoadConfig(listApiConfig?.[0]?.name);
+
+										await Promise.all([
+											this.updateGlobalState("listApiConfigMeta", listApiConfig),
+											this.updateApiConfiguration(apiConfig),
+										])
+										await this.postStateToWebview()
+									}
 								}
 
-								let listApiConfig = await this.configManager.ListConfig();
-								await this.updateGlobalState("listApiConfigMeta", listApiConfig)
-								this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
+								// this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
 
 							} catch (error) {
 								console.error("Error delete api configuration:", error)
@@ -865,16 +907,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						} catch (error) {
 							console.error("Error get list api configuration:", error)
 							vscode.window.showErrorMessage("Failed to get list api configuration")
-						}
-						break
-					case "setApiConfigPassword":
-						if (message.text) {
-							try {
-								await this.storeSecret("apiConfigPassword", message.text !== "" ? message.text : undefined)
-							} catch (error) {
-								console.error("Error set apiKey password:", error)
-								vscode.window.showErrorMessage("Failed to set apiKey password")
-							}
 						}
 						break
 				}
@@ -1398,7 +1430,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
-			apiKeyPassword
 		} = await this.getState()
 
 		const allowedCommands = vscode.workspace
@@ -1435,7 +1466,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds: requestDelaySeconds ?? 5,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
-			apiKeyPassword: apiKeyPassword ?? ""
 		}
 	}
 
@@ -1545,7 +1575,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
-			apiKeyPassword,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1600,7 +1629,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
 			this.getGlobalState("currentApiConfigName") as Promise<string | undefined>,
 			this.getGlobalState("listApiConfigMeta") as Promise<ApiConfigMeta[] | undefined>,
-			this.getSecret("apiConfigPassword") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1699,7 +1727,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds: requestDelaySeconds ?? 5,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
-			apiKeyPassword: apiKeyPassword ?? ""
 		}
 	}
 
@@ -1777,7 +1804,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"geminiApiKey",
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
-			"apiConfigPassword"
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

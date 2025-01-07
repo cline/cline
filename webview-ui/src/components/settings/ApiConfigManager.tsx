@@ -12,8 +12,8 @@ interface ApiConfigManagerProps {
 }
 
 const ApiConfigManager = ({
-    currentApiConfigName,
-    listApiConfigMeta,
+    currentApiConfigName = "",
+    listApiConfigMeta = [],
     onSelectConfig,
     onDeleteConfig,
     onRenameConfig,

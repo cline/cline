@@ -38,7 +38,7 @@ const WelcomeView = () => {
 			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
 
 			<div style={{ marginTop: "10px" }}>
-				<ApiOptions showModelOptions={false} />
+				<ApiOptions showModelOptions={false} onSelectProvider={() => {}} />
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
 					Let's go!
 				</VSCodeButton>

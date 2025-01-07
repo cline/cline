@@ -183,7 +183,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						onRenameConfig={(oldName: string, newName: string) => {
 							vscode.postMessage({
 								type: "renameApiConfiguration",
-								values: {oldName, newName},
+								values: { oldName, newName },
 								apiConfiguration
 							})
 						}}
@@ -199,6 +199,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
+						onSelectProvider={(apiProvider: any) => {
+							vscode.postMessage({
+								type: "upsertApiConfiguration",
+								text: currentApiConfigName,
+								apiConfiguration: {
+									...apiConfiguration,
+									apiProvider: apiProvider,
+								}
+							})
+						}}
 					/>
 				</div>
 
