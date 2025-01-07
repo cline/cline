@@ -153,7 +153,11 @@ const OpenRouterModelPicker: React.FC = () => {
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
-						style={{ width: "100%", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX, position: "relative" }}>
+						style={{
+							width: "100%",
+							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,
+							position: "relative",
+						}}>
 						{searchTerm && (
 							<div
 								className="input-icon-button codicon codicon-close"
@@ -380,8 +384,7 @@ export const ModelDescriptionMarkdown = memo(
 								style={{
 									width: 30,
 									height: "1.2em",
-									background:
-										"linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
+									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
 								}}
 							/>
 							<VSCodeLink

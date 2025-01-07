@@ -166,7 +166,10 @@ export class BrowserSession {
 	async navigateToUrl(url: string): Promise<BrowserActionResult> {
 		return this.doAction(async (page) => {
 			// networkidle2 isn't good enough since page may take some time to load. we can assume locally running dev sites will reach networkidle0 in a reasonable amount of time
-			await page.goto(url, { timeout: 7_000, waitUntil: ["domcontentloaded", "networkidle2"] })
+			await page.goto(url, {
+				timeout: 7_000,
+				waitUntil: ["domcontentloaded", "networkidle2"],
+			})
 			// await page.goto(url, { timeout: 10_000, waitUntil: "load" })
 			await this.waitTillHTMLStable(page) // in case the page is loading more resources
 		})

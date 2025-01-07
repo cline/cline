@@ -214,11 +214,7 @@ export function blockAnchorFallbackMatch(
  * - If the search block cannot be matched using any of the available matching strategies,
  *   an error is thrown.
  */
-export async function constructNewFileContent(
-	diffContent: string,
-	originalContent: string,
-	isFinal: boolean,
-): Promise<string> {
+export async function constructNewFileContent(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -292,20 +288,12 @@ export async function constructNewFileContent(
 					searchEndIndex = exactIndex + currentSearchContent.length
 				} else {
 					// Attempt fallback line-trimmed matching
-					const lineMatch = lineTrimmedFallbackMatch(
-						originalContent,
-						currentSearchContent,
-						lastProcessedIndex,
-					)
+					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 					if (lineMatch) {
 						;[searchMatchIndex, searchEndIndex] = lineMatch
 					} else {
 						// Try block anchor fallback for larger blocks
-						const blockMatch = blockAnchorFallbackMatch(
-							originalContent,
-							currentSearchContent,
-							lastProcessedIndex,
-						)
+						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {

@@ -80,6 +80,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			const id = modelId as OpenAiNativeModelId
 			return { id, info: openAiNativeModels[id] }
 		}
-		return { id: openAiNativeDefaultModelId, info: openAiNativeModels[openAiNativeDefaultModelId] }
+		return {
+			id: openAiNativeDefaultModelId,
+			info: openAiNativeModels[openAiNativeDefaultModelId],
+		}
 	}
 }
