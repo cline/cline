@@ -766,7 +766,7 @@ export class Cline {
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let mcpHub: McpHub | undefined
 
-		const { mcpEnabled } = await this.providerRef.deref()?.getState() ?? {}
+		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } = await this.providerRef.deref()?.getState() ?? {}
 
 		if (mcpEnabled ?? true) {
 			mcpHub = this.providerRef.deref()?.mcpHub
@@ -799,8 +799,30 @@ export class Cline {
 			}
 		}
 
-		// Convert to Anthropic.MessageParam by spreading only the API-required properties
-		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => ({ role, content }))
+		// Clean conversation history by:
+		// 1. Converting to Anthropic.MessageParam by spreading only the API-required properties
+		// 2. Converting image blocks to text descriptions if model doesn't support images
+		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => {
+			// Handle array content (could contain image blocks)
+			if (Array.isArray(content)) {
+				if (!this.api.getModel().info.supportsImages) {
+					// Convert image blocks to text descriptions
+					content = content.map(block => {
+						if (block.type === 'image') {
+							// Convert image blocks to text descriptions
+							// Note: We can't access the actual image content/url due to API limitations,
+							// but we can indicate that an image was present in the conversation
+							return {
+								type: 'text',
+								text: '[Referenced image in conversation]'
+							};
+						}
+						return block;
+					});
+				}
+			}
+			return { role, content }
+		})
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -810,18 +832,33 @@ export class Cline {
 			yield firstChunk.value
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-			const { response } = await this.ask(
-				"api_req_failed",
-				error.message ?? JSON.stringify(serializeError(error), null, 2),
-			)
-			if (response !== "yesButtonClicked") {
-				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-				throw new Error("API request failed")
+			if (alwaysApproveResubmit) {
+				const requestDelay = requestDelaySeconds || 5
+				// Automatically retry with delay
+				await this.say(
+					"error",
+					`${error.message ?? "Unknown error"} ↺ Retrying in ${requestDelay} seconds...`,
+				)
+				await this.say("api_req_retry_delayed")
+				await delay(requestDelay * 1000)
+				await this.say("api_req_retried")
+				// delegate generator output from the recursive call
+				yield* this.attemptApiRequest(previousApiReqIndex)
+				return
+			} else {
+				const { response } = await this.ask(
+					"api_req_failed",
+					error.message ?? JSON.stringify(serializeError(error), null, 2),
+				)
+				if (response !== "yesButtonClicked") {
+					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
+					throw new Error("API request failed")
+				}
+				await this.say("api_req_retried")
+				// delegate generator output from the recursive call
+				yield* this.attemptApiRequest(previousApiReqIndex)
+				return
 			}
-			await this.say("api_req_retried")
-			// delegate generator output from the recursive call
-			yield* this.attemptApiRequest(previousApiReqIndex)
-			return
 		}
 
 		// no error, so we can continue to yield all remaining chunks

@@ -44,9 +44,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, apiConfiguration } = useExtensionState()
+		const { filePaths, apiConfiguration, currentApiConfigName, listApiConfigMeta } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
+		const [showDropdown, setShowDropdown] = useState(false)
+
+		// Close dropdown when clicking outside
+		useEffect(() => {
+			const handleClickOutside = (event: MouseEvent) => {
+				if (showDropdown) {
+					setShowDropdown(false)
+				}
+			}
+			document.addEventListener("mousedown", handleClickOutside)
+			return () => document.removeEventListener("mousedown", handleClickOutside)
+		}, [showDropdown])
 
 		// Handle enhanced prompt response
 		useEffect(() => {
@@ -649,12 +661,61 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{
 							position: "absolute",
 							paddingTop: 4,
-							bottom: 14,
+							bottom: 32,
 							left: 22,
 							right: 67,
 							zIndex: 2,
 						}}
 					/>
+				)}
+				{(listApiConfigMeta || []).length > 1 && (
+					<div
+						style={{
+							position: "absolute",
+							left: 25,
+							bottom: 14,
+							zIndex: 2
+						}}
+					>
+						<select
+							value={currentApiConfigName}
+							disabled={textAreaDisabled}
+							onChange={(e) => vscode.postMessage({
+								type: "loadApiConfiguration",
+								text: e.target.value
+							})}
+							style={{
+								fontSize: "11px",
+								cursor: textAreaDisabled ? "not-allowed" : "pointer",
+								backgroundColor: "transparent",
+								border: "none",
+								color: "var(--vscode-input-foreground)",
+								opacity: textAreaDisabled ? 0.5 : 0.6,
+								outline: "none",
+								paddingLeft: 14,
+								WebkitAppearance: "none",
+								MozAppearance: "none",
+								appearance: "none",
+								backgroundImage: "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
+								backgroundRepeat: "no-repeat",
+								backgroundPosition: "left 0px center",
+								backgroundSize: "10px"
+							}}
+						>
+							{(listApiConfigMeta || [])?.map((config) => (
+								<option
+									key={config.name}
+									value={config.name}
+									style={{
+										backgroundColor: "var(--vscode-dropdown-background)",
+										color: "var(--vscode-dropdown-foreground)"
+									}}
+								>
+									{config.name}
+								</option>
+							))}
+						</select>
+					</div>
 				)}
 				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 2, justifyContent: "flex-end" }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>

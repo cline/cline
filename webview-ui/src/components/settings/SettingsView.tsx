@@ -5,6 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import McpEnabledToggle from "../mcp/McpEnabledToggle"
+import ApiConfigManager from "./ApiConfigManager"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -51,10 +52,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		terminalOutputLineLimit,
 		setTerminalOutputLineLimit,
 		mcpEnabled,
+		alwaysApproveResubmit,
+		setAlwaysApproveResubmit,
+		requestDelaySeconds,
+		setRequestDelaySeconds,
+		currentApiConfigName,
+		listApiConfigMeta,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
+
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
@@ -83,6 +91,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
 			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
+			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
+			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
+			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
+			vscode.postMessage({
+				type: "upsertApiConfiguration",
+				text: currentApiConfigName,
+				apiConfiguration
+			})
+
 			onDone()
 		}
 	}
@@ -146,8 +163,37 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
+					<ApiConfigManager
+						currentApiConfigName={currentApiConfigName}
+						listApiConfigMeta={listApiConfigMeta}
+						onSelectConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "loadApiConfiguration",
+								text: configName
+							})
+						}}
+						onDeleteConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "deleteApiConfiguration",
+								text: configName
+							})
+						}}
+						onRenameConfig={(oldName: string, newName: string) => {
+							vscode.postMessage({
+								type: "renameApiConfiguration",
+								values: { oldName, newName },
+								apiConfiguration
+							})
+						}}
+						onUpsertConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "upsertApiConfiguration",
+								text: configName,
+								apiConfiguration
+							})
+						}}
+					/>
 					<ApiOptions
-						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
 					/>
@@ -355,18 +401,51 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							<span style={{ fontWeight: "500" }}>Always approve browser actions</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-							Automatically perform browser actions without requiring approval<br/>
+							Automatically perform browser actions without requiring approval<br />
 							Note: Only applies when the model supports computer use
 						</p>
 					</div>
 
 					<div style={{ marginBottom: 5 }}>
 						<VSCodeCheckbox
+							checked={alwaysApproveResubmit}
+							onChange={(e: any) => setAlwaysApproveResubmit(e.target.checked)}>
+							<span style={{ fontWeight: "500" }}>Always retry failed API requests</span>
+						</VSCodeCheckbox>
+						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+							Automatically retry failed API requests when server returns an error response
+						</p>
+						{alwaysApproveResubmit && (
+							<div style={{ marginTop: 10 }}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+									<input
+										type="range"
+										min="0"
+										max="100"
+										step="1"
+										value={requestDelaySeconds}
+										onChange={(e) => setRequestDelaySeconds(parseInt(e.target.value))}
+										style={{
+											flex: 1,
+											accentColor: 'var(--vscode-button-background)',
+											height: '2px'
+										}}
+									/>
+									<span style={{ minWidth: '45px', textAlign: 'left' }}>
+										{requestDelaySeconds}s
+									</span>
+								</div>
+								<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+									Delay before retrying the request
+								</p>
+							</div>
+						)}
+					</div>
+
+					<div style={{ marginBottom: 5 }}>
+						<VSCodeCheckbox
 							checked={alwaysAllowMcp}
-							onChange={(e: any) => {
-								setAlwaysAllowMcp(e.target.checked)
-								vscode.postMessage({ type: "alwaysAllowMcp", bool: e.target.checked })
-							}}>
+							onChange={(e: any) => setAlwaysAllowMcp(e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve MCP tools</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -525,7 +604,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 					<div style={{ marginBottom: 5 }}>
 						<div style={{ marginBottom: 10 }}>
-						<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Notification Settings</h3>
+							<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Notification Settings</h3>
 							<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
 								<span style={{ fontWeight: "500" }}>Enable sound effects</span>
 							</VSCodeCheckbox>

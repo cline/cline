@@ -59,6 +59,9 @@ jest.mock('vscode', () => ({
         joinPath: jest.fn(),
         file: jest.fn()
     },
+    window: {
+        showInformationMessage: jest.fn(),
+    },
     workspace: {
         getConfiguration: jest.fn().mockReturnValue({
             get: jest.fn().mockReturnValue([]),
@@ -123,7 +126,11 @@ jest.mock('../../Cline', () => {
         Cline: jest.fn().mockImplementation(() => ({
             abortTask: jest.fn(),
             handleWebviewAskResponse: jest.fn(),
-            clineMessages: []
+            clineMessages: [],
+            apiConversationHistory: [],
+            overwriteClineMessages: jest.fn(),
+            overwriteApiConversationHistory: jest.fn(),
+            taskId: 'test-task-id'
         }))
     }
 })
@@ -256,6 +263,7 @@ describe('ClineProvider', () => {
             browserViewportSize: "900x600",
             fuzzyMatchThreshold: 1.0,
             mcpEnabled: true,
+            requestDelaySeconds: 5
         }
         
         const message: ExtensionMessage = { 
@@ -375,9 +383,190 @@ describe('ClineProvider', () => {
         expect(mockPostMessage).toHaveBeenCalled()
     })
 
+    test('requestDelaySeconds defaults to 5 seconds', async () => {
+        // Mock globalState.get to return undefined for requestDelaySeconds
+        (mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'requestDelaySeconds') {
+                return undefined
+            }
+            return null
+        })
+
+        const state = await provider.getState()
+        expect(state.requestDelaySeconds).toBe(5)
+    })
+
+    test('alwaysApproveResubmit defaults to false', async () => {
+        // Mock globalState.get to return undefined for alwaysApproveResubmit
+        (mockContext.globalState.get as jest.Mock).mockReturnValue(undefined)
+
+        const state = await provider.getState()
+        expect(state.alwaysApproveResubmit).toBe(false)
+    })
+
+    test('handles request delay settings messages', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        // Test alwaysApproveResubmit
+        await messageHandler({ type: 'alwaysApproveResubmit', bool: true })
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('alwaysApproveResubmit', true)
+        expect(mockPostMessage).toHaveBeenCalled()
+
+        // Test requestDelaySeconds
+        await messageHandler({ type: 'requestDelaySeconds', value: 10 })
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('requestDelaySeconds', 10)
+        expect(mockPostMessage).toHaveBeenCalled()
+    })
+
     test('file content includes line numbers', async () => {
         const { extractTextFromFile } = require('../../../integrations/misc/extract-text')
         const result = await extractTextFromFile('test.js')
         expect(result).toBe('1 | const x = 1;\n2 | const y = 2;\n3 | const z = 3;')
+    })
+
+    describe('deleteMessage', () => {
+        beforeEach(() => {
+            // Mock window.showInformationMessage
+            ;(vscode.window.showInformationMessage as jest.Mock) = jest.fn()
+            provider.resolveWebviewView(mockWebviewView)
+        })
+
+        test('handles "Just this message" deletion correctly', async () => {
+            // Mock user selecting "Just this message"
+            ;(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('Just this message')
+
+            // Setup mock messages
+            const mockMessages = [
+                { ts: 1000, type: 'say', say: 'user_feedback' },     // User message 1
+                { ts: 2000, type: 'say', say: 'tool' },             // Tool message
+                { ts: 3000, type: 'say', say: 'text', value: 4000 }, // Message to delete
+                { ts: 4000, type: 'say', say: 'browser_action' },    // Response to delete
+                { ts: 5000, type: 'say', say: 'user_feedback' },     // Next user message
+                { ts: 6000, type: 'say', say: 'user_feedback' }      // Final message
+            ]
+
+            const mockApiHistory = [
+                { ts: 1000 },
+                { ts: 2000 },
+                { ts: 3000 },
+                { ts: 4000 },
+                { ts: 5000 },
+                { ts: 6000 }
+            ]
+
+            // Setup Cline instance with mock data
+            const mockCline = {
+                clineMessages: mockMessages,
+                apiConversationHistory: mockApiHistory,
+                overwriteClineMessages: jest.fn(),
+                overwriteApiConversationHistory: jest.fn(),
+                taskId: 'test-task-id',
+                abortTask: jest.fn(),
+                handleWebviewAskResponse: jest.fn()
+            }
+            // @ts-ignore - accessing private property for testing
+            provider.cline = mockCline
+
+            // Mock getTaskWithId
+            ;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
+                historyItem: { id: 'test-task-id' }
+            })
+
+            // Trigger message deletion
+            const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+            await messageHandler({ type: 'deleteMessage', value: 4000 })
+
+            // Verify correct messages were kept
+            expect(mockCline.overwriteClineMessages).toHaveBeenCalledWith([
+                mockMessages[0],
+                mockMessages[1],
+                mockMessages[4],
+                mockMessages[5]
+            ])
+
+            // Verify correct API messages were kept
+            expect(mockCline.overwriteApiConversationHistory).toHaveBeenCalledWith([
+                mockApiHistory[0],
+                mockApiHistory[1],
+                mockApiHistory[4],
+                mockApiHistory[5]
+            ])
+        })
+
+        test('handles "This and all subsequent messages" deletion correctly', async () => {
+            // Mock user selecting "This and all subsequent messages"
+            ;(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('This and all subsequent messages')
+
+            // Setup mock messages
+            const mockMessages = [
+                { ts: 1000, type: 'say', say: 'user_feedback' },
+                { ts: 2000, type: 'say', say: 'text', value: 3000 },  // Message to delete
+                { ts: 3000, type: 'say', say: 'user_feedback' },
+                { ts: 4000, type: 'say', say: 'user_feedback' }
+            ]
+
+            const mockApiHistory = [
+                { ts: 1000 },
+                { ts: 2000 },
+                { ts: 3000 },
+                { ts: 4000 }
+            ]
+
+            // Setup Cline instance with mock data
+            const mockCline = {
+                clineMessages: mockMessages,
+                apiConversationHistory: mockApiHistory,
+                overwriteClineMessages: jest.fn(),
+                overwriteApiConversationHistory: jest.fn(),
+                taskId: 'test-task-id',
+                abortTask: jest.fn(),
+                handleWebviewAskResponse: jest.fn()
+            }
+            // @ts-ignore - accessing private property for testing
+            provider.cline = mockCline
+
+            // Mock getTaskWithId
+            ;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
+                historyItem: { id: 'test-task-id' }
+            })
+
+            // Trigger message deletion
+            const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+            await messageHandler({ type: 'deleteMessage', value: 3000 })
+
+            // Verify only messages before the deleted message were kept
+            expect(mockCline.overwriteClineMessages).toHaveBeenCalledWith([
+                mockMessages[0]
+            ])
+
+            // Verify only API messages before the deleted message were kept
+            expect(mockCline.overwriteApiConversationHistory).toHaveBeenCalledWith([
+                mockApiHistory[0]
+            ])
+        })
+
+        test('handles Cancel correctly', async () => {
+            // Mock user selecting "Cancel"
+            ;(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('Cancel')
+
+            const mockCline = {
+                clineMessages: [{ ts: 1000 }, { ts: 2000 }],
+                apiConversationHistory: [{ ts: 1000 }, { ts: 2000 }],
+                overwriteClineMessages: jest.fn(),
+                overwriteApiConversationHistory: jest.fn(),
+                taskId: 'test-task-id'
+            }
+            // @ts-ignore - accessing private property for testing
+            provider.cline = mockCline
+
+            // Trigger message deletion
+            const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+            await messageHandler({ type: 'deleteMessage', value: 2000 })
+
+            // Verify no messages were deleted
+            expect(mockCline.overwriteClineMessages).not.toHaveBeenCalled()
+            expect(mockCline.overwriteApiConversationHistory).not.toHaveBeenCalled()
+        })
     })
 })

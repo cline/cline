@@ -56,6 +56,8 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 				invoke: "secondaryButtonClick",
 			})
 		},
+
+		sidebarProvider: sidebarProvider,
 	}
 
 	return api

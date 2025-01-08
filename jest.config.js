@@ -32,6 +32,9 @@ module.exports = {
     modulePathIgnorePatterns: [
         '.vscode-test'
     ],
+    reporters: [
+        ["jest-simple-dot-reporter", {}]
+    ],
     setupFiles: [],
     globals: {
         'ts-jest': {

@@ -11,3 +11,6 @@ roo-cline-*.vsix
 
 # Local prompts and rules
 /local-prompts
+
+# Test environment
+.test_env
