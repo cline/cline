@@ -34,6 +34,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import OpenAiModelPicker from "./OpenAiModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -50,10 +51,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({
-			...apiConfiguration,
-			[field]: event.target.value,
-		})
+		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -63,15 +61,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
-			vscode.postMessage({
-				type: "requestOllamaModels",
-				text: apiConfiguration?.ollamaBaseUrl,
-			})
+			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
 		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({
-				type: "requestLmStudioModels",
-				text: apiConfiguration?.lmStudioBaseUrl,
-			})
+			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
@@ -133,11 +125,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{
-						minWidth: 130,
-						position: "relative",
-						zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1,
-					}}>
+					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -168,10 +156,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							const isChecked = e.target.checked === true
 							setAnthropicBaseUrlSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									anthropicBaseUrl: "",
-								})
+								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
 							}
 						}}>
 						Use custom base URL
@@ -197,10 +182,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.apiKey && (
 							<VSCodeLink
 								href="https://console.anthropic.com/settings/keys"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
+								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an Anthropic API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -228,10 +210,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						{!apiConfiguration?.openAiNativeApiKey && (
 							<VSCodeLink
 								href="https://platform.openai.com/api-keys"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
+								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an OpenAI API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -257,12 +236,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.deepSeekApiKey && (
-							<VSCodeLink
-								href="https://www.deepseek.com/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
+							<VSCodeLink href="https://www.deepseek.com/" style={{ display: "inline", fontSize: "inherit" }}>
 								You can get a DeepSeek API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -306,12 +280,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			)}
 
 			{selectedProvider === "bedrock" && (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 5,
-					}}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
 						value={apiConfiguration?.awsAccessKey || ""}
 						style={{ width: "100%" }}
@@ -377,10 +346,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							setApiConfiguration({
-								...apiConfiguration,
-								awsUseCrossRegionInference: isChecked,
-							})
+							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
 						}}>
 						Use cross-region inference
 					</VSCodeCheckbox>
@@ -398,12 +364,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			)}
 
 			{apiConfiguration?.apiProvider === "vertex" && (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 5,
-					}}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
@@ -467,12 +428,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.geminiApiKey && (
-							<VSCodeLink
-								href="https://ai.google.dev/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
+							<VSCodeLink href="https://ai.google.dev/" style={{ display: "inline", fontSize: "inherit" }}>
 								You can get a Gemini API key by signing up here.
 							</VSCodeLink>
 						)}
@@ -498,23 +454,28 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
+					<span style={{ fontWeight: 500 }}>Model</span>
+					<OpenAiModelPicker />
+					<div style={{ display: "flex", alignItems: "center" }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.includeStreamOptions ?? true}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked
+								setApiConfiguration({
+									...apiConfiguration,
+									includeStreamOptions: isChecked,
+								})
+							}}>
+							Include stream options
+						</VSCodeCheckbox>
+					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
 							setAzureApiVersionSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									azureApiVersion: "",
-								})
+								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
 							}
 						}}>
 						Set Azure API version
@@ -816,12 +777,7 @@ export const ModelInfoView = ({
 	].filter(Boolean)
 
 	return (
-		<p
-			style={{
-				fontSize: "12px",
-				marginTop: "2px",
-				color: "var(--vscode-descriptionForeground)",
-			}}>
+		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			{infoItems.map((item, index) => (
 				<Fragment key={index}>
 					{item}
@@ -874,11 +830,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			selectedModelId = defaultId
 			selectedModelInfo = models[defaultId]
 		}
-		return {
-			selectedProvider: provider,
-			selectedModelId,
-			selectedModelInfo,
-		}
+		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
 	}
 	switch (provider) {
 		case "anthropic":
