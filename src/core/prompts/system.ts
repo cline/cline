@@ -130,6 +130,8 @@ Usage:
 
 ## fetch_user_stories
 Description: Request to fetch user stories for a specific project. This tool retrieves all user stories including their titles, descriptions, acceptance criteria, status, and priority.
+If project name is not provided then fetch from .clinerules(if exists) or tell user to provide project name.
+if user stories not found or gives error then tell user that user stories not found.
 Parameters:
 - project_name: (required) The name of the project to fetch user stories for
 Usage:
@@ -138,7 +140,9 @@ Usage:
 </fetch_user_stories>
 
 ## fetch_technical_design
-Description: Request to fetch technical design documentation for a specific project. This includes architecture details, tech stack, API endpoints, and database schema.
+Description: Request to fetch technical design documentation for a specific project. This includes architecture pages which is frontend pages and API endpoints which are backend apis
+if project name is not provided then fetch from .clinerules(if exists) or tell user to provide project name.
+if technical design not found or gives error then tell user that technical design not found.
 Parameters:
 - project_name: (required) The name of the project to fetch technical design for
 Usage:
