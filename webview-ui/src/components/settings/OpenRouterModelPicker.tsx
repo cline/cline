@@ -11,7 +11,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const OpenRouterModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, onUpdateApiConfig } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -22,17 +22,26 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
+		const apiConfig = {
 			...apiConfiguration,
 			openRouterModelId: newModelId,
 			openRouterModelInfo: openRouterModels[newModelId],
-		})
+		}
+
+		setApiConfiguration(apiConfig)
+		onUpdateApiConfig(apiConfig)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
+
+	useEffect(() => {
+		if (apiConfiguration?.openRouterModelId && apiConfiguration?.openRouterModelId !== searchTerm) {
+			setSearchTerm(apiConfiguration?.openRouterModelId)
+		}
+	}, [apiConfiguration, searchTerm])
 
 	useMount(() => {
 		vscode.postMessage({ type: "refreshOpenRouterModels" })

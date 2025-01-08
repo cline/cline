@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
-import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
+import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -13,6 +13,9 @@ import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
+import {
+	checkExistKey
+} from "../../../src/shared/checkExistApiConfig"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -50,6 +53,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysApproveResubmit: (value: boolean) => void
 	requestDelaySeconds: number
 	setRequestDelaySeconds: (value: number) => void
+	setCurrentApiConfigName: (value: string) => void
+	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
+	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -72,7 +78,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
 		alwaysApproveResubmit: false,
-		requestDelaySeconds: 5
+		requestDelaySeconds: 5,
+		currentApiConfigName: 'default',
+		listApiConfigMeta: [],
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -88,27 +96,24 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
+
+	const setListApiConfigMeta = useCallback((value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })), [setState])
+
+	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
+		vscode.postMessage({
+			type: "upsertApiConfiguration",
+			text: state.currentApiConfigName,
+			apiConfiguration: apiConfig,
+		})
+	}, [state])
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
 				setState(message.state!)
 				const config = message.state?.apiConfiguration
-				const hasKey = config
-					? [
-							config.apiKey,
-							config.glamaApiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-						].some((key) => key !== undefined)
-					: false
+				const hasKey = checkExistKey(config)
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
 				break
@@ -162,8 +167,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
+			case "listApiConfig": {
+				setListApiConfigMeta(message.listApiConfig ?? [])
+				break
+			}
 		}
-	}, [])
+	}, [setListApiConfigMeta])
 
 	useEvent("message", handleMessage)
 
@@ -208,7 +217,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setTerminalOutputLineLimit: (value) => setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
-		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value }))
+		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
+		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
+		setListApiConfigMeta,
+		onUpdateApiConfig
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
