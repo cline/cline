@@ -29,10 +29,8 @@ const OpenAiModelPicker: React.FC = () => {
 	}
 
 	useEffect(() => {
-		if (apiConfiguration?.openAiModelId) {
-			if (apiConfiguration?.openAiModelId !== searchTerm) {
-				setSearchTerm(apiConfiguration?.openAiModelId)
-			}
+		if (apiConfiguration?.openAiModelId && apiConfiguration?.openAiModelId !== searchTerm) {
+			setSearchTerm(apiConfiguration?.openAiModelId)
 		}
 	}, [apiConfiguration, searchTerm])
 

@@ -38,10 +38,8 @@ const OpenRouterModelPicker: React.FC = () => {
 	}, [apiConfiguration])
 
 	useEffect(() => {
-		if (apiConfiguration?.openRouterModelId) {
-			if (apiConfiguration?.openRouterModelId !== searchTerm) {
-				setSearchTerm(apiConfiguration?.openRouterModelId)
-			}
+		if (apiConfiguration?.openRouterModelId && apiConfiguration?.openRouterModelId !== searchTerm) {
+			setSearchTerm(apiConfiguration?.openRouterModelId)
 		}
 	}, [apiConfiguration, searchTerm])
 

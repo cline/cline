@@ -889,9 +889,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										await this.postStateToWebview()
 									}
 								}
-
-								// this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
-
 							} catch (error) {
 								console.error("Error delete api configuration:", error)
 								vscode.window.showErrorMessage("Failed to delete api configuration")

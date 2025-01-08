@@ -39,10 +39,8 @@ const GlamaModelPicker: React.FC = () => {
 
 
 	useEffect(() => {
-		if (apiConfiguration?.glamaModelId) {
-			if (apiConfiguration?.glamaModelId !== searchTerm) {
-				setSearchTerm(apiConfiguration?.glamaModelId)
-			}
+		if (apiConfiguration?.glamaModelId && apiConfiguration?.glamaModelId !== searchTerm) {
+			setSearchTerm(apiConfiguration?.glamaModelId)
 		}
 	}, [apiConfiguration, searchTerm])
 
