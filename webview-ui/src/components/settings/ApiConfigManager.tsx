@@ -36,9 +36,9 @@ const ApiConfigManager = ({
         setInputValue("");
     }, [currentApiConfigName]);
 
-    const handleStartNew = () => {
-        setEditState('new');
-        setInputValue("");
+    const handleAdd = () => {
+        const newConfigName = currentApiConfigName + " (copy)";
+        onUpsertConfig(newConfigName);
     };
 
     const handleStartRename = () => {
@@ -162,7 +162,7 @@ const ApiConfigManager = ({
                             </select>
                             <VSCodeButton
                                 appearance="icon"
-                                onClick={handleStartNew}
+                                onClick={handleAdd}
                                 title="Add profile"
                                 style={{
                                     padding: 0,
