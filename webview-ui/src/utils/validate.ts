@@ -1,5 +1,4 @@
-import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
-import { ModelInfo } from "../../../src/shared/api"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
@@ -18,6 +17,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "apipie":
+				if (!apiConfiguration.apipieApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break						
 			case "vertex":
 				if (!apiConfiguration.vertexProjectId || !apiConfiguration.vertexRegion) {
 					return "You must provide a valid Google Cloud Project ID and Region."

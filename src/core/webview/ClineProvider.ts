@@ -14,6 +14,7 @@ import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
@@ -22,7 +23,6 @@ import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -33,6 +33,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 type SecretKey =
 	| "apiKey"
 	| "openRouterApiKey"
+	| "apipieApiKey"
 	| "awsAccessKey"
 	| "awsSecretKey"
 	| "awsSessionToken"
@@ -71,8 +72,8 @@ export const GlobalFileNames = {
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	public static readonly sideBarId = "cline-apipie.SidebarProvider"
+	public static readonly tabPanelId = "cline-apipie.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
@@ -336,6 +337,26 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								})
 							}
 						})
+						this.readApipieModels().then((apipieModelsArray) => {
+							if (apipieModelsArray) {
+								const apipieModelsRecord: Record<string, ModelInfo> = apipieModelsArray.reduce(
+									(acc: Record<string, ModelInfo>, model: any) => {
+										acc[`${model.provider}/${model.id}`] = {
+											maxTokens: model.max_tokens,
+											contextWindow: model.max_response_tokens,
+											supportsImages: false,
+											supportsPromptCache: false,
+											inputPrice: model.input_cost,
+											outputPrice: model.output_cost,
+											description: model.description,
+										}
+										return acc
+									},
+									{},
+								)
+								this.postMessageToWebview({ type: "apipieModels", apipieModels: apipieModelsRecord })
+							}
+						})
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
@@ -371,6 +392,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								apiModelId,
 								apiKey,
 								openRouterApiKey,
+								apipieApiKey,
 								awsAccessKey,
 								awsSecretKey,
 								awsSessionToken,
@@ -397,6 +419,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("apiModelId", apiModelId)
 							await this.storeSecret("apiKey", apiKey)
 							await this.storeSecret("openRouterApiKey", openRouterApiKey)
+							await this.storeSecret("apipieApiKey", apipieApiKey)
 							await this.storeSecret("awsAccessKey", awsAccessKey)
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.storeSecret("awsSessionToken", awsSessionToken)
@@ -490,6 +513,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
 						break
+					case "refreshApipieModels":
+						await this.refreshApipieModels()
+						break						
 					case "openImage":
 						openImage(message.text!)
 						break
@@ -687,6 +713,49 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		return undefined
 	}
+
+	async readApipieModels(): Promise<any[] | undefined> {
+		const apipieModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.apipieModels)
+		const fileExists = await fileExistsAtPath(apipieModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(apipieModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+	async refreshApipieModels() {
+		const apipieModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.apipieModels)
+
+		try {
+			const response = await axios.get("https://apipie.ai/v1/models?subtype=chatx,meta,code")
+			if (response.data?.object === "list" && Array.isArray(response.data.data)) {
+				const models = response.data.data.filter((model: any) => model.max_response_tokens >= 8000)
+				await fs.writeFile(apipieModelsFilePath, JSON.stringify(models))
+				const apipieModelsRecord: Record<string, ModelInfo> = models.reduce(
+					(acc: Record<string, ModelInfo>, model: any) => {
+						acc[`${model.provider}/${model.id}`] = {
+							maxTokens: model.maxTokens,
+							contextWindow: model.max_response_tokens,
+							supportsImages: false,
+							supportsPromptCache: false,
+							inputPrice: model.input_cost,
+							outputPrice: model.output_cost,
+							description: model.description,
+						}
+						return acc
+					},
+					{},
+				)
+				await this.postMessageToWebview({ type: "apipieModels", apipieModels: apipieModelsRecord })
+				return models
+			} else {
+				console.error("Invalid response format from APIpie API")
+			}
+		} catch (error) {
+			console.error("Error fetching APIpie models:", error)
+		}
+		return []
+	}	
 
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
@@ -981,6 +1050,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
+			apipieApiKey,
 			awsAccessKey,
 			awsSecretKey,
 			awsSessionToken,
@@ -1011,6 +1081,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+			this.getSecret("apipieApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
@@ -1058,6 +1129,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				apiModelId,
 				apiKey,
 				openRouterApiKey,
+				apipieApiKey,
 				awsAccessKey,
 				awsSecretKey,
 				awsSessionToken,
@@ -1153,6 +1225,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const secretKeys: SecretKey[] = [
 			"apiKey",
 			"openRouterApiKey",
+			"apipieApiKey",
 			"awsAccessKey",
 			"awsSecretKey",
 			"awsSessionToken",

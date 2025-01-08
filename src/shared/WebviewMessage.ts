@@ -23,6 +23,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshApipieModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "autoApprovalSettings"

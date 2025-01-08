@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../../utils/validate"
@@ -30,20 +30,17 @@ const WelcomeView = () => {
 				bottom: 0,
 				padding: "0 20px",
 			}}>
-			<h2>Hi, I'm Cline</h2>
+			<h2>Hi, I'm Cline-APIpie</h2>
 			<p>
-				I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
-				<VSCodeLink
-					href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
-					style={{ display: "inline" }}>
-					Claude 3.5 Sonnet's agentic coding capabilities
-				</VSCodeLink>{" "}
-				and access to tools that let me create & edit files, explore complex projects, use the browser, and execute
-				terminal commands (with your permission, of course). I can even use MCP to create new tools and extend my own
-				capabilities.
+				This is a fork of Cline, made for APIpie.ai API. This may be merged into the main project at some point.
+				We have more updates coming to truly take advantage of APIpie's features and services with Cline to
+				really empower the developer.
 			</p>
 
-			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
+			<b>
+				You need to configure an APIpie API key if you have not already. You could also configure some other API
+				key but why not use Cline proper then.{" "}
+			</b>
 
 			<div style={{ marginTop: "10px" }}>
 				<ApiOptions showModelOptions={false} />

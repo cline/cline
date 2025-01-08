@@ -66,12 +66,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
+					APIpie is a super aggregator that aggregates AI aggregators and adds services you need like pinecone and services you didnt know you needed like integrity querys to prevent hallucinations, meta models, global AI monitoring and more. ,
 					so I recommend trying them out.
 					<br />
-					{!apiConfiguration?.openRouterApiKey && (
+					{!apiConfiguration?.apipieApiKey && (
 						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
+							href={getApipieAuthUrl(vscodeUriScheme)}
 							style={{
 								transform: "scale(0.85)",
 								transformOrigin: "left center",
@@ -80,12 +80,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							Get OpenRouter API Key
 						</VSCodeButtonLink>
 					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
+					{apiConfiguration?.apipieApiKey && apiConfiguration?.apiProvider !== "apipie" && (
 						<VSCodeButton
 							onClick={() => {
 								vscode.postMessage({
 									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
+									apiConfiguration: { ...apiConfiguration, apiProvider: "apipie" },
 								})
 							}}
 							style={{
