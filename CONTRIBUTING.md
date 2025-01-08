@@ -16,6 +16,19 @@ Looking for a good first contribution? Check out issues labeled ["good first iss
 
 If you're planning to work on a bigger feature, please create an issue first so we can discuss whether it aligns with Cline's vision.
 
+## Development Setup
+
+1. **VS Code Extensions**
+
+    - When opening the project, VS Code will prompt you to install recommended extensions
+    - These extensions are required for development - please accept all installation prompts
+    - If you dismissed the prompts, you can install them manually from the Extensions panel
+
+2. **Local Development**
+    - Run `npm install` to install dependencies
+    - Run `npm run test` to run tests locally
+    - Before submitting PR, run `npm run format:fix` to format your code
+
 ## Writing and Submitting Code
 
 Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
@@ -28,8 +41,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to ensure code follows our style guidelines
-    - Run `npm run format` to format your code with Prettier
+    - Run `npm run lint` to check code style
+    - Run `npm run format` to automatically format code
+    - All PRs must pass CI checks which include both linting and formatting
     - Address any ESLint warnings or errors before submitting
     - Follow TypeScript best practices and maintain type safety
 
