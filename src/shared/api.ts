@@ -20,6 +20,7 @@ export interface ApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	apipieApiKey?: string
 	apipieModelProvider?: string
+	apipieModelInfo?: ModelInfo
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -184,7 +185,7 @@ export type ApipieModelId = keyof typeof apipieModels
 export const apipieDefaultModelId: ApipieModelId = "gpt-4o"
 export const apipieModels = {
 	"gpt-4o": {
-		maxTokens: 4096,
+		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,

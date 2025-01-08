@@ -33,6 +33,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import ApipieModelPicker from "./ApipieModelPicker"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
@@ -209,7 +210,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-{selectedProvider === "apipie" && (
+			{selectedProvider === "apipie" && (
 				<div>
 					<VSCodeTextField
 						value={apiConfiguration?.apipieApiKey || ""}
@@ -242,7 +243,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						)} */}
 					</p>
 				</div>
-			)}			
+			)}
 
 			{selectedProvider === "openai-native" && (
 				<div>
@@ -959,7 +960,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.apiModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}			
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

@@ -68,6 +68,7 @@ export const GlobalFileNames = {
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
+	apipieModels: "apipie_models.json",
 	clineRules: ".clinerules",
 }
 
@@ -515,7 +516,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshApipieModels":
 						await this.refreshApipieModels()
-						break						
+						break
 					case "openImage":
 						openImage(message.text!)
 						break
@@ -755,7 +756,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			console.error("Error fetching APIpie models:", error)
 		}
 		return []
-	}	
+	}
 
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)

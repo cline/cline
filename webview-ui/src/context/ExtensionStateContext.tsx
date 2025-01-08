@@ -101,13 +101,9 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 			case "apipieModels": {
 				const updatedModels = message.apipieModels ?? {}
-				Object.keys(updatedModels).forEach((key) => {
-					// Ensure provider is correctly set
-					updatedModels[key].provider = updatedModels[key].provider || "unknown"
-				})
 				setApipieModels(updatedModels)
 				break
-			}			
+			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
 				break
