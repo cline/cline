@@ -7,6 +7,7 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 - Drag and drop images into chats
 - Delete messages from chats
 - @-mention Git commits to include their context in the chat
+- Save different API configurations to quickly switch between providers and settings
 - "Enhance prompt" button (OpenRouter models only for now)
 - Sound effects for feedback
 - Option to use browsers of different sizes and adjust screenshot quality
