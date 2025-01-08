@@ -12,15 +12,14 @@
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "OG Cline Bot Inc."
 	},
 	"license": "Apache-2.0",
 	"publisher": "saoudrizwan",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/Nilesh9106/og-cline"
 	},
-	"homepage": "https://cline.bot",
 	"categories": [
 		"AI",
 		"Chat",
