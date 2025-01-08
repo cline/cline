@@ -799,8 +799,30 @@ export class Cline {
 			}
 		}
 
-		// Convert to Anthropic.MessageParam by spreading only the API-required properties
-		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => ({ role, content }))
+		// Clean conversation history by:
+		// 1. Converting to Anthropic.MessageParam by spreading only the API-required properties
+		// 2. Converting image blocks to text descriptions if model doesn't support images
+		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => {
+			// Handle array content (could contain image blocks)
+			if (Array.isArray(content)) {
+				if (!this.api.getModel().info.supportsImages) {
+					// Convert image blocks to text descriptions
+					content = content.map(block => {
+						if (block.type === 'image') {
+							// Convert image blocks to text descriptions
+							// Note: We can't access the actual image content/url due to API limitations,
+							// but we can indicate that an image was present in the conversation
+							return {
+								type: 'text',
+								text: '[Referenced image in conversation]'
+							};
+						}
+						return block;
+					});
+				}
+			}
+			return { role, content }
+		})
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
