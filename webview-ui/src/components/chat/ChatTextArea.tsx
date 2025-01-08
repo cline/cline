@@ -679,17 +679,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					>
 						<select
 							value={currentApiConfigName}
+							disabled={textAreaDisabled}
 							onChange={(e) => vscode.postMessage({
 								type: "loadApiConfiguration",
 								text: e.target.value
 							})}
 							style={{
 								fontSize: "11px",
-								cursor: "pointer",
+								cursor: textAreaDisabled ? "not-allowed" : "pointer",
 								backgroundColor: "transparent",
 								border: "none",
 								color: "var(--vscode-input-foreground)",
-								opacity: 0.6,
+								opacity: textAreaDisabled ? 0.5 : 0.6,
 								outline: "none",
 								paddingLeft: 14,
 								WebkitAppearance: "none",
