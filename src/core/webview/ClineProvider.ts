@@ -45,7 +45,6 @@ type SecretKey =
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
-
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -482,72 +481,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
-							const {
-								apiProvider,
-								apiModelId,
-								apiKey,
-								glamaModelId,
-								glamaModelInfo,
-								glamaApiKey,
-								openRouterApiKey,
-								awsAccessKey,
-								awsSecretKey,
-								awsSessionToken,
-								awsRegion,
-								awsUseCrossRegionInference,
-								vertexProjectId,
-								vertexRegion,
-								openAiBaseUrl,
-								openAiApiKey,
-								openAiModelId,
-								ollamaModelId,
-								ollamaBaseUrl,
-								lmStudioModelId,
-								lmStudioBaseUrl,
-								anthropicBaseUrl,
-								geminiApiKey,
-								openAiNativeApiKey,
-								azureApiVersion,
-								openAiStreamingEnabled,
-								openRouterModelId,
-								openRouterModelInfo,
-								openRouterUseMiddleOutTransform,
-								vsCodeLmModelSelector,
-							} = message.apiConfiguration
-							await this.updateGlobalState("apiProvider", apiProvider)
-							await this.updateGlobalState("apiModelId", apiModelId)
-							await this.storeSecret("apiKey", apiKey)
-							await this.updateGlobalState("glamaModelId", glamaModelId)
-							await this.updateGlobalState("glamaModelInfo", glamaModelInfo)
-							await this.storeSecret("glamaApiKey", glamaApiKey)
-							await this.storeSecret("openRouterApiKey", openRouterApiKey)
-							await this.storeSecret("awsAccessKey", awsAccessKey)
-							await this.storeSecret("awsSecretKey", awsSecretKey)
-							await this.storeSecret("awsSessionToken", awsSessionToken)
-							await this.updateGlobalState("awsRegion", awsRegion)
-							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
-							await this.updateGlobalState("vertexProjectId", vertexProjectId)
-							await this.updateGlobalState("vertexRegion", vertexRegion)
-							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
-							await this.storeSecret("openAiApiKey", openAiApiKey)
-							await this.updateGlobalState("openAiModelId", openAiModelId)
-							await this.updateGlobalState("ollamaModelId", ollamaModelId)
-							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
-							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
-							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
-							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
-							await this.storeSecret("geminiApiKey", geminiApiKey)
-							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
-							await this.storeSecret("deepSeekApiKey", message.apiConfiguration.deepSeekApiKey)
-							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							await this.updateGlobalState("openAiStreamingEnabled", openAiStreamingEnabled)
-							await this.updateGlobalState("openRouterModelId", openRouterModelId)
-							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
-							await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
-							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
-							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
-							}
 							await this.updateApiConfiguration(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
@@ -1016,6 +949,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterModelId,
 			openRouterModelInfo,
 			openRouterUseMiddleOutTransform,
+			vsCodeLmModelSelector,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1047,6 +981,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("openRouterModelId", openRouterModelId)
 		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 		await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
+		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		} 
