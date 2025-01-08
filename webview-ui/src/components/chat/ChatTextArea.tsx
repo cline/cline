@@ -661,7 +661,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{
 							position: "absolute",
 							paddingTop: 4,
-							bottom: 14,
+							bottom: 32,
 							left: 22,
 							right: 67,
 							zIndex: 2,
