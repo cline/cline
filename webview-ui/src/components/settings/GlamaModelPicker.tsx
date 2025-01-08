@@ -37,6 +37,15 @@ const GlamaModelPicker: React.FC = () => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
+
+	useEffect(() => {
+		if (apiConfiguration?.glamaModelId) {
+			if (apiConfiguration?.glamaModelId !== searchTerm) {
+				setSearchTerm(apiConfiguration?.glamaModelId)
+			}
+		}
+	}, [apiConfiguration, searchTerm])
+
 	useMount(() => {
 		vscode.postMessage({ type: "refreshGlamaModels" })
 	})

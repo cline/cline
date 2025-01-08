@@ -37,6 +37,14 @@ const OpenRouterModelPicker: React.FC = () => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
+	useEffect(() => {
+		if (apiConfiguration?.openRouterModelId) {
+			if (apiConfiguration?.openRouterModelId !== searchTerm) {
+				setSearchTerm(apiConfiguration?.openRouterModelId)
+			}
+		}
+	}, [apiConfiguration, searchTerm])
+
 	useMount(() => {
 		vscode.postMessage({ type: "refreshOpenRouterModels" })
 	})
