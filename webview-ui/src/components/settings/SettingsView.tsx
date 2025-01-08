@@ -445,10 +445,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 5 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowMcp}
-							onChange={(e: any) => {
-								setAlwaysAllowMcp(e.target.checked)
-								vscode.postMessage({ type: "alwaysAllowMcp", bool: e.target.checked })
-							}}>
+							onChange={(e: any) => setAlwaysAllowMcp(e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve MCP tools</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
