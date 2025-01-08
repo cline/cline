@@ -12,3 +12,9 @@ export type Hunk = {
 export type Diff = {
   hunks: Hunk[];
 }; 
+
+export type EditResult = {
+  confidence: number;
+  result: string[];
+  strategy: string;
+};

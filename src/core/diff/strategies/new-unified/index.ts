@@ -162,7 +162,8 @@ Your diff here
 	): Promise<DiffResult> {
 		const MIN_CONFIDENCE = 0.9
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
-		let result = originalContent.split("\n")
+    const originalLines = originalContent.split("\n")
+		let result = [...originalLines]
 
 		for (const hunk of parsedDiff.hunks) {
 			const contextStr = prepareSearchString(hunk.changes)
