@@ -344,7 +344,7 @@ export async function applyEdit(hunk: Hunk, content: string[], matchPosition: nu
     // Normal mode - try strategies sequentially until one succeeds
     for (const strategy of strategies) {
       const result = await strategy.apply();
-      if (result.confidence === 1) {
+      if (result.confidence > MIN_CONFIDENCE) {
         return result;
       }
     }

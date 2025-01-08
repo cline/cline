@@ -160,7 +160,7 @@ Your diff here
 		startLine?: number,
 		endLine?: number
 	): Promise<DiffResult> {
-		const MIN_CONFIDENCE = 1
+		const MIN_CONFIDENCE = 0.9
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
     const originalLines = originalContent.split("\n")
 		let result = [...originalLines]
@@ -170,7 +170,7 @@ Your diff here
 			const { index: matchPosition, confidence } = findBestMatch(contextStr, result)
 
 			const editResult = await applyEdit(hunk, result, matchPosition, confidence)
-			if (editResult.confidence >= MIN_CONFIDENCE) {
+			if (editResult.confidence > MIN_CONFIDENCE) {
 				result = editResult.result
 			} else {
 				return { success: false, error: `Failed to apply edit using ${editResult.strategy} strategy` }
