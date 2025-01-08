@@ -1162,6 +1162,9 @@ export class Cline {
 				case "access_mcp_resource":
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
+				case "fetch_user_stories":
+				case "fetch_technical_design":
+					return true
 			}
 		}
 		return false
