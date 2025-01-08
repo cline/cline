@@ -36,35 +36,43 @@ export function applyContextMatching(hunk: Hunk, content: string[], matchPositio
   const newResult = [...content.slice(0, matchPosition)];
   let sourceIndex = matchPosition;
   let previousIndent = '';
-
-  const hunkChanges = hunk.changes.filter(c => c.type !== 'context');
+  let lastChangeWasRemove = false;  // Track if last change was a remove
 
   for (const change of hunk.changes) {
+
     if (change.type === 'context') {
       newResult.push(change.originalLine || (change.indent + change.content));
       previousIndent = change.indent;
-      sourceIndex++;
+      if (!lastChangeWasRemove) {  // Only increment if we didn't just remove a line
+        sourceIndex++;
+      }
+      lastChangeWasRemove = false;
     } else if (change.type === 'add') {
       const indent = change.indent || inferIndentation(change.content, 
-        hunk.changes.filter(c => c.type === 'context').map(c => c.originalLine || ''),
+        hunk.changes.filter(c => c.type === 'context' && c.originalLine).map(c => c.originalLine || ''),
         previousIndent
       );
       newResult.push(indent + change.content);
       previousIndent = indent;
+      lastChangeWasRemove = false;
     } else if (change.type === 'remove') {
       sourceIndex++;
+      lastChangeWasRemove = true;
     }
   }
 
   newResult.push(...content.slice(sourceIndex));
   
-  // Validate the result
+  // Calculate the window size based on all changes
+  const windowSize = hunk.changes.length;
+  
+  // Validate the result using the full window size
   const similarity = getDMPSimilarity(
-    content.slice(matchPosition, matchPosition + hunk.changes.length).join('\n'),
-    newResult.slice(matchPosition, matchPosition + hunk.changes.length).join('\n')
+    content.slice(matchPosition, matchPosition + windowSize).join('\n'),
+    newResult.slice(matchPosition, matchPosition + windowSize).join('\n')
   )
 
-  const confidence = validateEditResult(hunk, newResult.slice(matchPosition, matchPosition + hunkChanges.length + 1).join('\n'));
+  const confidence = validateEditResult(hunk, newResult.slice(matchPosition, matchPosition + windowSize).join('\n'), 'context');
 
   return { 
     confidence: similarity * confidence,
@@ -80,45 +88,45 @@ export function applyDMP(hunk: Hunk, content: string[], matchPosition: number): 
   }
 
   const dmp = new diff_match_patch();
-  const editRegion = content.slice(matchPosition, matchPosition + hunk.changes.length);
-  const editText = editRegion.join('\n');
   
-  // Build the target text sequentially like in applyContextMatching
-  let targetText = '';
-  let previousIndent = '';
+  // Build BEFORE block (context + removals)
+  const beforeLines = hunk.changes
+    .filter(change => change.type === 'context' || change.type === 'remove')
+    .map(change => change.originalLine || (change.indent + change.content));
   
-  for (const change of hunk.changes) {
-    if (change.type === 'context') {
-      targetText += (change.originalLine || (change.indent + change.content)) + '\n';
-      previousIndent = change.indent;
-    } else if (change.type === 'add') {
-      const indent = change.indent || inferIndentation(change.content, 
-        hunk.changes.filter(c => c.type === 'context').map(c => c.originalLine || ''),
-        previousIndent
-      );
-      targetText += indent + change.content + '\n';
-      previousIndent = indent;
-    }
-    // Skip remove changes as they shouldn't appear in target
-  }
-
-  // Trim the trailing newline
-  targetText = targetText.replace(/\n$/, '');
-
-  const patch = dmp.patch_make(editText, targetText);
-  const [patchedText] = dmp.patch_apply(patch, editText);
+  // Build AFTER block (context + additions)
+  const afterLines = hunk.changes
+    .filter(change => change.type === 'context' || change.type === 'add')
+    .map(change => change.originalLine || (change.indent + change.content));
   
-  // Construct result with edited portion
+  // Convert to text
+  const beforeText = beforeLines.join('\n');
+  const afterText = afterLines.join('\n');
+  
+  // Create the patch
+  const patch = dmp.patch_make(beforeText, afterText);
+  
+  // Get the target text from content
+  const targetText = content.slice(matchPosition, matchPosition + beforeLines.length).join('\n');
+  
+  // Apply the patch
+  const [patchedText] = dmp.patch_apply(patch, targetText);
+  
+  // Split patched text back into lines
+  const patchedLines = patchedText.split('\n');
+  
+  // Construct the final result
   const newResult = [
     ...content.slice(0, matchPosition),
-    ...patchedText.split('\n'),
-    ...content.slice(matchPosition + hunk.changes.length)
+    ...patchedLines,
+    ...content.slice(matchPosition + beforeLines.length)
   ];
-
-  const similarity = getDMPSimilarity(editText, patchedText)
-  const confidence = validateEditResult(hunk, patchedText);
   
-  return { 
+  // Calculate confidence
+  const similarity = getDMPSimilarity(beforeText, targetText);
+  const confidence = validateEditResult(hunk, patchedText, 'dmp');
+  
+  return {
     confidence: similarity * confidence,
     result: newResult,
     strategy: 'dmp'
@@ -228,7 +236,7 @@ async function applyGit(hunk: Hunk, content: string[], matchPosition: number): P
       const osrResult = (await memfs.promises.readFile('/file.txt')).toString();
       const osrSimilarity = getDMPSimilarity(editText, osrResult)
 
-      const confidence = validateEditResult(hunk, osrResult);
+      const confidence = validateEditResult(hunk, osrResult, 'git-osr');
       
       if (osrSimilarity * confidence > 0.9) {
         // Construct result with edited portion
@@ -273,7 +281,7 @@ async function applyGit(hunk: Hunk, content: string[], matchPosition: number): P
       const srsoResult = (await memfs.promises.readFile('/file.txt')).toString();
       const srsoSimilarity = getDMPSimilarity(editText, srsoResult)
 
-      const confidence = validateEditResult(hunk, srsoResult);
+      const confidence = validateEditResult(hunk, srsoResult, 'git-srso');
 
       // Construct result with edited portion
       const newResult = [
@@ -299,7 +307,7 @@ async function applyGit(hunk: Hunk, content: string[], matchPosition: number): P
 }
 
 // Main edit function that tries strategies sequentially
-export async function applyEdit(hunk: Hunk, content: string[], matchPosition: number, confidence: number, debug: boolean = false): Promise<EditResult> {
+export async function applyEdit(hunk: Hunk, content: string[], matchPosition: number, confidence: number, debug: string = 'false'): Promise<EditResult> {
 
   // Don't attempt any edits if confidence is too low and not in debug mode
   const MIN_CONFIDENCE = 0.9;
@@ -310,12 +318,12 @@ export async function applyEdit(hunk: Hunk, content: string[], matchPosition: nu
 
   // Try each strategy in sequence until one succeeds
   const strategies = [
-    { name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition) },
     { name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition) },
+    { name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition) },
     { name: 'git', apply: () => applyGit(hunk, content, matchPosition) }
   ];
 
-  if (debug) {
+  if (debug !== '') {
     // In debug mode, try all strategies and return the first success
     const results = await Promise.all(strategies.map(async strategy => {
       console.log(`Attempting edit with ${strategy.name} strategy...`);
@@ -324,18 +332,19 @@ export async function applyEdit(hunk: Hunk, content: string[], matchPosition: nu
       return result;
     }));
     
-    const successfulResults = results.filter(result => result.confidence > MIN_CONFIDENCE);
+    /*const successfulResults = results.filter(result => result.confidence > MIN_CONFIDENCE);
     if (successfulResults.length > 0) {
       const bestResult = successfulResults.reduce((best, current) => 
         current.confidence > best.confidence ? current : best
       );
       return bestResult;
-    }
+    }*/
+    return results.find(result => result.strategy === debug) || { confidence: 0, result: content, strategy: 'none' };
   } else {
     // Normal mode - try strategies sequentially until one succeeds
     for (const strategy of strategies) {
       const result = await strategy.apply();
-      if (result.confidence > MIN_CONFIDENCE) {
+      if (result.confidence === 1) {
         return result;
       }
     }
