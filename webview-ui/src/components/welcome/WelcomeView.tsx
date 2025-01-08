@@ -30,7 +30,7 @@ const WelcomeView = () => {
 				bottom: 0,
 				padding: "0 20px",
 			}}>
-			<h2>Hi, I'm Cline</h2>
+			<h2>Hi, I'm OG Assistant</h2>
 			<p>
 				I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
 				<VSCodeLink

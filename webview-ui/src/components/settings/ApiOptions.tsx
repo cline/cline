@@ -534,8 +534,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> OG Assistant uses complex prompts and works best with
+							Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -600,8 +600,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						</VSCodeLink>{" "}
 						feature to use it with this extension.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> OG Assistant uses complex prompts and works best with
+							Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>
@@ -661,8 +661,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							quickstart guide.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
+							(<span style={{ fontWeight: 500 }}>Note:</span> OG Assistant uses complex prompts and works best with
+							Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
 				</div>

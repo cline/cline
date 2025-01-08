@@ -31,8 +31,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Checkpoints are here!</b> Cline now saves a snapshot of your workspace at each step of the task. Hover over
-					any message to see two new buttons:
+					<b>Checkpoints are here!</b> OG Assistant now saves a snapshot of your workspace at each step of the task.
+					Hover over any message to see two new buttons:
 					<ul style={{ margin: "4px 0", paddingLeft: 22 }}>
 						<li>
 							<span
@@ -55,8 +55,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					</ul>
 				</li>
 				<li>
-					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes Cline
-					made to your workspace throughout the task
+					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes OG
+					Assistant made to your workspace throughout the task
 				</li>
 			</ul>
 			<p style={{ margin: "8px 0" }}>
@@ -64,53 +64,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					See a demo of Checkpoints here!
 				</VSCodeLink>
 			</p>
-			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li> 
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
 			<div
 				style={{
 					height: "1px",
@@ -119,13 +72,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					margin: "8px 0",
 				}}
 			/>
-			<p style={{ margin: "0" }}>
-				Join
-				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord.gg/cline
-				</VSCodeLink>
-				for more updates!
-			</p>
 		</div>
 	)
 }
