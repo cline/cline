@@ -121,7 +121,7 @@ describe('ConfigManager', () => {
       }
 
       expect(mockSecrets.store).toHaveBeenCalledWith(
-        'cline_config_api_config',
+        'roo_cline_config_api_config',
         JSON.stringify(expectedConfig, null, 2)
       )
     })
@@ -154,7 +154,7 @@ describe('ConfigManager', () => {
       }
 
       expect(mockSecrets.store).toHaveBeenCalledWith(
-        'cline_config_api_config',
+        'roo_cline_config_api_config',
         JSON.stringify(expectedConfig, null, 2)
       )
     })
@@ -196,7 +196,7 @@ describe('ConfigManager', () => {
       }
 
       expect(mockSecrets.store).toHaveBeenCalledWith(
-        'cline_config_api_config',
+        'roo_cline_config_api_config',
         JSON.stringify(expectedConfig, null, 2)
       )
     })
@@ -256,7 +256,7 @@ describe('ConfigManager', () => {
       }
 
       expect(mockSecrets.store).toHaveBeenCalledWith(
-        'cline_config_api_config',
+        'roo_cline_config_api_config',
         JSON.stringify(expectedConfig, null, 2)
       )
     })
@@ -314,7 +314,7 @@ describe('ConfigManager', () => {
       }
 
       expect(mockSecrets.store).toHaveBeenCalledWith(
-        'cline_config_api_config',
+        'roo_cline_config_api_config',
         JSON.stringify(expectedConfig, null, 2)
       )
     })

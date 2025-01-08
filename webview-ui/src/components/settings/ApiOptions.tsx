@@ -43,12 +43,11 @@ import OpenAiModelPicker from "./OpenAiModelPicker"
 import GlamaModelPicker from "./GlamaModelPicker"
 
 interface ApiOptionsProps {
-	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
+const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme, onUpdateApiConfig } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
@@ -695,16 +694,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</p>
 			)}
 
-			{selectedProvider === "glama" && showModelOptions && <GlamaModelPicker />}
+			{selectedProvider === "glama" && <GlamaModelPicker />}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
+			{selectedProvider === "openrouter" && <OpenRouterModelPicker />}
 
 			{selectedProvider !== "glama" &&
 				selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
-				selectedProvider !== "lmstudio" &&
-				showModelOptions && (
+				selectedProvider !== "lmstudio" && (
 					<>
 						<div className="dropdown-container">
 							<label htmlFor="model-id">
