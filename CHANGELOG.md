@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.45]
+
+-   Save different API configurations to quickly switch between providers and settings (thanks @samhvw8!)
+
 ## [2.2.44]
 
 -   Automatically retry failed API requests with a configurable delay (thanks @RaySinner!)
