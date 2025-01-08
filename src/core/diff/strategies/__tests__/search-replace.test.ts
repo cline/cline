@@ -8,7 +8,7 @@ describe('SearchReplaceDiffStrategy', () => {
             strategy = new SearchReplaceDiffStrategy(1.0, 5) // Default 1.0 threshold for exact matching, 5 line buffer for tests
         })
 
-        it('should replace matching content', () => {
+        it('should replace matching content', async () => {
             const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -21,14 +21,14 @@ function hello() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('function hello() {\n    console.log("hello world")\n}\n')
             }
         })
 
-        it('should match content with different surrounding whitespace', () => {
+        it('should match content with different surrounding whitespace', async () => {
             const originalContent = '\nfunction example() {\n    return 42;\n}\n\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -41,14 +41,14 @@ function example() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('\nfunction example() {\n    return 43;\n}\n\n')
             }
         })
 
-        it('should match content with different indentation in search block', () => {
+        it('should match content with different indentation in search block', async () => {
             const originalContent = '    function test() {\n        return true;\n    }\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -61,14 +61,14 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('    function test() {\n        return false;\n    }\n')
             }
         })
 
-        it('should handle tab-based indentation', () => {
+        it('should handle tab-based indentation', async () => {
             const originalContent = "function test() {\n\treturn true;\n}\n"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -81,14 +81,14 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("function test() {\n\treturn false;\n}\n")
             }
         })
 
-        it('should preserve mixed tabs and spaces', () => {
+        it('should preserve mixed tabs and spaces', async () => {
             const originalContent = "\tclass Example {\n\t    constructor() {\n\t\tthis.value = 0;\n\t    }\n\t}"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -105,14 +105,14 @@ function test() {
 \t}
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("\tclass Example {\n\t    constructor() {\n\t\tthis.value = 1;\n\t    }\n\t}")
             }
         })
 
-        it('should handle additional indentation with tabs', () => {
+        it('should handle additional indentation with tabs', async () => {
             const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -126,14 +126,14 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("\tfunction test() {\n\t\t// Add comment\n\t\treturn false;\n\t}")
             }
         })
 
-        it('should preserve exact indentation characters when adding lines', () => {
+        it('should preserve exact indentation characters when adding lines', async () => {
             const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -148,14 +148,14 @@ function test() {
 \t}
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}")
             }
         })
 
-        it('should handle Windows-style CRLF line endings', () => {
+        it('should handle Windows-style CRLF line endings', async () => {
             const originalContent = "function test() {\r\n    return true;\r\n}\r\n"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -168,14 +168,14 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("function test() {\r\n    return false;\r\n}\r\n")
             }
         })
 
-        it('should return false if search content does not match', () => {
+        it('should return false if search content does not match', async () => {
             const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -188,19 +188,19 @@ function hello() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(false)
         })
 
-        it('should return false if diff format is invalid', () => {
+        it('should return false if diff format is invalid', async () => {
             const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
             const diffContent = `test.ts\nInvalid diff format`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(false)
         })
 
-        it('should handle multiple lines with proper indentation', () => {
+        it('should handle multiple lines with proper indentation', async () => {
             const originalContent = 'class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        return this.value\n    }\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -215,14 +215,14 @@ function hello() {
     }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n')
             }
         })
 
-        it('should preserve whitespace exactly in the output', () => {
+        it('should preserve whitespace exactly in the output', async () => {
             const originalContent = "    indented\n        more indented\n    back\n"
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -235,14 +235,14 @@ function hello() {
     end
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe("    modified\n        still indented\n    end\n")
             }
         })
 
-        it('should preserve indentation when adding new lines after existing content', () => {
+        it('should preserve indentation when adding new lines after existing content', async () => {
             const originalContent = '				onScroll={() => updateHighlights()}'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -255,14 +255,14 @@ function hello() {
 				}}
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}')
             }
         })
 
-        it('should handle varying indentation levels correctly', () => {
+        it('should handle varying indentation levels correctly', async () => {
             const originalContent = `
 class Example {
     constructor() {
@@ -296,7 +296,7 @@ class Example {
     }
 >>>>>>> REPLACE`.trim();
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`
@@ -313,7 +313,7 @@ class Example {
             }
         })
 
-        it('should handle mixed indentation styles in the same file', () => {
+        it('should handle mixed indentation styles in the same file', async () => {
             const originalContent = `class Example {
     constructor() {
         this.value = 0;
@@ -340,7 +340,7 @@ class Example {
     }
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`class Example {
@@ -355,7 +355,7 @@ class Example {
             }
         })
         
-        it('should handle Python-style significant whitespace', () => {
+        it('should handle Python-style significant whitespace', async () => {
             const originalContent = `def example():
     if condition:
         do_something()
@@ -376,7 +376,7 @@ class Example {
             process(item)
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`def example():
@@ -389,7 +389,7 @@ class Example {
             }
         });
         
-        it('should preserve empty lines with indentation', () => {
+        it('should preserve empty lines with indentation', async () => {
             const originalContent = `function test() {
     const x = 1;
     
@@ -409,7 +409,7 @@ class Example {
     if (x) {
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function test() {
@@ -423,7 +423,7 @@ class Example {
             }  
         });
         
-        it('should handle indentation when replacing entire blocks', () => {
+        it('should handle indentation when replacing entire blocks', async () => {
             const originalContent = `class Test {
     method() {
         if (true) {
@@ -450,7 +450,7 @@ class Example {
     }
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`class Test {
@@ -467,7 +467,7 @@ class Example {
             }
         });
 
-        it('should handle negative indentation relative to search content', () => {
+        it('should handle negative indentation relative to search content', async () => {
             const originalContent = `class Example {
     constructor() {
         if (true) {
@@ -484,8 +484,8 @@ class Example {
         this.init();
         this.setup();
 >>>>>>> REPLACE`;
-        
-            const result = strategy.applyDiff(originalContent, diffContent);
+          
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
             expect(result.content).toBe(`class Example {
@@ -499,7 +499,7 @@ class Example {
             }
         });
         
-        it('should handle extreme negative indentation (no indent)', () => {
+        it('should handle extreme negative indentation (no indent)', async () => {
     const originalContent = `class Example {
     constructor() {
         if (true) {
@@ -514,7 +514,7 @@ class Example {
 this.init();
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`class Example {
@@ -527,7 +527,7 @@ this.init();
             }
         });
         
-        it('should handle mixed indentation changes in replace block', () => {
+        it('should handle mixed indentation changes in replace block', async () => {
     const originalContent = `class Example {
     constructor() {
         if (true) {
@@ -548,7 +548,7 @@ this.init();
     this.validate();
 >>>>>>> REPLACE`;
         
-            const result = strategy.applyDiff(originalContent, diffContent);
+            const result = await strategy.applyDiff(originalContent, diffContent);
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`class Example {
@@ -563,7 +563,7 @@ this.init();
             }
         });
 
-        it('should find matches from middle out', () => {
+        it('should find matches from middle out', async () => {
             const originalContent = `
 function one() {
     return "target";
@@ -595,7 +595,7 @@ function five() {
             // Search around the middle (function three)
             // Even though all functions contain the target text,
             // it should match the one closest to line 9 first
-            const result = strategy.applyDiff(originalContent, diffContent, 9, 9)
+            const result = await strategy.applyDiff(originalContent, diffContent, 9, 9)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -621,15 +621,15 @@ function five() {
         })
     })
 
-    describe('line number stripping', () => {
-        describe('line number stripping', () => {
+    describe('line number stripping', async () => {
+        describe('line number stripping', async () => {
             let strategy: SearchReplaceDiffStrategy
         
             beforeEach(() => {
                 strategy = new SearchReplaceDiffStrategy()
             })
         
-            it('should strip line numbers from both search and replace sections', () => {
+            it('should strip line numbers from both search and replace sections', async () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -642,14 +642,14 @@ function five() {
 3 | }
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('function test() {\n    return false;\n}\n')
                 }
             })
 
-            it('should strip line numbers with leading spaces', () => {
+            it('should strip line numbers with leading spaces', async () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -662,14 +662,14 @@ function five() {
  3 | }
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('function test() {\n    return false;\n}\n')
                 }
             })
         
-            it('should not strip when not all lines have numbers in either section', () => {
+            it('should not strip when not all lines have numbers in either section', async () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -682,11 +682,11 @@ function five() {
 3 | }
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(false)
             })
         
-            it('should preserve content that naturally starts with pipe', () => {
+            it('should preserve content that naturally starts with pipe', async () => {
                 const originalContent = '|header|another|\n|---|---|\n|data|more|\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -699,14 +699,14 @@ function five() {
 3 | |data|updated|
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('|header|another|\n|---|---|\n|data|updated|\n')
                 }
             })
         
-            it('should preserve indentation when stripping line numbers', () => {
+            it('should preserve indentation when stripping line numbers', async () => {
                 const originalContent = '    function test() {\n        return true;\n    }\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -719,14 +719,14 @@ function five() {
 3 |     }
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('    function test() {\n        return false;\n    }\n')
                 }
             })
         
-            it('should handle different line numbers between sections', () => {
+            it('should handle different line numbers between sections', async () => {
                 const originalContent = 'function test() {\n    return true;\n}\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -739,14 +739,14 @@ function five() {
 22 | }
 >>>>>>> REPLACE`
         
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('function test() {\n    return false;\n}\n')
                 }
             })
 
-            it('should not strip content that starts with pipe but no line number', () => {
+            it('should not strip content that starts with pipe but no line number', async () => {
                 const originalContent = '| Pipe\n|---|\n| Data\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -759,14 +759,14 @@ function five() {
 | Updated
 >>>>>>> REPLACE`
             
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('| Pipe\n|---|\n| Updated\n')
                 }
             })
             
-            it('should handle mix of line-numbered and pipe-only content', () => {
+            it('should handle mix of line-numbered and pipe-only content', async () => {
                 const originalContent = '| Pipe\n|---|\n| Data\n'
                 const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -779,7 +779,7 @@ function five() {
 3 | | NewData
 >>>>>>> REPLACE`
             
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe('1 | | Pipe\n2 | |---|\n3 | | NewData\n')
@@ -788,15 +788,15 @@ function five() {
         })
     });
 
-    describe('insertion/deletion', () => {
+    describe('insertion/deletion', async () => {
         let strategy: SearchReplaceDiffStrategy
     
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy()
         })
     
-        describe('deletion', () => {
-            it('should delete code when replace block is empty', () => {
+        describe('deletion', async () => {
+            it('should delete code when replace block is empty', async () => {
                 const originalContent = `function test() {
     console.log("hello");
     // Comment to remove
@@ -808,7 +808,7 @@ function five() {
 =======
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`function test() {
@@ -818,7 +818,7 @@ function five() {
                 }
             })
     
-            it('should delete multiple lines when replace block is empty', () => {
+            it('should delete multiple lines when replace block is empty', async () => {
                 const originalContent = `class Example {
     constructor() {
         // Initialize
@@ -838,7 +838,7 @@ function five() {
 =======
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`class Example {
@@ -848,7 +848,7 @@ function five() {
                 }
             })
     
-            it('should preserve indentation when deleting nested code', () => {
+            it('should preserve indentation when deleting nested code', async () => {
                 const originalContent = `function outer() {
     if (true) {
         // Remove this
@@ -865,7 +865,7 @@ function five() {
 =======
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`function outer() {
@@ -877,8 +877,8 @@ function five() {
             })
         })
     
-        describe('insertion', () => {
-            it('should insert code at specified line when search block is empty', () => {
+        describe('insertion', async () => {
+            it('should insert code at specified line when search block is empty', async () => {
             const originalContent = `function test() {
     const x = 1;
     return x;
@@ -889,7 +889,7 @@ function five() {
     console.log("Adding log");
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent, 2, 2)
+                const result = await strategy.applyDiff(originalContent, diffContent, 2, 2)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`function test() {
@@ -900,7 +900,7 @@ function five() {
                 }
             })
     
-            it('should preserve indentation when inserting at nested location', () => {
+            it('should preserve indentation when inserting at nested location', async () => {
                 const originalContent = `function test() {
     if (true) {
         const x = 1;
@@ -913,7 +913,7 @@ function five() {
         console.log("After");
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent, 3, 3)
+                const result = await strategy.applyDiff(originalContent, diffContent, 3, 3)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`function test() {
@@ -926,7 +926,7 @@ function five() {
                 }
             })
     
-            it('should handle insertion at start of file', () => {
+            it('should handle insertion at start of file', async () => {
                 const originalContent = `function test() {
     return true;
 }`
@@ -938,7 +938,7 @@ function five() {
 
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent, 1, 1)
+                const result = await strategy.applyDiff(originalContent, diffContent, 1, 1)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`// Copyright 2024
@@ -950,7 +950,7 @@ function test() {
                 }
             })
     
-            it('should handle insertion at end of file', () => {
+            it('should handle insertion at end of file', async () => {
                 const originalContent = `function test() {
     return true;
 }`
@@ -961,7 +961,7 @@ function test() {
 // End of file
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent, 4, 4)
+                const result = await strategy.applyDiff(originalContent, diffContent, 4, 4)
                 expect(result.success).toBe(true)
                 if (result.success) {
                     expect(result.content).toBe(`function test() {
@@ -972,7 +972,7 @@ function test() {
                 }
             })
     
-            it('should error if no start_line is provided for insertion', () => {
+            it('should error if no start_line is provided for insertion', async () => {
                 const originalContent = `function test() {
     return true;
 }`
@@ -982,19 +982,19 @@ function test() {
 console.log("test");
 >>>>>>> REPLACE`
     
-                const result = strategy.applyDiff(originalContent, diffContent)
+                const result = await strategy.applyDiff(originalContent, diffContent)
                 expect(result.success).toBe(false)
             })
         })
     })
 
-    describe('fuzzy matching', () => {
+    describe('fuzzy matching', async () => {
         let strategy: SearchReplaceDiffStrategy
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy(0.9, 5) // 90% similarity threshold, 5 line buffer for tests
         })
 
-        it('should match content with small differences (>90% similar)', () => {
+        it('should match content with small differences (>90% similar)', async () => {
             const originalContent = 'function getData() {\n    const results = fetchData();\n    return results.filter(Boolean);\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -1011,14 +1011,14 @@ function getData() {
 
             strategy = new SearchReplaceDiffStrategy(0.9, 5) // Use 5 line buffer for tests
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('function getData() {\n    const data = fetchData();\n    return data.filter(Boolean);\n}\n')
             }
         })
 
-        it('should not match when content is too different (<90% similar)', () => {
+        it('should not match when content is too different (<90% similar)', async () => {
             const originalContent = 'function processUsers(data) {\n    return data.map(user => user.name);\n}\n'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -1031,11 +1031,11 @@ function processData(data) {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(false)
         })
 
-        it('should match content with extra whitespace', () => {
+        it('should match content with extra whitespace', async () => {
             const originalContent = 'function sum(a, b) {\n    return a + b;\n}'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -1048,14 +1048,14 @@ function sum(a, b) {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('function sum(a, b) {\n    return a + b + 1;\n}')
             }
         })
 
-        it('should not exact match empty lines', () => {
+        it('should not exact match empty lines', async () => {
             const originalContent = 'function sum(a, b) {\n\n    return a + b;\n}'
             const diffContent = `test.ts
 <<<<<<< SEARCH
@@ -1065,7 +1065,7 @@ import { a } from "a";
 function sum(a, b) {
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe('import { a } from "a";\nfunction sum(a, b) {\n\n    return a + b;\n}')
@@ -1073,14 +1073,14 @@ function sum(a, b) {
         })
     })
 
-    describe('line-constrained search', () => {
+    describe('line-constrained search', async () => {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy(0.9, 5)
         })
 
-        it('should find and replace within specified line range', () => {
+        it('should find and replace within specified line range', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1105,7 +1105,7 @@ function two() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
+            const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1122,7 +1122,7 @@ function three() {
             }
         })
 
-        it('should find and replace within buffer zone (5 lines before/after)', () => {
+        it('should find and replace within buffer zone (5 lines before/after)', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1149,7 +1149,7 @@ function three() {
 
             // Even though we specify lines 5-7, it should still find the match at lines 9-11
             // because it's within the 5-line buffer zone
-            const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
+            const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1166,7 +1166,7 @@ function three() {
             }
         })
 
-        it('should not find matches outside search range and buffer zone', () => {
+        it('should not find matches outside search range and buffer zone', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1201,11 +1201,11 @@ function five() {
 
             // Searching around function two() (lines 5-7)
             // function five() is more than 5 lines away, so it shouldn't match
-            const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
+            const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
             expect(result.success).toBe(false)
         })
 
-        it('should handle search range at start of file', () => {
+        it('should handle search range at start of file', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1226,7 +1226,7 @@ function one() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent, 1, 3)
+            const result = await strategy.applyDiff(originalContent, diffContent, 1, 3)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1239,7 +1239,7 @@ function two() {
             }
         })
 
-        it('should handle search range at end of file', () => {
+        it('should handle search range at end of file', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1260,7 +1260,7 @@ function two() {
 }
 >>>>>>> REPLACE`
 
-            const result = strategy.applyDiff(originalContent, diffContent, 5, 7)
+            const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1273,7 +1273,7 @@ function two() {
             }
         })
 
-        it('should match specific instance of duplicate code using line numbers', () => {
+        it('should match specific instance of duplicate code using line numbers', async () => {
             const originalContent = `
 function processData(data) {
     return data.map(x => x * 2);
@@ -1306,7 +1306,7 @@ function processData(data) {
 >>>>>>> REPLACE`
 
             // Target the second instance of processData
-            const result = strategy.applyDiff(originalContent, diffContent, 10, 12)
+            const result = await strategy.applyDiff(originalContent, diffContent, 10, 12)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function processData(data) {
@@ -1330,7 +1330,7 @@ function moreStuff() {
             }
         })
 
-        it('should search from start line to end of file when only start_line is provided', () => {
+        it('should search from start line to end of file when only start_line is provided', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1356,7 +1356,7 @@ function three() {
 >>>>>>> REPLACE`
 
             // Only provide start_line, should search from there to end of file
-            const result = strategy.applyDiff(originalContent, diffContent, 8)
+            const result = await strategy.applyDiff(originalContent, diffContent, 8)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1373,7 +1373,7 @@ function three() {
             }
         })
 
-        it('should search from start of file to end line when only end_line is provided', () => {
+        it('should search from start of file to end line when only end_line is provided', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1399,7 +1399,7 @@ function one() {
 >>>>>>> REPLACE`
 
             // Only provide end_line, should search from start of file to there
-            const result = strategy.applyDiff(originalContent, diffContent, undefined, 4)
+            const result = await strategy.applyDiff(originalContent, diffContent, undefined, 4)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1416,7 +1416,7 @@ function three() {
             }
         })
 
-        it('should prioritize exact line match over expanded search', () => {
+        it('should prioritize exact line match over expanded search', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1446,7 +1446,7 @@ function process() {
 
             // Should match the second instance exactly at lines 10-12
             // even though the first instance at 6-8 is within the expanded search range
-            const result = strategy.applyDiff(originalContent, diffContent, 10, 12)
+            const result = await strategy.applyDiff(originalContent, diffContent, 10, 12)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`
@@ -1468,7 +1468,7 @@ function two() {
             }
         })
 
-        it('should fall back to expanded search only if exact match fails', () => {
+        it('should fall back to expanded search only if exact match fails', async () => {
             const originalContent = `
 function one() {
     return 1;
@@ -1494,7 +1494,7 @@ function process() {
 
             // Specify wrong line numbers (3-5), but content exists at 6-8
             // Should still find and replace it since it's within the expanded range
-            const result = strategy.applyDiff(originalContent, diffContent, 3, 5)
+            const result = await strategy.applyDiff(originalContent, diffContent, 3, 5)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(`function one() {
@@ -1512,21 +1512,21 @@ function two() {
         })
     })
 
-    describe('getToolDescription', () => {
+    describe('getToolDescription', async () => {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy()
         })
 
-        it('should include the current working directory', () => {
+        it('should include the current working directory', async () => {
             const cwd = '/test/dir'
-            const description = strategy.getToolDescription(cwd)
+            const description = await strategy.getToolDescription(cwd)
             expect(description).toContain(`relative to the current working directory ${cwd}`)
         })
 
-        it('should include required format elements', () => {
-            const description = strategy.getToolDescription('/test')
+        it('should include required format elements', async () => {
+            const description = await strategy.getToolDescription('/test')
             expect(description).toContain('<<<<<<< SEARCH')
             expect(description).toContain('=======')
             expect(description).toContain('>>>>>>> REPLACE')
@@ -1534,8 +1534,8 @@ function two() {
             expect(description).toContain('</apply_diff>')
         })
 
-        it('should document start_line and end_line parameters', () => {
-            const description = strategy.getToolDescription('/test')
+        it('should document start_line and end_line parameters', async () => {
+            const description = await strategy.getToolDescription('/test')
             expect(description).toContain('start_line: (required) The line number where the search block starts.')
             expect(description).toContain('end_line: (required) The line number where the search block ends.')
         })

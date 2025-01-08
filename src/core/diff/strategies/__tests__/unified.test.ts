@@ -20,7 +20,7 @@ describe('UnifiedDiffStrategy', () => {
     })
 
     describe('applyDiff', () => {
-        it('should successfully apply a function modification diff', () => {
+        it('should successfully apply a function modification diff', async () => {
             const originalContent = `import { Logger } from '../logger';
 
 function calculateTotal(items: number[]): number {
@@ -58,14 +58,14 @@ function calculateTotal(items: number[]): number {
 
 export { calculateTotal };`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(expected)
             }
         })
 
-        it('should successfully apply a diff adding a new method', () => {
+        it('should successfully apply a diff adding a new method', async () => {
             const originalContent = `class Calculator {
   add(a: number, b: number): number {
     return a + b;
@@ -95,14 +95,14 @@ export { calculateTotal };`
   }
 }`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(expected)
             }
         })
 
-        it('should successfully apply a diff modifying imports', () => {
+        it('should successfully apply a diff modifying imports', async () => {
             const originalContent = `import { useState } from 'react';
 import { Button } from './components';
 
@@ -132,15 +132,15 @@ function App() {
   useEffect(() => { document.title = \`Count: \${count}\` }, [count]);
   return <Button onClick={() => setCount(count + 1)}>{count}</Button>;
 }`
-
-            const result = strategy.applyDiff(originalContent, diffContent)
+          
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(expected)
             }
         })
 
-        it('should successfully apply a diff with multiple hunks', () => {
+        it('should successfully apply a diff with multiple hunks', async () => {
             const originalContent = `import { readFile, writeFile } from 'fs';
 
 function processFile(path: string) {
@@ -198,14 +198,14 @@ async function processFile(path: string) {
 
 export { processFile };`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(expected)
             }
         })
 
-        it('should handle empty original content', () => {
+        it('should handle empty original content', async () => {
             const originalContent = ''
             const diffContent = `--- empty.ts
 +++ empty.ts
@@ -218,7 +218,7 @@ export { processFile };`
   return \`Hello, \${name}!\`;
 }\n`
 
-            const result = strategy.applyDiff(originalContent, diffContent)
+            const result = await strategy.applyDiff(originalContent, diffContent)
             expect(result.success).toBe(true)
             if (result.success) {
                 expect(result.content).toBe(expected)
