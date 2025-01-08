@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.45
-
-### Patch Changes
+## [2.2.45]
 
 -   Save different API configurations to quickly switch between providers and settings (thanks @samhvw8!)
 
