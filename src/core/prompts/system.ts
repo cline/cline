@@ -128,6 +128,24 @@ Usage:
 <recursive>true or false (optional)</recursive>
 </list_files>
 
+## fetch_user_stories
+Description: Request to fetch user stories for a specific project. This tool retrieves all user stories including their titles, descriptions, acceptance criteria, status, and priority.
+Parameters:
+- project_name: (required) The name of the project to fetch user stories for
+Usage:
+<fetch_user_stories>
+<project_name>Project name here</project_name>
+</fetch_user_stories>
+
+## fetch_technical_design
+Description: Request to fetch technical design documentation for a specific project. This includes architecture details, tech stack, API endpoints, and database schema.
+Parameters:
+- project_name: (required) The name of the project to fetch technical design for
+Usage:
+<fetch_technical_design>
+<project_name>Project name here</project_name>
+</fetch_technical_design>
+
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
