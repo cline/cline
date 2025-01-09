@@ -5,106 +5,128 @@ import { DiffResult, DiffStrategy } from "../../types"
 
 export class NewUnifiedDiffStrategy implements DiffStrategy {
 	private parseUnifiedDiff(diff: string): Diff {
-		const lines = diff.split("\n")
-		const hunks: Hunk[] = []
-		let currentHunk: Hunk | null = null
-
-		let i = 0
-		while (i < lines.length && !lines[i].startsWith("@@")) {
-			i++
-		}
-
-		for (; i < lines.length; i++) {
-			const line = lines[i]
-
-			if (line.startsWith("@@")) {
-				if (currentHunk) {
-					hunks.push(currentHunk)
-				}
-				currentHunk = { changes: [] }
-				continue
-			}
-
-			if (!currentHunk) {
-				continue
-			}
-
-			// Extract the complete indentation for each line
-			const content = line.slice(1) // Remove the diff marker
-			const indentMatch = content.match(/^(\s*)/)
-			const indent = indentMatch ? indentMatch[0] : ""
-			const trimmedContent = content.slice(indent.length)
-
-			if (line.startsWith(" ")) {
-				currentHunk.changes.push({
-					type: "context",
-					content: trimmedContent,
-					indent,
-					originalLine: content,
-				})
-			} else if (line.startsWith("+")) {
-				currentHunk.changes.push({
-					type: "add",
-					content: trimmedContent,
-					indent,
-					originalLine: content,
-				})
-			} else if (line.startsWith("-")) {
-				currentHunk.changes.push({
-					type: "remove",
-					content: trimmedContent,
-					indent,
-					originalLine: content,
-				})
-			}
-		}
-
-		if (currentHunk && currentHunk.changes.length > 0) {
-			hunks.push(currentHunk)
-		}
-
-		return { hunks }
-	}
+    const MAX_CONTEXT_LINES = 3; // Number of context lines to keep before/after changes
+    const lines = diff.split('\n');
+    const hunks: Hunk[] = [];
+    let currentHunk: Hunk | null = null;
+    
+    let i = 0;
+    while (i < lines.length && !lines[i].startsWith('@@')) {
+      i++;
+    }
+  
+    for (; i < lines.length; i++) {
+      const line = lines[i];
+      
+      if (line.startsWith('@@')) {
+        if (currentHunk && currentHunk.changes.length > 0 && 
+            currentHunk.changes.some(change => change.type === 'add' || change.type === 'remove')) {
+          // Trim excess context, keeping only MAX_CONTEXT_LINES before/after changes
+          const changes = currentHunk.changes;
+          let startIdx = 0;
+          let endIdx = changes.length - 1;
+          
+          // Find first non-context line
+          for (let j = 0; j < changes.length; j++) {
+            if (changes[j].type !== 'context') {
+              startIdx = Math.max(0, j - MAX_CONTEXT_LINES);
+              break;
+            }
+          }
+          
+          // Find last non-context line
+          for (let j = changes.length - 1; j >= 0; j--) {
+            if (changes[j].type !== 'context') {
+              endIdx = Math.min(changes.length - 1, j + MAX_CONTEXT_LINES);
+              break;
+            }
+          }
+          
+          currentHunk.changes = changes.slice(startIdx, endIdx + 1);
+          hunks.push(currentHunk);
+        }
+        currentHunk = { changes: [] };
+        continue;
+      }
+  
+      if (!currentHunk) {
+        continue;
+      }
+  
+      // Extract the complete indentation for each line
+      const content = line.slice(1); // Remove the diff marker
+      const indentMatch = content.match(/^(\s*)/);
+      const indent = indentMatch ? indentMatch[0] : '';
+      const trimmedContent = content.slice(indent.length);
+  
+      if (line.startsWith(' ')) {
+        currentHunk.changes.push({
+          type: 'context',
+          content: trimmedContent,
+          indent,
+          originalLine: content
+        });
+      } else if (line.startsWith('+')) {
+        currentHunk.changes.push({
+          type: 'add',
+          content: trimmedContent,
+          indent,
+          originalLine: content
+        });
+      } else if (line.startsWith('-')) {
+        currentHunk.changes.push({
+          type: 'remove',
+          content: trimmedContent,
+          indent,
+          originalLine: content
+        });
+      }
+    }
+  
+    if (currentHunk && currentHunk.changes.length > 0 && 
+        currentHunk.changes.some(change => change.type === 'add' || change.type === 'remove')) {
+      hunks.push(currentHunk);
+    }
+  
+    return { hunks };
+  }
 
 	getToolDescription(cwd: string): string {
 		return `## apply_diff
-Description: Apply a unified diff to a file at the specified path. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in unified diff format (diff -U0).
 
-Make sure you include the first 2 lines with the file paths.
-Don't include timestamps with the file paths.
+Description:
+Apply a unified diff to a file at the specified path. This tool generates minimal, focused diffs that group related changes together.
 
-Start each hunk of changes with a \`@@ ... @@\` line.
-Don't include line numbers like \`diff -U0\` does.
-The user's patch tool doesn't need them.
+Important: It is not necessary to include line numbers in the @@ lines! The patch tool does not use them.
 
-Indentation matters in the diffs!
+Key Requirements:
+1. Generate compact diffs with minimal context
+   - Use reduced context similar to diff -U0
+   - Only include hunks that contain actual changes (+ or - lines)
+   - Skip hunks with only unchanged lines
 
-Start a new hunk for each section of the file that needs changes.
+2. Use high-level, logical grouping
+   - When modifying code blocks (functions, methods, loops), replace the entire block in one hunk
+   - Delete the complete existing block with \`-\` lines
+   - Add the complete updated block with \`+\` lines
+   - Group related changes together rather than creating many small hunks
 
-Only output hunks that specify changes with \`+\` or \`-\` lines.
-Skip any hunks that are entirely unchanging \` \` lines.
+3. Format requirements
+   - Include file paths in the first 2 lines (without timestamps)
+   - Each hunk must start with ONLY \`@@ ... @@\` (line numbers are not needed)
+   - Preserve exact indentation
+   - The @@ lines should be simple separators between hunks - Line numbers or line ranges should not be included
 
-The user's patch tool needs CORRECT patches that apply cleanly against the current contents of the file!
-Think carefully and make sure you include and mark all lines that need to be removed or changed as \`-\` lines.
-Make sure you mark all new or modified lines with \`+\`.
-Don't leave out any lines or the diff patch won't apply correctly.
-
-Output hunks in whatever order makes the most sense.
-Hunks don't need to be in any particular order.
-
-The hunks do not need line numbers.
-
-When editing a function, method, loop, etc use a hunk to replace the *entire* code block.
-Delete the entire existing version with \`-\` lines and then add a new, updated version with \`+\` lines.
-This will help you generate correct code and correct diffs.
-
-To move code within a file, use 2 hunks: 1 to delete it from its current location, 1 to insert it in the new location.
+4. Common operations
+   - To move code: Create one hunk to delete from original location, another to add at new location
+   - To modify a block: Delete entire original block, then add entire new version
+   - Order hunks in whatever logical sequence makes sense
 
 Parameters:
-- path: (required) The path of the file to apply the diff to (relative to the current working directory ${cwd})
-- diff: (required) The diff content in unified format to apply to the file.
+- path: (required) File path relative to current working directory ${cwd}
+- diff: (required) Unified format diff content to apply
 
-For each file that needs to be changed, write out the changes similar to a unified diff like \`diff -U0\` would produce.
+The output must generate correct, clean patches that apply successfully against the current file contents. All changes must be properly marked with + (new/modified) or - (removed) lines.
 
 
 Example:
