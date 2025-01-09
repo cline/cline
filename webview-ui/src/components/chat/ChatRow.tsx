@@ -16,7 +16,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
-import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import SuccessButton from "../common/SuccessButton"
@@ -427,7 +427,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
