@@ -36,17 +36,14 @@ export function applyContextMatching(hunk: Hunk, content: string[], matchPositio
   const newResult = [...content.slice(0, matchPosition)];
   let sourceIndex = matchPosition;
   let previousIndent = '';
-  let lastChangeWasRemove = false;  // Track if last change was a remove
+  let contextLinesProcessed = 0;
 
   for (const change of hunk.changes) {
-
     if (change.type === 'context') {
       newResult.push(change.originalLine || (change.indent + change.content));
       previousIndent = change.indent;
-      if (!lastChangeWasRemove) {  // Only increment if we didn't just remove a line
-        sourceIndex++;
-      }
-      lastChangeWasRemove = false;
+      sourceIndex++;
+      contextLinesProcessed++;
     } else if (change.type === 'add') {
       const indent = change.indent || inferIndentation(change.content, 
         hunk.changes.filter(c => c.type === 'context' && c.originalLine).map(c => c.originalLine || ''),
@@ -54,14 +51,14 @@ export function applyContextMatching(hunk: Hunk, content: string[], matchPositio
       );
       newResult.push(indent + change.content);
       previousIndent = indent;
-      lastChangeWasRemove = false;
     } else if (change.type === 'remove') {
       sourceIndex++;
-      lastChangeWasRemove = true;
     }
   }
 
-  newResult.push(...content.slice(sourceIndex));
+  // Only append remaining content after the hunk's actual span in the original content
+  const remainingContentStart = matchPosition + contextLinesProcessed + hunk.changes.filter(c => c.type === 'remove').length;
+  newResult.push(...content.slice(remainingContentStart));
   
   // Calculate the window size based on all changes
   const windowSize = hunk.changes.length;
@@ -344,7 +341,7 @@ export async function applyEdit(hunk: Hunk, content: string[], matchPosition: nu
     // Normal mode - try strategies sequentially until one succeeds
     for (const strategy of strategies) {
       const result = await strategy.apply();
-      if (result.confidence > MIN_CONFIDENCE) {
+      if (result.confidence === 1) {
         return result;
       }
     }
