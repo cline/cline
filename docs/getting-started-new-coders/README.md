@@ -12,13 +12,13 @@ Before you begin, make sure you have the following:
     -   Follow our [Installing Essential Development Tools](installing-dev-essentials.md) guide to set these up with Cline's help (after getting setup here)
     -   Cline will guide you through installing everything you need
 -   **Cline Projects Folder:** A dedicated folder for all your Cline projects.
-    - On macOS: Create a folder named "Cline" in your Documents folder
-      - Path: `/Users/[your-username]/Documents/Cline`
-    - On Windows: Create a folder named "Cline" in your Documents folder
-      - Path: `C:\Users\[your-username]\Documents\Cline`
-    - Inside this Cline folder, create separate folders for each project
-      - Example: `Documents/Cline/workout-app` for a workout tracking app
-      - Example: `Documents/Cline/portfolio-website` for your portfolio
+    -   On macOS: Create a folder named "Cline" in your Documents folder
+        -   Path: `/Users/[your-username]/Documents/Cline`
+    -   On Windows: Create a folder named "Cline" in your Documents folder
+        -   Path: `C:\Users\[your-username]\Documents\Cline`
+    -   Inside this Cline folder, create separate folders for each project
+        -   Example: `Documents/Cline/workout-app` for a workout tracking app
+        -   Example: `Documents/Cline/portfolio-website` for your portfolio
 -   **Cline Extension in VS Code:** The Cline extension installed in VS Code.
 
 ## Step-by-Step Setup
@@ -36,11 +36,11 @@ Follow these steps to get Cline up and running:
 5. **Install the Extension:** Click the "Install" button next to the Cline extension.
 
 6. **Open Cline:** Once installed, you can open Cline in a few ways:
-   - Click the Cline icon in the Activity Bar.
-   - Use the command palette (`CMD/CTRL + Shift + P`) and type "Cline: Open In New Tab" to open Cline as a tab in your editor. This is recommended for a better view.
-   - **Troubleshooting:** If you don't see the Cline icon, try restarting VS Code.
-   - **What You'll See:** You should see the Cline chat window appear in your VS Code editor.
-  
+    - Click the Cline icon in the Activity Bar.
+    - Use the command palette (`CMD/CTRL + Shift + P`) and type "Cline: Open In New Tab" to open Cline as a tab in your editor. This is recommended for a better view.
+    - **Troubleshooting:** If you don't see the Cline icon, try restarting VS Code.
+    - **What You'll See:** You should see the Cline chat window appear in your VS Code editor.
+
 ![gettingStartedVsCodeCline](https://github.com/user-attachments/assets/622b4bb7-859b-4c2e-b87b-c12e3eabefb8)
 
 ## Setting up OpenRouter API Key
@@ -87,5 +87,4 @@ Feel free to contact me, and I'll help you get started with Cline.
 
 nick | 608-558-2410
 
-Join our Discord community: [https://discord.gg/YmtKFD2f](https://discord.gg/YmtKFD2f)
-
+Join our Discord community: [https://discord.gg/cline](https://discord.gg/cline)

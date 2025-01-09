@@ -6,11 +6,11 @@ When you start coding, you'll need some essential development tools installed on
 
 Here are the core tools you'll need for development:
 
-- **Homebrew**: A package manager for macOS that makes it easy to install other tools
-- **Node.js & npm**: Required for JavaScript and web development
-- **Git**: For tracking changes in your code and collaborating with others
-- **Python**: A programming language used by many development tools
-- **Additional utilities**: Tools like wget and jq that help with downloading files and processing data
+-   **Homebrew**: A package manager for macOS that makes it easy to install other tools
+-   **Node.js & npm**: Required for JavaScript and web development
+-   **Git**: For tracking changes in your code and collaborating with others
+-   **Python**: A programming language used by many development tools
+-   **Additional utilities**: Tools like wget and jq that help with downloading files and processing data
 
 ## Let Cline Install Everything
 
@@ -25,30 +25,30 @@ Hello Cline! I need help setting up my Mac for software development. Could you p
 1. Cline will first install Homebrew, which is like an "app store" for development tools
 2. Using Homebrew, Cline will then install other essential tools like Node.js and Git
 3. For each installation step:
-   - Cline will show you the exact command it wants to run
-   - You'll need to approve each command before it runs
-   - Cline will verify each installation was successful
+    - Cline will show you the exact command it wants to run
+    - You'll need to approve each command before it runs
+    - Cline will verify each installation was successful
 
 ## Why These Tools Are Important
 
-- **Homebrew**: Makes it easy to install and update development tools on your Mac
-- **Node.js & npm**: Required for:
-  - Building websites with React or Next.js
-  - Running JavaScript code
-  - Installing JavaScript packages
-- **Git**: Helps you:
-  - Save different versions of your code
-  - Collaborate with other developers
-  - Back up your work
-- **Python**: Used for:
-  - Running development scripts
-  - Data processing
-  - Machine learning projects
+-   **Homebrew**: Makes it easy to install and update development tools on your Mac
+-   **Node.js & npm**: Required for:
+    -   Building websites with React or Next.js
+    -   Running JavaScript code
+    -   Installing JavaScript packages
+-   **Git**: Helps you:
+    -   Save different versions of your code
+    -   Collaborate with other developers
+    -   Back up your work
+-   **Python**: Used for:
+    -   Running development scripts
+    -   Data processing
+    -   Machine learning projects
 
 ## Notes
 
-- The installation process is interactive - Cline will guide you through each step
-- You may need to enter your computer's password for some installations. When prompted, you will not see any characters being typed on the screen. This is normal and is a security feature to protect your password. Just type your password and press Enter.
+-   The installation process is interactive - Cline will guide you through each step
+-   You may need to enter your computer's password for some installations. When prompted, you will not see any characters being typed on the screen. This is normal and is a security feature to protect your password. Just type your password and press Enter.
 
 **Example:**
 
@@ -57,10 +57,10 @@ $ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/
 Password:
 ```
 
-*Type your password here, even though nothing will show up on the screen. Press Enter when you're done.*
+_Type your password here, even though nothing will show up on the screen. Press Enter when you're done._
 
-- All commands will be shown to you for approval before they run
-- If you run into any issues, Cline will help troubleshoot them
+-   All commands will be shown to you for approval before they run
+-   If you run into any issues, Cline will help troubleshoot them
 
 ## Additional Tips for New Coders
 
@@ -97,8 +97,8 @@ The **Problems** section in VS Code shows any errors or warnings in your code. Y
 
 ### Common Features
 
-- **Command Line Interface (CLI)**: This is a text-based interface where you type commands to interact with your computer. It might seem intimidating at first, but it's a powerful tool for developers.
-- **Permissions**: Sometimes, you will need to give permissions to certain applications or commands. This is a security measure to ensure that only trusted applications can make changes to your system.
+-   **Command Line Interface (CLI)**: This is a text-based interface where you type commands to interact with your computer. It might seem intimidating at first, but it's a powerful tool for developers.
+-   **Permissions**: Sometimes, you will need to give permissions to certain applications or commands. This is a security measure to ensure that only trusted applications can make changes to your system.
 
 ## Next Steps
 
