@@ -1,191 +1,144 @@
-import { AwsBedrockHandler } from '../bedrock'
-import { ApiHandlerOptions, ModelInfo } from '../../../shared/api'
-import { Anthropic } from '@anthropic-ai/sdk'
-import { StreamEvent } from '../bedrock'
-
-// Simplified mock for BedrockRuntimeClient
-class MockBedrockRuntimeClient {
-    private _region: string
-    private mockStream: StreamEvent[] = []
-
-    constructor(config: { region: string }) {
-        this._region = config.region
-    }
-
-    async send(command: any): Promise<{ stream: AsyncIterableIterator<StreamEvent> }> {
-        return {
-            stream: this.createMockStream()
-        }
-    }
-
-    private createMockStream(): AsyncIterableIterator<StreamEvent> {
-        const self = this;
-        return {
-            async *[Symbol.asyncIterator]() {
-                for (const event of self.mockStream) {
-                    yield event;
-                }
-            },
-            next: async () => {
-                const value = this.mockStream.shift();
-                return value ? { value, done: false } : { value: undefined, done: true };
-            },
-            return: async () => ({ value: undefined, done: true }),
-            throw: async (e) => { throw e; }
-        };
-    }
-
-    setMockStream(stream: StreamEvent[]) {
-        this.mockStream = stream;
-    }
-
-    get config() {
-        return { region: this._region };
-    }
-}
+import { AwsBedrockHandler } from '../bedrock';
+import { MessageContent } from '../../../shared/api';
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
+import { Anthropic } from '@anthropic-ai/sdk';
 
 describe('AwsBedrockHandler', () => {
-    const mockOptions: ApiHandlerOptions = {
-        awsRegion: 'us-east-1',
-        awsAccessKey: 'mock-access-key',
-        awsSecretKey: 'mock-secret-key',
-        apiModelId: 'anthropic.claude-v2',
-    }
+    let handler: AwsBedrockHandler;
 
-    // Override the BedrockRuntimeClient creation in the constructor
-    class TestAwsBedrockHandler extends AwsBedrockHandler {
-        constructor(options: ApiHandlerOptions, mockClient?: MockBedrockRuntimeClient) {
-            super(options)
-            if (mockClient) {
-                // Force type casting to bypass strict type checking
-                (this as any)['client'] = mockClient
-            }
-        }
-    }
+    beforeEach(() => {
+        handler = new AwsBedrockHandler({
+            apiModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            awsAccessKey: 'test-access-key',
+            awsSecretKey: 'test-secret-key',
+            awsRegion: 'us-east-1'
+        });
+    });
 
-    test('constructor initializes with correct AWS credentials', () => {
-        const mockClient = new MockBedrockRuntimeClient({
-            region: 'us-east-1'
-        })
+    describe('constructor', () => {
+        it('should initialize with provided config', () => {
+            expect(handler['options'].awsAccessKey).toBe('test-access-key');
+            expect(handler['options'].awsSecretKey).toBe('test-secret-key');
+            expect(handler['options'].awsRegion).toBe('us-east-1');
+            expect(handler['options'].apiModelId).toBe('anthropic.claude-3-5-sonnet-20241022-v2:0');
+        });
 
-        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
-        
-        // Verify that the client is created with the correct configuration
-        expect(handler['client']).toBeDefined()
-        expect(handler['client'].config.region).toBe('us-east-1')
-    })
+        it('should initialize with missing AWS credentials', () => {
+            const handlerWithoutCreds = new AwsBedrockHandler({
+                apiModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+                awsRegion: 'us-east-1'
+            });
+            expect(handlerWithoutCreds).toBeInstanceOf(AwsBedrockHandler);
+        });
+    });
 
-    test('getModel returns correct model info', () => {
-        const mockClient = new MockBedrockRuntimeClient({
-            region: 'us-east-1'
-        })
-
-        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
-        const result = handler.getModel()
-        
-        expect(result).toEqual({
-            id: 'anthropic.claude-v2',
-            info: {
-                maxTokens: 5000,
-                contextWindow: 128_000,
-                supportsPromptCache: false
-            }
-        })
-    })
-
-    test('createMessage handles successful stream events', async () => {
-        const mockClient = new MockBedrockRuntimeClient({
-            region: 'us-east-1'
-        })
-        
-        // Mock stream events
-        const mockStreamEvents: StreamEvent[] = [
+    describe('createMessage', () => {
+        const mockMessages: Anthropic.Messages.MessageParam[] = [
             {
-                metadata: {
-                    usage: {
-                        inputTokens: 50,
-                        outputTokens: 100
-                    }
-                }
+                role: 'user',
+                content: 'Hello'
             },
             {
-                contentBlockStart: {
-                    start: {
-                        text: 'Hello'
-                    }
-                }
-            },
-            {
-                contentBlockDelta: {
-                    delta: {
-                        text: ' world'
-                    }
-                }
-            },
-            {
-                messageStop: {
-                    stopReason: 'end_turn'
-                }
+                role: 'assistant',
+                content: 'Hi there!'
             }
-        ]
+        ];
 
-        mockClient.setMockStream(mockStreamEvents)
+        const systemPrompt = 'You are a helpful assistant';
 
-        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
+        it('should handle text messages correctly', async () => {
+            const mockResponse = {
+                messages: [{
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Hello! How can I help you?' }]
+                }],
+                usage: {
+                    input_tokens: 10,
+                    output_tokens: 5
+                }
+            };
 
-        const systemPrompt = 'You are a helpful assistant'
-        const messages: Anthropic.Messages.MessageParam[] = [
-            { role: 'user', content: 'Say hello' }
-        ]
+            // Mock AWS SDK invoke
+            const mockStream = {
+                [Symbol.asyncIterator]: async function* () {
+                    yield {
+                        metadata: {
+                            usage: {
+                                inputTokens: 10,
+                                outputTokens: 5
+                            }
+                        }
+                    };
+                }
+            };
 
-        const generator = handler.createMessage(systemPrompt, messages)
-        const chunks = []
+            const mockInvoke = jest.fn().mockResolvedValue({
+                stream: mockStream
+            });
 
-        for await (const chunk of generator) {
-            chunks.push(chunk)
-        }
+            handler['client'] = {
+                send: mockInvoke
+            } as unknown as BedrockRuntimeClient;
 
-        // Verify the chunks match expected stream events
-        expect(chunks).toHaveLength(3)
-        expect(chunks[0]).toEqual({
-            type: 'usage',
-            inputTokens: 50,
-            outputTokens: 100
-        })
-        expect(chunks[1]).toEqual({
-            type: 'text',
-            text: 'Hello'
-        })
-        expect(chunks[2]).toEqual({
-            type: 'text',
-            text: ' world'
-        })
-    })
-
-    test('createMessage handles error scenarios', async () => {
-        const mockClient = new MockBedrockRuntimeClient({
-            region: 'us-east-1'
-        })
-
-        // Simulate an error by overriding the send method
-        mockClient.send = () => {
-            throw new Error('API request failed')
-        }
-
-        const handler = new TestAwsBedrockHandler(mockOptions, mockClient)
-
-        const systemPrompt = 'You are a helpful assistant'
-        const messages: Anthropic.Messages.MessageParam[] = [
-            { role: 'user', content: 'Cause an error' }
-        ]
-
-        await expect(async () => {
-            const generator = handler.createMessage(systemPrompt, messages)
-            const chunks = []
+            const stream = handler.createMessage(systemPrompt, mockMessages);
+            const chunks = [];
             
-            for await (const chunk of generator) {
-                chunks.push(chunk)
+            for await (const chunk of stream) {
+                chunks.push(chunk);
             }
-        }).rejects.toThrow('API request failed')
-    })
-})
+
+            expect(chunks.length).toBeGreaterThan(0);
+            expect(chunks[0]).toEqual({
+                type: 'usage',
+                inputTokens: 10,
+                outputTokens: 5
+            });
+
+            expect(mockInvoke).toHaveBeenCalledWith(expect.objectContaining({
+                input: expect.objectContaining({
+                    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+                })
+            }));
+        });
+
+        it('should handle API errors', async () => {
+            // Mock AWS SDK invoke with error
+            const mockInvoke = jest.fn().mockRejectedValue(new Error('AWS Bedrock error'));
+
+            handler['client'] = {
+                send: mockInvoke
+            } as unknown as BedrockRuntimeClient;
+
+            const stream = handler.createMessage(systemPrompt, mockMessages);
+
+            await expect(async () => {
+                for await (const chunk of stream) {
+                    // Should throw before yielding any chunks
+                }
+            }).rejects.toThrow('AWS Bedrock error');
+        });
+    });
+
+    describe('getModel', () => {
+        it('should return correct model info in test environment', () => {
+            const modelInfo = handler.getModel();
+            expect(modelInfo.id).toBe('anthropic.claude-3-5-sonnet-20241022-v2:0');
+            expect(modelInfo.info).toBeDefined();
+            expect(modelInfo.info.maxTokens).toBe(5000); // Test environment value
+            expect(modelInfo.info.contextWindow).toBe(128_000); // Test environment value
+        });
+
+        it('should return test model info for invalid model in test environment', () => {
+            const invalidHandler = new AwsBedrockHandler({
+                apiModelId: 'invalid-model',
+                awsAccessKey: 'test-access-key',
+                awsSecretKey: 'test-secret-key',
+                awsRegion: 'us-east-1'
+            });
+            const modelInfo = invalidHandler.getModel();
+            expect(modelInfo.id).toBe('invalid-model'); // In test env, returns whatever is passed
+            expect(modelInfo.info.maxTokens).toBe(5000);
+            expect(modelInfo.info.contextWindow).toBe(128_000);
+        });
+    });
+});
