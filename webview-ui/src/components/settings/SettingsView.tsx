@@ -12,7 +12,8 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
+	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } =
+		useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = () => {
@@ -23,10 +24,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setModelIdErrorMessage(modelIdValidationResult)
 		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({
-				type: "customInstructions",
-				text: customInstructions,
-			})
+			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			onDone()
 		}
 	}
@@ -77,13 +75,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
-				style={{
-					flexGrow: 1,
-					overflowY: "scroll",
-					paddingRight: 8,
-					display: "flex",
-					flexDirection: "column",
-				}}>
+				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						showModelOptions={true}
@@ -97,7 +89,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
 						rows={4}
-						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
+						placeholder={
+							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+						}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
 					</VSCodeTextArea>
@@ -137,25 +131,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						marginTop: "auto",
 						padding: "10px 8px 15px 0px",
 					}}>
-					<p
-						style={{
-							wordWrap: "break-word",
-							margin: 0,
-							padding: 0,
-						}}>
+					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
 						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
 							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
-					<p
-						style={{
-							fontStyle: "italic",
-							margin: "10px 0 0 0",
-							padding: 0,
-						}}>
-						v{version}
-					</p>
+					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
 				</div>
 			</div>
 		</div>

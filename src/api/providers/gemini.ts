@@ -51,9 +51,6 @@ export class GeminiHandler implements ApiHandler {
 			const id = modelId as GeminiModelId
 			return { id, info: geminiModels[id] }
 		}
-		return {
-			id: geminiDefaultModelId,
-			info: geminiModels[geminiDefaultModelId],
-		}
+		return { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
 	}
 }

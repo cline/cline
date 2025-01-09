@@ -176,9 +176,6 @@ export class OpenRouterHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		return {
-			id: openRouterDefaultModelId,
-			info: openRouterDefaultModelInfo,
-		}
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react"
 import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
-import { cleanPathPrefix } from "../common/CodeAccordian"
+import { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -67,7 +67,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{cleanPathPrefix(option.value || "") + "\u200E"}
+								{removeLeadingNonAlphanumeric(option.value || "") + "\u200E"}
 							</span>
 						</>
 					)
@@ -153,11 +153,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							}}>
 							<i
 								className={`codicon codicon-${getIconForOption(option)}`}
-								style={{
-									marginRight: "8px",
-									flexShrink: 0,
-									fontSize: "14px",
-								}}
+								style={{ marginRight: "8px", flexShrink: 0, fontSize: "14px" }}
 							/>
 							{renderOptionContent(option)}
 						</div>
@@ -165,23 +161,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							!option.value && (
 								<i
 									className="codicon codicon-chevron-right"
-									style={{
-										fontSize: "14px",
-										flexShrink: 0,
-										marginLeft: 8,
-									}}
+									style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
 								/>
 							)}
 						{(option.type === ContextMenuOptionType.Problems ||
-							((option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
+							((option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder) &&
 								option.value)) && (
 							<i
 								className="codicon codicon-add"
-								style={{
-									fontSize: "14px",
-									flexShrink: 0,
-									marginLeft: 8,
-								}}
+								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
 							/>
 						)}
 					</div>
