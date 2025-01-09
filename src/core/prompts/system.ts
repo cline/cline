@@ -757,7 +757,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
 async function loadRuleFiles(cwd: string): Promise<string> {
-    const ruleFiles = ['.clinerules', '.cursorrules']
+    const ruleFiles = ['.clinerules', '.cursorrules', '.windsurfrules']
     let combinedRules = ''
 
     for (const file of ruleFiles) {
