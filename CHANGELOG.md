@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.1.4]
+
+- Fix issue where checkpoints would not work for users with git commit signing enabled globally
+
 ## [3.1.2]
 
 - Fix issue where LFS files would be not be ignored when creating checkpoints
