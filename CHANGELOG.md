@@ -1,5 +1,9 @@
 # Roo Cline Changelog
 
+## [2.2.46]
+
+-   Only parse @-mentions in user input (not in files)
+
 ## [2.2.45]
 
 -   Save different API configurations to quickly switch between providers and settings (thanks @samhvw8!)
