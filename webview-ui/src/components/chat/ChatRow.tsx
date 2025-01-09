@@ -818,6 +818,30 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 
 							{isExpanded && (
 								<div style={{ marginTop: "10px" }}>
+									{/* Display prompt cache metrics when using providers that support it (e.g. OpenAI with caching enabled) */}
+									{JSON.parse(message.text || "{}").usage?.cacheReadTokens !== undefined && (
+										<div
+											style={{
+												marginBottom: "10px",
+												fontSize: "12px",
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											<div>
+												Cache Reads:{" "}
+												{JSON.parse(
+													message.text || "{}",
+												).usage?.cacheReadTokens?.toLocaleString()}{" "}
+												tokens
+											</div>
+											<div>
+												Cache Writes:{" "}
+												{JSON.parse(
+													message.text || "{}",
+												).usage?.cacheWriteTokens?.toLocaleString()}{" "}
+												tokens
+											</div>
+										</div>
+									)}
 									<CodeAccordian
 										code={JSON.parse(message.text || "{}").request}
 										language="markdown"
