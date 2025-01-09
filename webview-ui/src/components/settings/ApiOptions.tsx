@@ -147,9 +147,9 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="glama">Glama</VSCodeOption>
+					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -661,10 +661,20 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-								No language models available.<br />
-								You can use any VS Code extension that provides language model capabilities.
+								The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot).
+								The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.
 							</p>
 						)}
+
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-errorForeground)",
+								fontWeight: 500,
+							}}>
+							Note: This is a very experimental integration and may not work as expected. Please report any issues to the Roo-Cline GitHub repository.
+						</p>
 					</div>
 				</div>
 			)}
