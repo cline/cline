@@ -5,7 +5,7 @@
 	"tasks": [
 		{
 			"label": "watch",
-			"dependsOn": ["npm: build:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": ["pnpm: build:webview", "pnpm: watch:tsc", "pnpm: watch:esbuild"],
 			"presentation": {
 				"reveal": "never"
 			},
@@ -15,44 +15,45 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "build:webview",
+			"type": "shell",
+			"command": "pnpm run build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
-			"label": "npm: build:webview",
+			"label": "pnpm: build:webview",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild",
+			"type": "shell",
+			"command": "pnpm run watch:esbuild",
 			"group": "build",
 			"problemMatcher": "$esbuild-watch",
 			"isBackground": true,
-			"label": "npm: watch:esbuild",
+			"label": "pnpm: watch:esbuild",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:tsc",
+			"type": "shell",
+			"command": "pnpm run watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc",
+			"label": "pnpm: watch:tsc",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-tests",
+			"type": "shell",
+			"label": "pnpm: watch-tests",
+			"command": "pnpm run watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"presentation": {
@@ -63,7 +64,7 @@
 		},
 		{
 			"label": "tasks: watch-tests",
-			"dependsOn": ["npm: watch", "npm: watch-tests"],
+			"dependsOn": ["pnpm: watch", "pnpm: watch-tests"],
 			"problemMatcher": []
 		}
 	]
