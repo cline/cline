@@ -53,6 +53,8 @@
 		]
 	},
 	"devDependencies": {
-		"@types/vscode-webview": "^1.57.5"
+		"@types/vscode-webview": "^1.57.5",
+		"react-dev-utils": "^12.0.1",
+		"unist-util-visit": "^5.0.0"
 	}
 }
