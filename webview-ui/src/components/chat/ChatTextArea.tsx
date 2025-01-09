@@ -560,6 +560,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							alignItems: "center",
 						}}>
 						<div
+							data-testid="device-camera"
 							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 							onClick={() => {
 								if (!shouldDisableImages) {
@@ -572,6 +573,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}}
 						/>
 						<div
+							data-testid="send"
 							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
 							onClick={() => {
 								if (!textAreaDisabled) {

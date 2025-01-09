@@ -68,4 +68,35 @@ describe("ChatTextArea", () => {
 		const textArea = screen.getByPlaceholderText("Type a message...")
 		expect(textArea).toBeDisabled()
 	})
+
+	it("calls onSelectImages when the image button is clicked", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatTextArea {...defaultProps} selectedImages={["image1.png", "image2.png"]} />
+			</ExtensionStateContextProvider>,
+		)
+		const cameraInput = screen.getByTestId("device-camera")
+		fireEvent.click(cameraInput)
+		expect(defaultProps.onSelectImages).toHaveBeenCalled()
+	})
+
+	it("disables the image button when shouldDisableImages is true", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatTextArea {...defaultProps} shouldDisableImages={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const cameraInput = screen.getByTestId("device-camera")
+		expect(cameraInput).toHaveClass("disabled")
+	})
+
+	it("renders the selected images", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatTextArea {...defaultProps} selectedImages={["image1.png", "image2.png"]} />
+			</ExtensionStateContextProvider>,
+		)
+		expect(screen.getByAltText("Thumbnail 1")).toBeInTheDocument()
+		expect(screen.getByAltText("Thumbnail 2")).toBeInTheDocument()
+	})
 })
