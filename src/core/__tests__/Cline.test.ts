@@ -626,6 +626,82 @@ describe('Cline', () => {
                     text: '[Referenced image in conversation]'
                 });
             });
+        
+            describe('loadContext', () => {
+                it('should process mentions in task and feedback tags', async () => {
+                    const cline = new Cline(
+                        mockProvider,
+                        mockApiConfig,
+                        undefined,
+                        false,
+                        undefined,
+                        'test task'
+                    );
+        
+                    // Mock parseMentions to track calls
+                    const mockParseMentions = jest.fn().mockImplementation(text => `processed: ${text}`);
+                    jest.spyOn(require('../../core/mentions'), 'parseMentions').mockImplementation(mockParseMentions);
+        
+                    const userContent = [
+                        {
+                            type: 'text',
+                            text: 'Regular text with @/some/path'
+                        } as const,
+                        {
+                            type: 'text',
+                            text: '<task>Text with @/some/path in task tags</task>'
+                        } as const,
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 'test-id',
+                            content: [{
+                                type: 'text',
+                                text: '<feedback>Check @/some/path</feedback>'
+                            }]
+                        } as Anthropic.ToolResultBlockParam,
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 'test-id-2',
+                            content: [{
+                                type: 'text',
+                                text: 'Regular tool result with @/path'
+                            }]
+                        } as Anthropic.ToolResultBlockParam
+                    ];
+        
+                    // Process the content
+                    const [processedContent] = await cline['loadContext'](userContent);
+        
+                    // Regular text should not be processed
+                    expect((processedContent[0] as Anthropic.TextBlockParam).text)
+                        .toBe('Regular text with @/some/path');
+        
+                    // Text within task tags should be processed
+                    expect((processedContent[1] as Anthropic.TextBlockParam).text)
+                        .toContain('processed:');
+                    expect(mockParseMentions).toHaveBeenCalledWith(
+                        '<task>Text with @/some/path in task tags</task>',
+                        expect.any(String),
+                        expect.any(Object)
+                    );
+        
+                    // Feedback tag content should be processed
+                    const toolResult1 = processedContent[2] as Anthropic.ToolResultBlockParam;
+                    const content1 = Array.isArray(toolResult1.content) ? toolResult1.content[0] : toolResult1.content;
+                    expect((content1 as Anthropic.TextBlockParam).text).toContain('processed:');
+                    expect(mockParseMentions).toHaveBeenCalledWith(
+                        '<feedback>Check @/some/path</feedback>',
+                        expect.any(String),
+                        expect.any(Object)
+                    );
+        
+                    // Regular tool result should not be processed
+                    const toolResult2 = processedContent[3] as Anthropic.ToolResultBlockParam;
+                    const content2 = Array.isArray(toolResult2.content) ? toolResult2.content[0] : toolResult2.content;
+                    expect((content2 as Anthropic.TextBlockParam).text)
+                        .toBe('Regular tool result with @/path');
+                });
+            });
         });
     });
 });
