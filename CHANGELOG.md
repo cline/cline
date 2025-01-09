@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 2.2.46
-
-### Patch Changes
+## [2.2.46]
 
 -   Only parse @-mentions in user input (not in files)
 
