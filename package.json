@@ -161,7 +161,7 @@
     "test:webview": "cd webview-ui && npm run test",
     "test:extension": "vscode-test",
     "prepare": "husky",
-    "publish:marketplace": "vsce publish",
+    "publish:marketplace": "vsce publish && ovsx publish",
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
     "version-packages": "changeset version && npm install --package-lock-only",
     "vscode:prepublish": "npm run package",
