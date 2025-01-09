@@ -2360,22 +2360,30 @@ export class Cline {
 			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
 			Promise.all(
 				userContent.map(async (block) => {
+					const shouldProcessMentions = (text: string) =>
+						text.includes("<task>") || text.includes("<feedback>");
+
 					if (block.type === "text") {
-						return {
-							...block,
-							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
-						}
-					} else if (block.type === "tool_result") {
-						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
-						if (typeof block.content === "string" && isUserMessage(block.content)) {
+						if (shouldProcessMentions(block.text)) {
 							return {
 								...block,
-								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
 							}
+						}
+						return block;
+					} else if (block.type === "tool_result") {
+						if (typeof block.content === "string") {
+							if (shouldProcessMentions(block.content)) {
+								return {
+									...block,
+									content: await parseMentions(block.content, cwd, this.urlContentFetcher),
+								}
+							}
+							return block;
 						} else if (Array.isArray(block.content)) {
 							const parsedContent = await Promise.all(
 								block.content.map(async (contentBlock) => {
-									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
+									if (contentBlock.type === "text" && shouldProcessMentions(contentBlock.text)) {
 										return {
 											...contentBlock,
 											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
@@ -2389,6 +2397,7 @@ export class Cline {
 								content: parsedContent,
 							}
 						}
+						return block;
 					}
 					return block
 				}),
