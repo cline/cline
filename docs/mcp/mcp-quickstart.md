@@ -8,7 +8,6 @@ Think of MCP servers as special helpers that give Cline extra powers! They let C
 
 STOP! Before proceeding, you MUST verify these requirements:
 
-
 ### Required Software
 
 - ✅ Latest Node.js (v18 or newer)
@@ -29,7 +28,12 @@ STOP! Before proceeding, you MUST verify these requirements:
 
 ### 1. 🛠️ Install Your First MCP Server
 
-Open Cline's MCP settings and replace its contents with this code:
+1. From the Cline extension, click the `MCP Server` tab
+1. Click the `Edit MCP Settings` button
+
+      <img src="/assets/docs/cline-mcp-server-panel.png" alt="MCP Server Panel" width="400" />
+1. The MCP settings files should be display in a tab in VS Code.
+1. Replce the file's contents with this code:
 
 For Windows:
 
@@ -71,7 +75,7 @@ After saving the file:
 3. Cline will start the MCP installer
 4. You'll see the server status in Cline's MCP settings UI:
 
-<img src="../assets/docs/cline-mcp-server-panel-mcp-installer.png" alt="MCP Server Panel with Installer" width="400" />
+<img src="/assets/docs/cline-mcp-server-panel-mcp-installer.png" alt="MCP Server Panel with Installer" width="400" />
 
 
 ### 2. 🔄 Set Up with Cline
@@ -92,11 +96,6 @@ Ask Cline to test both servers:
 
 That's it! 🎉 You've just given Cline some awesome new abilities!
 
-Here's how your MCP server panel should look with all servers installed:
-
-<img src="../assets/docs/cline-mcp-server-panel.png" alt="MCP Server Panel with All Servers" width="400" />
-
-
 ## 🤔 What Next?
 
 Now that you have the MCP installer, you can ask Cline to add more servers from:
@@ -104,9 +103,4 @@ Now that you have the MCP installer, you can ask Cline to add more servers from:
 1. NPM Registry: <https://www.npmjs.com/search?q=%40modelcontextprotocol>
 2. Python Package Index: <https://pypi.org/search/?q=mcp+server-&o=>
 
-Try asking Cline to install any server you find! For example:
-
-- "Fetch me the weather from weather.com"
-- "List the files on my desktop"
-
-Cline can do all this and more with MCP servers! 🌟
+Try asking Cline to install any server you find!🌟
