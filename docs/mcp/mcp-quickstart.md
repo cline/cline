@@ -32,6 +32,7 @@ STOP! Before proceeding, you MUST verify these requirements:
 1. Click the `Edit MCP Settings` button
 
       <img src="/assets/docs/cline-mcp-server-panel.png" alt="MCP Server Panel" width="400" />
+  
 1. The MCP settings files should be display in a tab in VS Code.
 1. Replce the file's contents with this code:
 
@@ -76,7 +77,6 @@ After saving the file:
 4. You'll see the server status in Cline's MCP settings UI:
 
 <img src="/assets/docs/cline-mcp-server-panel-mcp-installer.png" alt="MCP Server Panel with Installer" width="400" />
-
 
 ### 2. 🔄 Set Up with Cline
 
