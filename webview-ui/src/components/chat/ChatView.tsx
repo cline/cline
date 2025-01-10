@@ -192,6 +192,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "say":
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
+						case "api_req_retry_delayed":
+							setTextAreaDisabled(true)
+							break
 						case "api_req_started":
 							if (secondLastMessage?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
@@ -466,6 +469,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 					return false
+				case "api_req_retry_delayed":
+					// Only show the retry message if it's the last message
+					return message === modifiedMessages.at(-1)
 				case "text":
 					// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
