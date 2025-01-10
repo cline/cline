@@ -78,24 +78,6 @@ After saving the file:
 
 <img src="/assets/docs/cline-mcp-server-panel-mcp-installer.png" alt="MCP Server Panel with Installer" width="400" />
 
-### 2. 🔄 Set Up with Cline
-
-Now let's give Cline the power to work with your files! Ask Cline:
-
-```bash
-"install the MCP server named mcp-server-fetch"
-```
-
-### 4. ✅ Verify Everything Works
-
-Ask Cline to test both servers:
-
-```bash
-"generate a status report of the mcp servers in the chat only."
-```
-
-That's it! 🎉 You've just given Cline some awesome new abilities!
-
 ## 🤔 What Next?
 
 Now that you have the MCP installer, you can ask Cline to add more servers from:
@@ -103,4 +85,16 @@ Now that you have the MCP installer, you can ask Cline to add more servers from:
 1. NPM Registry: <https://www.npmjs.com/search?q=%40modelcontextprotocol>
 2. Python Package Index: <https://pypi.org/search/?q=mcp+server-&o=>
 
-Try asking Cline to install any server you find!🌟
+For example, you can ask Cline to install the `mcp-server-fetch` package found on the Python Package Index:
+
+```bash
+"install the MCP server named `mcp-server-fetch` and ensure the mcp settngs are updated."
+```
+
+Ask Cline to tell the status of the MCP servers:
+
+```bash
+"generate a status report of the mcp servers in the chat only."
+```
+
+That's it! 🎉 You've just given Cline some awesome new abilities!
