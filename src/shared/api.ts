@@ -109,16 +109,16 @@ export const anthropicModels = {
 
 // Dify
 export type DifyModelId = string
-export const difyDefaultModelId = ""  // Dify doesn't have a default model, it depends on the server configuration
+export const difyDefaultModelId = "" // Dify doesn't have a default model, it depends on the server configuration
 export const difyModels = {
-    "dify-default": {
-        maxTokens: 4096,
-        contextWindow: 4096,
-        supportsImages: false,
-        supportsComputerUse: false,
-        supportsPromptCache: false,
-        description: "Dify API",
-    },
+	"dify-default": {
+		maxTokens: 4096,
+		contextWindow: 4096,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		description: "Dify API",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // AWS Bedrock

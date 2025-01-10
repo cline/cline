@@ -31,40 +31,50 @@ export class DifyHandler implements ApiHandler {
 		console.log("Last message:", lastMessage)
 
 		// Convert messages to Dify format
-		const query = `${systemPrompt}\n\n` + "# UserTask" + messages.map(msg => {
-			if (typeof msg === "string") return msg;
-			
-			if (msg.content) {
-				if (Array.isArray(msg.content)) {
-					return msg.content
-						.map(part => {
-							if (typeof part === "string") return part;
-							if (typeof part === "object") {
-								switch (part.type) {
-									case "text": return part.text;
-									case "image":
-										console.warn("Image input not supported by Dify");
-										return "";
-									case "tool_result":
-										return typeof part.content === "string" 
-											? part.content 
-											: Array.isArray(part.content)
-												? part.content
-													.filter(p => p.type === "text")
-													.map(p => p.text)
-													.join("\n")
-												: "";
-								}
-							}
-							return "";
-						})
-						.filter(Boolean)
-						.join("\n");
-				}
-				return typeof msg.content === "string" ? msg.content : "";
-			}
-			return "";
-		}).join("\n\n");
+		const query =
+			`${systemPrompt}\n\n` +
+			"# UserTask" +
+			messages
+				.map((msg) => {
+					if (typeof msg === "string") {
+						return msg
+					}
+
+					if (msg.content) {
+						if (Array.isArray(msg.content)) {
+							return msg.content
+								.map((part) => {
+									if (typeof part === "string") {
+										return part
+									}
+									if (typeof part === "object") {
+										switch (part.type) {
+											case "text":
+												return part.text
+											case "image":
+												console.warn("Image input not supported by Dify")
+												return ""
+											case "tool_result":
+												return typeof part.content === "string"
+													? part.content
+													: Array.isArray(part.content)
+														? part.content
+																.filter((p) => p.type === "text")
+																.map((p) => p.text)
+																.join("\n")
+														: ""
+										}
+									}
+									return ""
+								})
+								.filter(Boolean)
+								.join("\n")
+						}
+						return typeof msg.content === "string" ? msg.content : ""
+					}
+					return ""
+				})
+				.join("\n\n")
 
 		if (!query) {
 			throw new Error("Query is required")
@@ -76,7 +86,7 @@ export class DifyHandler implements ApiHandler {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"Authorization": `Bearer ${this.apiKey}`,
+				Authorization: `Bearer ${this.apiKey}`,
 			},
 			body: JSON.stringify({
 				query,
@@ -85,7 +95,7 @@ export class DifyHandler implements ApiHandler {
 				response_mode: "streaming",
 				conversation_id: "", // Optional, for continuing previous conversations
 				files: [], // Optional, for file inputs
-				auto_generate_name: true // Optional, for auto-generating conversation titles
+				auto_generate_name: true, // Optional, for auto-generating conversation titles
 			}),
 		})
 
@@ -106,7 +116,9 @@ export class DifyHandler implements ApiHandler {
 		try {
 			while (true) {
 				const { value, done } = await reader.read()
-				if (done) break
+				if (done) {
+					break
+				}
 
 				const chunk = decoder.decode(value)
 				buffer += chunk
@@ -118,7 +130,9 @@ export class DifyHandler implements ApiHandler {
 
 				for (const line of lines) {
 					const trimmedLine = line.trim()
-					if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue
+					if (!trimmedLine || !trimmedLine.startsWith("data: ")) {
+						continue
+					}
 
 					try {
 						const jsonStr = trimmedLine.slice(6)
@@ -162,6 +176,8 @@ export class DifyHandler implements ApiHandler {
 					} catch (e) {
 						console.warn("Error parsing remaining buffer:", e)
 					}
+				} else {
+					// do nothing
 				}
 			}
 		} finally {
