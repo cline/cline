@@ -105,6 +105,9 @@ class CheckpointTracker {
 
 			await git.addConfig("core.worktree", this.cwd) // sets the working tree to the current workspace
 
+			// Disable commit signing for shadow repo
+			await git.addConfig("commit.gpgSign", "false")
+
 			// Get LFS patterns from workspace if they exist
 			let lfsPatterns: string[] = []
 			try {
