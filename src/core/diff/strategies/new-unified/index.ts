@@ -5,7 +5,7 @@ import { DiffResult, DiffStrategy } from "../../types"
 
 export class NewUnifiedDiffStrategy implements DiffStrategy {
 	private parseUnifiedDiff(diff: string): Diff {
-    const MAX_CONTEXT_LINES = 3; // Number of context lines to keep before/after changes
+    const MAX_CONTEXT_LINES = 6; // Number of context lines to keep before/after changes
     const lines = diff.split('\n');
     const hunks: Hunk[] = [];
     let currentHunk: Hunk | null = null;
@@ -49,9 +49,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
         continue;
       }
   
-      if (!currentHunk) {
-        continue;
-      }
+      if (!currentHunk) {continue};
   
       // Extract the complete indentation for each line
       const content = line.slice(1); // Remove the diff marker
