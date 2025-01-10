@@ -32,22 +32,27 @@ STOP! Before proceeding, you MUST verify these requirements:
 Open Cline's MCP settings and replace its contents with this code:
 
 For Windows:
+
 ```json
-"mcpServers": {
-    "mcp-installer": {
-      "command": "cmd.exe",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@anaisbetts/mcp-installer"
-      ]
+{
+  "mcpServers": {
+      "mcp-installer": {
+        "command": "cmd.exe",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@anaisbetts/mcp-installer"
+        ]
+      }
     }
-  }
+}
 ```
 
 For Mac and Linux:
+
 ```json
+{
   "mcpServers": {
     "mcp-installer": {
       "command": "npx",
@@ -56,9 +61,11 @@ For Mac and Linux:
       ]
     }
   }
+}
 ```
 
 After saving the file:
+
 1. Cline will detect the change automatically
 2. The MCP installer will be downloaded and installed
 3. Cline will start the MCP installer
@@ -68,14 +75,6 @@ After saving the file:
 
 
 ### 2. 🔄 Set Up with Cline
-
-Cline will automatically detect the MCP installer. Let's test it by asking Cline:
-
-```bash
-"install the @modelcontextprotocol/server-filesystem package as an MCP server"
-```
-
-### 3. ✨ Add File System Support
 
 Now let's give Cline the power to work with your files! Ask Cline:
 
