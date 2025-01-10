@@ -28,6 +28,8 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	yiDefaultModelId,
+	yiModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -50,6 +52,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
+		console.log("handleInputChange=====", apiConfiguration, event.target.value)
 		setApiConfiguration({
 			...apiConfiguration,
 			[field]: event.target.value,
@@ -148,6 +151,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="yi">Yi</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -269,7 +273,36 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					</p>
 				</div>
 			)}
-
+			{selectedProvider === "yi" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.yiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("yiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Yi API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.yiApiKey && (
+							<VSCodeLink
+								href="https://platform.lingyiwanwu.com/apikeys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Yi API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
 			{selectedProvider === "openrouter" && (
 				<div>
 					<VSCodeTextField
@@ -697,6 +730,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
+							{selectedProvider === "yi" && createDropdown(yiModels)}
 						</div>
 
 						<ModelInfoView
@@ -893,6 +927,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+		case "yi":
+			return getProviderData(yiModels, yiDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,

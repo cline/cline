@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+	| "yi"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -35,6 +36,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	azureApiVersion?: string
+	yiApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -364,5 +366,28 @@ export const deepSeekModels = {
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.014,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Yi
+// https://platform.lingyiwanwu.com/docs
+export type YiModelId = keyof typeof yiModels
+export const yiDefaultModelId: YiModelId = "yi-lightning"
+export const yiModels = {
+	"yi-lightning": {
+		maxTokens: 4_000,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.135,
+		outputPrice: 0.135,
+	},
+	"yi-vision-v2": {
+		maxTokens: 2_048,
+		contextWindow: 16_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.8184,
+		outputPrice: 0.8184,
 	},
 } as const satisfies Record<string, ModelInfo>
