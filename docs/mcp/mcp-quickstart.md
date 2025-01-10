@@ -88,13 +88,54 @@ Now that you have the MCP installer, you can ask Cline to add more servers from:
 For example, you can ask Cline to install the `mcp-server-fetch` package found on the Python Package Index:
 
 ```bash
-"install the MCP server named `mcp-server-fetch` and ensure the mcp settngs are updated."
+"install the MCP server named `mcp-server-fetch`
+- ensure the mcp settings are updated.
+- use uvx or python to run the server."
 ```
 
-Ask Cline to tell the status of the MCP servers:
+You should witness Cline:
 
-```bash
-"generate a status report of the mcp servers in the chat only."
+1. Install the `mcp-server-fetch` python package
+1. Update the mcp setting json file
+1. Start the serverand start the server
+
+
+The mcp seetings file should now look like this:
+
+_For a Windows machine:_
+
+```json
+{
+  "mcpServers": {
+    "mcp-installer": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@anaisbetts/mcp-installer"
+      ]
+    },
+    "mcp-server-fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    }
+  }
+}
 ```
+
+You you can always check the status of your server by going to clients MCP server tab. See the image above
 
 That's it! 🎉 You've just given Cline some awesome new abilities!
+
+## 📝 Troubleshooting
+
+### ❌ I'm Getting an Error When I Run the MCP Installer
+
+If you're getting an error when you run the MCP installer, you can try the following:
+
+- Check the MCP settings file for errors
+- Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
+- Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
