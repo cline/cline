@@ -10,7 +10,7 @@ export type SearchResult = {
 };
 
 //TODO: this should be configurable
-const MIN_CONFIDENCE = 0.95;
+const MIN_CONFIDENCE = 0.97;
 
 // Helper function to prepare search string from context
 export function prepareSearchString(changes: Change[]): string {
@@ -74,7 +74,6 @@ export function validateEditResult(hunk: Hunk, result: string, strategy: string)
 
   console.log('expectedSimilarity', strategy, expectedSimilarity);
   
-
   // Scale between 0.98 and 1.0 (4% impact) based on expected similarity
   const multiplier =
     expectedSimilarity < MIN_CONFIDENCE ? 0.96 + 0.04 * expectedSimilarity : 1;
@@ -183,11 +182,10 @@ export function findLevenshteinMatch(
     const index = startIndex + candidates.indexOf(closestMatch);
     const similarity = getDMPSimilarity(searchStr, closestMatch);
     const contextSimilarity = validateContextLines(searchStr, closestMatch);
-    const confidence = Math.min(similarity, contextSimilarity) * 0.7; // Still apply Levenshtein penalty
-
+    const confidence = Math.min(similarity, contextSimilarity)
     return {
       index,
-      confidence,
+      confidence: index !== -1 ? confidence : 0,
       strategy: 'levenshtein',
     };
   }
