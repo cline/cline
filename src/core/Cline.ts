@@ -3009,17 +3009,12 @@ export class Cline {
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
 		return await Promise.all([
-			// Process userContent array, which contains various block types:
-			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
-			// We need to apply parseMentions() to:
-			// 1. All TextBlockParam's text (first user message with task)
-			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
-			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided. However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
+			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
 			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
 			Promise.all(
 				userContent.map(async (block) => {
 					if (block.type === "text") {
-						// Important: We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
+						// We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
 						// FIXME: Only parse text in between these tags instead of the entire text block which may contain other tool results. This is part of a larger issue where we shouldn't be using regex to parse mentions in the first place (ie for cases where file paths have spaces)
 						if (
 							block.text.includes("<feedback>") ||
