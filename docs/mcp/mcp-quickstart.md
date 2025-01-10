@@ -139,3 +139,9 @@ If you're getting an error when you run the MCP installer, you can try the follo
 - Check the MCP settings file for errors
 - Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
 - Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
+
+
+## Authors
+
+- Todd Schavey
+- Nick Baumann
