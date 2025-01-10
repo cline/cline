@@ -456,19 +456,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					</VSCodeTextField>
 					<span style={{ fontWeight: 500 }}>Model</span>
 					<OpenAiModelPicker />
-					<div style={{ display: "flex", alignItems: "center" }}>
-						<VSCodeCheckbox
-							checked={apiConfiguration?.includeStreamOptions ?? true}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked
-								setApiConfiguration({
-									...apiConfiguration,
-									includeStreamOptions: isChecked,
-								})
-							}}>
-							Include stream options
-						</VSCodeCheckbox>
-					</div>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
