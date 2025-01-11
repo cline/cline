@@ -154,6 +154,8 @@ export const ChatRowContent = ({
 						style={{ color: successColor, marginBottom: "-1.5px" }}></span>,
 					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
+			case "api_req_retry_delayed":
+				return []
 			case "api_req_started":
 				const getIconSpan = (iconName: string, color: string) => (
 					<div
@@ -211,15 +213,7 @@ export const ChatRowContent = ({
 			default:
 				return [null, null]
 		}
-	}, [
-		type,
-		cost,
-		apiRequestFailedMessage,
-		isCommandExecuting,
-		apiReqCancelReason,
-		isMcpServerResponding,
-		message.text,
-	])
+	}, [type, isCommandExecuting, message, isMcpServerResponding, apiReqCancelReason, cost, apiRequestFailedMessage])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",

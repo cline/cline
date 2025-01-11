@@ -628,6 +628,133 @@ describe('Cline', () => {
                 });
             });
         
+            it('should handle API retry with countdown', async () => {
+                const cline = new Cline(
+                    mockProvider,
+                    mockApiConfig,
+                    undefined,
+                    false,
+                    undefined,
+                    'test task'
+                );
+
+                // Mock delay to track countdown timing
+                const mockDelay = jest.fn().mockResolvedValue(undefined);
+                jest.spyOn(require('delay'), 'default').mockImplementation(mockDelay);
+
+                // Mock say to track messages
+                const saySpy = jest.spyOn(cline, 'say');
+
+                // Create a stream that fails on first chunk
+                const mockError = new Error('API Error');
+                const mockFailedStream = {
+                    async *[Symbol.asyncIterator]() {
+                        throw mockError;
+                    },
+                    async next() {
+                        throw mockError;
+                    },
+                    async return() {
+                        return { done: true, value: undefined };
+                    },
+                    async throw(e: any) {
+                        throw e;
+                    },
+                    async [Symbol.asyncDispose]() {
+                        // Cleanup
+                    }
+                } as AsyncGenerator<ApiStreamChunk>;
+
+                // Create a successful stream for retry
+                const mockSuccessStream = {
+                    async *[Symbol.asyncIterator]() {
+                        yield { type: 'text', text: 'Success' };
+                    },
+                    async next() {
+                        return { done: true, value: { type: 'text', text: 'Success' } };
+                    },
+                    async return() {
+                        return { done: true, value: undefined };
+                    },
+                    async throw(e: any) {
+                        throw e;
+                    },
+                    async [Symbol.asyncDispose]() {
+                        // Cleanup
+                    }
+                } as AsyncGenerator<ApiStreamChunk>;
+
+                // Mock createMessage to fail first then succeed
+                let firstAttempt = true;
+                jest.spyOn(cline.api, 'createMessage').mockImplementation(() => {
+                    if (firstAttempt) {
+                        firstAttempt = false;
+                        return mockFailedStream;
+                    }
+                    return mockSuccessStream;
+                });
+
+                // Set alwaysApproveResubmit and requestDelaySeconds
+                mockProvider.getState = jest.fn().mockResolvedValue({
+                    alwaysApproveResubmit: true,
+                    requestDelaySeconds: 3
+                });
+
+                // Mock previous API request message
+                cline.clineMessages = [{
+                    ts: Date.now(),
+                    type: 'say',
+                    say: 'api_req_started',
+                    text: JSON.stringify({
+                        tokensIn: 100,
+                        tokensOut: 50,
+                        cacheWrites: 0,
+                        cacheReads: 0,
+                        request: 'test request'
+                    })
+                }];
+
+                // Trigger API request
+                const iterator = cline.attemptApiRequest(0);
+                await iterator.next();
+
+                // Verify countdown messages
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 3 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 2 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 1 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying now'),
+                    undefined,
+                    false
+                );
+
+                // Verify delay was called correctly
+                expect(mockDelay).toHaveBeenCalledTimes(3);
+                expect(mockDelay).toHaveBeenCalledWith(1000);
+
+                // Verify error message content
+                const errorMessage = saySpy.mock.calls.find(
+                    call => call[1]?.includes(mockError.message)
+                )?.[1];
+                expect(errorMessage).toBe(`${mockError.message}\n\nRetrying in 3 seconds...`);
+            });
+
             describe('loadContext', () => {
                 it('should process mentions in task and feedback tags', async () => {
                     const cline = new Cline(
