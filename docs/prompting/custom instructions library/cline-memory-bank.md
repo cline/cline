@@ -123,3 +123,5 @@ When user says "update memory bank":
 
 Remember: After every memory reset, you begin completely fresh. Your only link to previous work is the Memory Bank. Maintain it as if your functionality depends on it - because it does.
 ```
+
+![Kicking off Memory Bank](../../assets/kickingOffMemoryBank.gif)
