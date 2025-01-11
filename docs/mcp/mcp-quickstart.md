@@ -23,6 +23,7 @@ STOP! Before proceeding, you MUST verify these requirements:
   - Verify with: `uv --version`
 
 ❗ If any of these commands fail or show older versions, please install/update before continuing!
+
 ⚠️ If you run into other errors, see the "Troubleshooting" section below.
 
 ## 🎯 Quick Steps (Only After Requirements Are Met!)
@@ -136,7 +137,7 @@ That's it! 🎉 You've just given Cline some awesome new abilities!
 ### ❌ I'm Using `asdf` and Get "unknown command: npx"
 There is some slightly bad news. You should still be able to get things to work, but will have to do a bit more manual work unless MCP server packaging evolves a bit. One option is to uninstall `asdf` , but we will assume you do not want to do that.
 
-Instead, you will need to follow the instructions above to "Edit MCP Settings". Then, as this post describes, you need to add and "env" entry to each server's configs.
+Instead, you will need to follow the instructions above to "Edit MCP Settings". Then, as [this post](https://dev.to/cojiroooo/mcp-using-node-on-asdf-382n) describes, you need to add and "env" entry to each server's configs.
 
 ```json
 "env": {
