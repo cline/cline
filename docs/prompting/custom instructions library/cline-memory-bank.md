@@ -110,15 +110,7 @@ progress.md
     - Follow Memory Bank patterns
     - Update docs after significant changes
 
-2. When troubleshooting errors:
-   [CONFIDENCE CHECK]
-    - Rate confidence (0-10)
-    - If < 9, explain:
-        - What you know
-        - What you're unsure about
-        - What you need to investigate
-    - Only proceed when confidence ≥ 9
-    - Document findings for future memory resets
+2. Say `[MEMORY BANK: ACTIVE]` at the beginning of every tool use.
 
 ### Memory Bank Updates
 
@@ -128,15 +120,6 @@ When user says "update memory bank":
 2. Document EVERYTHING about current state
 3. Make next steps crystal clear
 4. Complete current task
-
-### Lost Context?
-
-If you ever find yourself unsure:
-
-1. STOP immediately
-2. Read activeContext.md
-3. Ask user to verify your understanding
-4. Start with small, safe changes
 
 Remember: After every memory reset, you begin completely fresh. Your only link to previous work is the Memory Bank. Maintain it as if your functionality depends on it - because it does.
 ```
