@@ -23,6 +23,7 @@ STOP! Before proceeding, you MUST verify these requirements:
   - Verify with: `uv --version`
 
 ❗ If any of these commands fail or show older versions, please install/update before continuing!
+⚠️ If you run into other errors, see the "Troubleshooting" section below.
 
 ## 🎯 Quick Steps (Only After Requirements Are Met!)
 
@@ -132,7 +133,27 @@ That's it! 🎉 You've just given Cline some awesome new abilities!
 
 ## 📝 Troubleshooting
 
-### ❌ I'm Getting an Error When I Run the MCP Installer
+### ❌ I'm Using `asdf` and Get "unknown command: npx"
+There is some slightly bad news. You should still be able to get things to work, but will have to do a bit more manual work unless MCP server packaging evolves a bit. One option is to uninstall `asdf` , but we will assume you do not want to do that.
+
+Instead, you will need to follow the instructions above to "Edit MCP Settings". Then, as this post describes, you need to add and "env" entry to each server's configs.
+
+```json
+"env": {
+        "PATH": "/Users/<user_name>/.asdf/shims:/usr/bin:/bin",
+        "ASDF_DIR": "<path_to_asdf_bin_dir>",
+        "ASDF_DATA_DIR": "/Users/<user_name>/.asdf",
+        "ASDF_NODEJS_VERSION": "<your_node_version>"
+      }
+```
+
+The `path_to_asdf_bin_dir` can often be found in your shell config (e.g. `.zshrc`). If you are using Homebrew, you can use `echo ${HOMEBREW_PREFIX}` to find the start of the directory and then append `/opt/asdf/libexec`. 
+
+Now for some good news. While not perfect, you can get Cline to do this for you fairly reliably for subsequent server install. Add the following to your "Custom Instructions" in the Cline settings (top-right toolbar button):
+
+> When installing MCP servers and editing the cline_mcp_settings.json, if the server requires use of `npx` as the command, you must copy the "env" entry from the "mcp-installer" entry and add it to the new entry. This is vital to getting the server to work properly when in use.
+
+### ❌ I'm Still Getting an Error When I Run the MCP Installer
 
 If you're getting an error when you run the MCP installer, you can try the following:
 
