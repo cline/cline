@@ -666,7 +666,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{
 							position: "absolute",
 							paddingTop: 4,
-							bottom: 32,
+							bottom: 36,
 							left: 22,
 							right: 67,
 							zIndex: 2,
@@ -677,7 +677,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					style={{
 						position: "absolute",
 						left: 25,
-						bottom: 19,
+						bottom: 20,
 						zIndex: 3,
 						display: "flex",
 						gap: 8,
@@ -764,7 +764,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						))}
 					</select>
 				</div>
-				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 10, zIndex: 3, padding: "0 0 0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
+				<div className="button-row" style={{ position: "absolute", right: 16, display: "flex", alignItems: "center", height: 31, bottom: 11, zIndex: 3, padding: "0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
 					{apiConfiguration?.apiProvider === "openrouter" && (
 					  <div style={{ display: "flex", alignItems: "center" }}>
