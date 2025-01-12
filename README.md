@@ -20,7 +20,7 @@ It’s super simple! There’s a dropdown in the bottom left of the chat input t
 - Each mode remembers the API configuration you last used with it. For example, you can use more thoughtful models like OpenAI o1 for Architect and Ask, while sticking with Sonnet or DeepSeek for coding tasks.
 - It builds on research suggesting better results when separating "thinking" from "coding," explained well in this very thoughtful [article](https://aider.chat/2024/09/26/architect.html) from aider.
 
-Right now, switching modes is a manual process. In the future, I’d love to give Cline the ability to suggest mode switches based on context. For now, I’d really appreciate your feedback on this feature.
+Right now, switching modes is a manual process. In the future, we’d love to give Cline the ability to suggest mode switches based on context. For now, we’d really appreciate your feedback on this feature.
 
 Give it a try and let us know what you think in the reddit: https://www.reddit.com/r/roocline 🚀
 
