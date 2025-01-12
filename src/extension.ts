@@ -174,34 +174,23 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register code action commands
 	context.subscriptions.push(
 		vscode.commands.registerCommand("roo-cline.explainCode", async (filePath: string, selectedText: string) => {
-			const visibleProvider = ClineProvider.getVisibleInstance()
-			if (!visibleProvider) {
-				return
-			}
-			const prompt = explainCodePrompt(filePath, selectedText)
-			await visibleProvider.initClineWithTask(prompt)
+			await ClineProvider.handleCodeAction(explainCodePrompt, { filePath, selectedText })
 		})
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("roo-cline.fixCode", async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-			const visibleProvider = ClineProvider.getVisibleInstance()
-			if (!visibleProvider) {
-				return
-			}
-			const prompt = fixCodePrompt(filePath, selectedText, diagnostics)
-			await visibleProvider.initClineWithTask(prompt)
+			await ClineProvider.handleCodeAction(fixCodePrompt, {
+				filePath,
+				selectedText,
+				...(diagnostics ? { diagnostics } : {})
+			})
 		})
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("roo-cline.improveCode", async (filePath: string, selectedText: string) => {
-			const visibleProvider = ClineProvider.getVisibleInstance()
-			if (!visibleProvider) {
-				return
-			}
-			const prompt = improveCodePrompt(filePath, selectedText)
-			await visibleProvider.initClineWithTask(prompt)
+			await ClineProvider.handleCodeAction(improveCodePrompt, { filePath, selectedText })
 		})
 	);
 

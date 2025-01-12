@@ -181,6 +181,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
+	public static async handleCodeAction(
+		promptGenerator: (params: Record<string, string | any[]>) => string,
+		params: Record<string, string | any[]>
+	): Promise<void> {
+		const visibleProvider = ClineProvider.getVisibleInstance()
+		if (!visibleProvider) {
+			return
+		}
+
+		const prompt = promptGenerator(params)
+
+		await visibleProvider.initClineWithTask(prompt)
+	}
+
 	resolveWebviewView(
 		webviewView: vscode.WebviewView | vscode.WebviewPanel,
 		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden

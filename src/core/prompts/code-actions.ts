@@ -1,8 +1,29 @@
-export const explainCodePrompt = (filePath: string, selectedText: string) => `
-Explain the following code from file path @/${filePath}:
+type PromptParams = Record<string, string | any[]>;
+
+const generateDiagnosticText = (diagnostics?: any[]) => {
+    if (!diagnostics?.length) return '';
+    return `\nCurrent problems detected:\n${diagnostics.map(d => 
+        `- [${d.source || 'Error'}] ${d.message}${d.code ? ` (${d.code})` : ''}`
+    ).join('\n')}`;
+};
+
+const createPrompt = (template: string, params: PromptParams): string => {
+    let result = template;
+    for (const [key, value] of Object.entries(params)) {
+        if (key === 'diagnostics') {
+            result = result.replaceAll('${diagnosticText}', generateDiagnosticText(value as any[]));
+        } else {
+            result = result.replaceAll(`\${${key}}`, value as string);
+        }
+    }
+    return result;
+};
+
+const EXPLAIN_TEMPLATE = `
+Explain the following code from file path @/\${filePath}:
 
 \`\`\`
-${selectedText}
+\${selectedText}
 \`\`\`
 
 Please provide a clear and concise explanation of what this code does, including:
@@ -11,18 +32,12 @@ Please provide a clear and concise explanation of what this code does, including
 3. Important patterns or techniques used
 `;
 
-export const fixCodePrompt = (filePath: string, selectedText: string, diagnostics?: any[]) => {
-    const diagnosticText = diagnostics && diagnostics.length > 0
-        ? `\nCurrent problems detected:
-${diagnostics.map(d => `- [${d.source || 'Error'}] ${d.message}${d.code ? ` (${d.code})` : ''}`).join('\n')}`
-        : '';
-
-    return `
-Fix any issues in the following code from file path @/${filePath}
-${diagnosticText}
+const FIX_TEMPLATE = `
+Fix any issues in the following code from file path @/\${filePath}
+\${diagnosticText}
 
 \`\`\`
-${selectedText}
+\${selectedText}
 \`\`\`
 
 Please:
@@ -31,13 +46,12 @@ Please:
 3. Provide corrected code
 4. Explain what was fixed and why
 `;
-};
 
-export const improveCodePrompt = (filePath: string, selectedText: string) => `
-Improve the following code from file path @/${filePath}:
+const IMPROVE_TEMPLATE = `
+Improve the following code from file path @/\${filePath}:
 
 \`\`\`
-${selectedText}
+\${selectedText}
 \`\`\`
 
 Please suggest improvements for:
@@ -48,3 +62,12 @@ Please suggest improvements for:
 
 Provide the improved code along with explanations for each enhancement.
 `;
+
+export const explainCodePrompt = (params: PromptParams) => 
+    createPrompt(EXPLAIN_TEMPLATE, params);
+
+export const fixCodePrompt = (params: PromptParams) => 
+    createPrompt(FIX_TEMPLATE, params);
+
+export const improveCodePrompt = (params: PromptParams) => 
+    createPrompt(IMPROVE_TEMPLATE, params);

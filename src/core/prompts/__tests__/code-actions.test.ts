@@ -6,7 +6,10 @@ describe('Code Action Prompts', () => {
 
     describe('explainCodePrompt', () => {
         it('should format explain prompt correctly', () => {
-            const prompt = explainCodePrompt(testFilePath, testCode);
+            const prompt = explainCodePrompt({
+                filePath: testFilePath,
+                selectedText: testCode
+            });
             
             expect(prompt).toContain(`@/${testFilePath}`);
             expect(prompt).toContain(testCode);
@@ -18,7 +21,10 @@ describe('Code Action Prompts', () => {
 
     describe('fixCodePrompt', () => {
         it('should format fix prompt without diagnostics', () => {
-            const prompt = fixCodePrompt(testFilePath, testCode);
+            const prompt = fixCodePrompt({
+                filePath: testFilePath,
+                selectedText: testCode
+            });
             
             expect(prompt).toContain(`@/${testFilePath}`);
             expect(prompt).toContain(testCode);
@@ -39,7 +45,11 @@ describe('Code Action Prompts', () => {
                 }
             ];
 
-            const prompt = fixCodePrompt(testFilePath, testCode, diagnostics);
+            const prompt = fixCodePrompt({
+                filePath: testFilePath,
+                selectedText: testCode,
+                diagnostics
+            });
             
             expect(prompt).toContain('Current problems detected:');
             expect(prompt).toContain('[eslint] Missing semicolon (semi)');
@@ -50,7 +60,10 @@ describe('Code Action Prompts', () => {
 
     describe('improveCodePrompt', () => {
         it('should format improve prompt correctly', () => {
-            const prompt = improveCodePrompt(testFilePath, testCode);
+            const prompt = improveCodePrompt({
+                filePath: testFilePath,
+                selectedText: testCode
+            });
             
             expect(prompt).toContain(`@/${testFilePath}`);
             expect(prompt).toContain(testCode);
