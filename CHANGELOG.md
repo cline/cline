@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 3.0.1
+
+### Patch Changes
+
+-   Fix the reddit link and a small visual glitch in the chat input
+
 ## 3.0.0
 
 ### Major Changes
