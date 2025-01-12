@@ -14,6 +14,7 @@ import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
+import { Mode } from "../../../../src/core/prompts/types"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -26,6 +27,8 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	mode: Mode
+	setMode: (value: Mode) => void
 }
 
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
@@ -41,6 +44,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			mode,
+			setMode,
 		},
 		ref,
 	) => {
@@ -668,56 +673,98 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 					/>
 				)}
-				{(listApiConfigMeta || []).length > 1 && (
-					<div
+				<div
+					style={{
+						position: "absolute",
+						left: 25,
+						bottom: 19,
+						zIndex: 3,
+						display: "flex",
+						gap: 8,
+						alignItems: "center"
+					}}
+				>
+					<select
+						value={mode}
+						disabled={textAreaDisabled}
+						onChange={(e) => {
+							const newMode = e.target.value as Mode;
+							setMode(newMode);
+							vscode.postMessage({
+								type: "mode",
+								text: newMode
+							});
+						}}
 						style={{
-							position: "absolute",
-							left: 25,
-							bottom: 14,
-							zIndex: 2
+							fontSize: "11px",
+							cursor: textAreaDisabled ? "not-allowed" : "pointer",
+							backgroundColor: "transparent",
+							border: "none",
+							color: "var(--vscode-input-foreground)",
+							opacity: textAreaDisabled ? 0.5 : 0.6,
+							outline: "none",
+							paddingLeft: 14,
+							WebkitAppearance: "none",
+							MozAppearance: "none",
+							appearance: "none",
+							backgroundImage: "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
+							backgroundRepeat: "no-repeat",
+							backgroundPosition: "left 0px center",
+							backgroundSize: "10px"
+						}}>
+						<option value="code" style={{
+							backgroundColor: "var(--vscode-dropdown-background)",
+							color: "var(--vscode-dropdown-foreground)"
+						}}>Code</option>
+						<option value="architect" style={{
+							backgroundColor: "var(--vscode-dropdown-background)",
+							color: "var(--vscode-dropdown-foreground)"
+						}}>Architect</option>
+						<option value="ask" style={{
+							backgroundColor: "var(--vscode-dropdown-background)",
+							color: "var(--vscode-dropdown-foreground)"
+						}}>Ask</option>
+					</select>
+					<select
+						value={currentApiConfigName}
+						disabled={textAreaDisabled}
+						onChange={(e) => vscode.postMessage({
+							type: "loadApiConfiguration",
+							text: e.target.value
+						})}
+						style={{
+							fontSize: "11px",
+							cursor: textAreaDisabled ? "not-allowed" : "pointer",
+							backgroundColor: "transparent",
+							border: "none",
+							color: "var(--vscode-input-foreground)",
+							opacity: textAreaDisabled ? 0.5 : 0.6,
+							outline: "none",
+							paddingLeft: 14,
+							WebkitAppearance: "none",
+							MozAppearance: "none",
+							appearance: "none",
+							backgroundImage: "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
+							backgroundRepeat: "no-repeat",
+							backgroundPosition: "left 0px center",
+							backgroundSize: "10px"
 						}}
 					>
-						<select
-							value={currentApiConfigName}
-							disabled={textAreaDisabled}
-							onChange={(e) => vscode.postMessage({
-								type: "loadApiConfiguration",
-								text: e.target.value
-							})}
-							style={{
-								fontSize: "11px",
-								cursor: textAreaDisabled ? "not-allowed" : "pointer",
-								backgroundColor: "transparent",
-								border: "none",
-								color: "var(--vscode-input-foreground)",
-								opacity: textAreaDisabled ? 0.5 : 0.6,
-								outline: "none",
-								paddingLeft: 14,
-								WebkitAppearance: "none",
-								MozAppearance: "none",
-								appearance: "none",
-								backgroundImage: "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
-								backgroundRepeat: "no-repeat",
-								backgroundPosition: "left 0px center",
-								backgroundSize: "10px"
-							}}
-						>
-							{(listApiConfigMeta || [])?.map((config) => (
-								<option
-									key={config.name}
-									value={config.name}
-									style={{
-										backgroundColor: "var(--vscode-dropdown-background)",
-										color: "var(--vscode-dropdown-foreground)"
-									}}
-								>
-									{config.name}
-								</option>
-							))}
-						</select>
-					</div>
-				)}
-				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 2, justifyContent: "flex-end" }}>
+						{(listApiConfigMeta || [])?.map((config) => (
+							<option
+								key={config.name}
+								value={config.name}
+								style={{
+									backgroundColor: "var(--vscode-dropdown-background)",
+									color: "var(--vscode-dropdown-foreground)"
+								}}
+							>
+								{config.name}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="button-row" style={{ position: "absolute", right: 12, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 3, padding: "0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
 					{apiConfiguration?.apiProvider === "openrouter" && (
 					  <div style={{ display: "flex", alignItems: "center" }}>

@@ -51,6 +51,7 @@ export interface ApiHandlerOptions {
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	id?: string // stable unique identifier
 }
 
 // Models

@@ -2,6 +2,7 @@ import { ClineProvider } from '../ClineProvider'
 import * as vscode from 'vscode'
 import { ExtensionMessage, ExtensionState } from '../../../shared/ExtensionMessage'
 import { setSoundEnabled } from '../../../utils/sound'
+import { codeMode } from '../../prompts/system';
 
 // Mock delay module
 jest.mock('delay', () => {
@@ -171,7 +172,16 @@ describe('ClineProvider', () => {
             extensionPath: '/test/path',
             extensionUri: {} as vscode.Uri,
             globalState: {
-                get: jest.fn(),
+                get: jest.fn().mockImplementation((key: string) => {
+                    switch (key) {
+                        case 'mode':
+                            return 'architect'
+                        case 'currentApiConfigName':
+                            return 'new-config'
+                        default:
+                            return undefined
+                    }
+                }),
                 update: jest.fn(),
                 keys: jest.fn().mockReturnValue([]),
             },
@@ -263,7 +273,8 @@ describe('ClineProvider', () => {
             browserViewportSize: "900x600",
             fuzzyMatchThreshold: 1.0,
             mcpEnabled: true,
-            requestDelaySeconds: 5
+            requestDelaySeconds: 5,
+            mode: codeMode,
         }
         
         const message: ExtensionMessage = { 
@@ -402,6 +413,80 @@ describe('ClineProvider', () => {
 
         const state = await provider.getState()
         expect(state.alwaysApproveResubmit).toBe(false)
+    })
+
+    test('loads saved API config when switching modes', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        // Mock ConfigManager methods
+        provider.configManager = {
+            GetModeConfigId: jest.fn().mockResolvedValue('test-id'),
+            ListConfig: jest.fn().mockResolvedValue([
+                { name: 'test-config', id: 'test-id', apiProvider: 'anthropic' }
+            ]),
+            LoadConfig: jest.fn().mockResolvedValue({ apiProvider: 'anthropic' }),
+            SetModeConfig: jest.fn()
+        } as any
+
+        // Switch to architect mode
+        await messageHandler({ type: 'mode', text: 'architect' })
+
+        // Should load the saved config for architect mode
+        expect(provider.configManager.GetModeConfigId).toHaveBeenCalledWith('architect')
+        expect(provider.configManager.LoadConfig).toHaveBeenCalledWith('test-config')
+        expect(mockContext.globalState.update).toHaveBeenCalledWith('currentApiConfigName', 'test-config')
+    })
+
+    test('saves current config when switching to mode without config', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        // Mock ConfigManager methods
+        provider.configManager = {
+            GetModeConfigId: jest.fn().mockResolvedValue(undefined),
+            ListConfig: jest.fn().mockResolvedValue([
+                { name: 'current-config', id: 'current-id', apiProvider: 'anthropic' }
+            ]),
+            SetModeConfig: jest.fn()
+        } as any
+
+        // Mock current config name
+        (mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'currentApiConfigName') {
+                return 'current-config'
+            }
+            return undefined
+        })
+
+        // Switch to architect mode
+        await messageHandler({ type: 'mode', text: 'architect' })
+
+        // Should save current config as default for architect mode
+        expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith('architect', 'current-id')
+    })
+
+    test('saves config as default for current mode when loading config', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        provider.configManager = {
+            LoadConfig: jest.fn().mockResolvedValue({ apiProvider: 'anthropic', id: 'new-id' }),
+            ListConfig: jest.fn().mockResolvedValue([
+                { name: 'new-config', id: 'new-id', apiProvider: 'anthropic' }
+            ]),
+            SetModeConfig: jest.fn(),
+            GetModeConfigId: jest.fn().mockResolvedValue(undefined)
+        } as any
+
+        // First set the mode
+        await messageHandler({ type: 'mode', text: 'architect' })
+
+        // Then load the config
+        await messageHandler({ type: 'loadApiConfiguration', text: 'new-config' })
+
+        // Should save new config as default for architect mode
+        expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith('architect', 'new-id')
     })
 
     test('handles request delay settings messages', async () => {

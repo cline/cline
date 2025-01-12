@@ -10,7 +10,9 @@ module.exports = {
                 "moduleResolution": "node",
                 "esModuleInterop": true,
                 "allowJs": true
-            }
+            },
+            diagnostics: false,
+            isolatedModules: true
         }]
     },
     testMatch: ['**/__tests__/**/*.test.ts'],
@@ -35,11 +37,5 @@ module.exports = {
     reporters: [
         ["jest-simple-dot-reporter", {}]
     ],
-    setupFiles: [],
-    globals: {
-        'ts-jest': {
-            diagnostics: false,
-            isolatedModules: true
-        }
-    }
-};
+    setupFiles: []
+}
