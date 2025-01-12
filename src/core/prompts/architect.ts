@@ -1,12 +1,13 @@
 import { architectMode } from "./modes"
 import { getToolDescriptionsForMode } from "./tools"
-import { 
-    getRulesSection, 
-    getSystemInfoSection, 
-    getObjectiveSection, 
+import {
+    getRulesSection,
+    getSystemInfoSection,
+    getObjectiveSection,
     getSharedToolUseSection,
     getMcpServersSection,
-    getToolUseGuidelinesSection
+    getToolUseGuidelinesSection,
+    getCapabilitiesSection
 } from "./sections"
 import { DiffStrategy } from "../diff/DiffStrategy"
 import { McpHub } from "../../services/mcp/McpHub"
@@ -28,6 +29,8 @@ ${getToolDescriptionsForMode(mode, cwd, supportsComputerUse, diffStrategy, brows
 ${getToolUseGuidelinesSection()}
 
 ${await getMcpServersSection(mcpHub, diffStrategy)}
+
+${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, diffStrategy)}
 
 ${getRulesSection(cwd, supportsComputerUse, diffStrategy)}
 
