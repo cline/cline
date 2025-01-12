@@ -1,8 +1,10 @@
 # Roo Cline Changelog
 
-## 3.0.0
+## [3.0.1]
 
-### Major Changes
+-   Fix the reddit link and a small visual glitch in the chat input
+
+## [3.0.0]
 
 -   This release adds chat modes! Now you can ask Roo Cline questions about system architecture or the codebase without immediately jumping into writing code. You can even assign different API configuration profiles to each mode if you prefer to use different models for thinking vs coding. Would love feedback in the new Roo Cline Reddit! https://www.reddit.com/r/roocline
 
