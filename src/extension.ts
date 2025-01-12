@@ -5,6 +5,8 @@ import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
+import { CodeActionProvider } from "./core/CodeActionProvider"
+import { explainCodePrompt, fixCodePrompt, improveCodePrompt } from "./core/prompts/code-actions"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
@@ -157,6 +159,51 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// Register code actions provider
+	context.subscriptions.push(
+		vscode.languages.registerCodeActionsProvider(
+			{ pattern: "**/*" },
+			new CodeActionProvider(),
+			{
+				providedCodeActionKinds: CodeActionProvider.providedCodeActionKinds
+			}
+		)
+	);
+
+	// Register code action commands
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.explainCode", async (filePath: string, selectedText: string) => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+			const prompt = explainCodePrompt(filePath, selectedText)
+			await visibleProvider.initClineWithTask(prompt)
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.fixCode", async (filePath: string, selectedText: string, diagnostics?: any[]) => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+			const prompt = fixCodePrompt(filePath, selectedText, diagnostics)
+			await visibleProvider.initClineWithTask(prompt)
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.improveCode", async (filePath: string, selectedText: string) => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+			const prompt = improveCodePrompt(filePath, selectedText)
+			await visibleProvider.initClineWithTask(prompt)
+		})
+	);
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }
