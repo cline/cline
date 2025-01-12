@@ -99,7 +99,7 @@ You should witness Cline:
 
 1. Install the `mcp-server-fetch` python package
 1. Update the mcp setting json file
-1. Start the serverand start the server
+1. Start the server and start the server
 
 
 The mcp seetings file should now look like this:
@@ -134,7 +134,8 @@ That's it! 🎉 You've just given Cline some awesome new abilities!
 
 ## 📝 Troubleshooting
 
-### ❌ I'm Using `asdf` and Get "unknown command: npx"
+### 1. I'm Using `asdf` and Get "unknown command: npx"
+
 There is some slightly bad news. You should still be able to get things to work, but will have to do a bit more manual work unless MCP server packaging evolves a bit. One option is to uninstall `asdf` , but we will assume you do not want to do that.
 
 Instead, you will need to follow the instructions above to "Edit MCP Settings". Then, as [this post](https://dev.to/cojiroooo/mcp-using-node-on-asdf-382n) describes, you need to add and "env" entry to each server's configs.
@@ -154,7 +155,7 @@ Now for some good news. While not perfect, you can get Cline to do this for you 
 
 > When installing MCP servers and editing the cline_mcp_settings.json, if the server requires use of `npx` as the command, you must copy the "env" entry from the "mcp-installer" entry and add it to the new entry. This is vital to getting the server to work properly when in use.
 
-### ❌ I'm Still Getting an Error When I Run the MCP Installer
+### 2. I'm Still Getting an Error When I Run the MCP Installer
 
 If you're getting an error when you run the MCP installer, you can try the following:
 
@@ -162,8 +163,3 @@ If you're getting an error when you run the MCP installer, you can try the follo
 - Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
 - Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
 
-
-## Authors
-
-- Todd Schavey
-- Nick Baumann
