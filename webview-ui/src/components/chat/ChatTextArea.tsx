@@ -764,7 +764,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						))}
 					</select>
 				</div>
-				<div className="button-row" style={{ position: "absolute", right: 12, display: "flex", alignItems: "center", height: 31, bottom: 8, zIndex: 3, padding: "0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
+				<div className="button-row" style={{ position: "absolute", right: 20, display: "flex", alignItems: "center", height: 31, bottom: 10, zIndex: 3, padding: "0 0 0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
 					{apiConfiguration?.apiProvider === "openrouter" && (
 					  <div style={{ display: "flex", alignItems: "center" }}>
