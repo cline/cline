@@ -707,7 +707,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
 						<VSCodeLink href="https://github.com/RooVetGit/Roo-Cline" style={{ display: "inline" }}>
-							https://github.com/RooVetGit/Roo-Cline
+							github.com/RooVetGit/Roo-Cline
+						</VSCodeLink> or join {" "}
+						<VSCodeLink href="https://www.reddit.com/r/roocline/" style={{ display: "inline" }}>
+							reddit.com/r/roocline
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
