@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 3.0.2
-
-### Patch Changes
+## [3.0.2]
 
 -   A couple more tiny tweaks to the button alignment in the chat input
 
