@@ -168,6 +168,7 @@
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",
 		"@anthropic-ai/sdk": "^0.26.0",
 		"@anthropic-ai/vertex-sdk": "^0.4.1",
+		"@azure/identity": "^4.5.0",
 		"@google/generative-ai": "^0.18.0",
 		"@modelcontextprotocol/sdk": "^1.0.1",
 		"@types/clone-deep": "^4.0.4",
