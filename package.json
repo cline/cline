@@ -72,70 +72,102 @@
 				"title": "New Task",
 				"icon": "$(add)"
 			},
-			{
-				"command": "roo-cline.mcpButtonClicked",
-				"title": "MCP Servers",
-				"icon": "$(server)"
-			},
-			{
-				"command": "roo-cline.promptsButtonClicked",
-				"title": "Prompts",
-				"icon": "$(notebook)"
-			},
-			{
-				"command": "roo-cline.historyButtonClicked",
-				"title": "History",
-				"icon": "$(history)"
-			},
-			{
-				"command": "roo-cline.popoutButtonClicked",
-				"title": "Open in Editor",
-				"icon": "$(link-external)"
-			},
-			{
-				"command": "roo-cline.settingsButtonClicked",
-				"title": "Settings",
-				"icon": "$(settings-gear)"
-			},
-			{
-				"command": "roo-cline.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Roo Code"
-			}
+		  {
+		  	"command": "roo-cline.mcpButtonClicked",
+		  	"title": "MCP Servers",
+		  	"icon": "$(server)"
+		  },
+		  {
+		  	"command": "roo-cline.promptsButtonClicked",
+		  	"title": "Prompts",
+		  	"icon": "$(notebook)"
+		  },
+		  {
+		  	"command": "roo-cline.historyButtonClicked",
+		  	"title": "History",
+		  	"icon": "$(history)"
+		  },
+		  {
+		  	"command": "roo-cline.popoutButtonClicked",
+		  	"title": "Open in Editor",
+		  	"icon": "$(link-external)"
+		  },
+		  {
+		  	"command": "roo-cline.settingsButtonClicked",
+		  	"title": "Settings",
+		  	"icon": "$(settings-gear)"
+		  },
+		  {
+		  	"command": "roo-cline.openInNewTab",
+		  	"title": "Open In New Tab",
+		  	"category": "Roo Code"
+		  },
+		  {
+		    "command": "roo-cline.explainCode",
+		    "title": "Explain Code",
+		    "category": "Roo Cline"
+		  },
+		  {
+		    "command": "roo-cline.fixCode",
+		    "title": "Fix Code",
+		    "category": "Roo Cline"
+		  },
+		  {
+		    "command": "roo-cline.improveCode",
+		    "title": "Improve Code",
+		    "category": "Roo Cline"
+		  }
 		],
 		"menus": {
-			"view/title": [
-				{
-					"command": "roo-cline.plusButtonClicked",
-					"group": "navigation@1",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.promptsButtonClicked",
-					"group": "navigation@2",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.mcpButtonClicked",
-					"group": "navigation@3",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.historyButtonClicked",
-					"group": "navigation@4",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.popoutButtonClicked",
-					"group": "navigation@5",
-					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.settingsButtonClicked",
-					"group": "navigation@6",
-					"when": "view == roo-cline.SidebarProvider"
-				}
-			]
+		  "editor/context": [
+		    {
+		      "command": "roo-cline.explainCode",
+		      "when": "editorHasSelection",
+		      "group": "Roo Cline@1"
+		    },
+		    {
+		      "command": "roo-cline.fixCode",
+		      "when": "editorHasSelection",
+		      "group": "Roo Cline@2"
+		    },
+		    {
+		      "command": "roo-cline.improveCode",
+		      "when": "editorHasSelection",
+		      "group": "Roo Cline@3"
+		    }
+		  ],
+		  "view/title": [
+		  	{
+		  		"command": "roo-cline.plusButtonClicked",
+		  		"group": "navigation@1",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	},
+		  	{
+		  		"command": "roo-cline.promptsButtonClicked",
+		  		"group": "navigation@2",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	},
+		  	{
+		  		"command": "roo-cline.mcpButtonClicked",
+		  		"group": "navigation@3",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	},
+		  	{
+		  		"command": "roo-cline.historyButtonClicked",
+		  		"group": "navigation@4",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	},
+		  	{
+		  		"command": "roo-cline.popoutButtonClicked",
+		  		"group": "navigation@5",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	},
+		  	{
+		  		"command": "roo-cline.settingsButtonClicked",
+		  		"group": "navigation@6",
+		  		"when": "view == roo-cline.SidebarProvider"
+		  	}
+		  ]
 		},
 		"configuration": {
 			"title": "Roo Code",
