@@ -40,6 +40,12 @@ import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
+import {
+	defaultTemplates,
+	createPrompt
+} from "../prompts/code-actions"
+
+import { ACTION_NAMES } from "../CodeActionProvider"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -182,7 +188,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	public static async handleCodeAction(
-		promptGenerator: (params: Record<string, string | any[]>) => string,
+		promptType: keyof typeof ACTION_NAMES,
 		params: Record<string, string | any[]>
 	): Promise<void> {
 		const visibleProvider = ClineProvider.getVisibleInstance()
@@ -190,8 +196,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
-		const prompt = promptGenerator(params)
+		const { utilPrompt } = await visibleProvider.getState()
 
+		const template = utilPrompt?.[promptType] ?? defaultTemplates[promptType]
+		const prompt = createPrompt(template, params)
 		await visibleProvider.initClineWithTask(prompt)
 	}
 

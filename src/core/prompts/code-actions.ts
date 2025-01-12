@@ -2,12 +2,12 @@ type PromptParams = Record<string, string | any[]>;
 
 const generateDiagnosticText = (diagnostics?: any[]) => {
     if (!diagnostics?.length) return '';
-    return `\nCurrent problems detected:\n${diagnostics.map(d => 
+    return `\nCurrent problems detected:\n${diagnostics.map(d =>
         `- [${d.source || 'Error'}] ${d.message}${d.code ? ` (${d.code})` : ''}`
     ).join('\n')}`;
 };
 
-const createPrompt = (template: string, params: PromptParams): string => {
+export const createPrompt = (template: string, params: PromptParams): string => {
     let result = template;
     for (const [key, value] of Object.entries(params)) {
         if (key === 'diagnostics') {
@@ -16,11 +16,16 @@ const createPrompt = (template: string, params: PromptParams): string => {
             result = result.replaceAll(`\${${key}}`, value as string);
         }
     }
+
+    // Replace any remaining user_input placeholders with empty string
+    result = result.replaceAll('${userInput}', '');
+
     return result;
 };
 
-const EXPLAIN_TEMPLATE = `
+export const EXPLAIN_TEMPLATE = `
 Explain the following code from file path @/\${filePath}:
+\${userInput}
 
 \`\`\`
 \${selectedText}
@@ -32,9 +37,10 @@ Please provide a clear and concise explanation of what this code does, including
 3. Important patterns or techniques used
 `;
 
-const FIX_TEMPLATE = `
+export const FIX_TEMPLATE = `
 Fix any issues in the following code from file path @/\${filePath}
 \${diagnosticText}
+\${userInput}
 
 \`\`\`
 \${selectedText}
@@ -47,8 +53,9 @@ Please:
 4. Explain what was fixed and why
 `;
 
-const IMPROVE_TEMPLATE = `
+export const IMPROVE_TEMPLATE = `
 Improve the following code from file path @/\${filePath}:
+\${userInput}
 
 \`\`\`
 \${selectedText}
@@ -63,11 +70,18 @@ Please suggest improvements for:
 Provide the improved code along with explanations for each enhancement.
 `;
 
-export const explainCodePrompt = (params: PromptParams) => 
+export const explainCodePrompt = (params: PromptParams) =>
     createPrompt(EXPLAIN_TEMPLATE, params);
 
-export const fixCodePrompt = (params: PromptParams) => 
+export const fixCodePrompt = (params: PromptParams) =>
     createPrompt(FIX_TEMPLATE, params);
 
-export const improveCodePrompt = (params: PromptParams) => 
+export const improveCodePrompt = (params: PromptParams) =>
     createPrompt(IMPROVE_TEMPLATE, params);
+
+// Get template based on prompt type
+export const defaultTemplates = {
+    'EXPLAIN': EXPLAIN_TEMPLATE,
+    'FIX': FIX_TEMPLATE,
+    'IMPROVE': IMPROVE_TEMPLATE
+}

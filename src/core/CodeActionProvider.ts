@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-const ACTION_NAMES = {
+export const ACTION_NAMES = {
     EXPLAIN: 'Roo Cline: Explain Code',
     FIX: 'Roo Cline: Fix Code',
     IMPROVE: 'Roo Cline: Improve Code'

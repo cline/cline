@@ -5,7 +5,7 @@ import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { CodeActionProvider } from "./core/CodeActionProvider"
+import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
 import { explainCodePrompt, fixCodePrompt, improveCodePrompt } from "./core/prompts/code-actions"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
@@ -171,27 +171,56 @@ export function activate(context: vscode.ExtensionContext) {
 		)
 	);
 
-	// Register code action commands
-	context.subscriptions.push(
-		vscode.commands.registerCommand("roo-cline.explainCode", async (filePath: string, selectedText: string) => {
-			await ClineProvider.handleCodeAction(explainCodePrompt, { filePath, selectedText })
-		})
-	);
+	// Helper function to handle code actions
+	const registerCodeAction = (
+		context: vscode.ExtensionContext,
+		command: string,
+		promptType: keyof typeof ACTION_NAMES,
+		inputPrompt: string,
+		inputPlaceholder: string
+	) => {
+		context.subscriptions.push(
+			vscode.commands.registerCommand(command, async (filePath: string, selectedText: string, diagnostics?: any[]) => {
+				const userInput = await vscode.window.showInputBox({
+					prompt: inputPrompt,
+					placeHolder: inputPlaceholder
+				});
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand("roo-cline.fixCode", async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-			await ClineProvider.handleCodeAction(fixCodePrompt, {
-				filePath,
-				selectedText,
-				...(diagnostics ? { diagnostics } : {})
+				const params = {
+					filePath,
+					selectedText,
+					...(diagnostics ? { diagnostics } : {}),
+					...(userInput ? { userInput } : {})
+				};
+
+				await ClineProvider.handleCodeAction(promptType, params);
 			})
-		})
+		);
+	};
+
+	// Register code action commands
+	registerCodeAction(
+		context,
+		"roo-cline.explainCode",
+		'EXPLAIN',
+		"Any specific questions about this code?",
+		"E.g. How does the error handling work?"
 	);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand("roo-cline.improveCode", async (filePath: string, selectedText: string) => {
-			await ClineProvider.handleCodeAction(improveCodePrompt, { filePath, selectedText })
-		})
+	registerCodeAction(
+		context,
+		"roo-cline.fixCode",
+		'FIX',
+		"Any specific concerns about fixing this code?",
+		"E.g. Maintain backward compatibility"
+	);
+
+	registerCodeAction(
+		context,
+		"roo-cline.improveCode",
+		'IMPROVE',
+		"Any specific aspects you want to improve?",
+		"E.g. Focus on performance optimization"
 	);
 
 	return createClineAPI(outputChannel, sidebarProvider)
