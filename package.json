@@ -10,7 +10,7 @@
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.93.1"
+    "vscode": "^1.84.0"
   },
   "author": {
     "name": "Roo Vet"
