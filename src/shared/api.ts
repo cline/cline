@@ -57,7 +57,7 @@ export interface ModelInfo {
 }
 
 // Anthropic
-// https://docs.anthropic.com/en/docs/about-claude/models
+// https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
 export const anthropicModels = {
@@ -77,10 +77,10 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 1.0,
-		outputPrice: 5.0,
-		cacheWritesPrice: 1.25,
-		cacheReadsPrice: 0.1,
+		inputPrice: 0.8,
+		outputPrice: 4.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
