@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 3.0.3
+
+### Patch Changes
+
+-   Update required vscode engine to ^1.84.0 to match cline
+
 ## [3.0.2]
 
 -   A couple more tiny tweaks to the button alignment in the chat input
