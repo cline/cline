@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 3.0.3
-
-### Patch Changes
+## [3.0.3]
 
 -   Update required vscode engine to ^1.84.0 to match cline
 
