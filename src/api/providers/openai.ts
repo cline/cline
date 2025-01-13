@@ -4,7 +4,7 @@ import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModel
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-
+import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity";
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -13,11 +13,20 @@ export class OpenAiHandler implements ApiHandler {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
-			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-			})
+			if(this.options.openAiApiKey){
+				this.client = new AzureOpenAI({
+					baseURL: this.options.openAiBaseUrl,
+					apiKey: this.options.openAiApiKey,
+					apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				})
+			}
+			else {
+				this.client = new AzureOpenAI({
+					baseURL: this.options.openAiBaseUrl,
+					azureADTokenProvider: getBearerTokenProvider(new DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"),
+					apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				})
+			}	
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,
