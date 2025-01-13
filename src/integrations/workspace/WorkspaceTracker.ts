@@ -4,12 +4,14 @@ import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+const MAX_INITIAL_FILES = 1_000
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
 	private providerRef: WeakRef<ClineProvider>
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
+	private updateTimer: NodeJS.Timeout | null = null
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
@@ -21,77 +23,51 @@ class WorkspaceTracker {
 		if (!cwd) {
 			return
 		}
-		const [files, _] = await listFiles(cwd, true, 1_000)
+		const [files, _] = await listFiles(cwd, true, MAX_INITIAL_FILES)
 		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
 		this.workspaceDidUpdate()
 	}
 
 	private registerListeners() {
-		// Listen for file creation
-		// .bind(this) ensures the callback refers to class instance when using this, not necessary when using arrow function
-		this.disposables.push(vscode.workspace.onDidCreateFiles(this.onFilesCreated.bind(this)))
+		const watcher = vscode.workspace.createFileSystemWatcher("**")
 
-		// Listen for file deletion
-		this.disposables.push(vscode.workspace.onDidDeleteFiles(this.onFilesDeleted.bind(this)))
-
-		// Listen for file renaming
-		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
-
-		/*
-		 An event that is emitted when a workspace folder is added or removed.
-		 **Note:** this event will not fire if the first workspace folder is added, removed or changed,
-		 because in that case the currently executing extensions (including the one that listens to this
-		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
-		 to point to the first workspace folder.
-		 */
-		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since cline will only be working within the root folder cwd)
-		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
-	}
-
-	private async onFilesCreated(event: vscode.FileCreateEvent) {
-		await Promise.all(
-			event.files.map(async (file) => {
-				await this.addFilePath(file.fsPath)
+		this.disposables.push(
+			watcher.onDidCreate(async (uri) => {
+				await this.addFilePath(uri.fsPath)
+				this.workspaceDidUpdate()
 			}),
 		)
-		this.workspaceDidUpdate()
-	}
 
-	private async onFilesDeleted(event: vscode.FileDeleteEvent) {
-		let updated = false
-		await Promise.all(
-			event.files.map(async (file) => {
-				if (await this.removeFilePath(file.fsPath)) {
-					updated = true
+		// Renaming files triggers a delete and create event
+		this.disposables.push(
+			watcher.onDidDelete(async (uri) => {
+				if (await this.removeFilePath(uri.fsPath)) {
+					this.workspaceDidUpdate()
 				}
 			}),
 		)
-		if (updated) {
-			this.workspaceDidUpdate()
-		}
-	}
 
-	private async onFilesRenamed(event: vscode.FileRenameEvent) {
-		await Promise.all(
-			event.files.map(async (file) => {
-				await this.removeFilePath(file.oldUri.fsPath)
-				await this.addFilePath(file.newUri.fsPath)
-			}),
-		)
-		this.workspaceDidUpdate()
+		this.disposables.push(watcher)
 	}
 
 	private workspaceDidUpdate() {
-		if (!cwd) {
-			return
+		if (this.updateTimer) {
+			clearTimeout(this.updateTimer)
 		}
-		this.providerRef.deref()?.postMessageToWebview({
-			type: "workspaceUpdated",
-			filePaths: Array.from(this.filePaths).map((file) => {
-				const relativePath = path.relative(cwd, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			}),
-		})
+
+		this.updateTimer = setTimeout(() => {
+			if (!cwd) {
+				return
+			}
+			this.providerRef.deref()?.postMessageToWebview({
+				type: "workspaceUpdated",
+				filePaths: Array.from(this.filePaths).map((file) => {
+					const relativePath = path.relative(cwd, file).toPosix()
+					return file.endsWith("/") ? relativePath + "/" : relativePath
+				}),
+			})
+			this.updateTimer = null
+		}, 300) // Debounce for 300ms
 	}
 
 	private normalizeFilePath(filePath: string): string {
@@ -100,6 +76,11 @@ class WorkspaceTracker {
 	}
 
 	private async addFilePath(filePath: string): Promise<string> {
+		// Allow for some buffer to account for files being created/deleted during a task
+		if (this.filePaths.size >= MAX_INITIAL_FILES * 2) {
+			return filePath
+		}
+
 		const normalizedPath = this.normalizeFilePath(filePath)
 		try {
 			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(normalizedPath))
@@ -120,6 +101,10 @@ class WorkspaceTracker {
 	}
 
 	public dispose() {
+		if (this.updateTimer) {
+			clearTimeout(this.updateTimer)
+			this.updateTimer = null
+		}
 		this.disposables.forEach((d) => d.dispose())
 	}
 }
