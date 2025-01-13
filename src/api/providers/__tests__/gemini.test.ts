@@ -6,7 +6,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 jest.mock('@google/generative-ai', () => ({
     GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
         getGenerativeModel: jest.fn().mockReturnValue({
-            generateContentStream: jest.fn()
+            generateContentStream: jest.fn(),
+            generateContent: jest.fn().mockResolvedValue({
+                response: {
+                    text: () => 'Test response'
+                }
+            })
         })
     }))
 }));
@@ -130,6 +135,59 @@ describe('GeminiHandler', () => {
                     // Should throw before yielding any chunks
                 }
             }).rejects.toThrow('Gemini API error');
+        });
+    });
+
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const mockGenerateContent = jest.fn().mockResolvedValue({
+                response: {
+                    text: () => 'Test response'
+                }
+            });
+            const mockGetGenerativeModel = jest.fn().mockReturnValue({
+                generateContent: mockGenerateContent
+            });
+            (handler['client'] as any).getGenerativeModel = mockGetGenerativeModel;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockGetGenerativeModel).toHaveBeenCalledWith({
+                model: 'gemini-2.0-flash-thinking-exp-1219'
+            });
+            expect(mockGenerateContent).toHaveBeenCalledWith({
+                contents: [{ role: 'user', parts: [{ text: 'Test prompt' }] }],
+                generationConfig: {
+                    temperature: 0
+                }
+            });
+        });
+
+        it('should handle API errors', async () => {
+            const mockError = new Error('Gemini API error');
+            const mockGenerateContent = jest.fn().mockRejectedValue(mockError);
+            const mockGetGenerativeModel = jest.fn().mockReturnValue({
+                generateContent: mockGenerateContent
+            });
+            (handler['client'] as any).getGenerativeModel = mockGetGenerativeModel;
+
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('Gemini completion error: Gemini API error');
+        });
+
+        it('should handle empty response', async () => {
+            const mockGenerateContent = jest.fn().mockResolvedValue({
+                response: {
+                    text: () => ''
+                }
+            });
+            const mockGetGenerativeModel = jest.fn().mockReturnValue({
+                generateContent: mockGenerateContent
+            });
+            (handler['client'] as any).getGenerativeModel = mockGetGenerativeModel;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
         });
     });
 

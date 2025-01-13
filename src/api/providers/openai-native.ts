@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import {
 	ApiHandlerOptions,
 	ModelInfo,
@@ -11,7 +11,7 @@ import {
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-export class OpenAiNativeHandler implements ApiHandler {
+export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
@@ -82,5 +82,38 @@ export class OpenAiNativeHandler implements ApiHandler {
 			return { id, info: openAiNativeModels[id] }
 		}
 		return { id: openAiNativeDefaultModelId, info: openAiNativeModels[openAiNativeDefaultModelId] }
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const modelId = this.getModel().id
+			let requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+
+			switch (modelId) {
+				case "o1":
+				case "o1-preview":
+				case "o1-mini":
+					// o1 doesn't support non-1 temp or system prompt
+					requestOptions = {
+						model: modelId,
+						messages: [{ role: "user", content: prompt }]
+					}
+					break
+				default:
+					requestOptions = {
+						model: modelId,
+						messages: [{ role: "user", content: prompt }],
+						temperature: 0
+					}
+			}
+
+			const response = await this.client.chat.completions.create(requestOptions)
+			return response.choices[0]?.message.content || ""
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`OpenAI Native completion error: ${error.message}`)
+			}
+			throw error
+		}
 	}
 }
