@@ -62,6 +62,7 @@ jest.mock('vscode', () => ({
     },
     window: {
         showInformationMessage: jest.fn(),
+        showErrorMessage: jest.fn(),
     },
     workspace: {
         getConfiguration: jest.fn().mockReturnValue({
@@ -111,6 +112,13 @@ jest.mock('axios', () => ({
 // Mock buildApiHandler
 jest.mock('../../../api', () => ({
     buildApiHandler: jest.fn()
+}))
+
+// Mock system prompt
+jest.mock('../../prompts/system', () => ({
+    SYSTEM_PROMPT: jest.fn().mockImplementation(async () => 'mocked system prompt'),
+    codeMode: 'code',
+    addCustomInstructions: jest.fn().mockImplementation(async () => '')
 }))
 
 // Mock WorkspaceTracker
@@ -504,6 +512,106 @@ describe('ClineProvider', () => {
         expect(mockPostMessage).toHaveBeenCalled()
     })
 
+    test('handles updatePrompt message correctly', async () => {
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        // Mock existing prompts
+        const existingPrompts = {
+            code: 'existing code prompt',
+            architect: 'existing architect prompt'
+        }
+        ;(mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'customPrompts') {
+                return existingPrompts
+            }
+            return undefined
+        })
+
+        // Test updating a prompt
+        await messageHandler({
+            type: 'updatePrompt',
+            promptMode: 'code',
+            customPrompt: 'new code prompt'
+        })
+
+        // Verify state was updated correctly
+        expect(mockContext.globalState.update).toHaveBeenCalledWith(
+            'customPrompts',
+            {
+                ...existingPrompts,
+                code: 'new code prompt'
+            }
+        )
+
+        // Verify state was posted to webview
+        expect(mockPostMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'state',
+                state: expect.objectContaining({
+                    customPrompts: {
+                        ...existingPrompts,
+                        code: 'new code prompt'
+                    }
+                })
+            })
+        )
+    })
+
+    test('customPrompts defaults to empty object', async () => {
+        // Mock globalState.get to return undefined for customPrompts
+        (mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
+            if (key === 'customPrompts') {
+                return undefined
+            }
+            return null
+        })
+
+        const state = await provider.getState()
+        expect(state.customPrompts).toEqual({})
+    })
+
+    test('saves mode config when updating API configuration', async () => {
+        // Setup mock context with mode and config name
+        mockContext = {
+            ...mockContext,
+            globalState: {
+                ...mockContext.globalState,
+                get: jest.fn((key: string) => {
+                    if (key === 'mode') {
+                        return 'code'
+                    } else if (key === 'currentApiConfigName') {
+                        return 'test-config'
+                    }
+                    return undefined
+                }),
+                update: jest.fn(),
+                keys: jest.fn().mockReturnValue([]),
+            }
+        } as unknown as vscode.ExtensionContext
+
+        // Create new provider with updated mock context
+        provider = new ClineProvider(mockContext, mockOutputChannel)
+        provider.resolveWebviewView(mockWebviewView)
+        const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+        provider.configManager = {
+            ListConfig: jest.fn().mockResolvedValue([
+                { name: 'test-config', id: 'test-id', apiProvider: 'anthropic' }
+            ]),
+            SetModeConfig: jest.fn()
+        } as any
+
+        // Update API configuration
+        await messageHandler({
+            type: 'apiConfiguration',
+            apiConfiguration: { apiProvider: 'anthropic' }
+        })
+
+        // Should save config as default for current mode
+        expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith('code', 'test-id')
+    })
+
     test('file content includes line numbers', async () => {
         const { extractTextFromFile } = require('../../../integrations/misc/extract-text')
         const result = await extractTextFromFile('test.js')
@@ -652,6 +760,105 @@ describe('ClineProvider', () => {
             // Verify no messages were deleted
             expect(mockCline.overwriteClineMessages).not.toHaveBeenCalled()
             expect(mockCline.overwriteApiConversationHistory).not.toHaveBeenCalled()
+        })
+    })
+    
+    describe('getSystemPrompt', () => {
+        beforeEach(() => {
+            mockPostMessage.mockClear();
+            provider.resolveWebviewView(mockWebviewView);
+        });
+
+        const getMessageHandler = () => {
+            const mockCalls = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls;
+            expect(mockCalls.length).toBeGreaterThan(0);
+            return mockCalls[0][0];
+        };
+
+        test('handles mcpEnabled setting correctly', async () => {
+            // Mock getState to return mcpEnabled: true
+            jest.spyOn(provider, 'getState').mockResolvedValue({
+                apiConfiguration: {
+                    apiProvider: 'openrouter' as const,
+                    openRouterModelInfo: {
+                        supportsComputerUse: true,
+                        supportsPromptCache: false,
+                        maxTokens: 4096,
+                        contextWindow: 8192,
+                        supportsImages: false,
+                        inputPrice: 0.0,
+                        outputPrice: 0.0,
+                        description: undefined
+                    }
+                },
+                mcpEnabled: true,
+                mode: 'code' as const
+            } as any);
+
+            const handler1 = getMessageHandler();
+            expect(typeof handler1).toBe('function');
+            await handler1({ type: 'getSystemPrompt', mode: 'code' });
+
+            // Verify mcpHub is passed when mcpEnabled is true
+            expect(mockPostMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'systemPrompt',
+                    text: expect.any(String)
+                })
+            );
+
+            // Mock getState to return mcpEnabled: false
+            jest.spyOn(provider, 'getState').mockResolvedValue({
+                apiConfiguration: {
+                    apiProvider: 'openrouter' as const,
+                    openRouterModelInfo: {
+                        supportsComputerUse: true,
+                        supportsPromptCache: false,
+                        maxTokens: 4096,
+                        contextWindow: 8192,
+                        supportsImages: false,
+                        inputPrice: 0.0,
+                        outputPrice: 0.0,
+                        description: undefined
+                    }
+                },
+                mcpEnabled: false,
+                mode: 'code' as const
+            } as any);
+
+            const handler2 = getMessageHandler();
+            await handler2({ type: 'getSystemPrompt', mode: 'code' });
+
+            // Verify mcpHub is not passed when mcpEnabled is false
+            expect(mockPostMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'systemPrompt',
+                    text: expect.any(String)
+                })
+            );
+        });
+
+        test('returns empty prompt for enhance mode', async () => {
+            const enhanceHandler = getMessageHandler();
+            await enhanceHandler({ type: 'getSystemPrompt', mode: 'enhance' })
+
+            expect(mockPostMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'systemPrompt',
+                    text: ''
+                })
+            )
+        })
+
+        test('handles errors gracefully', async () => {
+            // Mock SYSTEM_PROMPT to throw an error
+            const systemPrompt = require('../../prompts/system')
+            jest.spyOn(systemPrompt, 'SYSTEM_PROMPT').mockRejectedValueOnce(new Error('Test error'))
+
+            const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+            await messageHandler({ type: 'getSystemPrompt', mode: 'code' })
+
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to get system prompt')
         })
     })
 })

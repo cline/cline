@@ -63,15 +63,16 @@ export const SYSTEM_PROMPT = async (
 	mcpHub?: McpHub,
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
-  mode: Mode = codeMode,
+    mode: Mode = codeMode,
+    customPrompts?: { ask?: string; code?: string; architect?: string; enhance?: string },
 ) => {
     switch (mode) {
         case architectMode:
-            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.architect)
         case askMode:
-            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.ask)
         default:
-            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.code)
     }
 }
 

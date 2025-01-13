@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import ChatTextArea from '../ChatTextArea';
 import { useExtensionState } from '../../../context/ExtensionStateContext';
 import { vscode } from '../../../utils/vscode';
+import { codeMode } from '../../../../../src/shared/modes';
 
 // Mock modules
 jest.mock('../../../utils/vscode', () => ({
@@ -32,6 +33,8 @@ describe('ChatTextArea', () => {
     selectedImages: [],
     setSelectedImages: jest.fn(),
     onHeightChange: jest.fn(),
+    mode: codeMode,
+    setMode: jest.fn(),
   };
 
   beforeEach(() => {
@@ -46,37 +49,9 @@ describe('ChatTextArea', () => {
   });
 
   describe('enhance prompt button', () => {
-    it('should show enhance prompt button only when apiProvider is openrouter', () => {
-      // Test with non-openrouter provider
-      (useExtensionState as jest.Mock).mockReturnValue({
-        filePaths: [],
-        apiConfiguration: {
-          apiProvider: 'anthropic',
-        },
-      });
-
-      const { rerender } = render(<ChatTextArea {...defaultProps} />);
-      expect(screen.queryByTestId('enhance-prompt-button')).not.toBeInTheDocument();
-
-      // Test with openrouter provider
-      (useExtensionState as jest.Mock).mockReturnValue({
-        filePaths: [],
-        apiConfiguration: {
-          apiProvider: 'openrouter',
-        },
-      });
-
-      rerender(<ChatTextArea {...defaultProps} />);
-      const enhanceButton = screen.getByRole('button', { name: /enhance prompt/i });
-      expect(enhanceButton).toBeInTheDocument();
-    });
-
     it('should be disabled when textAreaDisabled is true', () => {
       (useExtensionState as jest.Mock).mockReturnValue({
         filePaths: [],
-        apiConfiguration: {
-          apiProvider: 'openrouter',
-        },
       });
 
       render(<ChatTextArea {...defaultProps} textAreaDisabled={true} />);
@@ -137,7 +112,8 @@ describe('ChatTextArea', () => {
       const enhanceButton = screen.getByRole('button', { name: /enhance prompt/i });
       fireEvent.click(enhanceButton);
 
-      expect(screen.getByText('Enhancing prompt...')).toBeInTheDocument();
+      const loadingSpinner = screen.getByText('', { selector: '.codicon-loading' });
+      expect(loadingSpinner).toBeInTheDocument();
     });
   });
 

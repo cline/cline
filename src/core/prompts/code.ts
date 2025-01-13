@@ -1,4 +1,4 @@
-import { Mode, codeMode } from "./modes"
+import { Mode, codeMode, defaultPrompts } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
@@ -21,7 +21,8 @@ export const CODE_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+    customPrompt?: string,
+) => `${customPrompt || defaultPrompts[codeMode]}
 
 ${getSharedToolUseSection()}
 
