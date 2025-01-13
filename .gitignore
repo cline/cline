@@ -3,5 +3,5 @@ dist
 node_modules
 .vscode-test/
 *.vsix
-
+pnpm-lock.yaml
 .DS_Store
