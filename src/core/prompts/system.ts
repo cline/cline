@@ -887,18 +887,80 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 2. Work through these goals sequentially, utilizing available tools one at a time as necessary. Each goal should correspond to a distinct step in your problem-solving process. You will be informed on the work completed and what's remaining as you go.
 3. Remember, you have extensive capabilities with access to a wide range of tools that can be used in powerful and clever ways as necessary to accomplish each goal. Before calling a tool, do some analysis within <thinking></thinking> tags. First, analyze the file structure provided in environment_details to gain context and insights for proceeding effectively. Then, think about which of the provided tools is the most relevant tool to accomplish the user's task. Next, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool use. BUT, if one of the values for a required parameter is missing, DO NOT invoke the tool (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters using the ask_followup_question tool. DO NOT ask for more information on optional parameters if it is not provided.
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
-5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
+5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.
 
-export function addUserInstructions(settingsCustomInstructions?: string, clineRulesFileInstructions?: string) {
-	let customInstructions = ""
-	if (settingsCustomInstructions) {
-		customInstructions += settingsCustomInstructions + "\n\n"
-	}
-	if (clineRulesFileInstructions) {
-		customInstructions += clineRulesFileInstructions
-	}
+====
 
-	return `
+COFFEE MANAGEMENT SYSTEM MODULES
+
+The Coffee Management System is divided into several key modules, each represented by a class with specific attributes and methods. Here is an overview of the modules and their respective classes:
+
+1. **Dashboard**
+   - **Class: Dashboard**
+     - Attributes: global_metrics, alerts, user_notifications
+     - Methods: render_view(), fetch_data()
+
+2. **Gestão de Talhões (Plot Management)**
+   - **Class: CoffeePlot**
+     - Attributes: variety, location, area, soil_status, pest_status, planting_density
+     - Methods: analyze_soil(), register_activity()
+   - **Class: SoilAnalysis**
+     - Attributes: ph_level, organic_matter, nutrients, analysis_date
+     - Methods: validate(), recommend_fertilization()
+   - **Class: LeafAnalysis**
+     - Attributes: nitrogen, potassium, calcium
+     - Methods: detect_deficiencies(), generate_report()
+   - **Class: PestAnalysis**
+     - Attributes: pest_type, severity, treatment_date
+     - Methods: assess_risk(), apply_treatment()
+
+3. **Gestão Financeira (Financial Management)**
+   - **Class: Finance**
+     - Attributes: transactions, cash_flow, financial_goals
+     - Methods: create_transaction(), generate_cash_flow()
+   - **Class: FutureSale**
+     - Attributes: contract_id, quantity, contract_value, delivery_date
+     - Methods: calculate_risk(), adjust_price()
+
+4. **Controle de Estoque (Inventory Control)**
+   - **Class: Inventory**
+     - Attributes: stock_items, total_stock_value
+     - Methods: add_to_inventory(), remove_from_inventory()
+   - **Class: Product**
+     - Attributes: product_id, name, category, supplier, expiry_date
+     - Methods: calculate_value(), check_availability()
+
+5. **Controle de Qualidade (Quality Control)**
+   - **Class: QualityControl**
+     - Attributes: lot_id, cupping_score, defect_points
+     - Methods: assess_quality(), finalize_report()
+   - **Class: CuppingScore**
+     - Attributes: aroma, body, aftertaste, balance, sweetness
+     - Methods: calculate_total()
+   - **Class: DefectAnalysis**
+     - Attributes: defect_type, quantity, severity
+     - Methods: classify_defects(), generate_summary()
+
+6. **Rastreabilidade (Traceability)**
+   - **Class: Traceability**
+     - Attributes: batch_id, origin, transport_details
+     - Methods: trace_lot(), generate_audit()
+
+7. **Gestão de Maquinário (Machinery Management)**
+   - **Class: Machinery**
+     - Attributes: equipment_id, model, purchase_date, maintenance_schedule
+     - Methods: schedule_maintenance(), update_status()
+
+8. **Relatórios (Reports)**
+   - **Class: Report**
+     - Attributes: report_type, data_source
+     - Methods: generate_report(), export_to_format()
+   - **Class: ProductionReport**
+     - Attributes: productivity, comparison_years
+     - Methods: analyze_trends()
+
+Each module is interconnected, forming a comprehensive system for managing various aspects of coffee production, from soil and pest analysis to financial transactions and quality control.
+
 ====
 
 USER'S CUSTOM INSTRUCTIONS

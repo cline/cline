@@ -9,6 +9,14 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+	| "dashboard"
+	| "coffeePlot"
+	| "finance"
+	| "inventory"
+	| "qualityControl"
+	| "traceability"
+	| "machinery"
+	| "report"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string

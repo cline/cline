@@ -1,5 +1,3 @@
-// type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
-
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { HistoryItem } from "./HistoryItem"
@@ -20,6 +18,14 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
+		| "dashboard"
+		| "coffeePlot"
+		| "finance"
+		| "inventory"
+		| "qualityControl"
+		| "traceability"
+		| "machinery"
+		| "report"
 	text?: string
 	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

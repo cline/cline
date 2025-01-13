@@ -29,6 +29,14 @@ export interface WebviewMessage {
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
+		| "dashboard"
+		| "coffeePlot"
+		| "finance"
+		| "inventory"
+		| "qualityControl"
+		| "traceability"
+		| "machinery"
+		| "report"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
