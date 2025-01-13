@@ -652,6 +652,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 						borderColor: "transparent",
 						padding: "9px 9px 25px 9px",
+						marginBottom: "15px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 						zIndex: 1,
