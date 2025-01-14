@@ -5,7 +5,24 @@ describe('main', () => {
   let strategy: NewUnifiedDiffStrategy
 
   beforeEach(() => {
-      strategy = new NewUnifiedDiffStrategy()
+      strategy = new NewUnifiedDiffStrategy(0.97)
+  })
+
+  describe('constructor', () => {
+    it('should use default confidence threshold when not provided', () => {
+      const defaultStrategy = new NewUnifiedDiffStrategy()
+      expect(defaultStrategy['confidenceThreshold']).toBe(0.9)
+    })
+
+    it('should use provided confidence threshold', () => {
+      const customStrategy = new NewUnifiedDiffStrategy(0.85)
+      expect(customStrategy['confidenceThreshold']).toBe(0.85)
+    })
+
+    it('should enforce minimum confidence threshold', () => {
+      const lowStrategy = new NewUnifiedDiffStrategy(0.7) // Below minimum of 0.8
+      expect(lowStrategy['confidenceThreshold']).toBe(0.8)
+    })
   })
 
   describe('getToolDescription', () => {
