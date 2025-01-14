@@ -21,7 +21,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		enhancementApiConfigId,
 		setEnhancementApiConfigId,
 		mode,
-		customInstructions
+		customInstructions,
+		setCustomInstructions
 	} = useExtensionState()
 	const [testPrompt, setTestPrompt] = useState('')
 	const [isEnhancing, setIsEnhancing] = useState(false)
@@ -152,6 +153,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						value={customInstructions ?? ''}
 						onChange={(e) => {
 							const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
+							setCustomInstructions(value || undefined)
 							vscode.postMessage({
 								type: "customInstructions",
 								text: value.trim() || undefined
