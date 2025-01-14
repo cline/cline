@@ -76,35 +76,24 @@ export function getDMPSimilarity(original: string, modified: string): number {
 export function validateEditResult(hunk: Hunk, result: string, strategy: string): number {
 	const hunkDeepCopy: Hunk = JSON.parse(JSON.stringify(hunk))
 
-	// Create skeleton of original content (context + removed lines)
 	const originalSkeleton = hunkDeepCopy.changes
 		.filter((change) => change.type === "context" || change.type === "remove")
 		.map((change) => change.content)
 		.join("\n")
 
-	// Create skeleton of expected result (context + added lines)
 	const expectedSkeleton = hunkDeepCopy.changes
 		.filter((change) => change.type === "context" || change.type === "add")
 		.map((change) => change.content)
 		.join("\n")
 
-	// Compare with original content
 	const originalSimilarity = evaluateSimilarity(originalSkeleton, result)
-	console.log("originalSimilarity ", strategy, originalSimilarity)
-
-	// Compare with expected result
 	const expectedSimilarity = evaluateSimilarity(expectedSkeleton, result)
 
-	console.log("expectedSimilarity", strategy, expectedSimilarity)
-	console.log("result", result)
-
-	// If original similarity is 1 and expected similarity is not 1, it means changes weren't applied
 	if (originalSimilarity > 0.97 && expectedSimilarity !== 1) {
 		if (originalSimilarity === 1) {
-			// If original similarity is 1, it means changes weren't applied
 			if (originalSimilarity > 0.97) {
 				if (originalSimilarity === 1) {
-					return 0.5 // Significant confidence reduction
+					return 0.5
 				} else {
 					return 0.8
 				}
@@ -114,7 +103,6 @@ export function validateEditResult(hunk: Hunk, result: string, strategy: string)
 		}
 	}
 
-	// Scale between 0.98 and 1.0 (4% impact) based on expected similarity
 	const multiplier = expectedSimilarity < MIN_CONFIDENCE ? 0.96 + 0.04 * expectedSimilarity : 1
 
 	return multiplier
@@ -404,7 +392,6 @@ export function findBestMatch(searchStr: string, content: string[], startIndex: 
 
 	for (const strategy of strategies) {
 		const result = strategy(searchStr, content, startIndex)
-		console.log("Search result:", result)
 		if (result.confidence > bestResult.confidence) {
 			bestResult = result
 		}
