@@ -191,18 +191,61 @@ Your diff here
 		let result = [...originalLines]
 
 		if (!parsedDiff.hunks.length) {
-			return { success: false, error: "No hunks found in diff" }
+			return {
+				success: false,
+				error: "No hunks found in diff. Please ensure your diff includes actual changes and follows the unified diff format."
+			}
 		}
 
 		for (const hunk of parsedDiff.hunks) {
 			const contextStr = prepareSearchString(hunk.changes)
-			const { index: matchPosition, confidence } = findBestMatch(contextStr, result)
+			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result)
 
 			const editResult = await applyEdit(hunk, result, matchPosition, confidence, '')
 			if (editResult.confidence > MIN_CONFIDENCE) {
 				result = editResult.result
 			} else {
-				return { success: false, error: `Failed to apply edit using ${editResult.strategy} strategy` }
+				// Determine if the failure is due to search or edit
+				if (confidence < MIN_CONFIDENCE) {
+					// Search failure - likely due to context not matching
+					const contextLines = hunk.changes.filter(c => c.type === "context").length
+					const totalLines = hunk.changes.length
+					const contextRatio = contextLines / totalLines
+
+					let errorMsg = `Failed to find a matching location in the file (${Math.floor(confidence * 100)}% confidence, needs ${Math.floor(MIN_CONFIDENCE * 100)}%)\n\n`
+					errorMsg += "Debug Info:\n"
+					errorMsg += `- Search Strategy Used: ${strategy}\n`
+					errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(contextRatio * 100)}%)\n`
+					
+					if (contextRatio < 0.2) {
+						errorMsg += "\nPossible Issues:\n"
+						errorMsg += "- Not enough context lines to uniquely identify the location\n"
+						errorMsg += "- Add a few more lines of unchanged code around your changes\n"
+					} else if (contextRatio > 0.5) {
+						errorMsg += "\nPossible Issues:\n"
+						errorMsg += "- Too many context lines may reduce search accuracy\n"
+						errorMsg += "- Try to keep only 2-3 lines of context before and after changes\n"
+					}
+
+					if (startLine && endLine) {
+						errorMsg += `\nSearch Range: lines ${startLine}-${endLine}\n`
+					}
+
+					return { success: false, error: errorMsg }
+				} else {
+					// Edit failure - likely due to content mismatch
+					let errorMsg = `Failed to apply the edit using ${editResult.strategy} strategy (${Math.floor(editResult.confidence * 100)}% confidence)\n\n`
+					errorMsg += "Debug Info:\n"
+					errorMsg += "- The location was found but the content didn't match exactly\n"
+					errorMsg += "- This usually means the file has been modified since the diff was created\n"
+					errorMsg += "- Or the diff may be targeting a different version of the file\n"
+					errorMsg += "\nPossible Solutions:\n"
+					errorMsg += "1. Refresh your view of the file and create a new diff\n"
+					errorMsg += "2. Double-check that the removed lines (-) match the current file content\n"
+					errorMsg += "3. Ensure your diff targets the correct version of the file"
+
+					return { success: false, error: errorMsg }
+				}
 			}
 		}
 
