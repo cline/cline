@@ -10,17 +10,19 @@ STOP! Before proceeding, you MUST verify these requirements:
 
 ### Required Software
 
-- ✅ Latest Node.js (v18 or newer)
-  - Check by running: `node --version`
-  - Install from: <https://nodejs.org/>
+-   ✅ Latest Node.js (v18 or newer)
 
-- ✅ Latest Python (v3.8 or newer)
-  - Check by running: `python --version`
-  - Install from: <https://python.org/>
+    -   Check by running: `node --version`
+    -   Install from: <https://nodejs.org/>
 
-- ✅ UV Package Manager
-  - After installing Python, run: `pip install uv`
-  - Verify with: `uv --version`
+-   ✅ Latest Python (v3.8 or newer)
+
+    -   Check by running: `python --version`
+    -   Install from: <https://python.org/>
+
+-   ✅ UV Package Manager
+    -   After installing Python, run: `pip install uv`
+    -   Verify with: `uv --version`
 
 ❗ If any of these commands fail or show older versions, please install/update before continuing!
 
@@ -33,8 +35,8 @@ STOP! Before proceeding, you MUST verify these requirements:
 1. From the Cline extension, click the `MCP Server` tab
 1. Click the `Edit MCP Settings` button
 
-      <img src="/assets/docs/cline-mcp-server-panel.png" alt="MCP Server Panel" width="400" />
-  
+   <img src="https://github.com/user-attachments/assets/abf908b1-be98-4894-8dc7-ef3d27943a47" alt="MCP Server Panel" width="400" />
+
 1. The MCP settings files should be display in a tab in VS Code.
 1. Replce the file's contents with this code:
 
@@ -42,17 +44,12 @@ For Windows:
 
 ```json
 {
-  "mcpServers": {
-      "mcp-installer": {
-        "command": "cmd.exe",
-        "args": [
-          "/c",
-          "npx",
-          "-y",
-          "@anaisbetts/mcp-installer"
-        ]
-      }
-    }
+	"mcpServers": {
+		"mcp-installer": {
+			"command": "cmd.exe",
+			"args": ["/c", "npx", "-y", "@anaisbetts/mcp-installer"]
+		}
+	}
 }
 ```
 
@@ -60,14 +57,12 @@ For Mac and Linux:
 
 ```json
 {
-  "mcpServers": {
-    "mcp-installer": {
-      "command": "npx",
-      "args": [
-        "@anaisbetts/mcp-installer"
-      ]
-    }
-  }
+	"mcpServers": {
+		"mcp-installer": {
+			"command": "npx",
+			"args": ["@anaisbetts/mcp-installer"]
+		}
+	}
 }
 ```
 
@@ -78,7 +73,7 @@ After saving the file:
 3. Cline will start the MCP installer
 4. You'll see the server status in Cline's MCP settings UI:
 
-<img src="/assets/docs/cline-mcp-server-panel-mcp-installer.png" alt="MCP Server Panel with Installer" width="400" />
+<img src="https://github.com/user-attachments/assets/2abbb3de-e902-4ec2-a5e5-9418ed34684e" alt="MCP Server Panel with Installer" width="400" />
 
 ## 🤔 What Next?
 
@@ -101,30 +96,22 @@ You should witness Cline:
 1. Update the mcp setting json file
 1. Start the server and start the server
 
-
 The mcp seetings file should now look like this:
 
 _For a Windows machine:_
 
 ```json
 {
-  "mcpServers": {
-    "mcp-installer": {
-      "command": "cmd.exe",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@anaisbetts/mcp-installer"
-      ]
-    },
-    "mcp-server-fetch": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-fetch"
-      ]
-    }
-  }
+	"mcpServers": {
+		"mcp-installer": {
+			"command": "cmd.exe",
+			"args": ["/c", "npx", "-y", "@anaisbetts/mcp-installer"]
+		},
+		"mcp-server-fetch": {
+			"command": "uvx",
+			"args": ["mcp-server-fetch"]
+		}
+	}
 }
 ```
 
@@ -149,7 +136,7 @@ Instead, you will need to follow the instructions above to "Edit MCP Settings". 
       }
 ```
 
-The `path_to_asdf_bin_dir` can often be found in your shell config (e.g. `.zshrc`). If you are using Homebrew, you can use `echo ${HOMEBREW_PREFIX}` to find the start of the directory and then append `/opt/asdf/libexec`. 
+The `path_to_asdf_bin_dir` can often be found in your shell config (e.g. `.zshrc`). If you are using Homebrew, you can use `echo ${HOMEBREW_PREFIX}` to find the start of the directory and then append `/opt/asdf/libexec`.
 
 Now for some good news. While not perfect, you can get Cline to do this for you fairly reliably for subsequent server install. Add the following to your "Custom Instructions" in the Cline settings (top-right toolbar button):
 
@@ -159,7 +146,6 @@ Now for some good news. While not perfect, you can get Cline to do this for you 
 
 If you're getting an error when you run the MCP installer, you can try the following:
 
-- Check the MCP settings file for errors
-- Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
-- Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
-
+-   Check the MCP settings file for errors
+-   Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
+-   Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
