@@ -48,7 +48,7 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]
-	mode?: Mode | 'enhance'
+	mode?: Mode
 }
 
 export interface ApiConfigMeta {

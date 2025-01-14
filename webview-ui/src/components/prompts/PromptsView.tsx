@@ -1,12 +1,18 @@
 import { VSCodeButton, VSCodeTextArea, VSCodeDropdown, VSCodeOption, VSCodeDivider } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { defaultPrompts, askMode, codeMode, architectMode, Mode } from "../../../../src/shared/modes"
+import { defaultPrompts, askMode, codeMode, architectMode, Mode, PromptComponent } from "../../../../src/shared/modes"
 import { vscode } from "../../utils/vscode"
 import React, { useState, useEffect } from "react"
 
 type PromptsViewProps = {
 	onDone: () => void
 }
+
+const AGENT_MODES = [
+	{ id: codeMode, label: 'Code' },
+	{ id: architectMode, label: 'Architect' },
+	{ id: askMode, label: 'Ask' },
+] as const
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const { customPrompts, listApiConfigMeta, enhancementApiConfigId, setEnhancementApiConfigId, mode } = useExtensionState()
@@ -38,31 +44,47 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => window.removeEventListener('message', handler)
 	}, [])
 
-	type PromptMode = keyof typeof defaultPrompts
+	type AgentMode = typeof codeMode | typeof architectMode | typeof askMode
 
-	const updatePromptValue = (promptMode: PromptMode, value: string) => {
+	const updateAgentPrompt = (mode: AgentMode, promptData: PromptComponent) => {
 		vscode.postMessage({
 			type: "updatePrompt",
-			promptMode,
-			customPrompt: value
+			promptMode: mode,
+			customPrompt: promptData
 		})
 	}
 
-	const handlePromptChange = (mode: PromptMode, e: Event | React.FormEvent<HTMLElement>) => {
+	const updateEnhancePrompt = (value: string | undefined) => {
+		vscode.postMessage({
+			type: "updateEnhancedPrompt",
+			text: value
+		})
+	}
+
+	const handleAgentPromptChange = (mode: AgentMode, e: Event | React.FormEvent<HTMLElement>) => {
 		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
-		updatePromptValue(mode, value)
+		updateAgentPrompt(mode, { roleDefinition: value.trim() || undefined })
 	}
 
-	const handleReset = (mode: PromptMode) => {
-		const defaultValue = defaultPrompts[mode]
-		updatePromptValue(mode, defaultValue)
+	const handleEnhancePromptChange = (e: Event | React.FormEvent<HTMLElement>) => {
+		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
+		updateEnhancePrompt(value.trim() || undefined)
 	}
 
-	const getPromptValue = (mode: PromptMode): string => {
-		if (mode === 'enhance') {
-			return customPrompts?.enhance ?? defaultPrompts.enhance
-		}
-		return customPrompts?.[mode] ?? defaultPrompts[mode]
+	const handleAgentReset = (mode: AgentMode) => {
+		updateAgentPrompt(mode, { roleDefinition: undefined })
+	}
+
+	const handleEnhanceReset = () => {
+		updateEnhancePrompt(undefined)
+	}
+
+	const getAgentPromptValue = (mode: AgentMode): string => {
+		return customPrompts?.[mode]?.roleDefinition ?? defaultPrompts[mode].roleDefinition
+	}
+
+	const getEnhancePromptValue = (): string => {
+		return customPrompts?.enhance ?? defaultPrompts.enhance
 	}
 
 	const handleTestEnhancement = () => {
@@ -117,11 +139,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					marginBottom: '12px'
 				}}>
 					<div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-						{[
-							{ id: codeMode, label: 'Code' },
-							{ id: architectMode, label: 'Architect' },
-							{ id: askMode, label: 'Ask' },
-						].map((tab, index) => (
+						{AGENT_MODES.map((tab, index) => (
 							<React.Fragment key={tab.id}>
 								<button
 									data-testid={`${tab.id}-tab`}
@@ -142,7 +160,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								>
 									{tab.label}
 								</button>
-								{index < 2 && (
+								{index < AGENT_MODES.length - 1 && (
 									<span style={{ color: 'var(--vscode-foreground)', opacity: 0.4 }}>|</span>
 								)}
 							</React.Fragment>
@@ -150,7 +168,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 					<VSCodeButton
 						appearance="icon"
-						onClick={() => handleReset(activeTab as any)}
+						onClick={() => handleAgentReset(activeTab)}
 						data-testid="reset-prompt-button"
 						title="Revert to default"
 					>
@@ -159,38 +177,16 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: '8px' }}>
-					{activeTab === codeMode && (
-						<VSCodeTextArea
-							value={getPromptValue(codeMode)}
-							onChange={(e) => handlePromptChange(codeMode, e)}
-							rows={4}
-							resize="vertical"
-							style={{ width: "100%" }}
-							data-testid="code-prompt-textarea"
-						/>
-					)}					
-					{activeTab === architectMode && (
-						<VSCodeTextArea
-							value={getPromptValue(architectMode)}
-							onChange={(e) => handlePromptChange(architectMode, e)}
-							rows={4}
-							resize="vertical"
-							style={{ width: "100%" }}
-							data-testid="architect-prompt-textarea"
-						/>
-					)}
-					{activeTab === askMode && (
-						<VSCodeTextArea
-							value={getPromptValue(askMode)}
-							onChange={(e) => handlePromptChange(askMode, e)}
-							rows={4}
-							resize="vertical"
-							style={{ width: "100%" }}
-							data-testid="ask-prompt-textarea"
-						/>
-					)}
+					<VSCodeTextArea
+						value={getAgentPromptValue(activeTab)}
+						onChange={(e) => handleAgentPromptChange(activeTab, e)}
+						rows={4}
+						resize="vertical"
+						style={{ width: "100%" }}
+						data-testid={`${activeTab}-prompt-textarea`}
+					/>
 				</div>
-				<div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+				<div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-start' }}>
 					<VSCodeButton
 						appearance="primary"
 						onClick={() => {
@@ -241,14 +237,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<div style={{ marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 							<div style={{ fontWeight: "bold" }}>Enhancement Prompt</div>
 							<div style={{ display: "flex", gap: "8px" }}>
-								<VSCodeButton appearance="icon" onClick={() => handleReset('enhance')} title="Revert to default">
+								<VSCodeButton appearance="icon" onClick={handleEnhanceReset} title="Revert to default">
 									<span className="codicon codicon-discard"></span>
 								</VSCodeButton>
 							</div>
 						</div>
 						<VSCodeTextArea
-							value={getPromptValue('enhance')}
-							onChange={(e) => handlePromptChange('enhance', e)}
+							value={getEnhancePromptValue()}
+							onChange={handleEnhancePromptChange}
 							rows={4}
 							resize="vertical"
 							style={{ width: "100%" }}
@@ -267,7 +263,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							<div style={{ 
 								marginTop: "8px",
 								display: "flex", 
-								justifyContent: "flex-end",
+								justifyContent: "flex-start",
 								alignItems: "center", 
 								gap: 8 
 							}}>

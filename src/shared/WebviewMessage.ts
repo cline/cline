@@ -1,5 +1,5 @@
 import { ApiConfiguration, ApiProvider } from "./api"
-import { Mode } from "./modes"
+import { Mode, PromptComponent } from "./modes"
 
 export type PromptMode = Mode | 'enhance'
 
@@ -66,6 +66,7 @@ export interface WebviewMessage {
 		| "setApiConfigPassword"
 		| "mode"
 		| "updatePrompt"
+		| "updateEnhancedPrompt"
 		| "getSystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
@@ -83,7 +84,7 @@ export interface WebviewMessage {
 	alwaysAllow?: boolean
 	mode?: Mode
 	promptMode?: PromptMode
-	customPrompt?: string
+	customPrompt?: PromptComponent
 	dataUrls?: string[]
 	values?: Record<string, any>
 	query?: string

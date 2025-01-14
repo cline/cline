@@ -3,7 +3,6 @@ import '@testing-library/jest-dom'
 import PromptsView from '../PromptsView'
 import { ExtensionStateContext } from '../../../context/ExtensionStateContext'
 import { vscode } from '../../../utils/vscode'
-import { defaultPrompts } from '../../../../../src/shared/modes'
 
 // Mock vscode API
 jest.mock('../../../utils/vscode', () => ({
@@ -97,7 +96,7 @@ describe('PromptsView', () => {
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'updatePrompt',
       promptMode: 'code',
-      customPrompt: 'New prompt value'
+      customPrompt: { roleDefinition: 'New prompt value' }
     })
   })
 
@@ -110,7 +109,7 @@ describe('PromptsView', () => {
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'updatePrompt',
       promptMode: 'code',
-      customPrompt: defaultPrompts.code
+      customPrompt: { roleDefinition: undefined }
     })
   })
 

@@ -4,6 +4,7 @@ import { CODE_PROMPT } from "./code"
 import { ARCHITECT_PROMPT } from "./architect"
 import { ASK_PROMPT } from "./ask"
 import { Mode, codeMode, architectMode, askMode } from "./modes"
+import { CustomPrompts } from "../../shared/modes"
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -64,7 +65,7 @@ export const SYSTEM_PROMPT = async (
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
     mode: Mode = codeMode,
-    customPrompts?: { ask?: string; code?: string; architect?: string; enhance?: string },
+    customPrompts?: CustomPrompts,
 ) => {
     switch (mode) {
         case architectMode:

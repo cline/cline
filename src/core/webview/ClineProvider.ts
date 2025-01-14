@@ -16,7 +16,7 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { WebviewMessage } from "../../shared/WebviewMessage"
+import { WebviewMessage, PromptMode } from "../../shared/WebviewMessage"
 import { defaultPrompts } from "../../shared/modes"
 import { SYSTEM_PROMPT, addCustomInstructions } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -731,6 +731,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						
 						await this.postStateToWebview()
 						break
+					case "updateEnhancedPrompt":
+						if (message.text !== undefined) {
+							const existingPrompts = await this.getGlobalState("customPrompts") || {}
+							
+							const updatedPrompts = {
+								...existingPrompts,
+								enhance: message.text
+							}
+							
+							await this.updateGlobalState("customPrompts", updatedPrompts)
+							
+							// Get current state and explicitly include customPrompts
+							const currentState = await this.getState()
+							
+							const stateWithPrompts = {
+								...currentState,
+								customPrompts: updatedPrompts
+							}
+							
+							// Post state with prompts
+							this.view?.webview.postMessage({
+								type: "state",
+								state: stateWithPrompts
+							})
+						}
+						break
 					case "updatePrompt":
 						if (message.promptMode && message.customPrompt !== undefined) {
 							const existingPrompts = await this.getGlobalState("customPrompts") || {}
@@ -866,7 +892,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							const { apiConfiguration, customPrompts, customInstructions, preferredLanguage, browserViewportSize, mcpEnabled } = await this.getState()
 							const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ''
-							
+
 							const fullPrompt = await SYSTEM_PROMPT(
 								cwd,
 								apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,

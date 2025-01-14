@@ -1,4 +1,4 @@
-import { Mode, askMode, defaultPrompts } from "../../shared/modes"
+import { Mode, askMode, defaultPrompts, PromptComponent } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
@@ -21,8 +21,8 @@ export const ASK_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-    customPrompt?: string,
-) => `${customPrompt || defaultPrompts[askMode]}
+    customPrompt?: PromptComponent,
+) => `${customPrompt?.roleDefinition || defaultPrompts[askMode].roleDefinition}
 
 ${getSharedToolUseSection()}
 

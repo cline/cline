@@ -838,18 +838,6 @@ describe('ClineProvider', () => {
             );
         });
 
-        test('returns empty prompt for enhance mode', async () => {
-            const enhanceHandler = getMessageHandler();
-            await enhanceHandler({ type: 'getSystemPrompt', mode: 'enhance' })
-
-            expect(mockPostMessage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    type: 'systemPrompt',
-                    text: ''
-                })
-            )
-        })
-
         test('handles errors gracefully', async () => {
             // Mock SYSTEM_PROMPT to throw an error
             const systemPrompt = require('../../prompts/system')

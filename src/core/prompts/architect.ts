@@ -1,4 +1,4 @@
-import { architectMode, defaultPrompts } from "../../shared/modes"
+import { architectMode, defaultPrompts, PromptComponent } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
@@ -20,8 +20,8 @@ export const ARCHITECT_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-    customPrompt?: string,
-) => `${customPrompt || defaultPrompts[architectMode]}
+    customPrompt?: PromptComponent,
+) => `${customPrompt?.roleDefinition || defaultPrompts[architectMode].roleDefinition}
 
 ${getSharedToolUseSection()}
 

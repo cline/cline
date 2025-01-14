@@ -17,7 +17,7 @@ import {
 	checkExistKey
 } from "../../../src/shared/checkExistApiConfig"
 import { Mode } from "../../../src/core/prompts/types"
-import { codeMode, CustomPrompts } from "../../../src/shared/modes"
+import { codeMode, CustomPrompts, defaultPrompts } from "../../../src/shared/modes"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -89,7 +89,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		currentApiConfigName: 'default',
 		listApiConfigMeta: [],
 		mode: codeMode,
-		customPrompts: {},
+		customPrompts: defaultPrompts,
 		enhancementApiConfigId: '',
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
