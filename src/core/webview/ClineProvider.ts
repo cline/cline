@@ -246,15 +246,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.clearTask()
 		const {
 			apiConfiguration,
-			customInstructions,
+			customPrompts,
 			diffEnabled,
-			fuzzyMatchThreshold
+			fuzzyMatchThreshold,
+			mode,
+			customInstructions: globalInstructions,
 		} = await this.getState()
+
+		const modeInstructions = customPrompts?.[mode]?.customInstructions
+		const effectiveInstructions = [globalInstructions, modeInstructions]
+			.filter(Boolean)
+			.join('\n\n')
 
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
-			customInstructions,
+			effectiveInstructions,
 			diffEnabled,
 			fuzzyMatchThreshold,
 			task,
@@ -266,15 +273,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.clearTask()
 		const {
 			apiConfiguration,
-			customInstructions,
+			customPrompts,
 			diffEnabled,
-			fuzzyMatchThreshold
+			fuzzyMatchThreshold,
+			mode,
+			customInstructions: globalInstructions,
 		} = await this.getState()
+
+		const modeInstructions = customPrompts?.[mode]?.customInstructions
+		const effectiveInstructions = [globalInstructions, modeInstructions]
+			.filter(Boolean)
+			.join('\n\n')
 
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
-			customInstructions,
+			effectiveInstructions,
 			diffEnabled,
 			fuzzyMatchThreshold,
 			undefined,
@@ -379,6 +393,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
+
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
@@ -572,7 +587,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						openImage(message.text!)
 						break
 					case "openFile":
-						openFile(message.text!)
+						openFile(message.text!, message.values as { create?: boolean; content?: string })
 						break
 					case "openMention":
 						openMention(message.text)
@@ -732,30 +747,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "updateEnhancedPrompt":
-						if (message.text !== undefined) {
-							const existingPrompts = await this.getGlobalState("customPrompts") || {}
-							
-							const updatedPrompts = {
-								...existingPrompts,
-								enhance: message.text
-							}
-							
-							await this.updateGlobalState("customPrompts", updatedPrompts)
-							
-							// Get current state and explicitly include customPrompts
-							const currentState = await this.getState()
-							
-							const stateWithPrompts = {
-								...currentState,
-								customPrompts: updatedPrompts
-							}
-							
-							// Post state with prompts
-							this.view?.webview.postMessage({
-								type: "state",
-								state: stateWithPrompts
-							})
+						const existingPrompts = await this.getGlobalState("customPrompts") || {}
+						
+						const updatedPrompts = {
+							...existingPrompts,
+							enhance: message.text
 						}
+						
+						await this.updateGlobalState("customPrompts", updatedPrompts)
+						
+						// Get current state and explicitly include customPrompts
+						const currentState = await this.getState()
+						
+						const stateWithPrompts = {
+							...currentState,
+							customPrompts: updatedPrompts
+						}
+						
+						// Post state with prompts
+						this.view?.webview.postMessage({
+							type: "state",
+							state: stateWithPrompts
+						})
 						break
 					case "updatePrompt":
 						if (message.promptMode && message.customPrompt !== undefined) {
@@ -893,15 +906,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const { apiConfiguration, customPrompts, customInstructions, preferredLanguage, browserViewportSize, mcpEnabled } = await this.getState()
 							const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ''
 
-							const fullPrompt = await SYSTEM_PROMPT(
+							const mode = message.mode ?? codeMode
+							const instructions = await addCustomInstructions(
+								{ customInstructions, customPrompts, preferredLanguage },
+								cwd,
+								mode
+							)
+
+							const systemPrompt = await SYSTEM_PROMPT(
 								cwd,
 								apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
 								mcpEnabled ? this.mcpHub : undefined,
 								undefined,
 								browserViewportSize ?? "900x600",
-								message.mode,
+								mode,
 								customPrompts
-							) + await addCustomInstructions(customInstructions ?? '', cwd, preferredLanguage)
+							)
+							const fullPrompt = instructions ? `${systemPrompt}${instructions}` : systemPrompt
 							
 							await this.postMessageToWebview({
 								type: "systemPrompt",

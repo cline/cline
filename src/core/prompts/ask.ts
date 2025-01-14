@@ -4,7 +4,6 @@ import {
     getRulesSection,
     getSystemInfoSection,
     getObjectiveSection,
-    addCustomInstructions,
     getSharedToolUseSection,
     getMcpServersSection,
     getToolUseGuidelinesSection,

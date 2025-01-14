@@ -789,7 +789,15 @@ export class Cline {
 			browserViewportSize,
 			mode,
 			customPrompts
-		) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
+		) + await addCustomInstructions(
+			{
+				customInstructions: this.customInstructions,
+				customPrompts,
+				preferredLanguage
+			},
+			cwd,
+			mode
+		)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {

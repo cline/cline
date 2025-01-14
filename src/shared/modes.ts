@@ -6,6 +6,7 @@ export type Mode = typeof codeMode | typeof architectMode | typeof askMode;
 
 export type PromptComponent = {
     roleDefinition?: string;
+    customInstructions?: string;
 }
 
 export type CustomPrompts = {

@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeTextArea, VSCodeDropdown, VSCodeOption, VSCodeDivider } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextArea, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { defaultPrompts, askMode, codeMode, architectMode, Mode, PromptComponent } from "../../../../src/shared/modes"
 import { vscode } from "../../utils/vscode"
@@ -15,7 +15,14 @@ const AGENT_MODES = [
 ] as const
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
-	const { customPrompts, listApiConfigMeta, enhancementApiConfigId, setEnhancementApiConfigId, mode } = useExtensionState()
+	const {
+		customPrompts,
+		listApiConfigMeta,
+		enhancementApiConfigId,
+		setEnhancementApiConfigId,
+		mode,
+		customInstructions
+	} = useExtensionState()
 	const [testPrompt, setTestPrompt] = useState('')
 	const [isEnhancing, setIsEnhancing] = useState(false)
 	const [activeTab, setActiveTab] = useState<Mode>(mode)
@@ -47,10 +54,20 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	type AgentMode = typeof codeMode | typeof architectMode | typeof askMode
 
 	const updateAgentPrompt = (mode: AgentMode, promptData: PromptComponent) => {
+		const updatedPrompt = {
+			...customPrompts?.[mode],
+			...promptData
+		}
+
+		// Only include properties that differ from defaults
+		if (updatedPrompt.roleDefinition === defaultPrompts[mode].roleDefinition) {
+			delete updatedPrompt.roleDefinition
+		}
+
 		vscode.postMessage({
 			type: "updatePrompt",
 			promptMode: mode,
-			customPrompt: promptData
+			customPrompt: updatedPrompt
 		})
 	}
 
@@ -68,11 +85,17 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	const handleEnhancePromptChange = (e: Event | React.FormEvent<HTMLElement>) => {
 		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
-		updateEnhancePrompt(value.trim() || undefined)
+		const trimmedValue = value.trim()
+		if (trimmedValue !== defaultPrompts.enhance) {
+			updateEnhancePrompt(trimmedValue || undefined)
+		}
 	}
 
 	const handleAgentReset = (mode: AgentMode) => {
-		updateAgentPrompt(mode, { roleDefinition: undefined })
+		updateAgentPrompt(mode, {
+			...customPrompts?.[mode],
+			roleDefinition: undefined
+		})
 	}
 
 	const handleEnhanceReset = () => {
@@ -120,71 +143,156 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 20px 0" }}>Agent Modes</h3>
-
-				<div
-					style={{
-						color: "var(--vscode-foreground)",
-						fontSize: "13px",
-						marginBottom: "20px",
-						marginTop: "5px",
-					}}>
-					Customize Cline's prompt in each mode. The rest of the system prompt will be automatically appended. Click the button to preview the full prompt. Leave empty or click the reset button to use the default.
-				</div>
-
-				<div style={{ 
-					display: 'flex',
-					justifyContent: 'space-between',
-					alignItems: 'center',
-					marginBottom: '12px'
-				}}>
-					<div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-						{AGENT_MODES.map((tab, index) => (
-							<React.Fragment key={tab.id}>
-								<button
-									data-testid={`${tab.id}-tab`}
-									data-active={activeTab === tab.id ? "true" : "false"}
-									onClick={() => setActiveTab(tab.id)}
-									style={{
-										padding: '4px 0',
-										border: 'none',
-										background: 'none',
-										color: activeTab === tab.id ? 'var(--vscode-textLink-foreground)' : 'var(--vscode-foreground)',
-										cursor: 'pointer',
-										opacity: activeTab === tab.id ? 1 : 0.8,
-										borderBottom: activeTab === tab.id ?
-											'1px solid var(--vscode-textLink-foreground)' :
-											'1px solid var(--vscode-foreground)',
-										fontWeight: 'bold'
-									}}
-								>
-									{tab.label}
-								</button>
-								{index < AGENT_MODES.length - 1 && (
-									<span style={{ color: 'var(--vscode-foreground)', opacity: 0.4 }}>|</span>
-								)}
-							</React.Fragment>
-						))}
+				<div style={{ marginBottom: '20px' }}>
+					<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Custom Instructions for All Modes</div>
+					<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
+						These instructions apply to all modes. They provide a base set of behaviors that can be enhanced by mode-specific instructions below.
 					</div>
-					<VSCodeButton
-						appearance="icon"
-						onClick={() => handleAgentReset(activeTab)}
-						data-testid="reset-prompt-button"
-						title="Revert to default"
-					>
-						<span className="codicon codicon-discard"></span>
-					</VSCodeButton>
-				</div>
-
-				<div style={{ marginBottom: '8px' }}>
 					<VSCodeTextArea
-						value={getAgentPromptValue(activeTab)}
-						onChange={(e) => handleAgentPromptChange(activeTab, e)}
+						value={customInstructions ?? ''}
+						onChange={(e) => {
+							const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
+							vscode.postMessage({
+								type: "customInstructions",
+								text: value.trim() || undefined
+							})
+						}}
 						rows={4}
 						resize="vertical"
 						style={{ width: "100%" }}
-						data-testid={`${activeTab}-prompt-textarea`}
+						data-testid="global-custom-instructions-textarea"
 					/>
+					<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "5px" }}>
+						Instructions can also be loaded from <span
+							style={{
+								color: 'var(--vscode-textLink-foreground)',
+								cursor: 'pointer',
+								textDecoration: 'underline'
+							}}
+							onClick={() => vscode.postMessage({
+								type: "openFile",
+								text: "./.clinerules",
+								values: {
+									create: true,
+									content: "",
+								}
+							})}
+						>.clinerules</span> in your workspace.
+					</div>
+				</div>
+
+				<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 20px 0" }}>Mode-Specific Prompts</h3>
+
+				<div style={{
+					display: 'flex',
+					gap: '16px',
+					alignItems: 'center',
+					marginBottom: '12px'
+				}}>
+					{AGENT_MODES.map((tab) => (
+						<button
+							key={tab.id}
+							data-testid={`${tab.id}-tab`}
+							data-active={activeTab === tab.id ? "true" : "false"}
+							onClick={() => setActiveTab(tab.id)}
+							style={{
+								padding: '4px 8px',
+								border: 'none',
+								background: activeTab === tab.id ? 'var(--vscode-button-background)' : 'none',
+								color: activeTab === tab.id ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)',
+								cursor: 'pointer',
+								opacity: activeTab === tab.id ? 1 : 0.8,
+								borderRadius: '3px',
+								fontWeight: 'bold'
+							}}
+						>
+							{tab.label}
+						</button>
+					))}
+				</div>
+
+				<div style={{ marginBottom: '20px' }}>
+					<div style={{ marginBottom: '8px' }}>
+						<div>
+							<div style={{
+								display: 'flex',
+								justifyContent: 'space-between',
+								alignItems: 'center',
+								marginBottom: "4px"
+							}}>
+								<div style={{ fontWeight: "bold" }}>Role Definition</div>
+								<VSCodeButton
+									appearance="icon"
+									onClick={() => handleAgentReset(activeTab)}
+									data-testid="reset-prompt-button"
+									title="Revert to default"
+								>
+									<span className="codicon codicon-discard"></span>
+								</VSCodeButton>
+							</div>
+							<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
+								Define Cline's expertise and personality for this mode. This description shapes how Cline presents itself and approaches tasks.
+							</div>
+						</div>
+						<VSCodeTextArea
+							value={getAgentPromptValue(activeTab)}
+							onChange={(e) => handleAgentPromptChange(activeTab, e)}
+							rows={4}
+							resize="vertical"
+							style={{ width: "100%" }}
+							data-testid={`${activeTab}-prompt-textarea`}
+						/>
+					</div>
+					<div style={{ marginBottom: '8px' }}>
+						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Mode-specific Custom Instructions</div>
+						<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
+							Add behavioral guidelines specific to {activeTab} mode. These instructions enhance the base behaviors defined above.
+						</div>
+						<VSCodeTextArea
+							value={customPrompts?.[activeTab]?.customInstructions ?? ''}
+							onChange={(e) => {
+								const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
+								updateAgentPrompt(activeTab, {
+									...customPrompts?.[activeTab],
+									customInstructions: value.trim() || undefined
+								})
+							}}
+							rows={4}
+							resize="vertical"
+							style={{ width: "100%" }}
+							data-testid={`${activeTab}-custom-instructions-textarea`}
+						/>
+						<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "5px" }}>
+							Custom instructions specific to {activeTab} mode can also be loaded from <span
+								style={{
+									color: 'var(--vscode-textLink-foreground)',
+									cursor: 'pointer',
+									textDecoration: 'underline'
+								}}
+								onClick={() => {
+									// First create/update the file with current custom instructions
+									const defaultContent = `# ${activeTab} Mode Rules\n\nAdd mode-specific rules and guidelines here.`
+									vscode.postMessage({
+										type: "updatePrompt",
+										promptMode: activeTab,
+										customPrompt: {
+											...customPrompts?.[activeTab],
+											customInstructions: customPrompts?.[activeTab]?.customInstructions || defaultContent
+										}
+									})
+									// Then open the file
+									vscode.postMessage({
+										type: "openFile",
+										text: `./.clinerules-${activeTab}`,
+										values: {
+											create: true,
+											content: "",
+										}
+									})
+								}}
+							>.clinerules-{activeTab}</span> in your workspace.
+						</div>
+					</div>
 				</div>
 				<div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-start' }}>
 					<VSCodeButton
@@ -202,6 +310,15 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				</div>
 
 				<h3 style={{ color: "var(--vscode-foreground)", margin: "40px 0 20px 0" }}>Prompt Enhancement</h3>
+
+				<div style={{
+					color: "var(--vscode-foreground)",
+					fontSize: "13px",
+					marginBottom: "20px",
+					marginTop: "5px",
+				}}>
+					Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Cline understands your intent and provides the best possible responses.
+				</div>
 
 				<div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 					<div>
@@ -234,12 +351,17 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							</VSCodeDropdown>
 						</div>
 
-						<div style={{ marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-							<div style={{ fontWeight: "bold" }}>Enhancement Prompt</div>
-							<div style={{ display: "flex", gap: "8px" }}>
-								<VSCodeButton appearance="icon" onClick={handleEnhanceReset} title="Revert to default">
-									<span className="codicon codicon-discard"></span>
-								</VSCodeButton>
+						<div style={{ marginBottom: "8px" }}>
+							<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+								<div style={{ fontWeight: "bold" }}>Enhancement Prompt</div>
+								<div style={{ display: "flex", gap: "8px" }}>
+									<VSCodeButton appearance="icon" onClick={handleEnhanceReset} title="Revert to default">
+										<span className="codicon codicon-discard"></span>
+									</VSCodeButton>
+								</div>
+							</div>
+							<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
+								This prompt will be used to refine your input when you hit the sparkle icon in chat.
 							</div>
 						</div>
 						<VSCodeTextArea
@@ -299,37 +421,52 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						boxShadow: '-2px 0 5px rgba(0, 0, 0, 0.2)',
 						display: 'flex',
 						flexDirection: 'column',
-						padding: '20px',
-						overflowY: 'auto'
+						position: 'relative'
 					}}>
 						<div style={{
-							display: 'flex',
-							justifyContent: 'space-between',
-							alignItems: 'center',
-							marginBottom: '16px'
+							flex: 1,
+							padding: '20px',
+							overflowY: 'auto',
+							minHeight: 0
 						}}>
-							<h2 style={{ margin: 0 }}>{selectedPromptTitle}</h2>
-							<VSCodeButton appearance="icon" onClick={() => setIsDialogOpen(false)}>
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => setIsDialogOpen(false)}
+								style={{
+									position: 'absolute',
+									top: '20px',
+									right: '20px'
+								}}
+							>
 								<span className="codicon codicon-close"></span>
 							</VSCodeButton>
+							<h2 style={{ margin: '0 0 16px' }}>{selectedPromptTitle}</h2>
+							<pre style={{
+								padding: '8px',
+								whiteSpace: 'pre-wrap',
+								wordBreak: 'break-word',
+								fontFamily: 'var(--vscode-editor-font-family)',
+								fontSize: 'var(--vscode-editor-font-size)',
+								color: 'var(--vscode-editor-foreground)',
+								backgroundColor: 'var(--vscode-editor-background)',
+								border: '1px solid var(--vscode-editor-lineHighlightBorder)',
+								borderRadius: '4px',
+								overflowY: 'auto'
+							}}>
+								{selectedPromptContent}
+							</pre>
 						</div>
-						<VSCodeDivider />
-						<pre style={{
-							margin: '16px 0',
-							padding: '8px',
-							whiteSpace: 'pre-wrap',
-							wordBreak: 'break-word',
-							fontFamily: 'var(--vscode-editor-font-family)',
-							fontSize: 'var(--vscode-editor-font-size)',
-							color: 'var(--vscode-editor-foreground)',
-							backgroundColor: 'var(--vscode-editor-background)',
-							border: '1px solid var(--vscode-editor-lineHighlightBorder)',
-							borderRadius: '4px',
-							flex: 1,
-							overflowY: 'auto'
+						<div style={{
+							display: 'flex',
+							justifyContent: 'flex-end',
+							padding: '12px 20px',
+							borderTop: '1px solid var(--vscode-editor-lineHighlightBorder)',
+							backgroundColor: 'var(--vscode-editor-background)'
 						}}>
-							{selectedPromptContent}
-						</pre>
+							<VSCodeButton onClick={() => setIsDialogOpen(false)}>
+								Close
+							</VSCodeButton>
+						</div>
 					</div>
 				</div>
 			)}
