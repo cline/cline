@@ -1,8 +1,23 @@
-# Roo-Cline
+# Roo Cline
 
 A fork of Cline, an autonomous coding agent, with some additional experimental features. It’s been mainly writing itself recently, with a light touch of human guidance here and there.
 
-## New in 3.0 - chat modes!
+## New in 3.1: Chat Mode Prompt Customization & Prompt Enhancements
+
+Hot off the heels of **v3.0** introducing Code, Architect, and Ask chat modes, one of the most requested features has arrived: **customizable prompts for each mode**! 🎉
+
+You can now tailor the **role definition** and **custom instructions** for every chat mode to perfectly fit your workflow. Want to adjust Architect mode to focus more on system scalability? Or tweak Ask mode for deeper research queries? Done. Plus, you can define these via **mode-specific `.clinerules-[mode]` files**. You’ll find all of this in the new **Prompts** tab in the top menu.
+
+The second big feature in this release is a complete revamp of **prompt enhancements**. This feature helps you craft messages to get even better results from Cline. Here’s what’s new:  
+- Works with **any provider** and API configuration, not just OpenRouter.  
+- Fully customizable prompts to match your unique needs.  
+- Same simple workflow: just hit the ✨ **Enhance Prompt** button in the chat input to try it out.
+
+Whether you’re using GPT-4, other APIs, or switching configurations, this gives you total control over how your prompts are optimized.
+
+As always, we’d love to hear your thoughts and ideas! What features do you want to see in **v3.2**? Drop by https://www.reddit.com/r/roocline and join the discussion - we're building Roo Cline together. 🚀  
+
+## New in 3.0 - Chat Modes!
 
 You can now choose between different prompts for Roo Cline to better suit your workflow. Here’s what’s available:
 
