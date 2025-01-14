@@ -1,4 +1,5 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
+import Fuse from "fuse.js"
 
 export function insertMention(
 	text: string,
@@ -147,13 +148,21 @@ export function getContextMenuOptions(
 		}
 	}
 
-	// Get matching items, separating by type
-	const matchingItems = queryItems.filter((item) =>
-		item.value?.toLowerCase().includes(lowerQuery) ||
-		item.label?.toLowerCase().includes(lowerQuery) ||
-		item.description?.toLowerCase().includes(lowerQuery)
-	)
+	// Initialize Fuse instance for fuzzy search
+	const fuse = new Fuse(queryItems, {
+		keys: ["value", "label", "description"],
+		threshold: 0.6,
+		shouldSort: true,
+		isCaseSensitive: false,
+		ignoreLocation: false,
+		minMatchCharLength: 1,
+	})
 
+	// Get fuzzy matching items
+	const fuseResults = query ? fuse.search(query) : []
+	const matchingItems = fuseResults.map(result => result.item)
+
+	// Separate matches by type
 	const fileMatches = matchingItems.filter(item =>
 		item.type === ContextMenuOptionType.File ||
 		item.type === ContextMenuOptionType.Folder
