@@ -209,11 +209,12 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.glamaApiKey && (
-						<VSCodeLink
-							href="https://glama.ai/settings/api-keys"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							You can get an Glama API key by signing up here.
-						</VSCodeLink>
+						<VSCodeButtonLink
+							href={getGlamaAuthUrl(uriScheme)}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get Glama API Key
+						</VSCodeButtonLink>
 					)}
 					<p
 						style={{
@@ -737,6 +738,12 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			)}
 		</div>
 	)
+}
+
+export function getGlamaAuthUrl(uriScheme?: string) {
+	const callbackUrl = `${uriScheme || "vscode"}://saoudrizwan.claude-dev/glama`
+
+	return `https://glama.ai/oauth/authorize?callback_url=${encodeURIComponent(callbackUrl)}`
 }
 
 export function getOpenRouterAuthUrl(uriScheme?: string) {
