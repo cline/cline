@@ -24,12 +24,10 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 					currentHunk.changes.length > 0 &&
 					currentHunk.changes.some((change) => change.type === "add" || change.type === "remove")
 				) {
-					// Trim excess context, keeping only MAX_CONTEXT_LINES before/after changes
 					const changes = currentHunk.changes
 					let startIdx = 0
 					let endIdx = changes.length - 1
 
-					// Find first non-context line
 					for (let j = 0; j < changes.length; j++) {
 						if (changes[j].type !== "context") {
 							startIdx = Math.max(0, j - MAX_CONTEXT_LINES)
@@ -37,7 +35,6 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 						}
 					}
 
-					// Find last non-context line
 					for (let j = changes.length - 1; j >= 0; j--) {
 						if (changes[j].type !== "context") {
 							endIdx = Math.min(changes.length - 1, j + MAX_CONTEXT_LINES)
@@ -56,8 +53,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 				continue
 			}
 
-			// Extract the complete indentation for each line
-			const content = line.slice(1) // Remove the diff marker
+			const content = line.slice(1)
 			const indentMatch = content.match(/^(\s*)/)
 			const indent = indentMatch ? indentMatch[0] : ""
 			const trimmedContent = content.slice(indent.length)
@@ -84,7 +80,6 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 					originalLine: content,
 				})
 			} else {
-				// Assume is a context line and add a space if it's empty
 				const finalContent = trimmedContent ? " " + trimmedContent : " "
 				currentHunk.changes.push({
 					type: "context",
@@ -102,7 +97,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 		) {
 			hunks.push(currentHunk)
 		}
-    
+
 		return { hunks }
 	}
 
