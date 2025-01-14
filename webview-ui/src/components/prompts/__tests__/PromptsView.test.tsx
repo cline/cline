@@ -19,7 +19,9 @@ const mockExtensionState = {
   ],
   enhancementApiConfigId: '',
   setEnhancementApiConfigId: jest.fn(),
-  mode: 'code'
+  mode: 'code',
+  customInstructions: 'Initial instructions',
+  setCustomInstructions: jest.fn()
 }
 
 const renderPromptsView = (props = {}) => {
@@ -129,6 +131,30 @@ describe('PromptsView', () => {
     expect(vscode.postMessage).toHaveBeenCalledWith({
       type: 'enhancementApiConfigId',
       text: 'config1'
+    })
+  })
+
+  it('handles clearing custom instructions correctly', async () => {
+    const setCustomInstructions = jest.fn()
+    renderPromptsView({
+      ...mockExtensionState,
+      customInstructions: 'Initial instructions',
+      setCustomInstructions
+    })
+
+    const textarea = screen.getByTestId('global-custom-instructions-textarea')
+    const changeEvent = new CustomEvent('change', {
+      detail: { target: { value: '' } }
+    })
+    Object.defineProperty(changeEvent, 'target', {
+      value: { value: '' }
+    })
+    await fireEvent(textarea, changeEvent)
+
+    expect(setCustomInstructions).toHaveBeenCalledWith(undefined)
+    expect(vscode.postMessage).toHaveBeenCalledWith({
+      type: 'customInstructions',
+      text: undefined
     })
   })
 })
