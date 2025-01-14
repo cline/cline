@@ -556,7 +556,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 													minWidth: '20px',
 													display: 'flex',
 													alignItems: 'center',
-													justifyContent: 'center'
+													justifyContent: 'center',
+													color: 'var(--vscode-button-foreground)',
 												}}
 												onClick={() => {
 													const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
