@@ -17,7 +17,7 @@ import {
 	checkExistKey
 } from "../../../src/shared/checkExistApiConfig"
 import { Mode } from "../../../src/core/prompts/types"
-import { codeMode } from "../../../src/shared/modes"
+import { codeMode, CustomPrompts, defaultPrompts } from "../../../src/shared/modes"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -60,6 +60,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 	mode: Mode
 	setMode: (value: Mode) => void
+	setCustomPrompts: (value: CustomPrompts) => void
+	enhancementApiConfigId?: string
+	setEnhancementApiConfigId: (value: string) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -86,6 +89,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		currentApiConfigName: 'default',
 		listApiConfigMeta: [],
 		mode: codeMode,
+		customPrompts: defaultPrompts,
+		enhancementApiConfigId: '',
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -230,6 +235,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setListApiConfigMeta,
 		onUpdateApiConfig,
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
+		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
+		setEnhancementApiConfigId: (value) => setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

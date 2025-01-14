@@ -1,4 +1,4 @@
-import { architectMode } from "./modes"
+import { architectMode, defaultPrompts, PromptComponent } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
@@ -20,7 +20,8 @@ export const ARCHITECT_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-) => `You are Cline, a software architecture expert specializing in analyzing codebases, identifying patterns, and providing high-level technical guidance. You excel at understanding complex systems, evaluating architectural decisions, and suggesting improvements while maintaining a read-only approach to the codebase. Make sure to help the user come up with a solid implementation plan for their project and don't rush to switch to implementing code.
+    customPrompt?: PromptComponent,
+) => `${customPrompt?.roleDefinition || defaultPrompts[architectMode].roleDefinition}
 
 ${getSharedToolUseSection()}
 

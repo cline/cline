@@ -4,14 +4,30 @@ import { CODE_PROMPT } from "./code"
 import { ARCHITECT_PROMPT } from "./architect"
 import { ASK_PROMPT } from "./ask"
 import { Mode, codeMode, architectMode, askMode } from "./modes"
+import { CustomPrompts } from "../../shared/modes"
 import fs from 'fs/promises'
 import path from 'path'
 
-async function loadRuleFiles(cwd: string): Promise<string> {
-    const ruleFiles = ['.clinerules', '.cursorrules', '.windsurfrules']
+async function loadRuleFiles(cwd: string, mode: Mode): Promise<string> {
     let combinedRules = ''
 
-    for (const file of ruleFiles) {
+    // First try mode-specific rules
+    const modeSpecificFile = `.clinerules-${mode}`
+    try {
+        const content = await fs.readFile(path.join(cwd, modeSpecificFile), 'utf-8')
+        if (content.trim()) {
+            combinedRules += `\n# Rules from ${modeSpecificFile}:\n${content.trim()}\n`
+        }
+    } catch (err) {
+        // Silently skip if file doesn't exist
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw err
+        }
+    }
+
+    // Then try generic rules files
+    const genericRuleFiles = ['.clinerules']
+    for (const file of genericRuleFiles) {
         try {
             const content = await fs.readFile(path.join(cwd, file), 'utf-8')
             if (content.trim()) {
@@ -28,16 +44,30 @@ async function loadRuleFiles(cwd: string): Promise<string> {
     return combinedRules
 }
 
-export async function addCustomInstructions(customInstructions: string, cwd: string, preferredLanguage?: string): Promise<string> {
-    const ruleFileContent = await loadRuleFiles(cwd)
+interface State {
+    customInstructions?: string;
+    customPrompts?: CustomPrompts;
+    preferredLanguage?: string;
+}
+
+export async function addCustomInstructions(
+    state: State,
+    cwd: string,
+    mode: Mode = codeMode
+): Promise<string> {
+    const ruleFileContent = await loadRuleFiles(cwd, mode)
     const allInstructions = []
 
-    if (preferredLanguage) {
-        allInstructions.push(`You should always speak and think in the ${preferredLanguage} language.`)
+    if (state.preferredLanguage) {
+        allInstructions.push(`You should always speak and think in the ${state.preferredLanguage} language.`)
     }
-    
-    if (customInstructions.trim()) {
-        allInstructions.push(customInstructions.trim())
+
+    if (state.customInstructions?.trim()) {
+        allInstructions.push(state.customInstructions.trim())
+    }
+
+    if (state.customPrompts?.[mode]?.customInstructions?.trim()) {
+        allInstructions.push(state.customPrompts[mode].customInstructions.trim())
     }
 
     if (ruleFileContent && ruleFileContent.trim()) {
@@ -58,20 +88,21 @@ ${joinedInstructions}`
 }
 
 export const SYSTEM_PROMPT = async (
-	cwd: string,
-	supportsComputerUse: boolean,
-	mcpHub?: McpHub,
-	diffStrategy?: DiffStrategy,
-	browserViewportSize?: string,
-  mode: Mode = codeMode,
+    cwd: string,
+    supportsComputerUse: boolean,
+    mcpHub?: McpHub,
+    diffStrategy?: DiffStrategy,
+    browserViewportSize?: string,
+    mode: Mode = codeMode,
+    customPrompts?: CustomPrompts,
 ) => {
     switch (mode) {
         case architectMode:
-            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.architect)
         case askMode:
-            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.ask)
         default:
-            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize)
+            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.code)
     }
 }
 

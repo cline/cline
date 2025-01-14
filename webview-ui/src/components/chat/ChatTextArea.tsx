@@ -49,7 +49,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, apiConfiguration, currentApiConfigName, listApiConfigMeta } = useExtensionState()
+		const { filePaths, currentApiConfigName, listApiConfigMeta } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
@@ -69,8 +69,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useEffect(() => {
 			const messageHandler = (event: MessageEvent) => {
 				const message = event.data
-				if (message.type === 'enhancedPrompt' && message.text) {
-					setInputValue(message.text)
+				if (message.type === 'enhancedPrompt') {
+					if (message.text) {
+						setInputValue(message.text)
+					}
 					setIsEnhancingPrompt(false)
 				} else if (message.type === 'commitSearchResults') {
 					const commits = message.commits.map((commit: any) => ({
@@ -652,6 +654,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 						borderColor: "transparent",
 						padding: "9px 9px 25px 9px",
+						marginBottom: "15px",
 						cursor: textAreaDisabled ? "not-allowed" : undefined,
 						flex: 1,
 						zIndex: 1,
@@ -766,19 +769,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				</div>
 				<div className="button-row" style={{ position: "absolute", right: 16, display: "flex", alignItems: "center", height: 31, bottom: 11, zIndex: 3, padding: "0 8px", justifyContent: "flex-end", backgroundColor: "var(--vscode-input-background)", }}>
 				  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-					{apiConfiguration?.apiProvider === "openrouter" && (
-					  <div style={{ display: "flex", alignItems: "center" }}>
-						{isEnhancingPrompt && <span style={{ marginRight: 10, color: "var(--vscode-input-foreground)", opacity: 0.5 }}>Enhancing prompt...</span>}
-						<span
-						  role="button"
-						  aria-label="enhance prompt"
-						  data-testid="enhance-prompt-button"
-						  className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
-						  onClick={() => !textAreaDisabled && handleEnhancePrompt()}
-						  style={{ fontSize: 16.5 }}
-						/>
-					  </div>
-					)}
+						<div style={{ display: "flex", alignItems: "center" }}>
+						{isEnhancingPrompt ? (
+							<span className="codicon codicon-loading codicon-modifier-spin" style={{
+								color: "var(--vscode-input-foreground)",
+								opacity: 0.5,
+								fontSize: 16.5,
+								marginRight: 10
+							}}></span>
+						) : (
+							<span
+								role="button"
+								aria-label="enhance prompt"
+								data-testid="enhance-prompt-button"
+								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
+								onClick={() => !textAreaDisabled && handleEnhancePrompt()}
+								style={{ fontSize: 16.5 }}
+							/>
+						)}
+						</div>
 					<span className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`} onClick={() => !shouldDisableImages && onSelectImages()} style={{ fontSize: 16.5 }} />
 					<span className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`} onClick={() => !textAreaDisabled && onSend()} style={{ fontSize: 15 }} />
 				  </span>

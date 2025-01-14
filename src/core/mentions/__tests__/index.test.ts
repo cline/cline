@@ -131,7 +131,7 @@ Detailed commit message with multiple lines
 			await openMention("/path/to/file")
 			expect(mockExecuteCommand).not.toHaveBeenCalled()
 			expect(mockOpenExternal).not.toHaveBeenCalled()
-			expect(mockShowErrorMessage).toHaveBeenCalledWith("Could not open file!")
+			expect(mockShowErrorMessage).toHaveBeenCalledWith("Could not open file: File does not exist")
 
 			await openMention("problems")
 			expect(mockExecuteCommand).toHaveBeenCalledWith("workbench.actions.view.problems")

@@ -1,10 +1,9 @@
-import { Mode, askMode } from "./modes"
+import { Mode, askMode, defaultPrompts, PromptComponent } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
     getSystemInfoSection,
     getObjectiveSection,
-    addCustomInstructions,
     getSharedToolUseSection,
     getMcpServersSection,
     getToolUseGuidelinesSection,
@@ -21,7 +20,8 @@ export const ASK_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-) => `You are Cline, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics. You can analyze code, explain concepts, and access external resources while maintaining a read-only approach to the codebase. Make sure to answer the user's questions and don't rush to switch to implementing code.
+    customPrompt?: PromptComponent,
+) => `${customPrompt?.roleDefinition || defaultPrompts[askMode].roleDefinition}
 
 ${getSharedToolUseSection()}
 

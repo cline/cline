@@ -780,15 +780,24 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, preferredLanguage, mode } = await this.providerRef.deref()?.getState() ?? {}
+		const { browserViewportSize, preferredLanguage, mode, customPrompts } = await this.providerRef.deref()?.getState() ?? {}
 		const systemPrompt = await SYSTEM_PROMPT(
 			cwd,
 			this.api.getModel().info.supportsComputerUse ?? false,
 			mcpHub,
 			this.diffStrategy,
 			browserViewportSize,
+			mode,
+			customPrompts
+		) + await addCustomInstructions(
+			{
+				customInstructions: this.customInstructions,
+				customPrompts,
+				preferredLanguage
+			},
+			cwd,
 			mode
-		) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
+		)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {

@@ -5,6 +5,7 @@ import { ClineProvider } from '../../../core/webview/ClineProvider'
 import { SearchReplaceDiffStrategy } from '../../../core/diff/strategies/search-replace'
 import fs from 'fs/promises'
 import os from 'os'
+import { codeMode, askMode, architectMode } from '../modes'
 // Import path utils to get access to toPosix string extension
 import '../../../utils/path'
 
@@ -18,12 +19,21 @@ jest.mock('default-shell', () => '/bin/bash')
 
 jest.mock('os-name', () => () => 'Linux')
 
-// Mock fs.readFile to return empty mcpServers config and mock .clinerules
+// Mock fs.readFile to return empty mcpServers config and mock rules files
 jest.mock('fs/promises', () => ({
   ...jest.requireActual('fs/promises'),
   readFile: jest.fn().mockImplementation(async (path: string) => {
     if (path.endsWith('mcpSettings.json')) {
       return '{"mcpServers": {}}'
+    }
+    if (path.endsWith('.clinerules-code')) {
+      return '# Code Mode Rules\n1. Code specific rule'
+    }
+    if (path.endsWith('.clinerules-ask')) {
+      return '# Ask Mode Rules\n1. Ask specific rule'
+    }
+    if (path.endsWith('.clinerules-architect')) {
+      return '# Architect Mode Rules\n1. Architect specific rule'
     }
     if (path.endsWith('.clinerules')) {
       return '# Test Rules\n1. First rule\n2. Second rule'
@@ -159,42 +169,149 @@ describe('addCustomInstructions', () => {
     jest.clearAllMocks()
   })
 
-  it('should include preferred language when provided', async () => {
-    const result = await addCustomInstructions(
-      '',
+  it('should prioritize mode-specific rules for code mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
       '/test/path',
-      'Spanish'
+      codeMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific rules for ask mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      askMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific rules for architect mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      architectMode
     )
     
-    expect(result).toMatchSnapshot()
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should fall back to generic rules when mode-specific rules not found', async () => {
+    // Mock readFile to return ENOENT for mode-specific file
+    const mockReadFile = jest.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('.clinerules-code')) {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException
+        error.code = 'ENOENT'
+        throw error
+      }
+      if (path.endsWith('.clinerules')) {
+        return '# Test Rules\n1. First rule\n2. Second rule'
+      }
+      return ''
+    })
+    jest.spyOn(fs, 'readFile').mockImplementation(mockReadFile)
+
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should include preferred language when provided', async () => {
+    const instructions = await addCustomInstructions(
+      { preferredLanguage: 'Spanish' },
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
   })
 
   it('should include custom instructions when provided', async () => {
-    const result = await addCustomInstructions(
-      'Custom test instructions',
+    const instructions = await addCustomInstructions(
+      { customInstructions: 'Custom test instructions' },
       '/test/path'
     )
     
-    expect(result).toMatchSnapshot()
-  })
-
-  it('should include rules from .clinerules', async () => {
-    const result = await addCustomInstructions(
-      '',
-      '/test/path'
-    )
-    
-    expect(result).toMatchSnapshot()
+    expect(instructions).toMatchSnapshot()
   })
 
   it('should combine all custom instructions', async () => {
-    const result = await addCustomInstructions(
-      'Custom test instructions',
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'Custom test instructions',
+        preferredLanguage: 'French'
+      },
       '/test/path',
-      'French'
+      codeMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should handle undefined mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path'
     )
     
-    expect(result).toMatchSnapshot()
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should trim mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      { customInstructions: '  Custom mode instructions  ' },
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should handle empty mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      { customInstructions: '' },
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should combine global and mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'Global instructions',
+        customPrompts: {
+          code: { customInstructions: 'Mode-specific instructions' }
+        }
+      },
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific instructions after global ones', async () => {
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'First instruction',
+        customPrompts: {
+          code: { customInstructions: 'Second instruction' }
+        }
+      },
+      '/test/path',
+      codeMode
+    )
+    
+    const instructionParts = instructions.split('\n\n')
+    const globalIndex = instructionParts.findIndex(part => part.includes('First instruction'))
+    const modeSpecificIndex = instructionParts.findIndex(part => part.includes('Second instruction'))
+    
+    expect(globalIndex).toBeLessThan(modeSpecificIndex)
+    expect(instructions).toMatchSnapshot()
   })
 
   afterAll(() => {

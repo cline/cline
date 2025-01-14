@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { ApiHandler } from "../"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
-export class VertexHandler implements ApiHandler {
+export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicVertex
 
@@ -82,5 +82,28 @@ export class VertexHandler implements ApiHandler {
 			return { id, info: vertexModels[id] }
 		}
 		return { id: vertexDefaultModelId, info: vertexModels[vertexDefaultModelId] }
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const response = await this.client.messages.create({
+				model: this.getModel().id,
+				max_tokens: this.getModel().info.maxTokens || 8192,
+				temperature: 0,
+				messages: [{ role: "user", content: prompt }],
+				stream: false
+			})
+
+			const content = response.content[0]
+			if (content.type === 'text') {
+				return content.text
+			}
+			return ''
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Vertex completion error: ${error.message}`)
+			}
+			throw error
+		}
 	}
 }
