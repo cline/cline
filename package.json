@@ -145,9 +145,11 @@
 		"start:webview": "cd webview-ui && npm run start",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish"
+		"changeset": "changeset",
+		"version-packages": "changeset version"
 	},
 	"devDependencies": {
+		"@changesets/cli": "^2.27.11",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",

@@ -1,0 +1,37 @@
+name: Changeset Pull Request
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+
+    create-release-pr:
+        name: Create Changeset PR
+        needs: test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 20.15.1
+
+            - name: Install Dependencies
+              run: npm ci
+
+            - name: Create Release Pull Request
+              uses: changesets/action@v1
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  title: "Version Packages"
+                  commit: "chore: version packages"
+                  version: npm run version-packages
