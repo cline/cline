@@ -134,125 +134,118 @@ export function applyDMP(hunk: Hunk, content: string[], matchPosition: number): 
 
 // Git fallback strategy that works with full content
 async function applyGitFallback(hunk: Hunk, content: string[]): Promise<EditResult> {
-  let tmpDir: tmp.DirResult | undefined;
-  
-  try {
-    // Create temporary directory
-    tmpDir = tmp.dirSync({ unsafeCleanup: true });
-    const git: SimpleGit = simpleGit(tmpDir.name);
-    
-    // Initialize git repo
-    await git.init();
-    await git.addConfig('user.name', 'Temp');
-    await git.addConfig('user.email', 'temp@example.com');
+	let tmpDir: tmp.DirResult | undefined;
+	
+	try {
+		tmpDir = tmp.dirSync({ unsafeCleanup: true });
+		const git: SimpleGit = simpleGit(tmpDir.name);
+		
+		await git.init();
+		await git.addConfig('user.name', 'Temp');
+		await git.addConfig('user.email', 'temp@example.com');
 
-    const filePath = path.join(tmpDir.name, 'file.txt');
+		const filePath = path.join(tmpDir.name, 'file.txt');
 
-    // Build the search text (context + removals)
-    const searchLines = hunk.changes
-      .filter(change => change.type === 'context' || change.type === 'remove')
-      .map(change => change.originalLine || (change.indent + change.content));
-    
-    // Build the replace text (context + additions)
-    const replaceLines = hunk.changes
-      .filter(change => change.type === 'context' || change.type === 'add')
-      .map(change => change.originalLine || (change.indent + change.content));
+		const searchLines = hunk.changes
+			.filter(change => change.type === 'context' || change.type === 'remove')
+			.map(change => change.originalLine || (change.indent + change.content));
+		
+		const replaceLines = hunk.changes
+			.filter(change => change.type === 'context' || change.type === 'add')
+			.map(change => change.originalLine || (change.indent + change.content));
 
-    const searchText = searchLines.join('\n');
-    const replaceText = replaceLines.join('\n');
-    const originalText = content.join('\n');
+		const searchText = searchLines.join('\n');
+		const replaceText = replaceLines.join('\n');
+		const originalText = content.join('\n');
 
-    // Strategy 1: O->S->R, cherry-pick R onto O
-    try {
-      // Original commit - use full file content
-      fs.writeFileSync(filePath, originalText);
-      await git.add('file.txt');
-      const originalCommit = await git.commit('original');
+		try {
+			fs.writeFileSync(filePath, originalText);
+			await git.add('file.txt');
+			const originalCommit = await git.commit('original');
+			console.log('Strategy 1 - Original commit:', originalCommit.commit);
 
-      // Search commit - just the search text
-      fs.writeFileSync(filePath, searchText);
-      await git.add('file.txt');
-      await git.commit('search');
+			fs.writeFileSync(filePath, searchText);
+			await git.add('file.txt');
+			const searchCommit1 = await git.commit('search');
+			console.log('Strategy 1 - Search commit:', searchCommit1.commit);
 
-      // Replace commit - just the replace text
-      fs.writeFileSync(filePath, replaceText);
-      await git.add('file.txt');
-      const replaceCommit = await git.commit('replace');
+			fs.writeFileSync(filePath, replaceText);
+			await git.add('file.txt');
+			const replaceCommit = await git.commit('replace');
+			console.log('Strategy 1 - Replace commit:', replaceCommit.commit);
 
-      // Go back to original and cherry-pick
-      await git.checkout(originalCommit.commit);
-      try {
-        await git.raw(['cherry-pick', '--minimal', replaceCommit.commit]);
-        
-        // Read result
-        const newText = fs.readFileSync(filePath, 'utf-8');
-        const newLines = newText.split('\n');
-        return {
-          confidence: 1,
-          result: newLines,
-          strategy: 'git-fallback'
-        };
-      } catch (cherryPickError) {
-        console.log('Strategy 1 failed with merge conflict');
-      }
-    } catch (error) {
-      console.log('Strategy 1 failed:', error);
-    }
+			console.log('Strategy 1 - Attempting checkout of:', originalCommit.commit);
+			await git.raw(['checkout', originalCommit.commit]);
+			try {
+				console.log('Strategy 1 - Attempting cherry-pick of:', replaceCommit.commit);
+				await git.raw(['cherry-pick', '--minimal', replaceCommit.commit]);
+				
+				const newText = fs.readFileSync(filePath, 'utf-8');
+				const newLines = newText.split('\n');
+				return {
+					confidence: 1,
+					result: newLines,
+					strategy: 'git-fallback'
+				};
+			} catch (cherryPickError) {
+				console.error('Strategy 1 failed with merge conflict');
+			}
+		} catch (error) {
+			console.error('Strategy 1 failed:', error);
+		}
 
-    // Strategy 2: S->R, S->O, cherry-pick R onto O
-    try {
-      // Reset repo
-      await git.init();
-      await git.addConfig('user.name', 'Temp');
-      await git.addConfig('user.email', 'temp@example.com');
+		try {
+			await git.init();
+			await git.addConfig('user.name', 'Temp');
+			await git.addConfig('user.email', 'temp@example.com');
 
-      // Search commit - just the search text
-      fs.writeFileSync(filePath, searchText);
-      await git.add('file.txt');
-      const searchCommit = await git.commit('search');
+			fs.writeFileSync(filePath, searchText);
+			await git.add('file.txt');
+			const searchCommit = await git.commit('search');
+			const searchHash = searchCommit.commit.replace(/^HEAD /, '');
+			console.log('Strategy 2 - Search commit:', searchHash);
 
-      // Replace commit - just the replace text
-      fs.writeFileSync(filePath, replaceText);
-      await git.add('file.txt');
-      const replaceCommit = await git.commit('replace');
+			fs.writeFileSync(filePath, replaceText);
+			await git.add('file.txt');
+			const replaceCommit = await git.commit('replace');
+			const replaceHash = replaceCommit.commit.replace(/^HEAD /, '');
+			console.log('Strategy 2 - Replace commit:', replaceHash);
 
-      // Go back to search and create original with full file content
-      await git.checkout(searchCommit.commit);
-      fs.writeFileSync(filePath, originalText);
-      await git.add('file.txt');
-      await git.commit('original');
+			console.log('Strategy 2 - Attempting checkout of:', searchHash);
+			await git.raw(['checkout', searchHash]);
+			fs.writeFileSync(filePath, originalText);
+			await git.add('file.txt');
+			const originalCommit2 = await git.commit('original');
+			console.log('Strategy 2 - Original commit:', originalCommit2.commit);
 
-      try {
-        // Cherry-pick replace onto original
-        await git.raw(['cherry-pick', '--minimal', replaceCommit.commit]);
-        
-        // Read result
-        const newText = fs.readFileSync(filePath, 'utf-8');
-        const newLines = newText.split('\n');
-        return {
-          confidence: 1,
-          result: newLines,
-          strategy: 'git-fallback'
-        };
-      } catch (cherryPickError) {
-        console.log('Strategy 2 failed with merge conflict');
-      }
-    } catch (error) {
-      console.log('Strategy 2 failed:', error);
-    }
+			try {
+				console.log('Strategy 2 - Attempting cherry-pick of:', replaceHash);
+				await git.raw(['cherry-pick', '--minimal', replaceHash]);
+				
+				const newText = fs.readFileSync(filePath, 'utf-8');
+				const newLines = newText.split('\n');
+				return {
+					confidence: 1,
+					result: newLines,
+					strategy: 'git-fallback'
+				};
+			} catch (cherryPickError) {
+				console.error('Strategy 2 failed with merge conflict');
+			}
+		} catch (error) {
+			console.error('Strategy 2 failed:', error);
+		}
 
-    // If both strategies fail, return no confidence
-    console.log('Git fallback failed');
-    return { confidence: 0, result: content, strategy: 'git-fallback' };
-  } catch (error) {
-    console.log('Git fallback strategy failed:', error);
-    return { confidence: 0, result: content, strategy: 'git-fallback' };
-  } finally {
-    // Clean up temporary directory
-    if (tmpDir) {
-      tmpDir.removeCallback();
-    }
-  }
+		console.error('Git fallback failed');
+		return { confidence: 0, result: content, strategy: 'git-fallback' };
+	} catch (error) {
+		console.error('Git fallback strategy failed:', error);
+		return { confidence: 0, result: content, strategy: 'git-fallback' };
+	} finally {
+		if (tmpDir) {
+			tmpDir.removeCallback();
+		}
+	}
 }
 
 // Main edit function that tries strategies sequentially
