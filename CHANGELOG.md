@@ -1,5 +1,16 @@
 # Roo Cline Changelog
 
+## 3.1.0
+
+### Minor Changes
+
+-   3.1
+
+### Patch Changes
+
+-   Fix bug with clearing custom instructions
+-   Add a button to copy markdown out of the chat
+
 ## [3.0.3]
 
 -   Update required vscode engine to ^1.84.0 to match cline
