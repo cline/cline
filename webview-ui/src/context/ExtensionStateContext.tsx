@@ -50,6 +50,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysApproveResubmit: (value: boolean) => void
 	requestDelaySeconds: number
 	setRequestDelaySeconds: (value: number) => void
+	experimentalDiffStrategy: boolean
+	setExperimentalDiffStrategy: (value: boolean) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -72,7 +74,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
 		alwaysApproveResubmit: false,
-		requestDelaySeconds: 5
+		requestDelaySeconds: 0,
+		experimentalDiffStrategy: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -208,7 +211,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setTerminalOutputLineLimit: (value) => setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
-		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value }))
+		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
+		experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
+		setExperimentalDiffStrategy: (value) => setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value }))
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

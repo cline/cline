@@ -51,6 +51,7 @@ import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { OpenRouterHandler } from "../api/providers/openrouter"
 import { McpHub } from "../services/mcp/McpHub"
+import crypto from "crypto"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -105,26 +106,30 @@ export class Cline {
 		task?: string | undefined,
 		images?: string[] | undefined,
 		historyItem?: HistoryItem | undefined,
+		experimentalDiffStrategy?: boolean,
 	) {
-		this.providerRef = new WeakRef(provider)
+		this.taskId = crypto.randomUUID()
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
-		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.diffEnabled = enableDiff ?? false
-		if (this.diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold ?? 1.0)
-		}
+
+		// Prioritize experimentalDiffStrategy from history item if available
+		const effectiveExperimentalDiffStrategy = historyItem?.experimentalDiffStrategy ?? experimentalDiffStrategy
+		this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold, effectiveExperimentalDiffStrategy)
+		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.providerRef = new WeakRef(provider)
+
 		if (historyItem) {
 			this.taskId = historyItem.id
-			this.resumeTaskFromHistory()
-		} else if (task || images) {
-			this.taskId = Date.now().toString()
+		}
+
+		if (task || images) {
 			this.startTask(task, images)
-		} else {
-			throw new Error("Either historyItem or task/images must be provided")
+		} else if (historyItem) {
+			this.resumeTaskFromHistory()
 		}
 	}
 

@@ -54,6 +54,7 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
+		| "experimentalDiffStrategy"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

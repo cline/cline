@@ -70,6 +70,7 @@ export interface ExtensionState {
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean
+	experimentalDiffStrategy?: boolean
 }
 
 export interface ClineMessage {

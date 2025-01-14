@@ -55,6 +55,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysApproveResubmit,
 		requestDelaySeconds,
 		setRequestDelaySeconds,
+		experimentalDiffStrategy,
+		setExperimentalDiffStrategy,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -89,6 +91,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
+			vscode.postMessage({ type: "experimentalDiffStrategy", bool: experimentalDiffStrategy })
 			onDone()
 		}
 	}
@@ -252,7 +255,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox checked={diffEnabled} onChange={(e: any) => setDiffEnabled(e.target.checked)}>
+					<VSCodeCheckbox checked={diffEnabled} onChange={(e: any) => {
+						setDiffEnabled(e.target.checked)
+						if (!e.target.checked) {
+							// Reset experimental strategy when diffs are disabled
+							setExperimentalDiffStrategy(false)
+						}
+					}}>
 						<span style={{ fontWeight: "500" }}>Enable editing through diffs</span>
 					</VSCodeCheckbox>
 					<p
@@ -266,6 +275,19 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 					{diffEnabled && (
 						<div style={{ marginTop: 10 }}>
+							<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+								<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
+								<VSCodeCheckbox
+									checked={experimentalDiffStrategy}
+									onChange={(e: any) => setExperimentalDiffStrategy(e.target.checked)}>
+									<span style={{ fontWeight: "500" }}>Use experimental unified diff strategy</span>
+								</VSCodeCheckbox>
+							</div>
+							<p style={{ fontSize: "12px", marginBottom: 15, color: "var(--vscode-descriptionForeground)" }}>
+								Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits.
+								Only enable if you understand the risks and are willing to carefully review all changes.
+							</p>
+
 							<div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
 								<span style={{ fontWeight: "500", minWidth: '100px' }}>Match precision</span>
 								<input
@@ -287,7 +309,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									{Math.round((fuzzyMatchThreshold || 1) * 100)}%
 								</span>
 							</div>
-							<p style={{ fontSize: "12px", marginBottom: 10, color: "var(--vscode-descriptionForeground)" }}>
+							<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
 								This slider controls how precisely code sections must match when applying diffs. Lower values allow more flexible matching but increase the risk of incorrect replacements. Use values below 100% with extreme caution.
 							</p>
 						</div>
