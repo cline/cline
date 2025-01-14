@@ -249,48 +249,54 @@ async function applyGitFallback(hunk: Hunk, content: string[]): Promise<EditResu
 }
 
 // Main edit function that tries strategies sequentially
-export async function applyEdit(hunk: Hunk, content: string[], matchPosition: number, confidence: number, debug: string = 'false'): Promise<EditResult> {
-  // Don't attempt regular edits if confidence is too low
-  const MIN_CONFIDENCE = 0.9;
-  if (confidence < MIN_CONFIDENCE && debug === '') {
-    console.log(`Search confidence (${confidence}) below minimum threshold (${MIN_CONFIDENCE}), trying git fallback...`);
-    return applyGitFallback(hunk, content);
-  }
+export async function applyEdit(
+	hunk: Hunk, 
+	content: string[], 
+	matchPosition: number, 
+	confidence: number, 
+	debug: string = '',
+	minConfidence: number = 0.9
+): Promise<EditResult> {
+	// Don't attempt regular edits if confidence is too low
+	if (confidence < minConfidence && debug === '') {
+		console.log(`Search confidence (${confidence}) below minimum threshold (${minConfidence}), trying git fallback...`);
+		return applyGitFallback(hunk, content);
+	}
 
-  // Try each strategy in sequence until one succeeds
-  const strategies = [
-    { name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition) },
-    { name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition) },
-    { name: 'git-fallback', apply: () => applyGitFallback(hunk, content) }
-  ];
+	// Try each strategy in sequence until one succeeds
+	const strategies = [
+		{ name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition) },
+		{ name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition) },
+		{ name: 'git-fallback', apply: () => applyGitFallback(hunk, content) }
+	];
 
-  if (debug !== '') {
-    // In debug mode, try all strategies including git fallback
-    const results = await Promise.all([
-      ...strategies.map(async strategy => {
-        console.log(`Attempting edit with ${strategy.name} strategy...`);
-        const result = await strategy.apply();
-        console.log(`Strategy ${strategy.name} succeeded with confidence ${result.confidence}`);
-        return result;
-      })
-    ]);
-    
-    return results.find(result => result.strategy === debug) || { confidence: 0, result: content, strategy: 'none' };
-  } else {
-    // Normal mode - try strategies sequentially until one succeeds
-    for (const strategy of strategies) {
-      const result = await strategy.apply();
-      if (result.confidence === 1) {
-        return result;
-      }
-    }
-    // If all strategies fail, try git fallback
-    
-    const result = await applyGitFallback(hunk, content);
-    if(result.confidence === 1) {
-      return result;
-    }
-  }
+	if (debug !== '') {
+		// In debug mode, try all strategies including git fallback
+		const results = await Promise.all([
+			...strategies.map(async strategy => {
+				console.log(`Attempting edit with ${strategy.name} strategy...`);
+				const result = await strategy.apply();
+				console.log(`Strategy ${strategy.name} succeeded with confidence ${result.confidence}`);
+				return result;
+			})
+		]);
+		
+		return results.find(result => result.strategy === debug) || { confidence: 0, result: content, strategy: 'none' };
+	} else {
+		// Normal mode - try strategies sequentially until one succeeds
+		for (const strategy of strategies) {
+			const result = await strategy.apply();
+			if (result.confidence === 1) {
+				return result;
+			}
+		}
+		// If all strategies fail, try git fallback
+		
+		const result = await applyGitFallback(hunk, content);
+		if(result.confidence === 1) {
+			return result;
+		}
+	}
 
-  return { confidence: 0, result: content, strategy: 'none' };
+	return { confidence: 0, result: content, strategy: 'none' };
 }

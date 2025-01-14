@@ -4,6 +4,12 @@ import { applyEdit } from "./edit-strategies"
 import { DiffResult, DiffStrategy } from "../../types"
 
 export class NewUnifiedDiffStrategy implements DiffStrategy {
+	private readonly confidenceThreshold: number
+
+	constructor(confidenceThreshold: number = 0.9) {
+		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8)
+	}
+
 	private parseUnifiedDiff(diff: string): Diff {
 		const MAX_CONTEXT_LINES = 6 // Number of context lines to keep before/after changes
 		const lines = diff.split("\n")
@@ -185,7 +191,6 @@ Your diff here
 		startLine?: number,
 		endLine?: number
 	): Promise<DiffResult> {
-		const MIN_CONFIDENCE = 0.9
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
 		const originalLines = originalContent.split("\n")
 		let result = [...originalLines]
@@ -199,20 +204,20 @@ Your diff here
 
 		for (const hunk of parsedDiff.hunks) {
 			const contextStr = prepareSearchString(hunk.changes)
-			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result)
+			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result, 0, this.confidenceThreshold)
 
-			const editResult = await applyEdit(hunk, result, matchPosition, confidence, '')
-			if (editResult.confidence > MIN_CONFIDENCE) {
+			const editResult = await applyEdit(hunk, result, matchPosition, confidence, '', this.confidenceThreshold)
+			if (editResult.confidence >= this.confidenceThreshold) {
 				result = editResult.result
 			} else {
 				// Determine if the failure is due to search or edit
-				if (confidence < MIN_CONFIDENCE) {
+				if (confidence < this.confidenceThreshold) {
 					// Search failure - likely due to context not matching
 					const contextLines = hunk.changes.filter(c => c.type === "context").length
 					const totalLines = hunk.changes.length
 					const contextRatio = contextLines / totalLines
 
-					let errorMsg = `Failed to find a matching location in the file (${Math.floor(confidence * 100)}% confidence, needs ${Math.floor(MIN_CONFIDENCE * 100)}%)\n\n`
+					let errorMsg = `Failed to find a matching location in the file (${Math.floor(confidence * 100)}% confidence, needs ${Math.floor(this.confidenceThreshold * 100)}%)\n\n`
 					errorMsg += "Debug Info:\n"
 					errorMsg += `- Search Strategy Used: ${strategy}\n`
 					errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(contextRatio * 100)}%)\n`

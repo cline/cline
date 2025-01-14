@@ -18,11 +18,11 @@ const DEFAULT_OVERLAP_SIZE = 3 // lines of overlap between windows
 const MAX_WINDOW_SIZE = 500 // maximum lines in a window
 
 // Helper function to calculate adaptive confidence threshold based on file size
-function getAdaptiveThreshold(contentLength: number): number {
+function getAdaptiveThreshold(contentLength: number, baseThreshold: number = 0.97): number {
 	if (contentLength <= LARGE_FILE_THRESHOLD) {
-		return MIN_CONFIDENCE
+		return baseThreshold
 	}
-	return MIN_CONFIDENCE_LARGE_FILE
+	return Math.max(baseThreshold - 0.07, 0.8) // Reduce threshold for large files but keep minimum at 80%
 }
 
 // Helper function to evaluate content uniqueness
@@ -109,7 +109,7 @@ export function validateEditResult(hunk: Hunk, result: string, strategy: string)
 }
 
 // Helper function to validate context lines against original content
-function validateContextLines(searchStr: string, content: string): number {
+function validateContextLines(searchStr: string, content: string, baseThreshold: number = 0.97): number {
 	// Extract just the context lines from the search string
 	const contextLines = searchStr.split("\n").filter((line) => !line.startsWith("-")) // Exclude removed lines
 
@@ -117,7 +117,7 @@ function validateContextLines(searchStr: string, content: string): number {
 	const similarity = evaluateSimilarity(contextLines.join("\n"), content)
 
 	// Get adaptive threshold based on content size
-	const threshold = getAdaptiveThreshold(content.split("\n").length)
+	const threshold = getAdaptiveThreshold(content.split("\n").length, baseThreshold)
 
 	// Calculate uniqueness boost
 	const uniquenessScore = evaluateContentUniqueness(searchStr, content.split("\n"))
@@ -243,18 +243,17 @@ export function findExactMatch(searchStr: string, content: string[], startIndex:
 }
 
 // String similarity strategy
-export function findSimilarityMatch(searchStr: string, content: string[], startIndex: number = 0): SearchResult {
+export function findSimilarityMatch(searchStr: string, content: string[], startIndex: number = 0, minScore: number = 0.8): SearchResult {
 	const searchLines = searchStr.split("\n")
 	let bestScore = 0
 	let bestIndex = -1
-	const minScore = 0.8
 
 	for (let i = startIndex; i < content.length - searchLines.length + 1; i++) {
 		const windowStr = content.slice(i, i + searchLines.length).join("\n")
 		const score = compareTwoStrings(searchStr, windowStr)
 		if (score > bestScore && score >= minScore) {
 			const similarity = getDMPSimilarity(searchStr, windowStr)
-			const contextSimilarity = validateContextLines(searchStr, windowStr)
+			const contextSimilarity = validateContextLines(searchStr, windowStr, minScore)
 			const adjustedScore = Math.min(similarity, contextSimilarity) * score
 
 			if (adjustedScore > bestScore) {
@@ -385,13 +384,15 @@ export function findAnchorMatch(searchStr: string, content: string[], startIndex
 }
 
 // Main search function that tries all strategies
-export function findBestMatch(searchStr: string, content: string[], startIndex: number = 0): SearchResult {
+export function findBestMatch(searchStr: string, content: string[], startIndex: number = 0, minConfidence: number = 0.97): SearchResult {
 	const strategies = [findExactMatch, findAnchorMatch, findSimilarityMatch, findLevenshteinMatch]
 
 	let bestResult: SearchResult = { index: -1, confidence: 0, strategy: "none" }
 
 	for (const strategy of strategies) {
-		const result = strategy(searchStr, content, startIndex)
+		const result = strategy === findSimilarityMatch 
+			? strategy(searchStr, content, startIndex, minConfidence)
+			: strategy(searchStr, content, startIndex)
 		if (result.confidence > bestResult.confidence) {
 			bestResult = result
 		}
