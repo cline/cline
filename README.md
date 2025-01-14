@@ -35,6 +35,7 @@ Give it a try and let us know what you think in the reddit: https://www.reddit.c
 - Sound effects for feedback
 - Option to use browsers of different sizes and adjust screenshot quality
 - Quick prompt copying from history
+- Copy markdown from chat messages
 - OpenRouter compression support
 - Includes current time in the system prompt
 - Uses a file system watcher to more reliably watch for file system changes

@@ -1,6 +1,6 @@
 import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useEffect, useMemo, useRef } from "react"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import {
 	ClineApiReqInfo,
@@ -551,7 +551,7 @@ export const ChatRowContent = ({
 				case "text":
 					return (
 						<div>
-							<Markdown markdown={message.text} />
+							<Markdown markdown={message.text} partial={message.partial} />
 						</div>
 					)
 				case "user_feedback":
@@ -703,7 +703,7 @@ export const ChatRowContent = ({
 								</div>
 							)}
 							<div style={{ paddingTop: 10 }}>
-								<Markdown markdown={message.text} />
+								<Markdown markdown={message.text} partial={message.partial} />
 							</div>
 						</>
 					)
@@ -876,7 +876,7 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 								<div style={{ color: "var(--vscode-charts-green)", paddingTop: 10 }}>
-									<Markdown markdown={message.text} />
+									<Markdown markdown={message.text} partial={message.partial} />
 								</div>
 							</div>
 						)
@@ -918,10 +918,63 @@ export const ProgressIndicator = () => (
 	</div>
 )
 
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
+const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boolean }) => {
+	const [isHovering, setIsHovering] = useState(false);
+
 	return (
-		<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
-			<MarkdownBlock markdown={markdown} />
+		<div
+			onMouseEnter={() => setIsHovering(true)}
+			onMouseLeave={() => setIsHovering(false)}
+			style={{ position: "relative" }}
+		>
+			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
+				<MarkdownBlock markdown={markdown} />
+			</div>
+			{markdown && !partial && isHovering && (
+				<div
+					style={{
+						position: "absolute",
+						bottom: "-4px",
+						right: "8px",
+						opacity: 0,
+						animation: "fadeIn 0.2s ease-in-out forwards",
+						borderRadius: "4px"
+					}}
+				>
+					<style>
+						{`
+							@keyframes fadeIn {
+								from { opacity: 0; }
+								to { opacity: 1.0; }
+							}
+						`}
+					</style>
+					<VSCodeButton
+						className="copy-button"
+						appearance="icon"
+						style={{
+							height: "24px",
+							border: "none",
+							background: "var(--vscode-editor-background)",
+							transition: "background 0.2s ease-in-out"
+						}}
+						onClick={() => {
+							navigator.clipboard.writeText(markdown);
+							// Flash the button background briefly to indicate success
+							const button = document.activeElement as HTMLElement;
+							if (button) {
+								button.style.background = "var(--vscode-button-background)";
+								setTimeout(() => {
+									button.style.background = "";
+								}, 200);
+							}
+						}}
+						title="Copy as markdown"
+					>
+						<span className="codicon codicon-copy"></span>
+					</VSCodeButton>
+				</div>
+			)}
 		</div>
 	)
 })
