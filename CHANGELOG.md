@@ -1,5 +1,10 @@
 # Roo Cline Changelog
 
+## [3.1.0]
+
+-   You can now customize the role definition and instructions for each chat mode (Code, Architect, and Ask), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
+-   Add a button to copy markdown out of the chat
+
 ## [3.0.3]
 
 -   Update required vscode engine to ^1.84.0 to match cline
