@@ -102,7 +102,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 		) {
 			hunks.push(currentHunk)
 		}
-
+    
 		return { hunks }
 	}
 
@@ -129,7 +129,7 @@ If you need to move code within a file, create two hunks: one to delete the code
 
 To create a new file, show a diff from "--- /dev/null" to "+++ path/to/new/file.ext".
 
-Here’s an example of the desired format:
+Format Requirements:
 
 \`\`\`diff
 --- mathweb/flask/app.py
@@ -171,6 +171,10 @@ Here’s an example of the desired format:
 
 Be precise, consistent, and follow these rules carefully to generate correct diffs!
 
+Parameters:
+- path: (required) The path of the file to apply the diff to (relative to the current working directory ${cwd})
+- diff: (required) The diff content in unified format to apply to the file.
+
 Usage:
 <apply_diff>
 <path>File path here</path>
@@ -190,6 +194,10 @@ Your diff here
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
 		const originalLines = originalContent.split("\n")
 		let result = [...originalLines]
+
+		if (!parsedDiff.hunks.length) {
+			return { success: false, error: "No hunks found in diff" }
+		}
 
 		for (const hunk of parsedDiff.hunks) {
 			const contextStr = prepareSearchString(hunk.changes)
