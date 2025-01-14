@@ -253,12 +253,11 @@ export async function applyEdit(
 	hunk: Hunk, 
 	content: string[], 
 	matchPosition: number, 
-	confidence: number, 
-	debug: string = '',
+	confidence: number,
 	minConfidence: number = 0.9
 ): Promise<EditResult> {
 	// Don't attempt regular edits if confidence is too low
-	if (confidence < minConfidence && debug === '') {
+	if (confidence < minConfidence) {
 		console.log(`Search confidence (${confidence}) below minimum threshold (${minConfidence}), trying git fallback...`);
 		return applyGitFallback(hunk, content);
 	}
@@ -270,30 +269,10 @@ export async function applyEdit(
 		{ name: 'git-fallback', apply: () => applyGitFallback(hunk, content) }
 	];
 
-	if (debug !== '') {
-		// In debug mode, try all strategies including git fallback
-		const results = await Promise.all([
-			...strategies.map(async strategy => {
-				console.log(`Attempting edit with ${strategy.name} strategy...`);
-				const result = await strategy.apply();
-				console.log(`Strategy ${strategy.name} succeeded with confidence ${result.confidence}`);
-				return result;
-			})
-		]);
-		
-		return results.find(result => result.strategy === debug) || { confidence: 0, result: content, strategy: 'none' };
-	} else {
-		// Normal mode - try strategies sequentially until one succeeds
-		for (const strategy of strategies) {
-			const result = await strategy.apply();
-			if (result.confidence === 1) {
-				return result;
-			}
-		}
-		// If all strategies fail, try git fallback
-		
-		const result = await applyGitFallback(hunk, content);
-		if(result.confidence === 1) {
+	// Try strategies sequentially until one succeeds
+	for (const strategy of strategies) {
+		const result = await strategy.apply();
+		if (result.confidence >= minConfidence) {
 			return result;
 		}
 	}

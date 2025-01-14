@@ -206,7 +206,7 @@ Your diff here
 			const contextStr = prepareSearchString(hunk.changes)
 			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result, 0, this.confidenceThreshold)
 
-			const editResult = await applyEdit(hunk, result, matchPosition, confidence, '', this.confidenceThreshold)
+			const editResult = await applyEdit(hunk, result, matchPosition, confidence, this.confidenceThreshold)
 			if (editResult.confidence >= this.confidenceThreshold) {
 				result = editResult.result
 			} else {
