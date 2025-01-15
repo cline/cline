@@ -492,19 +492,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					</VSCodeTextField>
 					{isAzureOpenAiService && (
 						<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-							wordBreak: "break-word",
-						}}>
-							<span style={{ fontWeight: 500 }}>Hint:</span> The Base URL should be set as shown in the following example.
-							Do not include paths like "/chat/completions" or query parameters like "api-version".
+							style={{
+								fontSize: "12px",
+								marginTop: 3,
+								color: "var(--vscode-descriptionForeground)",
+								wordBreak: "break-word",
+							}}>
+							<span style={{ fontWeight: 500 }}>Hint:</span> The Base URL should be set as shown in the following
+							example. Do not include paths like "/chat/completions" or query parameters like "api-version".
 							<br />
 							Example: https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME
 						</p>
-					)
-					}
+					)}
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%" }}
