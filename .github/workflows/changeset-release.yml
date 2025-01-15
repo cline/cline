@@ -2,20 +2,23 @@ name: Changeset Release
 run-name: Changeset Release ${{ github.actor != 'R00-B0T' && '- Create PR' || '- Update Changelog' }}
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [closed, opened, labeled]
 
 env:
   REPO_PATH: ${{ github.repository }}
+  GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
 
 jobs:
   # Job 1: Create version bump PR when changesets are merged to main
   changeset-pr-version-bump:
     if: >
-      github.event_name == 'pull_request' &&
+      ( github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main' &&
-      github.actor != 'R00-B0T'
+      github.actor != 'R00-B0T' ) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.GIT_REF }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
