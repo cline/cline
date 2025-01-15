@@ -1,11 +1,8 @@
 # Roo Cline Changelog
 
-## 3.1.1
+## [3.1.1]
 
-### Patch Changes
-
--   Fix chat text input layout issues
--   Fix color for the light+ themes
+-   Visual fixes to chat input and settings for the light+ themes
 
 ## [3.1.0]
 
