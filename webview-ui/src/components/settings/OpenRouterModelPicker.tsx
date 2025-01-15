@@ -7,6 +7,7 @@ import styled from "styled-components"
 import { openRouterDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import { highlightFzfMatch } from "../../utils/highlight"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const OpenRouterModelPicker: React.FC = () => {
@@ -70,51 +71,6 @@ const OpenRouterModelPicker: React.FC = () => {
 		}))
 	}, [modelIds])
 
-	const highlightFzfMatch = (text: string, positions: number[]) => {
-		if (!positions.length) return text
-
-		const parts: { text: string; highlight: boolean }[] = []
-		let lastIndex = 0
-
-		// Sort positions to ensure we process them in order
-		positions.sort((a, b) => a - b)
-
-		positions.forEach((pos) => {
-			// Add non-highlighted text before this position
-			if (pos > lastIndex) {
-				parts.push({
-					text: text.substring(lastIndex, pos),
-					highlight: false
-				})
-			}
-
-			// Add highlighted character
-			parts.push({
-				text: text[pos],
-				highlight: true
-			})
-
-			lastIndex = pos + 1
-		})
-
-		// Add any remaining text
-		if (lastIndex < text.length) {
-			parts.push({
-				text: text.substring(lastIndex),
-				highlight: false
-			})
-		}
-
-		// Build final string
-		return parts
-			.map(part =>
-				part.highlight
-					? `<span class="model-item-highlight">${part.text}</span>`
-					: part.text
-			)
-			.join('')
-	}
-
 	const fzf = useMemo(() => {
 		return new Fzf(searchableItems, {
 			selector: item => item.html
@@ -127,7 +83,7 @@ const OpenRouterModelPicker: React.FC = () => {
 		const searchResults = fzf.find(searchTerm)
 		return searchResults.map(result => ({
 			...result.item,
-			html: highlightFzfMatch(result.item.html, Array.from(result.positions))
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
 		}))
 	}, [searchableItems, searchTerm, fzf])
 
