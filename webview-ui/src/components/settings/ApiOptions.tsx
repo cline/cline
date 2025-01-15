@@ -1001,7 +1001,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelInfo: {
 					...openAiModelInfoSaneDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images
-					supportsComputerUse: true // All VSCode LM models support tools
 				},
 			}
 		default:
