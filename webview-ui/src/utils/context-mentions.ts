@@ -178,7 +178,18 @@ export function getContextMenuOptions(
 
 	// Combine suggestions with matching items in the desired order
 	if (suggestions.length > 0 || matchingItems.length > 0) {
-		return [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+		
+		// Remove duplicates based on type and value
+		const seen = new Set()
+		const deduped = allItems.filter(item => {
+			const key = `${item.type}-${item.value}`
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
+		
+		return deduped
 	}
 
 	return [{ type: ContextMenuOptionType.NoResults }]
