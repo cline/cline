@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
-import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
+import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -13,6 +13,11 @@ import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
+import {
+	checkExistKey
+} from "../../../src/shared/checkExistApiConfig"
+import { Mode } from "../../../src/core/prompts/types"
+import { codeMode, CustomPrompts, defaultPrompts } from "../../../src/shared/modes"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -50,7 +55,15 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAlwaysApproveResubmit: (value: boolean) => void
 	requestDelaySeconds: number
 	setRequestDelaySeconds: (value: number) => void
-	experimentalDiffStrategy: boolean
+	setCurrentApiConfigName: (value: string) => void
+	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
+	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
+	mode: Mode
+	setMode: (value: Mode) => void
+	setCustomPrompts: (value: CustomPrompts) => void
+	enhancementApiConfigId?: string
+	setEnhancementApiConfigId: (value: string) => void
+  experimentalDiffStrategy: boolean
 	setExperimentalDiffStrategy: (value: boolean) => void
 }
 
@@ -74,8 +87,13 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
 		alwaysApproveResubmit: false,
-		requestDelaySeconds: 0,
-		experimentalDiffStrategy: false,
+		requestDelaySeconds: 5,
+		currentApiConfigName: 'default',
+		listApiConfigMeta: [],
+		mode: codeMode,
+		customPrompts: defaultPrompts,
+		enhancementApiConfigId: '',
+    experimentalDiffStrategy: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -91,27 +109,27 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
+
+	const setListApiConfigMeta = useCallback((value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })), [setState])
+
+	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
+		vscode.postMessage({
+			type: "upsertApiConfiguration",
+			text: state.currentApiConfigName,
+			apiConfiguration: apiConfig,
+		})
+	}, [state])
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
-				setState(message.state!)
+				setState(prevState => ({
+					...prevState,
+					...message.state!
+				}))
 				const config = message.state?.apiConfiguration
-				const hasKey = config
-					? [
-							config.apiKey,
-							config.glamaApiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-						].some((key) => key !== undefined)
-					: false
+				const hasKey = checkExistKey(config)
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
 				break
@@ -165,8 +183,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
+			case "listApiConfig": {
+				setListApiConfigMeta(message.listApiConfig ?? [])
+				break
+			}
 		}
-	}, [])
+	}, [setListApiConfigMeta])
 
 	useEvent("message", handleMessage)
 
@@ -212,7 +234,13 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
 		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
-		experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
+		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
+		setListApiConfigMeta,
+		onUpdateApiConfig,
+		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
+		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
+		setEnhancementApiConfigId: (value) => setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
+    experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
 		setExperimentalDiffStrategy: (value) => setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value }))
 	}
 

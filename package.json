@@ -3,14 +3,14 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "2.2.44",
+  "version": "3.1.1",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.93.1"
+    "vscode": "^1.84.0"
   },
   "author": {
     "name": "Roo Vet"
@@ -75,6 +75,11 @@
         "icon": "$(server)"
       },
       {
+        "command": "roo-cline.promptsButtonClicked",
+        "title": "Prompts",
+        "icon": "$(notebook)"
+      },
+      {
         "command": "roo-cline.historyButtonClicked",
         "title": "History",
         "icon": "$(history)"
@@ -103,23 +108,28 @@
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.mcpButtonClicked",
+          "command": "roo-cline.promptsButtonClicked",
           "group": "navigation@2",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.historyButtonClicked",
+          "command": "roo-cline.mcpButtonClicked",
           "group": "navigation@3",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.popoutButtonClicked",
+          "command": "roo-cline.historyButtonClicked",
           "group": "navigation@4",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.settingsButtonClicked",
+          "command": "roo-cline.popoutButtonClicked",
           "group": "navigation@5",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.settingsButtonClicked",
+          "group": "navigation@6",
           "when": "view == roo-cline.SidebarProvider"
         }
       ]
@@ -161,7 +171,7 @@
     "test:webview": "cd webview-ui && npm run test",
     "test:extension": "vscode-test",
     "prepare": "husky",
-    "publish:marketplace": "vsce publish",
+    "publish:marketplace": "vsce publish && ovsx publish",
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
     "version-packages": "changeset version && npm install --package-lock-only",
     "vscode:prepublish": "npm run package",
@@ -189,6 +199,7 @@
     "eslint": "^8.57.0",
     "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "jest-simple-dot-reporter": "^1.0.5",
     "lint-staged": "^15.2.11",
     "npm-run-all": "^4.1.5",
     "ts-jest": "^29.2.5",

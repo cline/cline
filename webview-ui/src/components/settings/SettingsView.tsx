@@ -5,6 +5,8 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import McpEnabledToggle from "../mcp/McpEnabledToggle"
+import ApiConfigManager from "./ApiConfigManager"
+import { Mode } from "../../../../src/shared/modes"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -55,12 +57,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysApproveResubmit,
 		requestDelaySeconds,
 		setRequestDelaySeconds,
-		experimentalDiffStrategy,
+		currentApiConfigName,
+		listApiConfigMeta,
+		mode,
+		setMode,
+    experimentalDiffStrategy,
 		setExperimentalDiffStrategy,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
+
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
@@ -91,7 +98,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
-			vscode.postMessage({ type: "experimentalDiffStrategy", bool: experimentalDiffStrategy })
+			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
+			vscode.postMessage({
+				type: "upsertApiConfiguration",
+				text: currentApiConfigName,
+				apiConfiguration
+			})
+			vscode.postMessage({ type: "mode", text: mode })
+      vscode.postMessage({ type: "experimentalDiffStrategy", bool: experimentalDiffStrategy })
 			onDone()
 		}
 	}
@@ -155,8 +169,37 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
 				<div style={{ marginBottom: 5 }}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Provider Settings</h3>
+					<ApiConfigManager
+						currentApiConfigName={currentApiConfigName}
+						listApiConfigMeta={listApiConfigMeta}
+						onSelectConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "loadApiConfiguration",
+								text: configName
+							})
+						}}
+						onDeleteConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "deleteApiConfiguration",
+								text: configName
+							})
+						}}
+						onRenameConfig={(oldName: string, newName: string) => {
+							vscode.postMessage({
+								type: "renameApiConfiguration",
+								values: { oldName, newName },
+								apiConfiguration
+							})
+						}}
+						onUpsertConfig={(configName: string) => {
+							vscode.postMessage({
+								type: "upsertApiConfiguration",
+								text: configName,
+								apiConfiguration
+							})
+						}}
+					/>
 					<ApiOptions
-						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
 					/>
@@ -165,6 +208,37 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div style={{ marginBottom: 5 }}>
 					<div style={{ marginBottom: 15 }}>
 						<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>Agent Settings</h3>
+
+						<div style={{ marginBottom: 15 }}>
+							<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Agent Mode</label>
+							<select
+								value={mode}
+								onChange={(e) => {
+									const value = e.target.value as Mode
+									setMode(value)
+									vscode.postMessage({ type: "mode", text: value })
+								}}
+								style={{
+									width: "100%",
+									padding: "4px 8px",
+									backgroundColor: "var(--vscode-input-background)",
+									color: "var(--vscode-input-foreground)",
+									border: "1px solid var(--vscode-input-border)",
+									borderRadius: "2px",
+									height: "28px"
+								}}>
+								<option value="code">Code</option>
+								<option value="architect">Architect</option>
+								<option value="ask">Ask</option>
+							</select>
+							<p style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+								Select the mode that best fits your needs. Code mode focuses on implementation details, Architect mode on high-level design, and Ask mode on asking questions about the codebase.
+							</p>
+						</div>
 
 						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Preferred Language</label>
 						<select
@@ -207,24 +281,26 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 					</div>
 
-					<VSCodeTextArea
-						value={customInstructions ?? ""}
-						style={{ width: "100%" }}
-						rows={4}
-						placeholder={
-							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-						}
-						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+					<div style={{ marginBottom: 15 }}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
-					</VSCodeTextArea>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules and .cursorrules in the working directory are also included.
-					</p>
+						<VSCodeTextArea
+							value={customInstructions ?? ""}
+							style={{ width: "100%" }}
+							rows={4}
+							placeholder={
+								'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+							}
+							onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}
+						/>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules in the working directory are also included. For mode-specific instructions, use the <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> Prompts tab in the top menu.
+						</p>
+					</div>
 
 					<McpEnabledToggle />
 				</div>
@@ -427,10 +503,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 5 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowMcp}
-							onChange={(e: any) => {
-								setAlwaysAllowMcp(e.target.checked)
-								vscode.postMessage({ type: "alwaysAllowMcp", bool: e.target.checked })
-							}}>
+							onChange={(e: any) => setAlwaysAllowMcp(e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve MCP tools</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -505,7 +578,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 													minWidth: '20px',
 													display: 'flex',
 													alignItems: 'center',
-													justifyContent: 'center'
+													justifyContent: 'center',
+													color: 'var(--vscode-button-foreground)',
 												}}
 												onClick={() => {
 													const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
@@ -658,7 +732,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
 						<VSCodeLink href="https://github.com/RooVetGit/Roo-Cline" style={{ display: "inline" }}>
-							https://github.com/RooVetGit/Roo-Cline
+							github.com/RooVetGit/Roo-Cline
+						</VSCodeLink> or join {" "}
+						<VSCodeLink href="https://www.reddit.com/r/roocline/" style={{ display: "inline" }}>
+							reddit.com/r/roocline
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>

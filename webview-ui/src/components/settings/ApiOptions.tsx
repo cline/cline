@@ -43,13 +43,12 @@ import OpenAiModelPicker from "./OpenAiModelPicker"
 import GlamaModelPicker from "./GlamaModelPicker"
 
 interface ApiOptionsProps {
-	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
+	const { apiConfiguration, setApiConfiguration, uriScheme, onUpdateApiConfig } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
@@ -57,7 +56,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
+		const apiConfig = { ...apiConfiguration, [field]: event.target.value }
+		onUpdateApiConfig(apiConfig)
+		setApiConfiguration(apiConfig)
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -693,16 +694,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</p>
 			)}
 
-			{selectedProvider === "glama" && showModelOptions && <GlamaModelPicker />}
+			{selectedProvider === "glama" && <GlamaModelPicker />}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
+			{selectedProvider === "openrouter" && <OpenRouterModelPicker />}
 
 			{selectedProvider !== "glama" &&
 				selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
-				selectedProvider !== "lmstudio" &&
-				showModelOptions && (
+				selectedProvider !== "lmstudio" && (
 					<>
 						<div className="dropdown-container">
 							<label htmlFor="model-id">

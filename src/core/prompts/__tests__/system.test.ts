@@ -1,112 +1,320 @@
+import { SYSTEM_PROMPT, addCustomInstructions } from '../system'
+import { McpHub } from '../../../services/mcp/McpHub'
+import { McpServer } from '../../../shared/mcp'
+import { ClineProvider } from '../../../core/webview/ClineProvider'
+import { SearchReplaceDiffStrategy } from '../../../core/diff/strategies/search-replace'
 import fs from 'fs/promises'
-import path from 'path'
 import os from 'os'
-import { addCustomInstructions } from '../system'
+import { codeMode, askMode, architectMode } from '../modes'
+// Import path utils to get access to toPosix string extension
+import '../../../utils/path'
 
-// Mock external dependencies
-jest.mock('os-name', () => () => 'macOS')
-jest.mock('default-shell', () => '/bin/zsh')
+// Mock environment-specific values for consistent tests
 jest.mock('os', () => ({
-  homedir: () => '/Users/test',
-  ...jest.requireActual('os')
+  ...jest.requireActual('os'),
+  homedir: () => '/home/user'
 }))
 
-describe('system.ts', () => {
-  let tempDir: string
+jest.mock('default-shell', () => '/bin/bash')
 
-  beforeEach(async () => {
-    // Create a temporary directory for test files
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cline-test-'))
+jest.mock('os-name', () => () => 'Linux')
+
+// Mock fs.readFile to return empty mcpServers config and mock rules files
+jest.mock('fs/promises', () => ({
+  ...jest.requireActual('fs/promises'),
+  readFile: jest.fn().mockImplementation(async (path: string) => {
+    if (path.endsWith('mcpSettings.json')) {
+      return '{"mcpServers": {}}'
+    }
+    if (path.endsWith('.clinerules-code')) {
+      return '# Code Mode Rules\n1. Code specific rule'
+    }
+    if (path.endsWith('.clinerules-ask')) {
+      return '# Ask Mode Rules\n1. Ask specific rule'
+    }
+    if (path.endsWith('.clinerules-architect')) {
+      return '# Architect Mode Rules\n1. Architect specific rule'
+    }
+    if (path.endsWith('.clinerules')) {
+      return '# Test Rules\n1. First rule\n2. Second rule'
+    }
+    return ''
+  }),
+  writeFile: jest.fn().mockResolvedValue(undefined)
+}))
+
+// Create a minimal mock of ClineProvider
+const mockProvider = {
+  ensureMcpServersDirectoryExists: async () => '/mock/mcp/path',
+  ensureSettingsDirectoryExists: async () => '/mock/settings/path',
+  postMessageToWebview: async () => {},
+  context: {
+    extension: {
+      packageJSON: {
+        version: '1.0.0'
+      }
+    }
+  }
+} as unknown as ClineProvider
+
+// Instead of extending McpHub, create a mock that implements just what we need
+const createMockMcpHub = (): McpHub => ({
+  getServers: () => [],
+  getMcpServersPath: async () => '/mock/mcp/path',
+  getMcpSettingsFilePath: async () => '/mock/settings/path',
+  dispose: async () => {},
+  // Add other required public methods with no-op implementations
+  restartConnection: async () => {},
+  readResource: async () => ({ contents: [] }),
+  callTool: async () => ({ content: [] }),
+  toggleServerDisabled: async () => {},
+  toggleToolAlwaysAllow: async () => {},
+  isConnecting: false,
+  connections: []
+} as unknown as McpHub)
+
+describe('SYSTEM_PROMPT', () => {
+  let mockMcpHub: McpHub
+
+  beforeEach(() => {
+    jest.clearAllMocks()
   })
 
   afterEach(async () => {
-    // Clean up temporary directory after each test
-    await fs.rm(tempDir, { recursive: true, force: true })
+    // Clean up any McpHub instances
+    if (mockMcpHub) {
+      await mockMcpHub.dispose()
+    }
   })
 
-  describe('addCustomInstructions', () => {
-    it('should include content from .clinerules and .cursorrules if present', async () => {
-      // Create test rule files
-      await fs.writeFile(path.join(tempDir, '.clinerules'), 'Always write tests\nUse TypeScript')
-      await fs.writeFile(path.join(tempDir, '.cursorrules'), 'Format code before committing')
+  it('should maintain consistent system prompt', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false, // supportsComputerUse
+      undefined, // mcpHub
+      undefined, // diffStrategy
+      undefined // browserViewportSize
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
 
-      const customInstructions = 'Base instructions'
-      const result = await addCustomInstructions(customInstructions, tempDir)
+  it('should include browser actions when supportsComputerUse is true', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      true,
+      undefined,
+      undefined,
+      '1280x800'
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
 
-      // Verify all instructions are included
-      expect(result).toContain('Base instructions')
-      expect(result).toContain('Always write tests')
-      expect(result).toContain('Use TypeScript')
-      expect(result).toContain('Format code before committing')
-      expect(result).toContain('Rules from .clinerules:')
-      expect(result).toContain('Rules from .cursorrules:')
+  it('should include MCP server info when mcpHub is provided', async () => {
+    mockMcpHub = createMockMcpHub()
+
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      mockMcpHub
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
+  it('should explicitly handle undefined mcpHub', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined, // explicitly undefined mcpHub
+      undefined,
+      undefined
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
+  it('should handle different browser viewport sizes', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      true,
+      undefined,
+      undefined,
+      '900x600' // different viewport size
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
+  it('should include diff strategy tool description', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined,
+      new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+      undefined
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
+  afterAll(() => {
+    jest.restoreAllMocks()
+  })
+})
+
+describe('addCustomInstructions', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('should prioritize mode-specific rules for code mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      codeMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific rules for ask mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      askMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific rules for architect mode', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      architectMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should fall back to generic rules when mode-specific rules not found', async () => {
+    // Mock readFile to return ENOENT for mode-specific file
+    const mockReadFile = jest.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('.clinerules-code')) {
+        const error = new Error('ENOENT') as NodeJS.ErrnoException
+        error.code = 'ENOENT'
+        throw error
+      }
+      if (path.endsWith('.clinerules')) {
+        return '# Test Rules\n1. First rule\n2. Second rule'
+      }
+      return ''
     })
+    jest.spyOn(fs, 'readFile').mockImplementation(mockReadFile)
 
-    it('should handle missing rule files gracefully', async () => {
-      const customInstructions = 'Base instructions'
-      const result = await addCustomInstructions(customInstructions, tempDir)
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-      // Should only contain base instructions
-      expect(result).toContain('Base instructions')
-      expect(result).not.toContain('Rules from')
-    })
+  it('should include preferred language when provided', async () => {
+    const instructions = await addCustomInstructions(
+      { preferredLanguage: 'Spanish' },
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-    it('should handle empty rule files', async () => {
-      // Create empty rule files
-      await fs.writeFile(path.join(tempDir, '.clinerules'), '')
-      await fs.writeFile(path.join(tempDir, '.cursorrules'), '')
+  it('should include custom instructions when provided', async () => {
+    const instructions = await addCustomInstructions(
+      { customInstructions: 'Custom test instructions' },
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-      const customInstructions = 'Base instructions'
-      const result = await addCustomInstructions(customInstructions, tempDir)
+  it('should combine all custom instructions', async () => {
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'Custom test instructions',
+        preferredLanguage: 'French'
+      },
+      '/test/path',
+      codeMode
+    )
+    expect(instructions).toMatchSnapshot()
+  })
 
-      // Should only contain base instructions
-      expect(result).toContain('Base instructions')
-      expect(result).not.toContain('Rules from')
-    })
+  it('should handle undefined mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-    it('should handle whitespace-only rule files', async () => {
-      // Create rule files with only whitespace
-      await fs.writeFile(path.join(tempDir, '.clinerules'), '  \n  \t  ')
-      await fs.writeFile(path.join(tempDir, '.cursorrules'), ' \n ')
+  it('should trim mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      { customInstructions: '  Custom mode instructions  ' },
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-      const customInstructions = 'Base instructions'
-      const result = await addCustomInstructions(customInstructions, tempDir)
+  it('should handle empty mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      { customInstructions: '' },
+      '/test/path'
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-      // Should only contain base instructions
-      expect(result).toContain('Base instructions')
-      expect(result).not.toContain('Rules from')
-    })
+  it('should combine global and mode-specific instructions', async () => {
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'Global instructions',
+        customPrompts: {
+          code: { customInstructions: 'Mode-specific instructions' }
+        }
+      },
+      '/test/path',
+      codeMode
+    )
+    
+    expect(instructions).toMatchSnapshot()
+  })
 
-    it('should handle one rule file present and one missing', async () => {
-      // Create only .clinerules
-      await fs.writeFile(path.join(tempDir, '.clinerules'), 'Always write tests')
+  it('should prioritize mode-specific instructions after global ones', async () => {
+    const instructions = await addCustomInstructions(
+      {
+        customInstructions: 'First instruction',
+        customPrompts: {
+          code: { customInstructions: 'Second instruction' }
+        }
+      },
+      '/test/path',
+      codeMode
+    )
+    
+    const instructionParts = instructions.split('\n\n')
+    const globalIndex = instructionParts.findIndex(part => part.includes('First instruction'))
+    const modeSpecificIndex = instructionParts.findIndex(part => part.includes('Second instruction'))
+    
+    expect(globalIndex).toBeLessThan(modeSpecificIndex)
+    expect(instructions).toMatchSnapshot()
+  })
 
-      const customInstructions = 'Base instructions'
-      const result = await addCustomInstructions(customInstructions, tempDir)
-
-      // Should contain base instructions and .clinerules content
-      expect(result).toContain('Base instructions')
-      expect(result).toContain('Always write tests')
-      expect(result).toContain('Rules from .clinerules:')
-      expect(result).not.toContain('Rules from .cursorrules:')
-    })
-
-    it('should handle empty custom instructions with rule files', async () => {
-      await fs.writeFile(path.join(tempDir, '.clinerules'), 'Always write tests')
-      await fs.writeFile(path.join(tempDir, '.cursorrules'), 'Format code before committing')
-
-      const result = await addCustomInstructions('', tempDir)
-
-      // Should contain rule file content even with empty custom instructions
-      expect(result).toContain('Always write tests')
-      expect(result).toContain('Format code before committing')
-      expect(result).toContain('Rules from .clinerules:')
-      expect(result).toContain('Rules from .cursorrules:')
-    })
-
-    it('should return empty string when no instructions or rules exist', async () => {
-      const result = await addCustomInstructions('', tempDir)
-      expect(result).toBe('')
-    })
+  afterAll(() => {
+    jest.restoreAllMocks()
   })
 })

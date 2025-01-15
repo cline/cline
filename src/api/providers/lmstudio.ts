@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-export class LmStudioHandler implements ApiHandler {
+export class LmStudioHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
@@ -51,6 +51,22 @@ export class LmStudioHandler implements ApiHandler {
 		return {
 			id: this.options.lmStudioModelId || "",
 			info: openAiModelInfoSaneDefaults,
+		}
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const response = await this.client.chat.completions.create({
+				model: this.getModel().id,
+				messages: [{ role: "user", content: prompt }],
+				temperature: 0,
+				stream: false
+			})
+			return response.choices[0]?.message.content || ""
+		} catch (error) {
+			throw new Error(
+				"Please check the LM Studio developer logs to debug what went wrong. You may need to load the model with a larger context length to work with Cline's prompts.",
+			)
 		}
 	}
 }

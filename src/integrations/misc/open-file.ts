@@ -20,11 +20,41 @@ export async function openImage(dataUri: string) {
 	}
 }
 
-export async function openFile(absolutePath: string) {
-	try {
-		const uri = vscode.Uri.file(absolutePath)
+interface OpenFileOptions {
+	create?: boolean;
+	content?: string;
+}
 
-		// Check if the document is already open in a tab group that's not in the active editor's column. If it is, then close it (if not dirty) so that we don't duplicate tabs
+export async function openFile(filePath: string, options: OpenFileOptions = {}) {
+	try {
+		// Get workspace root
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+		if (!workspaceRoot) {
+			throw new Error('No workspace root found')
+		}
+
+		// If path starts with ./, resolve it relative to workspace root
+		const fullPath = filePath.startsWith('./') ?
+			path.join(workspaceRoot, filePath.slice(2)) :
+			filePath
+
+		const uri = vscode.Uri.file(fullPath)
+
+		// Check if file exists
+		try {
+			await vscode.workspace.fs.stat(uri)
+		} catch {
+			// File doesn't exist
+			if (!options.create) {
+				throw new Error('File does not exist')
+			}
+			
+			// Create with provided content or empty string
+			const content = options.content || ''
+			await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'))
+		}
+
+		// Check if the document is already open in a tab group that's not in the active editor's column
 		try {
 			for (const group of vscode.window.tabGroups.all) {
 				const existingTab = group.tabs.find(
@@ -47,6 +77,10 @@ export async function openFile(absolutePath: string) {
 		const document = await vscode.workspace.openTextDocument(uri)
 		await vscode.window.showTextDocument(document, { preview: false })
 	} catch (error) {
-		vscode.window.showErrorMessage(`Could not open file!`)
+		if (error instanceof Error) {
+			vscode.window.showErrorMessage(`Could not open file: ${error.message}`)
+		} else {
+			vscode.window.showErrorMessage(`Could not open file!`)
+		}
 	}
 }

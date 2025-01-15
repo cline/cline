@@ -1,5 +1,5 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import Fuse from "fuse.js"
+import { Fzf } from "fzf"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
@@ -7,11 +7,11 @@ import styled from "styled-components"
 import { openRouterDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { highlight } from "../history/HistoryView"
+import { highlightFzfMatch } from "../../utils/highlight"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const OpenRouterModelPicker: React.FC = () => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, onUpdateApiConfig } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -22,17 +22,26 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setApiConfiguration({
+		const apiConfig = {
 			...apiConfiguration,
 			openRouterModelId: newModelId,
 			openRouterModelInfo: openRouterModels[newModelId],
-		})
+		}
+
+		setApiConfiguration(apiConfig)
+		onUpdateApiConfig(apiConfig)
 		setSearchTerm(newModelId)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
+
+	useEffect(() => {
+		if (apiConfiguration?.openRouterModelId && apiConfiguration?.openRouterModelId !== searchTerm) {
+			setSearchTerm(apiConfiguration?.openRouterModelId)
+		}
+	}, [apiConfiguration, searchTerm])
 
 	useMount(() => {
 		vscode.postMessage({ type: "refreshOpenRouterModels" })
@@ -62,25 +71,21 @@ const OpenRouterModelPicker: React.FC = () => {
 		}))
 	}, [modelIds])
 
-	const fuse = useMemo(() => {
-		return new Fuse(searchableItems, {
-			keys: ["html"], // highlight function will update this
-			threshold: 0.6,
-			shouldSort: true,
-			isCaseSensitive: false,
-			ignoreLocation: false,
-			includeMatches: true,
-			minMatchCharLength: 1,
+	const fzf = useMemo(() => {
+		return new Fzf(searchableItems, {
+			selector: item => item.html
 		})
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight")
-			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
-		return results
-	}, [searchableItems, searchTerm, fuse])
+		if (!searchTerm) return searchableItems
+
+		const searchResults = fzf.find(searchTerm)
+		return searchResults.map(result => ({
+			...result.item,
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
+		}))
+	}, [searchableItems, searchTerm, fzf])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return

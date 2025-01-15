@@ -1,192 +1,224 @@
-import { OpenAiHandler } from '../openai'
-import { ApiHandlerOptions, openAiModelInfoSaneDefaults } from '../../../shared/api'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { Anthropic } from '@anthropic-ai/sdk'
+import { OpenAiHandler } from '../openai';
+import { ApiHandlerOptions } from '../../../shared/api';
+import { ApiStream } from '../../transform/stream';
+import OpenAI from 'openai';
+import { Anthropic } from '@anthropic-ai/sdk';
 
-// Mock dependencies
-jest.mock('openai')
+// Mock OpenAI client
+const mockCreate = jest.fn();
+jest.mock('openai', () => {
+    return {
+        __esModule: true,
+        default: jest.fn().mockImplementation(() => ({
+            chat: {
+                completions: {
+                    create: mockCreate.mockImplementation(async (options) => {
+                        if (!options.stream) {
+                            return {
+                                id: 'test-completion',
+                                choices: [{
+                                    message: { role: 'assistant', content: 'Test response', refusal: null },
+                                    finish_reason: 'stop',
+                                    index: 0
+                                }],
+                                usage: {
+                                    prompt_tokens: 10,
+                                    completion_tokens: 5,
+                                    total_tokens: 15
+                                }
+                            };
+                        }
+                        
+                        return {
+                            [Symbol.asyncIterator]: async function* () {
+                                yield {
+                                    choices: [{
+                                        delta: { content: 'Test response' },
+                                        index: 0
+                                    }],
+                                    usage: null
+                                };
+                                yield {
+                                    choices: [{
+                                        delta: {},
+                                        index: 0
+                                    }],
+                                    usage: {
+                                        prompt_tokens: 10,
+                                        completion_tokens: 5,
+                                        total_tokens: 15
+                                    }
+                                };
+                            }
+                        };
+                    })
+                }
+            }
+        }))
+    };
+});
 
 describe('OpenAiHandler', () => {
-    const mockOptions: ApiHandlerOptions = {
-        openAiApiKey: 'test-key',
-        openAiModelId: 'gpt-4',
-        openAiStreamingEnabled: true,
-        openAiBaseUrl: 'https://api.openai.com/v1'
-    }
+    let handler: OpenAiHandler;
+    let mockOptions: ApiHandlerOptions;
 
     beforeEach(() => {
-        jest.clearAllMocks()
-    })
+        mockOptions = {
+            openAiApiKey: 'test-api-key',
+            openAiModelId: 'gpt-4',
+            openAiBaseUrl: 'https://api.openai.com/v1'
+        };
+        handler = new OpenAiHandler(mockOptions);
+        mockCreate.mockClear();
+    });
 
-    test('constructor initializes with correct options', () => {
-        const handler = new OpenAiHandler(mockOptions)
-        expect(handler).toBeInstanceOf(OpenAiHandler)
-        expect(OpenAI).toHaveBeenCalledWith({
-            apiKey: mockOptions.openAiApiKey,
-            baseURL: mockOptions.openAiBaseUrl
-        })
-    })
+    describe('constructor', () => {
+        it('should initialize with provided options', () => {
+            expect(handler).toBeInstanceOf(OpenAiHandler);
+            expect(handler.getModel().id).toBe(mockOptions.openAiModelId);
+        });
 
-    test('constructor initializes Azure client when Azure URL is provided', () => {
-        const azureOptions: ApiHandlerOptions = {
-            ...mockOptions,
-            openAiBaseUrl: 'https://example.azure.com',
-            azureApiVersion: '2023-05-15'
-        }
-        const handler = new OpenAiHandler(azureOptions)
-        expect(handler).toBeInstanceOf(OpenAiHandler)
-        expect(AzureOpenAI).toHaveBeenCalledWith({
-            baseURL: azureOptions.openAiBaseUrl,
-            apiKey: azureOptions.openAiApiKey,
-            apiVersion: azureOptions.azureApiVersion
-        })
-    })
+        it('should use custom base URL if provided', () => {
+            const customBaseUrl = 'https://custom.openai.com/v1';
+            const handlerWithCustomUrl = new OpenAiHandler({
+                ...mockOptions,
+                openAiBaseUrl: customBaseUrl
+            });
+            expect(handlerWithCustomUrl).toBeInstanceOf(OpenAiHandler);
+        });
+    });
 
-    test('getModel returns correct model info', () => {
-        const handler = new OpenAiHandler(mockOptions)
-        const result = handler.getModel()
-        
-        expect(result).toEqual({
-            id: mockOptions.openAiModelId,
-            info: openAiModelInfoSaneDefaults
-        })
-    })
-
-    test('createMessage handles streaming correctly when enabled', async () => {
-        const handler = new OpenAiHandler({
-            ...mockOptions,
-            openAiStreamingEnabled: true,
-            includeMaxTokens: true
-        })
-        
-        const mockStream = {
-            async *[Symbol.asyncIterator]() {
-                yield {
-                    choices: [{
-                        delta: {
-                            content: 'test response'
-                        }
-                    }],
-                    usage: {
-                        prompt_tokens: 10,
-                        completion_tokens: 5
-                    }
-                }
-            }
-        }
-
-        const mockCreate = jest.fn().mockResolvedValue(mockStream)
-        ;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
-            completions: { create: mockCreate }
-        } as any
-
-        const systemPrompt = 'test system prompt'
+    describe('createMessage', () => {
+        const systemPrompt = 'You are a helpful assistant.';
         const messages: Anthropic.Messages.MessageParam[] = [
-            { role: 'user', content: 'test message' }
-        ]
-
-        const generator = handler.createMessage(systemPrompt, messages)
-        const chunks = []
-        
-        for await (const chunk of generator) {
-            chunks.push(chunk)
-        }
-
-        expect(chunks).toEqual([
             {
-                type: 'text',
-                text: 'test response'
-            },
-            {
-                type: 'usage',
-                inputTokens: 10,
-                outputTokens: 5
+                role: 'user',
+                content: [{ 
+                    type: 'text' as const,
+                    text: 'Hello!'
+                }]
             }
-        ])
+        ];
 
-        expect(mockCreate).toHaveBeenCalledWith({
-            model: mockOptions.openAiModelId,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: 'test message' }
-            ],
-            temperature: 0,
-            stream: true,
-            stream_options: { include_usage: true },
-            max_tokens: openAiModelInfoSaneDefaults.maxTokens
-        })
-    })
+        it('should handle non-streaming mode', async () => {
+            const handler = new OpenAiHandler({
+                ...mockOptions,
+                openAiStreamingEnabled: false
+            });
 
-    test('createMessage handles non-streaming correctly when disabled', async () => {
-        const handler = new OpenAiHandler({
-            ...mockOptions,
-            openAiStreamingEnabled: false
-        })
-        
-        const mockResponse = {
-            choices: [{
-                message: {
-                    content: 'test response'
+            const stream = handler.createMessage(systemPrompt, messages);
+            const chunks: any[] = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+
+            expect(chunks.length).toBeGreaterThan(0);
+            const textChunk = chunks.find(chunk => chunk.type === 'text');
+            const usageChunk = chunks.find(chunk => chunk.type === 'usage');
+            
+            expect(textChunk).toBeDefined();
+            expect(textChunk?.text).toBe('Test response');
+            expect(usageChunk).toBeDefined();
+            expect(usageChunk?.inputTokens).toBe(10);
+            expect(usageChunk?.outputTokens).toBe(5);
+        });
+
+        it('should handle streaming responses', async () => {
+            const stream = handler.createMessage(systemPrompt, messages);
+            const chunks: any[] = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+
+            expect(chunks.length).toBeGreaterThan(0);
+            const textChunks = chunks.filter(chunk => chunk.type === 'text');
+            expect(textChunks).toHaveLength(1);
+            expect(textChunks[0].text).toBe('Test response');
+        });
+    });
+
+    describe('error handling', () => {
+        const testMessages: Anthropic.Messages.MessageParam[] = [
+            {
+                role: 'user',
+                content: [{ 
+                    type: 'text' as const,
+                    text: 'Hello'
+                }]
+            }
+        ];
+
+        it('should handle API errors', async () => {
+            mockCreate.mockRejectedValueOnce(new Error('API Error'));
+
+            const stream = handler.createMessage('system prompt', testMessages);
+
+            await expect(async () => {
+                for await (const chunk of stream) {
+                    // Should not reach here
                 }
-            }],
-            usage: {
-                prompt_tokens: 10,
-                completion_tokens: 5
-            }
-        }
+            }).rejects.toThrow('API Error');
+        });
 
-        const mockCreate = jest.fn().mockResolvedValue(mockResponse)
-        ;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
-            completions: { create: mockCreate }
-        } as any
+        it('should handle rate limiting', async () => {
+            const rateLimitError = new Error('Rate limit exceeded');
+            rateLimitError.name = 'Error';
+            (rateLimitError as any).status = 429;
+            mockCreate.mockRejectedValueOnce(rateLimitError);
 
-        const systemPrompt = 'test system prompt'
-        const messages: Anthropic.Messages.MessageParam[] = [
-            { role: 'user', content: 'test message' }
-        ]
+            const stream = handler.createMessage('system prompt', testMessages);
 
-        const generator = handler.createMessage(systemPrompt, messages)
-        const chunks = []
-        
-        for await (const chunk of generator) {
-            chunks.push(chunk)
-        }
+            await expect(async () => {
+                for await (const chunk of stream) {
+                    // Should not reach here
+                }
+            }).rejects.toThrow('Rate limit exceeded');
+        });
+    });
 
-        expect(chunks).toEqual([
-            {
-                type: 'text',
-                text: 'test response'
-            },
-            {
-                type: 'usage',
-                inputTokens: 10,
-                outputTokens: 5
-            }
-        ])
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockCreate).toHaveBeenCalledWith({
+                model: mockOptions.openAiModelId,
+                messages: [{ role: 'user', content: 'Test prompt' }],
+                temperature: 0
+            });
+        });
 
-        expect(mockCreate).toHaveBeenCalledWith({
-            model: mockOptions.openAiModelId,
-            messages: [
-                { role: 'user', content: systemPrompt },
-                { role: 'user', content: 'test message' }
-            ]
-        })
-    })
+        it('should handle API errors', async () => {
+            mockCreate.mockRejectedValueOnce(new Error('API Error'));
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('OpenAI completion error: API Error');
+        });
 
-    test('createMessage handles API errors', async () => {
-        const handler = new OpenAiHandler(mockOptions)
-        const mockStream = {
-            async *[Symbol.asyncIterator]() {
-                throw new Error('API Error')
-            }
-        }
+        it('should handle empty response', async () => {
+            mockCreate.mockImplementationOnce(() => ({
+                choices: [{ message: { content: '' } }]
+            }));
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+    });
 
-        const mockCreate = jest.fn().mockResolvedValue(mockStream)
-        ;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
-            completions: { create: mockCreate }
-        } as any
+    describe('getModel', () => {
+        it('should return model info with sane defaults', () => {
+            const model = handler.getModel();
+            expect(model.id).toBe(mockOptions.openAiModelId);
+            expect(model.info).toBeDefined();
+            expect(model.info.contextWindow).toBe(128_000);
+            expect(model.info.supportsImages).toBe(true);
+        });
 
-        const generator = handler.createMessage('test', [])
-        await expect(generator.next()).rejects.toThrow('API Error')
-    })
-})
+        it('should handle undefined model ID', () => {
+            const handlerWithoutModel = new OpenAiHandler({
+                ...mockOptions,
+                openAiModelId: undefined
+            });
+            const model = handlerWithoutModel.getModel();
+            expect(model.id).toBe('');
+            expect(model.info).toBeDefined();
+        });
+    });
+});

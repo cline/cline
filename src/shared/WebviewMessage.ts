@@ -1,10 +1,19 @@
 import { ApiConfiguration, ApiProvider } from "./api"
+import { Mode, PromptComponent } from "./modes"
+
+export type PromptMode = Mode | 'enhance'
 
 export type AudioType = "notification" | "celebration" | "progress_loop"
 
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
+		| "currentApiConfigName"
+		| "upsertApiConfiguration"
+		| "deleteApiConfiguration"
+		| "loadApiConfiguration"
+		| "renameApiConfiguration"
+		| "getListApiConfiguration"
 		| "customInstructions"
 		| "allowedCommands"
 		| "alwaysAllowReadOnly"
@@ -54,7 +63,15 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
-		| "experimentalDiffStrategy"
+		| "setApiConfigPassword"
+		| "mode"
+		| "updatePrompt"
+		| "updateEnhancedPrompt"
+		| "getSystemPrompt"
+		| "systemPrompt"
+		| "enhancementApiConfigId"
+    | "experimentalDiffStrategy"
+
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -67,6 +84,9 @@ export interface WebviewMessage {
 	serverName?: string
 	toolName?: string
 	alwaysAllow?: boolean
+	mode?: Mode
+	promptMode?: PromptMode
+	customPrompt?: PromptComponent
 	dataUrls?: string[]
 	values?: Record<string, any>
 	query?: string
