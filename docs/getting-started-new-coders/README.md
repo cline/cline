@@ -87,6 +87,8 @@ Hey Cline! Could you help me create a new project folder called "hello-world" in
 
 Feel free to contact me, and I'll help you get started with Cline.
 
-nick | 608-558-2410
+-Nick
+
+email nick@cline.bot | text 608-558-2410
 
 Join our Discord community: [https://discord.gg/cline](https://discord.gg/cline)
