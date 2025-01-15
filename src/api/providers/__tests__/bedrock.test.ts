@@ -119,6 +119,108 @@ describe('AwsBedrockHandler', () => {
         });
     });
 
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const mockResponse = {
+                output: new TextEncoder().encode(JSON.stringify({
+                    content: 'Test response'
+                }))
+            };
+
+            const mockSend = jest.fn().mockResolvedValue(mockResponse);
+            handler['client'] = {
+                send: mockSend
+            } as unknown as BedrockRuntimeClient;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+                input: expect.objectContaining({
+                    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+                    messages: expect.arrayContaining([
+                        expect.objectContaining({
+                            role: 'user',
+                            content: [{ text: 'Test prompt' }]
+                        })
+                    ]),
+                    inferenceConfig: expect.objectContaining({
+                        maxTokens: 5000,
+                        temperature: 0.3,
+                        topP: 0.1
+                    })
+                })
+            }));
+        });
+
+        it('should handle API errors', async () => {
+            const mockError = new Error('AWS Bedrock error');
+            const mockSend = jest.fn().mockRejectedValue(mockError);
+            handler['client'] = {
+                send: mockSend
+            } as unknown as BedrockRuntimeClient;
+
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('Bedrock completion error: AWS Bedrock error');
+        });
+
+        it('should handle invalid response format', async () => {
+            const mockResponse = {
+                output: new TextEncoder().encode('invalid json')
+            };
+
+            const mockSend = jest.fn().mockResolvedValue(mockResponse);
+            handler['client'] = {
+                send: mockSend
+            } as unknown as BedrockRuntimeClient;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+
+        it('should handle empty response', async () => {
+            const mockResponse = {
+                output: new TextEncoder().encode(JSON.stringify({}))
+            };
+
+            const mockSend = jest.fn().mockResolvedValue(mockResponse);
+            handler['client'] = {
+                send: mockSend
+            } as unknown as BedrockRuntimeClient;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+
+        it('should handle cross-region inference', async () => {
+            handler = new AwsBedrockHandler({
+                apiModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+                awsAccessKey: 'test-access-key',
+                awsSecretKey: 'test-secret-key',
+                awsRegion: 'us-east-1',
+                awsUseCrossRegionInference: true
+            });
+
+            const mockResponse = {
+                output: new TextEncoder().encode(JSON.stringify({
+                    content: 'Test response'
+                }))
+            };
+
+            const mockSend = jest.fn().mockResolvedValue(mockResponse);
+            handler['client'] = {
+                send: mockSend
+            } as unknown as BedrockRuntimeClient;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+                input: expect.objectContaining({
+                    modelId: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0'
+                })
+            }));
+        });
+    });
+
     describe('getModel', () => {
         it('should return correct model info in test environment', () => {
             const modelInfo = handler.getModel();

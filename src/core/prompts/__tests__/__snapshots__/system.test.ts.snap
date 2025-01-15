@@ -2185,6 +2185,66 @@ Custom test instructions
 2. Second rule"
 `;
 
+exports[`addCustomInstructions should combine global and mode-specific instructions 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+Global instructions
+
+Mode-specific instructions
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should fall back to generic rules when mode-specific rules not found 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should handle empty mode-specific instructions 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should handle undefined mode-specific instructions 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
 exports[`addCustomInstructions should include custom instructions when provided 1`] = `
 "
 ====
@@ -2217,13 +2277,87 @@ You should always speak and think in the Spanish language.
 2. Second rule"
 `;
 
-exports[`addCustomInstructions should include rules from .clinerules 1`] = `
+exports[`addCustomInstructions should prioritize mode-specific instructions after global ones 1`] = `
 "
 ====
 
 USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+First instruction
+
+Second instruction
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should prioritize mode-specific rules for architect mode 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules-architect:
+# Architect Mode Rules
+1. Architect specific rule
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should prioritize mode-specific rules for ask mode 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules-ask:
+# Ask Mode Rules
+1. Ask specific rule
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should prioritize mode-specific rules for code mode 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+# Rules from .clinerules-code:
+# Code Mode Rules
+1. Code specific rule
+
+# Rules from .clinerules:
+# Test Rules
+1. First rule
+2. Second rule"
+`;
+
+exports[`addCustomInstructions should trim mode-specific instructions 1`] = `
+"
+====
+
+USER'S CUSTOM INSTRUCTIONS
+
+The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+
+Custom mode instructions
 
 # Rules from .clinerules:
 # Test Rules

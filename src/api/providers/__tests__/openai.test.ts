@@ -176,6 +176,32 @@ describe('OpenAiHandler', () => {
         });
     });
 
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockCreate).toHaveBeenCalledWith({
+                model: mockOptions.openAiModelId,
+                messages: [{ role: 'user', content: 'Test prompt' }],
+                temperature: 0
+            });
+        });
+
+        it('should handle API errors', async () => {
+            mockCreate.mockRejectedValueOnce(new Error('API Error'));
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('OpenAI completion error: API Error');
+        });
+
+        it('should handle empty response', async () => {
+            mockCreate.mockImplementationOnce(() => ({
+                choices: [{ message: { content: '' } }]
+            }));
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+    });
+
     describe('getModel', () => {
         it('should return model info with sane defaults', () => {
             const model = handler.getModel();

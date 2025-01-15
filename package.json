@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "3.0.3",
+  "version": "3.1.1",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -75,6 +75,11 @@
         "icon": "$(server)"
       },
       {
+        "command": "roo-cline.promptsButtonClicked",
+        "title": "Prompts",
+        "icon": "$(notebook)"
+      },
+      {
         "command": "roo-cline.historyButtonClicked",
         "title": "History",
         "icon": "$(history)"
@@ -103,23 +108,28 @@
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.mcpButtonClicked",
+          "command": "roo-cline.promptsButtonClicked",
           "group": "navigation@2",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.historyButtonClicked",
+          "command": "roo-cline.mcpButtonClicked",
           "group": "navigation@3",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.popoutButtonClicked",
+          "command": "roo-cline.historyButtonClicked",
           "group": "navigation@4",
           "when": "view == roo-cline.SidebarProvider"
         },
         {
-          "command": "roo-cline.settingsButtonClicked",
+          "command": "roo-cline.popoutButtonClicked",
           "group": "navigation@5",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.settingsButtonClicked",
+          "group": "navigation@6",
           "when": "view == roo-cline.SidebarProvider"
         }
       ]

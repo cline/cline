@@ -29,100 +29,39 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
+			<h2 style={{ margin: "0 0 8px" }}>
+				🎉{"  "}Introducing Roo Cline v{minorVersion}
+			</h2>
+
 			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in Cline v{minorVersion}
+				Agent Modes Customization
 			</h3>
-			<p style={{ margin: "5px 0px", fontWeight: "bold" }}>Add custom tools to Cline using MCP!</p>
 			<p style={{ margin: "5px 0px" }}>
-				The Model Context Protocol allows agents like Cline to plug and play custom tools,{" "}
-				<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-					e.g. a web-search tool or GitHub tool.
-				</VSCodeLink>
-			</p>
-			<p style={{ margin: "5px 0px" }}>
-				You can add and configure MCP servers by clicking the new{" "}
-				<span className="codicon codicon-server" style={{ fontSize: "10px" }}></span> icon in the menu bar.
-			</p>
-			<p style={{ margin: "5px 0px" }}>
-				To take things a step further, Cline also has the ability to create custom tools for himself. Just say
-				"add a tool that..." and watch as he builds and installs new capabilities specific to{" "}
-				<i>your workflow</i>. For example:
+				Click the new <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon in the menu bar to open the Prompts Settings and customize Agent Modes for new levels of productivity.
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>"...fetches Jira tickets": Get ticket ACs and put Cline to work</li>
-					<li>"...manages AWS EC2s": Check server metrics and scale up or down</li>
-					<li>"...pulls PagerDuty incidents": Pulls details to help Cline fix bugs</li>
+					<li>Tailor how Roo Cline behaves in different modes: Code, Architect, and Ask.</li>
+					<li>Preview and verify your changes using the Preview System Prompt button.</li>
 				</ul>
-				Cline handles everything from creating the MCP server to installing it in the extension, ready to use in
-				future tasks. The servers are saved to <code>~/Documents/Cline/MCP</code> so you can easily share them
-				with others too.{" "}
 			</p>
+
+			<h3 style={{ margin: "0 0 8px" }}>
+				Prompt Enhancement Configuration
+			</h3>
 			<p style={{ margin: "5px 0px" }}>
-				Try it yourself by asking Cline to "add a tool that gets the latest npm docs", or
-				<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-					see a demo of MCP in action here.
-				</VSCodeLink>
+				Now available for all providers! Access it directly in the chat box by clicking the <span className="codicon codicon-sparkle" style={{ fontSize: "10px" }}></span> sparkle icon next to the input field. From there, you can customize the enhancement logic and provider to best suit your workflow.
+				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
+					<li>Customize how prompts are enhanced for better results in your workflow.</li>
+					<li>Use the sparkle icon in the chat box to select a API configuration and provider (e.g., GPT-4) and configure your own enhancement logic.</li>
+					<li>Test your changes instantly with the Preview Prompt Enhancement tool.</li>
+				</ul>
 			</p>
-			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li> 
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
-			<div
-				style={{
-					height: "1px",
-					background: "var(--vscode-foreground)",
-					opacity: 0.1,
-					margin: "8px 0",
-				}}
-			/>
-			<p style={{ margin: "0" }}>
-				Join
-				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord.gg/cline
+
+			<p style={{ margin: "5px 0px" }}>
+				We're very excited to see what you build with this new feature! Join us at
+				<VSCodeLink href="https://www.reddit.com/r/roocline" style={{ display: "inline" }}>
+					reddit.com/r/roocline
 				</VSCodeLink>
-				for more updates!
+				to discuss and share feedback.
 			</p>
 		</div>
 	)

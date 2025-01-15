@@ -1,10 +1,9 @@
-import { Mode, codeMode } from "./modes"
+import { Mode, codeMode, defaultPrompts, PromptComponent } from "../../shared/modes"
 import { getToolDescriptionsForMode } from "./tools"
 import {
     getRulesSection,
     getSystemInfoSection,
     getObjectiveSection,
-    addCustomInstructions,
     getSharedToolUseSection,
     getMcpServersSection,
     getToolUseGuidelinesSection,
@@ -21,7 +20,8 @@ export const CODE_PROMPT = async (
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+    customPrompt?: PromptComponent,
+) => `${customPrompt?.roleDefinition || defaultPrompts[codeMode].roleDefinition}
 
 ${getSharedToolUseSection()}
 

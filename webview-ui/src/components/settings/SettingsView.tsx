@@ -278,24 +278,26 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 					</div>
 
-					<VSCodeTextArea
-						value={customInstructions ?? ""}
-						style={{ width: "100%" }}
-						rows={4}
-						placeholder={
-							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-						}
-						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+					<div style={{ marginBottom: 15 }}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
-					</VSCodeTextArea>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules and .cursorrules in the working directory are also included.
-					</p>
+						<VSCodeTextArea
+							value={customInstructions ?? ""}
+							style={{ width: "100%" }}
+							rows={4}
+							placeholder={
+								'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+							}
+							onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}
+						/>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							These instructions are added to the end of the system prompt sent with every request. Custom instructions set in .clinerules in the working directory are also included. For mode-specific instructions, use the <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> Prompts tab in the top menu.
+						</p>
+					</div>
 
 					<McpEnabledToggle />
 				</div>
@@ -554,7 +556,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 													minWidth: '20px',
 													display: 'flex',
 													alignItems: 'center',
-													justifyContent: 'center'
+													justifyContent: 'center',
+													color: 'var(--vscode-button-foreground)',
 												}}
 												onClick={() => {
 													const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)

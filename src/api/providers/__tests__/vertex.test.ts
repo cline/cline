@@ -6,7 +6,42 @@ import { AnthropicVertex } from '@anthropic-ai/vertex-sdk';
 jest.mock('@anthropic-ai/vertex-sdk', () => ({
     AnthropicVertex: jest.fn().mockImplementation(() => ({
         messages: {
-            create: jest.fn()
+            create: jest.fn().mockImplementation(async (options) => {
+                if (!options.stream) {
+                    return {
+                        id: 'test-completion',
+                        content: [
+                            { type: 'text', text: 'Test response' }
+                        ],
+                        role: 'assistant',
+                        model: options.model,
+                        usage: {
+                            input_tokens: 10,
+                            output_tokens: 5
+                        }
+                    }
+                }
+                return {
+                    async *[Symbol.asyncIterator]() {
+                        yield {
+                            type: 'message_start',
+                            message: {
+                                usage: {
+                                    input_tokens: 10,
+                                    output_tokens: 5
+                                }
+                            }
+                        }
+                        yield {
+                            type: 'content_block_start',
+                            content_block: {
+                                type: 'text',
+                                text: 'Test response'
+                            }
+                        }
+                    }
+                }
+            })
         }
     }))
 }));
@@ -193,6 +228,49 @@ describe('VertexHandler', () => {
                     // Should throw before yielding any chunks
                 }
             }).rejects.toThrow('Vertex API error');
+        });
+    });
+
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(handler['client'].messages.create).toHaveBeenCalledWith({
+                model: 'claude-3-5-sonnet-v2@20241022',
+                max_tokens: 8192,
+                temperature: 0,
+                messages: [{ role: 'user', content: 'Test prompt' }],
+                stream: false
+            });
+        });
+
+        it('should handle API errors', async () => {
+            const mockError = new Error('Vertex API error');
+            const mockCreate = jest.fn().mockRejectedValue(mockError);
+            (handler['client'].messages as any).create = mockCreate;
+
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('Vertex completion error: Vertex API error');
+        });
+
+        it('should handle non-text content', async () => {
+            const mockCreate = jest.fn().mockResolvedValue({
+                content: [{ type: 'image' }]
+            });
+            (handler['client'].messages as any).create = mockCreate;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+
+        it('should handle empty response', async () => {
+            const mockCreate = jest.fn().mockResolvedValue({
+                content: [{ type: 'text', text: '' }]
+            });
+            (handler['client'].messages as any).create = mockCreate;
+
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
         });
     });
 

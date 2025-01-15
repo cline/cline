@@ -46,7 +46,42 @@ jest.mock('@anthropic-ai/sdk', () => {
                 }
             },
             messages: {
-                create: mockCreate
+                create: mockCreate.mockImplementation(async (options) => {
+                    if (!options.stream) {
+                        return {
+                            id: 'test-completion',
+                            content: [
+                                { type: 'text', text: 'Test response' }
+                            ],
+                            role: 'assistant',
+                            model: options.model,
+                            usage: {
+                                input_tokens: 10,
+                                output_tokens: 5
+                            }
+                        }
+                    }
+                    return {
+                        async *[Symbol.asyncIterator]() {
+                            yield {
+                                type: 'message_start',
+                                message: {
+                                    usage: {
+                                        input_tokens: 10,
+                                        output_tokens: 5
+                                    }
+                                }
+                            }
+                            yield {
+                                type: 'content_block_start',
+                                content_block: {
+                                    type: 'text',
+                                    text: 'Test response'
+                                }
+                            }
+                        }
+                    }
+                })
             }
         }))
     };
@@ -141,6 +176,42 @@ describe('AnthropicHandler', () => {
             // Verify beta API was used
             expect(mockBetaCreate).toHaveBeenCalled();
             expect(mockCreate).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('completePrompt', () => {
+        it('should complete prompt successfully', async () => {
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('Test response');
+            expect(mockCreate).toHaveBeenCalledWith({
+                model: mockOptions.apiModelId,
+                messages: [{ role: 'user', content: 'Test prompt' }],
+                max_tokens: 8192,
+                temperature: 0,
+                stream: false
+            });
+        });
+
+        it('should handle API errors', async () => {
+            mockCreate.mockRejectedValueOnce(new Error('API Error'));
+            await expect(handler.completePrompt('Test prompt'))
+                .rejects.toThrow('Anthropic completion error: API Error');
+        });
+
+        it('should handle non-text content', async () => {
+            mockCreate.mockImplementationOnce(async () => ({
+                content: [{ type: 'image' }]
+            }));
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
+        });
+
+        it('should handle empty response', async () => {
+            mockCreate.mockImplementationOnce(async () => ({
+                content: [{ type: 'text', text: '' }]
+            }));
+            const result = await handler.completePrompt('Test prompt');
+            expect(result).toBe('');
         });
     });
 

@@ -1,26 +1,27 @@
 import { ApiConfiguration } from "../shared/api"
-import { buildApiHandler } from "../api"
-import { OpenRouterHandler } from "../api/providers/openrouter"
+import { buildApiHandler, SingleCompletionHandler } from "../api"
+import { defaultPrompts } from "../shared/modes"
 
 /**
- * Enhances a prompt using the OpenRouter API without creating a full Cline instance or task history.
+ * Enhances a prompt using the configured API without creating a full Cline instance or task history.
  * This is a lightweight alternative that only uses the API's completion functionality.
  */
-export async function enhancePrompt(apiConfiguration: ApiConfiguration, promptText: string): Promise<string> {
+export async function enhancePrompt(apiConfiguration: ApiConfiguration, promptText: string, enhancePrompt?: string): Promise<string> {
     if (!promptText) {
         throw new Error("No prompt text provided")
     }
-    if (apiConfiguration.apiProvider !== "openrouter") {
-        throw new Error("Prompt enhancement is only available with OpenRouter")
+    if (!apiConfiguration || !apiConfiguration.apiProvider) {
+        throw new Error("No valid API configuration provided")
     }
     
     const handler = buildApiHandler(apiConfiguration)
     
-    // Type guard to check if handler is OpenRouterHandler
-    if (!(handler instanceof OpenRouterHandler)) {
-        throw new Error("Expected OpenRouter handler")
+    // Check if handler supports single completions
+    if (!('completePrompt' in handler)) {
+        throw new Error("The selected API provider does not support prompt enhancement")
     }
     
-    const prompt = `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):\n\n${promptText}`
-    return handler.completePrompt(prompt)
+    const enhancePromptText = enhancePrompt ?? defaultPrompts.enhance
+    const prompt = `${enhancePromptText}\n\n${promptText}`
+    return (handler as SingleCompletionHandler).completePrompt(prompt)
 }
