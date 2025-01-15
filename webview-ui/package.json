@@ -27,6 +27,7 @@
 		"rewire": "^7.0.0",
 		"source-map-support": "^0.5.21",
 		"styled-components": "^6.1.13",
+		"tslog": "^4",
 		"typescript": "^4.9.5",
 		"web-vitals": "^2.1.4"
 	},
