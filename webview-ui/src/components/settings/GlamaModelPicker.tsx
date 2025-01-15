@@ -1,4 +1,5 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import debounce from "debounce"
 import { Fzf } from "fzf"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
@@ -44,8 +45,24 @@ const GlamaModelPicker: React.FC = () => {
 		}
 	}, [apiConfiguration, searchTerm])
 
+	const debouncedRefreshModels = useMemo(
+		() =>
+			debounce(
+				() => {
+					vscode.postMessage({ type: "refreshGlamaModels" })
+				},
+				50
+			),
+		[]
+	)
+
 	useMount(() => {
-		vscode.postMessage({ type: "refreshGlamaModels" })
+		debouncedRefreshModels()
+		
+		// Cleanup debounced function
+		return () => {
+			debouncedRefreshModels.clear()
+		}
 	})
 
 	useEffect(() => {
