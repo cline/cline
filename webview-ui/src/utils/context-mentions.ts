@@ -1,5 +1,5 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
-import Fuse from "fuse.js"
+import { Fzf } from "fzf"
 
 export function insertMention(
 	text: string,
@@ -148,19 +148,19 @@ export function getContextMenuOptions(
 		}
 	}
 
-	// Initialize Fuse instance for fuzzy search
-	const fuse = new Fuse(queryItems, {
-		keys: ["value", "label", "description"],
-		threshold: 0.6,
-		shouldSort: true,
-		isCaseSensitive: false,
-		ignoreLocation: false,
-		minMatchCharLength: 1,
+	// Create searchable strings array for fzf
+	const searchableItems = queryItems.map(item => ({
+		original: item,
+		searchStr: [item.value, item.label, item.description].filter(Boolean).join(' ')
+	}))
+
+	// Initialize fzf instance for fuzzy search
+	const fzf = new Fzf(searchableItems, {
+		selector: item => item.searchStr
 	})
 
 	// Get fuzzy matching items
-	const fuseResults = query ? fuse.search(query) : []
-	const matchingItems = fuseResults.map(result => result.item)
+	const matchingItems = query ? fzf.find(query).map(result => result.item.original) : []
 
 	// Separate matches by type
 	const fileMatches = matchingItems.filter(item =>
