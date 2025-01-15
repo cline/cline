@@ -496,7 +496,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							fontSize: "12px",
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
-							wordBreak: "break-all",
+							wordBreak: "break-word",
 						}}>
 							<span style={{ fontWeight: 500 }}>Hint:</span> The Base URL should be set as shown in the following example.
 							Do not include paths like "/chat/completions" or query parameters like "api-version".
