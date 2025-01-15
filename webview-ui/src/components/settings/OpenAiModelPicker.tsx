@@ -1,11 +1,11 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import Fuse from "fuse.js"
+import { Fzf } from "fzf"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { highlight } from "../history/HistoryView"
+import { highlightFzfMatch } from "../../utils/highlight"
 
 const OpenAiModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, openAiModels, onUpdateApiConfig } = useExtensionState()
@@ -71,25 +71,21 @@ const OpenAiModelPicker: React.FC = () => {
 		}))
 	}, [modelIds])
 
-	const fuse = useMemo(() => {
-		return new Fuse(searchableItems, {
-			keys: ["html"], // highlight function will update this
-			threshold: 0.6,
-			shouldSort: true,
-			isCaseSensitive: false,
-			ignoreLocation: false,
-			includeMatches: true,
-			minMatchCharLength: 1,
+	const fzf = useMemo(() => {
+		return new Fzf(searchableItems, {
+			selector: item => item.html
 		})
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight")
-			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
-		return results
-	}, [searchableItems, searchTerm, fuse])
+		if (!searchTerm) return searchableItems
+
+		const searchResults = fzf.find(searchTerm)
+		return searchResults.map(result => ({
+			...result.item,
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
+		}))
+	}, [searchableItems, searchTerm, fzf])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return

@@ -1,4 +1,5 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
+import { Fzf } from "fzf"
 
 export function insertMention(
 	text: string,
@@ -147,13 +148,21 @@ export function getContextMenuOptions(
 		}
 	}
 
-	// Get matching items, separating by type
-	const matchingItems = queryItems.filter((item) =>
-		item.value?.toLowerCase().includes(lowerQuery) ||
-		item.label?.toLowerCase().includes(lowerQuery) ||
-		item.description?.toLowerCase().includes(lowerQuery)
-	)
+	// Create searchable strings array for fzf
+	const searchableItems = queryItems.map(item => ({
+		original: item,
+		searchStr: [item.value, item.label, item.description].filter(Boolean).join(' ')
+	}))
 
+	// Initialize fzf instance for fuzzy search
+	const fzf = new Fzf(searchableItems, {
+		selector: item => item.searchStr
+	})
+
+	// Get fuzzy matching items
+	const matchingItems = query ? fzf.find(query).map(result => result.item.original) : []
+
+	// Separate matches by type
 	const fileMatches = matchingItems.filter(item =>
 		item.type === ContextMenuOptionType.File ||
 		item.type === ContextMenuOptionType.Folder
@@ -169,7 +178,18 @@ export function getContextMenuOptions(
 
 	// Combine suggestions with matching items in the desired order
 	if (suggestions.length > 0 || matchingItems.length > 0) {
-		return [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+		
+		// Remove duplicates based on type and value
+		const seen = new Set()
+		const deduped = allItems.filter(item => {
+			const key = `${item.type}-${item.value}`
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
+		
+		return deduped
 	}
 
 	return [{ type: ContextMenuOptionType.NoResults }]
