@@ -7,10 +7,10 @@ import {
 	ApiHandlerOptions,
 	ModelInfo,
 } from "../../shared/api"
-import { ApiHandler } from "../index"
+import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
-export class AnthropicHandler implements ApiHandler {
+export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
 
@@ -172,5 +172,28 @@ export class AnthropicHandler implements ApiHandler {
 			return { id, info: anthropicModels[id] }
 		}
 		return { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const response = await this.client.messages.create({
+				model: this.getModel().id,
+				max_tokens: this.getModel().info.maxTokens || 8192,
+				temperature: 0,
+				messages: [{ role: "user", content: prompt }],
+				stream: false
+			})
+
+			const content = response.content[0]
+			if (content.type === 'text') {
+				return content.text
+			}
+			return ''
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Anthropic completion error: ${error.message}`)
+			}
+			throw error
+		}
 	}
 }

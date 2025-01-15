@@ -4,6 +4,7 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
+import { Mode, CustomPrompts } from "./modes"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -27,12 +28,15 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "vsCodeLmApiAvailable"
 		| "requestVsCodeLmModels"
+		| "updatePrompt"
+		| "systemPrompt"
 	text?: string
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
+		| "promptsButtonClicked"
 		| "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
@@ -48,9 +52,11 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]
+	mode?: Mode
 }
 
 export interface ApiConfigMeta {
+	id: string
 	name: string
 	apiProvider?: ApiProvider
 }
@@ -64,6 +70,7 @@ export interface ExtensionState {
 	currentApiConfigName?: string
 	listApiConfigMeta?: ApiConfigMeta[]
 	customInstructions?: string
+	customPrompts?: CustomPrompts
 	alwaysAllowReadOnly?: boolean
 	alwaysAllowWrite?: boolean
 	alwaysAllowExecute?: boolean
@@ -83,6 +90,9 @@ export interface ExtensionState {
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean
+	mode: Mode
+	modeApiConfigs?: Record<Mode, string>
+	enhancementApiConfigId?: string
 }
 
 export interface ClineMessage {

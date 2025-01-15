@@ -253,7 +253,8 @@ describe('Cline', () => {
         // Setup mock API configuration
         mockApiConfig = {
             apiProvider: 'anthropic',
-            apiModelId: 'claude-3-5-sonnet-20241022'
+            apiModelId: 'claude-3-5-sonnet-20241022',
+            apiKey: 'test-api-key'  // Add API key to mock config
         };
 
         // Mock provider methods
@@ -624,6 +625,209 @@ describe('Cline', () => {
                 expect(historyWithoutImages.content[1]).toEqual({
                     type: 'text',
                     text: '[Referenced image in conversation]'
+                });
+            });
+        
+            it('should handle API retry with countdown', async () => {
+                const cline = new Cline(
+                    mockProvider,
+                    mockApiConfig,
+                    undefined,
+                    false,
+                    undefined,
+                    'test task'
+                );
+
+                // Mock delay to track countdown timing
+                const mockDelay = jest.fn().mockResolvedValue(undefined);
+                jest.spyOn(require('delay'), 'default').mockImplementation(mockDelay);
+
+                // Mock say to track messages
+                const saySpy = jest.spyOn(cline, 'say');
+
+                // Create a stream that fails on first chunk
+                const mockError = new Error('API Error');
+                const mockFailedStream = {
+                    async *[Symbol.asyncIterator]() {
+                        throw mockError;
+                    },
+                    async next() {
+                        throw mockError;
+                    },
+                    async return() {
+                        return { done: true, value: undefined };
+                    },
+                    async throw(e: any) {
+                        throw e;
+                    },
+                    async [Symbol.asyncDispose]() {
+                        // Cleanup
+                    }
+                } as AsyncGenerator<ApiStreamChunk>;
+
+                // Create a successful stream for retry
+                const mockSuccessStream = {
+                    async *[Symbol.asyncIterator]() {
+                        yield { type: 'text', text: 'Success' };
+                    },
+                    async next() {
+                        return { done: true, value: { type: 'text', text: 'Success' } };
+                    },
+                    async return() {
+                        return { done: true, value: undefined };
+                    },
+                    async throw(e: any) {
+                        throw e;
+                    },
+                    async [Symbol.asyncDispose]() {
+                        // Cleanup
+                    }
+                } as AsyncGenerator<ApiStreamChunk>;
+
+                // Mock createMessage to fail first then succeed
+                let firstAttempt = true;
+                jest.spyOn(cline.api, 'createMessage').mockImplementation(() => {
+                    if (firstAttempt) {
+                        firstAttempt = false;
+                        return mockFailedStream;
+                    }
+                    return mockSuccessStream;
+                });
+
+                // Set alwaysApproveResubmit and requestDelaySeconds
+                mockProvider.getState = jest.fn().mockResolvedValue({
+                    alwaysApproveResubmit: true,
+                    requestDelaySeconds: 3
+                });
+
+                // Mock previous API request message
+                cline.clineMessages = [{
+                    ts: Date.now(),
+                    type: 'say',
+                    say: 'api_req_started',
+                    text: JSON.stringify({
+                        tokensIn: 100,
+                        tokensOut: 50,
+                        cacheWrites: 0,
+                        cacheReads: 0,
+                        request: 'test request'
+                    })
+                }];
+
+                // Trigger API request
+                const iterator = cline.attemptApiRequest(0);
+                await iterator.next();
+
+                // Verify countdown messages
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 3 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 2 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying in 1 seconds'),
+                    undefined,
+                    true
+                );
+                expect(saySpy).toHaveBeenCalledWith(
+                    'api_req_retry_delayed',
+                    expect.stringContaining('Retrying now'),
+                    undefined,
+                    false
+                );
+
+                // Verify delay was called correctly
+                expect(mockDelay).toHaveBeenCalledTimes(3);
+                expect(mockDelay).toHaveBeenCalledWith(1000);
+
+                // Verify error message content
+                const errorMessage = saySpy.mock.calls.find(
+                    call => call[1]?.includes(mockError.message)
+                )?.[1];
+                expect(errorMessage).toBe(`${mockError.message}\n\nRetrying in 3 seconds...`);
+            });
+
+            describe('loadContext', () => {
+                it('should process mentions in task and feedback tags', async () => {
+                    const cline = new Cline(
+                        mockProvider,
+                        mockApiConfig,
+                        undefined,
+                        false,
+                        undefined,
+                        'test task'
+                    );
+        
+                    // Mock parseMentions to track calls
+                    const mockParseMentions = jest.fn().mockImplementation(text => `processed: ${text}`);
+                    jest.spyOn(require('../../core/mentions'), 'parseMentions').mockImplementation(mockParseMentions);
+        
+                    const userContent = [
+                        {
+                            type: 'text',
+                            text: 'Regular text with @/some/path'
+                        } as const,
+                        {
+                            type: 'text',
+                            text: '<task>Text with @/some/path in task tags</task>'
+                        } as const,
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 'test-id',
+                            content: [{
+                                type: 'text',
+                                text: '<feedback>Check @/some/path</feedback>'
+                            }]
+                        } as Anthropic.ToolResultBlockParam,
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 'test-id-2',
+                            content: [{
+                                type: 'text',
+                                text: 'Regular tool result with @/path'
+                            }]
+                        } as Anthropic.ToolResultBlockParam
+                    ];
+        
+                    // Process the content
+                    const [processedContent] = await cline['loadContext'](userContent);
+        
+                    // Regular text should not be processed
+                    expect((processedContent[0] as Anthropic.TextBlockParam).text)
+                        .toBe('Regular text with @/some/path');
+        
+                    // Text within task tags should be processed
+                    expect((processedContent[1] as Anthropic.TextBlockParam).text)
+                        .toContain('processed:');
+                    expect(mockParseMentions).toHaveBeenCalledWith(
+                        '<task>Text with @/some/path in task tags</task>',
+                        expect.any(String),
+                        expect.any(Object)
+                    );
+        
+                    // Feedback tag content should be processed
+                    const toolResult1 = processedContent[2] as Anthropic.ToolResultBlockParam;
+                    const content1 = Array.isArray(toolResult1.content) ? toolResult1.content[0] : toolResult1.content;
+                    expect((content1 as Anthropic.TextBlockParam).text).toContain('processed:');
+                    expect(mockParseMentions).toHaveBeenCalledWith(
+                        '<feedback>Check @/some/path</feedback>',
+                        expect.any(String),
+                        expect.any(Object)
+                    );
+        
+                    // Regular tool result should not be processed
+                    const toolResult2 = processedContent[3] as Anthropic.ToolResultBlockParam;
+                    const content2 = Array.isArray(toolResult2.content) ? toolResult2.content[0] : toolResult2.content;
+                    expect((content2 as Anthropic.TextBlockParam).text)
+                        .toBe('Regular tool result with @/path');
                 });
             });
         });

@@ -36,13 +36,39 @@ describe('ConfigManager', () => {
       mockSecrets.get.mockResolvedValue(JSON.stringify({
         currentApiConfigName: 'default',
         apiConfigs: {
-          default: {}
+          default: {
+            config: {},
+            id: 'default'
+          }
         }
       }))
 
       await configManager.initConfig()
 
       expect(mockSecrets.store).not.toHaveBeenCalled()
+    })
+
+    it('should generate IDs for configs that lack them', async () => {
+      // Mock a config with missing IDs
+      mockSecrets.get.mockResolvedValue(JSON.stringify({
+        currentApiConfigName: 'default',
+        apiConfigs: {
+          default: {
+            config: {}
+          },
+          test: {
+            apiProvider: 'anthropic'
+          }
+        }
+      }))
+
+      await configManager.initConfig()
+
+      // Should have written the config with new IDs
+      expect(mockSecrets.store).toHaveBeenCalled()
+      const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+      expect(storedConfig.apiConfigs.default.id).toBeTruthy()
+      expect(storedConfig.apiConfigs.test.id).toBeTruthy()
     })
 
     it('should throw error if secrets storage fails', async () => {
@@ -59,10 +85,18 @@ describe('ConfigManager', () => {
       const existingConfig: ApiConfigData = {
         currentApiConfigName: 'default',
         apiConfigs: {
-          default: {},
+          default: {
+            id: 'default'
+          },
           test: {
-            apiProvider: 'anthropic'
+            apiProvider: 'anthropic',
+            id: 'test-id'
           }
+        },
+        modeApiConfigs: {
+          code: 'default',
+          architect: 'default',
+          ask: 'default'
         }
       }
 
@@ -70,15 +104,20 @@ describe('ConfigManager', () => {
 
       const configs = await configManager.ListConfig()
       expect(configs).toEqual([
-        { name: 'default', apiProvider: undefined },
-        { name: 'test', apiProvider: 'anthropic' }
+        { name: 'default', id: 'default', apiProvider: undefined },
+        { name: 'test', id: 'test-id', apiProvider: 'anthropic' }
       ])
     })
 
     it('should handle empty config file', async () => {
       const emptyConfig: ApiConfigData = {
         currentApiConfigName: 'default',
-        apiConfigs: {}
+        apiConfigs: {},
+        modeApiConfigs: {
+          code: 'default',
+          architect: 'default',
+          ask: 'default'
+        }
       }
 
       mockSecrets.get.mockResolvedValue(JSON.stringify(emptyConfig))
@@ -102,6 +141,11 @@ describe('ConfigManager', () => {
         currentApiConfigName: 'default',
         apiConfigs: {
           default: {}
+        },
+        modeApiConfigs: {
+          code: 'default',
+          architect: 'default',
+          ask: 'default'
         }
       }))
 
@@ -112,11 +156,23 @@ describe('ConfigManager', () => {
 
       await configManager.SaveConfig('test', newConfig)
 
+      // Get the actual stored config to check the generated ID
+      const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+      const testConfigId = storedConfig.apiConfigs.test.id
+
       const expectedConfig = {
         currentApiConfigName: 'default',
         apiConfigs: {
           default: {},
-          test: newConfig
+          test: {
+            ...newConfig,
+            id: testConfigId
+          }
+        },
+        modeApiConfigs: {
+          code: 'default',
+          architect: 'default',
+          ask: 'default'
         }
       }
 
@@ -132,7 +188,8 @@ describe('ConfigManager', () => {
         apiConfigs: {
           test: {
             apiProvider: 'anthropic',
-            apiKey: 'old-key'
+            apiKey: 'old-key',
+            id: 'test-id'
           }
         }
       }
@@ -149,7 +206,11 @@ describe('ConfigManager', () => {
       const expectedConfig = {
         currentApiConfigName: 'default',
         apiConfigs: {
-          test: updatedConfig
+          test: {
+            apiProvider: 'anthropic',
+            apiKey: 'new-key',
+            id: 'test-id'
+          }
         }
       }
 
@@ -177,9 +238,12 @@ describe('ConfigManager', () => {
       const existingConfig: ApiConfigData = {
         currentApiConfigName: 'default',
         apiConfigs: {
-          default: {},
+          default: {
+            id: 'default'
+          },
           test: {
-            apiProvider: 'anthropic'
+            apiProvider: 'anthropic',
+            id: 'test-id'
           }
         }
       }
@@ -188,17 +252,11 @@ describe('ConfigManager', () => {
 
       await configManager.DeleteConfig('test')
 
-      const expectedConfig = {
-        currentApiConfigName: 'default',
-        apiConfigs: {
-          default: {}
-        }
-      }
-
-      expect(mockSecrets.store).toHaveBeenCalledWith(
-        'roo_cline_config_api_config',
-        JSON.stringify(expectedConfig, null, 2)
-      )
+      // Get the stored config to check the ID
+      const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+      expect(storedConfig.currentApiConfigName).toBe('default')
+      expect(Object.keys(storedConfig.apiConfigs)).toEqual(['default'])
+      expect(storedConfig.apiConfigs.default.id).toBeTruthy()
     })
 
     it('should throw error when trying to delete non-existent config', async () => {
@@ -215,7 +273,11 @@ describe('ConfigManager', () => {
     it('should throw error when trying to delete last remaining config', async () => {
       mockSecrets.get.mockResolvedValue(JSON.stringify({
         currentApiConfigName: 'default',
-        apiConfigs: { default: {} }
+        apiConfigs: {
+          default: {
+            id: 'default'
+          }
+        }
       }))
 
       await expect(configManager.DeleteConfig('default')).rejects.toThrow(
@@ -231,7 +293,8 @@ describe('ConfigManager', () => {
         apiConfigs: {
           test: {
             apiProvider: 'anthropic',
-            apiKey: 'test-key'
+            apiKey: 'test-key',
+            id: 'test-id'
           }
         }
       }
@@ -242,29 +305,29 @@ describe('ConfigManager', () => {
 
       expect(config).toEqual({
         apiProvider: 'anthropic',
-        apiKey: 'test-key'
+        apiKey: 'test-key',
+        id: 'test-id'
       })
 
-      const expectedConfig = {
-        currentApiConfigName: 'test',
-        apiConfigs: {
-          test: {
-            apiProvider: 'anthropic',
-            apiKey: 'test-key'
-          }
-        }
-      }
-
-      expect(mockSecrets.store).toHaveBeenCalledWith(
-        'roo_cline_config_api_config',
-        JSON.stringify(expectedConfig, null, 2)
-      )
+      // Get the stored config to check the structure
+      const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+      expect(storedConfig.currentApiConfigName).toBe('test')
+      expect(storedConfig.apiConfigs.test).toEqual({
+        apiProvider: 'anthropic',
+        apiKey: 'test-key',
+        id: 'test-id'
+      })
     })
 
     it('should throw error when config does not exist', async () => {
       mockSecrets.get.mockResolvedValue(JSON.stringify({
         currentApiConfigName: 'default',
-        apiConfigs: { default: {} }
+        apiConfigs: {
+          default: {
+            config: {},
+            id: 'default'
+          }
+        }
       }))
 
       await expect(configManager.LoadConfig('nonexistent')).rejects.toThrow(
@@ -276,7 +339,12 @@ describe('ConfigManager', () => {
       mockSecrets.get.mockResolvedValue(JSON.stringify({
         currentApiConfigName: 'default',
         apiConfigs: {
-          test: { apiProvider: 'anthropic' }
+          test: {
+            config: {
+              apiProvider: 'anthropic'
+            },
+            id: 'test-id'
+          }
         }
       }))
       mockSecrets.store.mockRejectedValueOnce(new Error('Storage failed'))
@@ -292,9 +360,12 @@ describe('ConfigManager', () => {
       const existingConfig: ApiConfigData = {
         currentApiConfigName: 'default',
         apiConfigs: {
-          default: {},
+          default: {
+            id: 'default'
+          },
           test: {
-            apiProvider: 'anthropic'
+            apiProvider: 'anthropic',
+            id: 'test-id'
           }
         }
       }
@@ -303,20 +374,14 @@ describe('ConfigManager', () => {
 
       await configManager.SetCurrentConfig('test')
 
-      const expectedConfig = {
-        currentApiConfigName: 'test',
-        apiConfigs: {
-          default: {},
-          test: {
-            apiProvider: 'anthropic'
-          }
-        }
-      }
-
-      expect(mockSecrets.store).toHaveBeenCalledWith(
-        'roo_cline_config_api_config',
-        JSON.stringify(expectedConfig, null, 2)
-      )
+      // Get the stored config to check the structure
+      const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+      expect(storedConfig.currentApiConfigName).toBe('test')
+      expect(storedConfig.apiConfigs.default.id).toBe('default')
+      expect(storedConfig.apiConfigs.test).toEqual({
+        apiProvider: 'anthropic',
+        id: 'test-id'
+      })
     })
 
     it('should throw error when config does not exist', async () => {
@@ -350,9 +415,12 @@ describe('ConfigManager', () => {
       const existingConfig: ApiConfigData = {
         currentApiConfigName: 'default',
         apiConfigs: {
-          default: {},
+          default: {
+            id: 'default'
+          },
           test: {
-            apiProvider: 'anthropic'
+            apiProvider: 'anthropic',
+            id: 'test-id'
           }
         }
       }

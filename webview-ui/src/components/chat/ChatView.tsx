@@ -38,7 +38,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands, writeDelayMs } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands, writeDelayMs, mode, setMode } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -192,6 +192,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "say":
 					// don't want to reset since there could be a "say" after an "ask" while ask is waiting for response
 					switch (lastMessage.say) {
+						case "api_req_retry_delayed":
+							setTextAreaDisabled(true)
+							break
 						case "api_req_started":
 							if (secondLastMessage?.ask === "command_output") {
 								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
@@ -294,11 +297,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						// there is no other case that a textfield should be enabled
 					}
 				}
+				// Only reset message-specific state, preserving mode
 				setInputValue("")
 				setTextAreaDisabled(true)
 				setSelectedImages([])
 				setClineAsk(undefined)
 				setEnableButtons(false)
+				// Do not reset mode here as it should persist
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
 				disableAutoScrollRef.current = false
@@ -335,8 +340,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setTextAreaDisabled(true)
 		setClineAsk(undefined)
 		setEnableButtons(false)
-		// setPrimaryButtonText(undefined)
-		// setSecondaryButtonText(undefined)
 		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask])
 
@@ -364,8 +367,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setTextAreaDisabled(true)
 		setClineAsk(undefined)
 		setEnableButtons(false)
-		// setPrimaryButtonText(undefined)
-		// setSecondaryButtonText(undefined)
 		disableAutoScrollRef.current = false
 	}, [clineAsk, startNewTask, isStreaming])
 
@@ -466,6 +467,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 					return false
+				case "api_req_retry_delayed":
+					// Only show the retry message if it's the last message
+					return message === modifiedMessages.at(-1)
 				case "text":
 					// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
@@ -773,9 +777,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message...\n(@ to add context, hold shift to drag in images)" : "Type your task here...\n(@ to add context, hold shift to drag in images)"
-		return text
-	}, [task])
+		const baseText = task ? "Type a message..." : "Type your task here..."
+		const contextText = "(@ to add context"
+		const imageText = shouldDisableImages ? "" : ", hold shift to drag in images"
+		const helpText = imageText ? `\n${contextText}${imageText})` : `\n${contextText})`
+		return baseText + helpText
+	}, [task, shouldDisableImages])
 
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
@@ -977,6 +984,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
+				mode={mode}
+				setMode={setMode}
 			/>
 		</div>
 	)

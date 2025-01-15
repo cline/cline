@@ -55,7 +55,7 @@ export interface ApiHandlerOptions {
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
-	vsCodeLmModelSelector?: vscode.LanguageModelChatSelector;
+	id?: string // stable unique identifier
 }
 
 // Models

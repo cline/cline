@@ -36,7 +36,9 @@ jobs:
       - name: Package and Publish Extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           current_package_version=$(node -p "require('./package.json').version")
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
+

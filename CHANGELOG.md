@@ -1,5 +1,34 @@
 # Roo Cline Changelog
 
+## [3.1.1]
+
+-   Visual fixes to chat input and settings for the light+ themes
+
+## [3.1.0]
+
+-   You can now customize the role definition and instructions for each chat mode (Code, Architect, and Ask), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
+-   Add a button to copy markdown out of the chat
+
+## [3.0.3]
+
+-   Update required vscode engine to ^1.84.0 to match cline
+
+## [3.0.2]
+
+-   A couple more tiny tweaks to the button alignment in the chat input
+
+## [3.0.1]
+
+-   Fix the reddit link and a small visual glitch in the chat input
+
+## [3.0.0]
+
+-   This release adds chat modes! Now you can ask Roo Cline questions about system architecture or the codebase without immediately jumping into writing code. You can even assign different API configuration profiles to each mode if you prefer to use different models for thinking vs coding. Would love feedback in the new Roo Cline Reddit! https://www.reddit.com/r/roocline
+
+## [2.2.46]
+
+-   Only parse @-mentions in user input (not in files)
+
 ## [2.2.45]
 
 -   Save different API configurations to quickly switch between providers and settings (thanks @samhvw8!)
