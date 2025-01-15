@@ -60,6 +60,7 @@ Give it a try and let us know what you think in the reddit: https://www.reddit.c
 - Support for Glama
 - Support for listing models from OpenAI-compatible providers
 - Support for adding OpenAI-compatible models with or without streaming
+- Experimental support for VS Code Language Models (e.g. Copilot)
 - Per-tool MCP auto-approval
 - Enable/disable individual MCP servers
 - Enable/disable the MCP feature overall

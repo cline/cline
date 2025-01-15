@@ -11,6 +11,7 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ApiStream } from "./transform/stream"
 
 export interface SingleCompletionHandler {

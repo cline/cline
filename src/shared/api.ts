@@ -1,3 +1,5 @@
+import * as vscode from 'vscode';
+
 export type ApiProvider =
 	| "anthropic"
 	| "glama"
@@ -10,11 +12,13 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+	| "vscode-lm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
+	vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
 	glamaModelId?: string
 	glamaModelInfo?: ModelInfo
 	glamaApiKey?: string
@@ -58,7 +62,7 @@ export type ApiConfiguration = ApiHandlerOptions & {
 
 export interface ModelInfo {
 	maxTokens?: number
-	contextWindow?: number
+	contextWindow: number
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now

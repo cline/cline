@@ -57,6 +57,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model ID."
 				}
 				break
+			case "vscode-lm":
+				if (!apiConfiguration.vsCodeLmModelSelector) {
+					return "You must provide a valid model selector."
+				}
+				break
 		}
 	}
 	return undefined
