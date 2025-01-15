@@ -1273,6 +1273,33 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return cacheDir
 	}
 
+	async handleGlamaCallback(code: string) {
+		let apiKey: string
+		try {
+			const response = await axios.post("https://glama.ai/api/gateway/v1/auth/exchange-code", { code })
+			if (response.data && response.data.apiKey) {
+				apiKey = response.data.apiKey
+			} else {
+				throw new Error("Invalid response from Glama API")
+			}
+		} catch (error) {
+			console.error("Error exchanging code for API key:", error)
+			throw error
+		}
+
+		const glama: ApiProvider = "glama"
+		await this.updateGlobalState("apiProvider", glama)
+		await this.storeSecret("glamaApiKey", apiKey)
+		await this.postStateToWebview()
+		if (this.cline) {
+			this.cline.api = buildApiHandler({
+				apiProvider: glama,
+				glamaApiKey: apiKey,
+			})
+		}
+		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
+	}
+
 	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const glamaModelsFilePath = path.join(
 			await this.ensureCacheDirectoryExists(),
