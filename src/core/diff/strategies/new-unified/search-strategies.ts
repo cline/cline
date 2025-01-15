@@ -9,16 +9,13 @@ export type SearchResult = {
 	strategy: string
 }
 
-//TODO: this should be configurable
-const MIN_CONFIDENCE = 0.97
-const MIN_CONFIDENCE_LARGE_FILE = 0.9
 const LARGE_FILE_THRESHOLD = 1000 // lines
 const UNIQUE_CONTENT_BOOST = 0.05
 const DEFAULT_OVERLAP_SIZE = 3 // lines of overlap between windows
 const MAX_WINDOW_SIZE = 500 // maximum lines in a window
 
 // Helper function to calculate adaptive confidence threshold based on file size
-function getAdaptiveThreshold(contentLength: number, baseThreshold: number = 0.97): number {
+function getAdaptiveThreshold(contentLength: number, baseThreshold: number): number {
 	if (contentLength <= LARGE_FILE_THRESHOLD) {
 		return baseThreshold
 	}
@@ -69,11 +66,7 @@ export function getDMPSimilarity(original: string, modified: string): number {
 }
 
 // Helper function to validate edit results using hunk information
-// Returns a confidence reduction value between 0 and 1
-// Example: If similarity is 0.8 and MIN_CONFIDENCE is 0.95,
-// returns 0.1 (0.5 * (1 - 0.8)) to reduce confidence proportionally but with less impact.
-// If similarity >= MIN_CONFIDENCE, returns 0 (no reduction).
-export function validateEditResult(hunk: Hunk, result: string, strategy: string): number {
+export function validateEditResult(hunk: Hunk, result: string, confidenceThreshold: number): number {
 	const hunkDeepCopy: Hunk = JSON.parse(JSON.stringify(hunk))
 
 	const originalSkeleton = hunkDeepCopy.changes
@@ -90,26 +83,20 @@ export function validateEditResult(hunk: Hunk, result: string, strategy: string)
 	const expectedSimilarity = evaluateSimilarity(expectedSkeleton, result)
 
 	if (originalSimilarity > 0.97 && expectedSimilarity !== 1) {
-		if (originalSimilarity === 1) {
-			if (originalSimilarity > 0.97) {
 				if (originalSimilarity === 1) {
 					return 0.5
-				} else {
-					return 0.8
-				}
-			}
 		} else {
 			return 0.8
 		}
 	}
 
-	const multiplier = expectedSimilarity < MIN_CONFIDENCE ? 0.96 + 0.04 * expectedSimilarity : 1
+	const multiplier = expectedSimilarity < confidenceThreshold ? expectedSimilarity : 1
 
 	return multiplier
 }
 
 // Helper function to validate context lines against original content
-function validateContextLines(searchStr: string, content: string, baseThreshold: number = 0.97): number {
+function validateContextLines(searchStr: string, content: string, confidenceThreshold: number): number {
 	// Extract just the context lines from the search string
 	const contextLines = searchStr.split("\n").filter((line) => !line.startsWith("-")) // Exclude removed lines
 
@@ -117,7 +104,7 @@ function validateContextLines(searchStr: string, content: string, baseThreshold:
 	const similarity = evaluateSimilarity(contextLines.join("\n"), content)
 
 	// Get adaptive threshold based on content size
-	const threshold = getAdaptiveThreshold(content.split("\n").length, baseThreshold)
+	const threshold = getAdaptiveThreshold(content.split("\n").length, confidenceThreshold)
 
 	// Calculate uniqueness boost
 	const uniquenessScore = evaluateContentUniqueness(searchStr, content.split("\n"))
@@ -207,8 +194,7 @@ function combineOverlappingMatches(
 	return combinedMatches
 }
 
-// Modified search functions to use sliding windows
-export function findExactMatch(searchStr: string, content: string[], startIndex: number = 0): SearchResult {
+export function findExactMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const windows = createOverlappingWindows(content.slice(startIndex), searchLines.length)
 	const matches: (SearchResult & { windowIndex: number })[] = []
@@ -226,7 +212,7 @@ export function findExactMatch(searchStr: string, content: string[], startIndex:
 				.join("\n")
 
 			const similarity = getDMPSimilarity(searchStr, matchedContent)
-			const contextSimilarity = validateContextLines(searchStr, matchedContent)
+			const contextSimilarity = validateContextLines(searchStr, matchedContent, confidenceThreshold)
 			const confidence = Math.min(similarity, contextSimilarity)
 
 			matches.push({
@@ -243,7 +229,7 @@ export function findExactMatch(searchStr: string, content: string[], startIndex:
 }
 
 // String similarity strategy
-export function findSimilarityMatch(searchStr: string, content: string[], startIndex: number = 0, minScore: number = 0.8): SearchResult {
+export function findSimilarityMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
 	const searchLines = searchStr.split("\n")
 	let bestScore = 0
 	let bestIndex = -1
@@ -251,9 +237,9 @@ export function findSimilarityMatch(searchStr: string, content: string[], startI
 	for (let i = startIndex; i < content.length - searchLines.length + 1; i++) {
 		const windowStr = content.slice(i, i + searchLines.length).join("\n")
 		const score = compareTwoStrings(searchStr, windowStr)
-		if (score > bestScore && score >= minScore) {
+		if (score > bestScore && score >= confidenceThreshold) {
 			const similarity = getDMPSimilarity(searchStr, windowStr)
-			const contextSimilarity = validateContextLines(searchStr, windowStr, minScore)
+			const contextSimilarity = validateContextLines(searchStr, windowStr, confidenceThreshold)
 			const adjustedScore = Math.min(similarity, contextSimilarity) * score
 
 			if (adjustedScore > bestScore) {
@@ -271,7 +257,7 @@ export function findSimilarityMatch(searchStr: string, content: string[], startI
 }
 
 // Levenshtein strategy
-export function findLevenshteinMatch(searchStr: string, content: string[], startIndex: number = 0): SearchResult {
+export function findLevenshteinMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const candidates = []
 
@@ -283,7 +269,7 @@ export function findLevenshteinMatch(searchStr: string, content: string[], start
 		const closestMatch = closest(searchStr, candidates)
 		const index = startIndex + candidates.indexOf(closestMatch)
 		const similarity = getDMPSimilarity(searchStr, closestMatch)
-		const contextSimilarity = validateContextLines(searchStr, closestMatch)
+		const contextSimilarity = validateContextLines(searchStr, closestMatch, confidenceThreshold)
 		const confidence = Math.min(similarity, contextSimilarity)
 		return {
 			index,
@@ -355,7 +341,7 @@ function validateAnchorPositions(
 }
 
 // Anchor-based search strategy
-export function findAnchorMatch(searchStr: string, content: string[], startIndex: number = 0): SearchResult {
+export function findAnchorMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const anchors = identifyAnchors(searchStr, content.slice(startIndex))
 
@@ -370,7 +356,7 @@ export function findAnchorMatch(searchStr: string, content: string[], startIndex
 		const matchPosition = startIndex + offset
 		const matchedContent = content.slice(matchPosition, matchPosition + searchLines.length).join("\n")
 		const similarity = getDMPSimilarity(searchStr, matchedContent)
-		const contextSimilarity = validateContextLines(searchStr, matchedContent)
+		const contextSimilarity = validateContextLines(searchStr, matchedContent, confidenceThreshold)
 		const confidence = Math.min(similarity, contextSimilarity) * (1 + anchors[0].weight * 0.1) // Boost confidence based on anchor weight
 
 		return {
@@ -384,15 +370,18 @@ export function findAnchorMatch(searchStr: string, content: string[], startIndex
 }
 
 // Main search function that tries all strategies
-export function findBestMatch(searchStr: string, content: string[], startIndex: number = 0, minConfidence: number = 0.97): SearchResult {
-	const strategies = [findExactMatch, findAnchorMatch, findSimilarityMatch, findLevenshteinMatch]
+export function findBestMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
+	const strategies = [
+		findExactMatch,
+		findAnchorMatch,
+		findSimilarityMatch,
+		findLevenshteinMatch
+	]
 
 	let bestResult: SearchResult = { index: -1, confidence: 0, strategy: "none" }
 
 	for (const strategy of strategies) {
-		const result = strategy === findSimilarityMatch 
-			? strategy(searchStr, content, startIndex, minConfidence)
-			: strategy(searchStr, content, startIndex)
+		const result = strategy(searchStr, content, startIndex, confidenceThreshold)
 		if (result.confidence > bestResult.confidence) {
 			bestResult = result
 		}

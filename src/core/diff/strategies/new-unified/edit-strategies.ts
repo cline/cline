@@ -30,7 +30,7 @@ function inferIndentation(line: string, contextLines: string[], previousIndent: 
 }
 
 // Context matching edit strategy
-export function applyContextMatching(hunk: Hunk, content: string[], matchPosition: number): EditResult {
+export function applyContextMatching(hunk: Hunk, content: string[], matchPosition: number, confidenceThreshold: number): EditResult {
   if (matchPosition === -1) {
     return { confidence: 0, result: content, strategy: 'context' };
   }
@@ -71,7 +71,7 @@ export function applyContextMatching(hunk: Hunk, content: string[], matchPositio
     newResult.slice(matchPosition, matchPosition + windowSize).join('\n')
   )
 
-  const confidence = validateEditResult(hunk, newResult.slice(matchPosition, matchPosition + windowSize).join('\n'), 'context');
+  const confidence = validateEditResult(hunk, newResult.slice(matchPosition, matchPosition + windowSize).join('\n'), confidenceThreshold);
 
   return { 
     confidence: similarity * confidence,
@@ -81,7 +81,7 @@ export function applyContextMatching(hunk: Hunk, content: string[], matchPositio
 }
 
 // DMP edit strategy
-export function applyDMP(hunk: Hunk, content: string[], matchPosition: number): EditResult {
+export function applyDMP(hunk: Hunk, content: string[], matchPosition: number, confidenceThreshold: number): EditResult {
   if (matchPosition === -1) {
     return { confidence: 0, result: content, strategy: 'dmp' };
   }
@@ -123,7 +123,7 @@ export function applyDMP(hunk: Hunk, content: string[], matchPosition: number): 
   
   // Calculate confidence
   const similarity = getDMPSimilarity(beforeText, targetText);
-  const confidence = validateEditResult(hunk, patchedText, 'dmp');
+  const confidence = validateEditResult(hunk, patchedText, confidenceThreshold);
   
   return {
     confidence: similarity * confidence,
@@ -254,25 +254,25 @@ export async function applyEdit(
 	content: string[], 
 	matchPosition: number, 
 	confidence: number,
-	minConfidence: number = 0.9
+	confidenceThreshold: number = 0.97
 ): Promise<EditResult> {
 	// Don't attempt regular edits if confidence is too low
-	if (confidence < minConfidence) {
-		console.log(`Search confidence (${confidence}) below minimum threshold (${minConfidence}), trying git fallback...`);
+	if (confidence < confidenceThreshold) {
+		console.log(`Search confidence (${confidence}) below minimum threshold (${confidenceThreshold}), trying git fallback...`);
 		return applyGitFallback(hunk, content);
 	}
 
 	// Try each strategy in sequence until one succeeds
 	const strategies = [
-		{ name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition) },
-		{ name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition) },
+		{ name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition, confidenceThreshold) },
+		{ name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition, confidenceThreshold) },
 		{ name: 'git-fallback', apply: () => applyGitFallback(hunk, content) }
 	];
 
 	// Try strategies sequentially until one succeeds
 	for (const strategy of strategies) {
 		const result = await strategy.apply();
-		if (result.confidence >= minConfidence) {
+		if (result.confidence >= confidenceThreshold) {
 			return result;
 		}
 	}
