@@ -107,8 +107,12 @@ export class Cline {
 		task?: string | undefined,
 		images?: string[] | undefined,
 		historyItem?: HistoryItem | undefined,
-		experimentalDiffStrategy?: boolean,
+		experimentalDiffStrategy: boolean = false,
 	) {
+		if (!task && !images && !historyItem) {
+			throw new Error('Either historyItem or task/images must be provided');
+		}
+
 		this.taskId = crypto.randomUUID()
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
@@ -119,7 +123,7 @@ export class Cline {
 
 		// Prioritize experimentalDiffStrategy from history item if available
 		const effectiveExperimentalDiffStrategy = historyItem?.experimentalDiffStrategy ?? experimentalDiffStrategy
-		this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold, effectiveExperimentalDiffStrategy)
+		this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold ?? 1.0, effectiveExperimentalDiffStrategy)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.providerRef = new WeakRef(provider)
 

@@ -6,8 +6,8 @@ import { DiffResult, DiffStrategy } from "../../types"
 export class NewUnifiedDiffStrategy implements DiffStrategy {
 	private readonly confidenceThreshold: number
 
-	constructor(confidenceThreshold: number = 0.9) {
-		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8)
+	constructor(confidenceThreshold: number = 1) {
+		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8);
 	}
 
 	private parseUnifiedDiff(diff: string): Diff {

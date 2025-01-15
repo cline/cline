@@ -11,7 +11,7 @@ describe('main', () => {
   describe('constructor', () => {
     it('should use default confidence threshold when not provided', () => {
       const defaultStrategy = new NewUnifiedDiffStrategy()
-      expect(defaultStrategy['confidenceThreshold']).toBe(0.9)
+      expect(defaultStrategy['confidenceThreshold']).toBe(1)
     })
 
     it('should use provided confidence threshold', () => {
