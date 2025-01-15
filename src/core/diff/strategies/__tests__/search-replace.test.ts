@@ -621,8 +621,8 @@ function five() {
         })
     })
 
-    describe('line number stripping', async () => {
-        describe('line number stripping', async () => {
+    describe('line number stripping', () => {
+        describe('line number stripping', () => {
             let strategy: SearchReplaceDiffStrategy
         
             beforeEach(() => {
@@ -788,14 +788,14 @@ function five() {
         })
     });
 
-    describe('insertion/deletion', async () => {
+    describe('insertion/deletion', () => {
         let strategy: SearchReplaceDiffStrategy
     
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy()
         })
     
-        describe('deletion', async () => {
+        describe('deletion', () => {
             it('should delete code when replace block is empty', async () => {
                 const originalContent = `function test() {
     console.log("hello");
@@ -877,7 +877,7 @@ function five() {
             })
         })
     
-        describe('insertion', async () => {
+        describe('insertion', () => {
             it('should insert code at specified line when search block is empty', async () => {
             const originalContent = `function test() {
     const x = 1;
@@ -988,7 +988,7 @@ console.log("test");
         })
     })
 
-    describe('fuzzy matching', async () => {
+    describe('fuzzy matching', () => {
         let strategy: SearchReplaceDiffStrategy
         beforeEach(() => {
             strategy = new SearchReplaceDiffStrategy(0.9, 5) // 90% similarity threshold, 5 line buffer for tests
@@ -1073,7 +1073,7 @@ function sum(a, b) {
         })
     })
 
-    describe('line-constrained search', async () => {
+    describe('line-constrained search', () => {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
@@ -1512,7 +1512,7 @@ function two() {
         })
     })
 
-    describe('getToolDescription', async () => {
+    describe('getToolDescription', () => {
         let strategy: SearchReplaceDiffStrategy
 
         beforeEach(() => {
