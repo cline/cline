@@ -60,6 +60,13 @@ jest.mock('openai', () => {
 describe('OpenAiNativeHandler', () => {
     let handler: OpenAiNativeHandler;
     let mockOptions: ApiHandlerOptions;
+    const systemPrompt = 'You are a helpful assistant.';
+    const messages: Anthropic.Messages.MessageParam[] = [
+        {
+            role: 'user',
+            content: 'Hello!'
+        }
+    ];
 
     beforeEach(() => {
         mockOptions = {
@@ -86,14 +93,6 @@ describe('OpenAiNativeHandler', () => {
     });
 
     describe('createMessage', () => {
-        const systemPrompt = 'You are a helpful assistant.';
-        const messages: Anthropic.Messages.MessageParam[] = [
-            {
-                role: 'user',
-                content: 'Hello!'
-            }
-        ];
-
         it('should handle streaming responses', async () => {
             const stream = handler.createMessage(systemPrompt, messages);
             const chunks: any[] = [];
@@ -109,14 +108,125 @@ describe('OpenAiNativeHandler', () => {
 
         it('should handle API errors', async () => {
             mockCreate.mockRejectedValueOnce(new Error('API Error'));
-
             const stream = handler.createMessage(systemPrompt, messages);
-
             await expect(async () => {
                 for await (const chunk of stream) {
                     // Should not reach here
                 }
             }).rejects.toThrow('API Error');
+        });
+
+        it('should handle missing content in response for o1 model', async () => {
+            // Use o1 model which supports developer role
+            handler = new OpenAiNativeHandler({
+                ...mockOptions,
+                apiModelId: 'o1'
+            });
+
+            mockCreate.mockResolvedValueOnce({
+                choices: [{ message: { content: null } }],
+                usage: {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    total_tokens: 0
+                }
+            });
+
+            const generator = handler.createMessage(systemPrompt, messages);
+            const results = [];
+            for await (const result of generator) {
+                results.push(result);
+            }
+
+            expect(results).toEqual([
+                { type: 'text', text: '' },
+                { type: 'usage', inputTokens: 0, outputTokens: 0 }
+            ]);
+
+            // Verify developer role is used for system prompt with o1 model
+            expect(mockCreate).toHaveBeenCalledWith({
+                model: 'o1',
+                messages: [
+                    { role: 'developer', content: systemPrompt },
+                    { role: 'user', content: 'Hello!' }
+                ]
+            });
+        });
+    });
+
+    describe('streaming models', () => {
+        beforeEach(() => {
+            handler = new OpenAiNativeHandler({
+                ...mockOptions,
+                apiModelId: 'gpt-4o',
+            });
+        });
+
+        it('should handle streaming response', async () => {
+            const mockStream = [
+                { choices: [{ delta: { content: 'Hello' } }], usage: null },
+                { choices: [{ delta: { content: ' there' } }], usage: null },
+                { choices: [{ delta: { content: '!' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+            ];
+
+            mockCreate.mockResolvedValueOnce(
+                (async function* () {
+                    for (const chunk of mockStream) {
+                        yield chunk;
+                    }
+                })()
+            );
+
+            const generator = handler.createMessage(systemPrompt, messages);
+            const results = [];
+            for await (const result of generator) {
+                results.push(result);
+            }
+
+            expect(results).toEqual([
+                { type: 'text', text: 'Hello' },
+                { type: 'text', text: ' there' },
+                { type: 'text', text: '!' },
+                { type: 'usage', inputTokens: 10, outputTokens: 5 },
+            ]);
+
+            expect(mockCreate).toHaveBeenCalledWith({
+                model: 'gpt-4o',
+                temperature: 0,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: 'Hello!' },
+                ],
+                stream: true,
+                stream_options: { include_usage: true },
+            });
+        });
+
+        it('should handle empty delta content', async () => {
+            const mockStream = [
+                { choices: [{ delta: {} }], usage: null },
+                { choices: [{ delta: { content: null } }], usage: null },
+                { choices: [{ delta: { content: 'Hello' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+            ];
+
+            mockCreate.mockResolvedValueOnce(
+                (async function* () {
+                    for (const chunk of mockStream) {
+                        yield chunk;
+                    }
+                })()
+            );
+
+            const generator = handler.createMessage(systemPrompt, messages);
+            const results = [];
+            for await (const result of generator) {
+                results.push(result);
+            }
+
+            expect(results).toEqual([
+                { type: 'text', text: 'Hello' },
+                { type: 'usage', inputTokens: 10, outputTokens: 5 },
+            ]);
         });
     });
 
