@@ -96,7 +96,7 @@ type GlobalStateKey =
 	| "mode"
 	| "modeApiConfigs"
 	| "customPrompts"
-	| "enhancementApiConfigId",
+	| "enhancementApiConfigId"
   | "experimentalDiffStrategy"
 
 export const GlobalFileNames = {
