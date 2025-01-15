@@ -997,7 +997,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "loadApiConfiguration":
 						if (message.text) {
 							try {
-								console.log("loadApiConfiguration", message.text)
 								const apiConfig = await this.configManager.LoadConfig(message.text);
 								const listApiConfig = await this.configManager.ListConfig();
 								

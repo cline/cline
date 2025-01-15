@@ -483,7 +483,6 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<Checkbox
 							checked={apiConfiguration?.openAiStreamingEnabled ?? true}
 							onChange={(checked: boolean) => {
-								console.log("isChecked", checked)
 								handleInputChange("openAiStreamingEnabled")({
 									target: { value: checked },
 								})
