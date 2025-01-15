@@ -230,6 +230,10 @@ Your diff here
 						errorMsg += "\nPossible Issues:\n"
 						errorMsg += "- Too many context lines may reduce search accuracy\n"
 						errorMsg += "- Try to keep only 2-3 lines of context before and after changes\n"
+					} else {
+						errorMsg += "\nPossible Issues:\n"
+						errorMsg += "- The diff may be targeting a different version of the file\n"
+            errorMsg += "- There may be too many changes in a single hunk, try splitting the changes into multiple hunks\n"
 					}
 
 					if (startLine && endLine) {
