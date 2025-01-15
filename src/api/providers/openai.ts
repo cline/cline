@@ -12,7 +12,10 @@ export class OpenAiHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
+		if (
+			this.options.isAzureOpenAiService ||
+			(this.options.isAzureOpenAiService === undefined && this.options.openAiBaseUrl?.toLowerCase().includes("azure.com"))
+		) {
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,

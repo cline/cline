@@ -34,6 +34,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	isAzureOpenAiService?: boolean
 	azureApiVersion?: string
 }
 

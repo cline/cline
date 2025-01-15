@@ -46,7 +46,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
-	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [isAzureOpenAiService, setIsAzureOpenAiService] = useState(!!apiConfiguration?.isAzureOpenAiService)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -490,6 +490,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
+					{isAzureOpenAiService && (
+						<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+							wordBreak: "break-all",
+						}}>
+							<span style={{ fontWeight: 500 }}>Hint:</span> The Base URL should be set as shown in the following example.
+							Do not include paths like "/chat/completions" or query parameters like "api-version".
+							<br />
+							Example: https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME
+						</p>
+					)
+					}
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%" }}
@@ -506,26 +521,25 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 					<VSCodeCheckbox
-						checked={azureApiVersionSelected}
+						checked={isAzureOpenAiService}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							setAzureApiVersionSelected(isChecked)
-							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									azureApiVersion: "",
-								})
-							}
+							setIsAzureOpenAiService(isChecked)
+							setApiConfiguration({
+								...apiConfiguration,
+								isAzureOpenAiService: isChecked,
+							})
 						}}>
-						Set Azure API version
+						Azure OpenAI Service
 					</VSCodeCheckbox>
-					{azureApiVersionSelected && (
+					{isAzureOpenAiService && (
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							onInput={handleInputChange("azureApiVersion")}
-							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
-						/>
+							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}>
+							<span style={{ fontWeight: 500 }}>Azure OpenAI API version</span>
+						</VSCodeTextField>
 					)}
 					<p
 						style={{
