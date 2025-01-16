@@ -3019,7 +3019,8 @@ export class Cline {
 						if (
 							block.text.includes("<feedback>") ||
 							block.text.includes("<answer>") ||
-							block.text.includes("<task>")
+							block.text.includes("<task>") ||
+							block.text.includes("<user_message>")
 						) {
 							return {
 								...block,
