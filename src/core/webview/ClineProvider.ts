@@ -1072,6 +1072,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
           case "experimentalDiffStrategy":
 						await this.updateGlobalState("experimentalDiffStrategy", message.bool ?? false)
+						// Update diffStrategy in current Cline instance if it exists
+						if (this.cline) {
+							await this.cline.updateDiffStrategy(message.bool ?? false)
+						}
 						await this.postStateToWebview()
 				}
 			},

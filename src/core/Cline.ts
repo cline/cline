@@ -72,6 +72,7 @@ export class Cline {
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
+	fuzzyMatchThreshold: number = 1.0
 
 	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
@@ -120,22 +121,32 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context)
 		this.customInstructions = customInstructions
 		this.diffEnabled = enableDiff ?? false
-
-		// Prioritize experimentalDiffStrategy from history item if available
-		const effectiveExperimentalDiffStrategy = historyItem?.experimentalDiffStrategy ?? experimentalDiffStrategy
-		this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold ?? 1.0, effectiveExperimentalDiffStrategy)
-		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
+		this.diffViewProvider = new DiffViewProvider(cwd)
 
 		if (historyItem) {
 			this.taskId = historyItem.id
 		}
+
+		// Initialize diffStrategy based on current state
+		this.updateDiffStrategy(experimentalDiffStrategy)
 
 		if (task || images) {
 			this.startTask(task, images)
 		} else if (historyItem) {
 			this.resumeTaskFromHistory()
 		}
+	}
+
+	// Add method to update diffStrategy
+	async updateDiffStrategy(experimentalDiffStrategy?: boolean) {
+		// If not provided, get from current state
+		if (experimentalDiffStrategy === undefined) {
+			const { experimentalDiffStrategy: stateExperimentalDiffStrategy } = await this.providerRef.deref()?.getState() ?? {}
+			experimentalDiffStrategy = stateExperimentalDiffStrategy ?? false
+		}
+		this.diffStrategy = getDiffStrategy(this.api.getModel().id, this.fuzzyMatchThreshold, experimentalDiffStrategy)
 	}
 
 	// Storing task to disk for history
@@ -1344,7 +1355,6 @@ export class Cline {
 									success: false,
 									error: "No diff strategy available"
 								}
-								console.log("diffResult", diffResult)
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
 									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
