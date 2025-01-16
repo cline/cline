@@ -4,6 +4,7 @@ import {
 	ConverseCommand,
 	BedrockRuntimeClientConfig,
 } from "@aws-sdk/client-bedrock-runtime"
+import { fromIni } from "@aws-sdk/credential-providers"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, BedrockModelId, ModelInfo, bedrockDefaultModelId, bedrockModels } from "../../shared/api"
@@ -50,13 +51,17 @@ export class AwsBedrockHandler implements ApiHandler, SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 
-		// Only include credentials if they actually exist
 		const clientConfig: BedrockRuntimeClientConfig = {
 			region: this.options.awsRegion || "us-east-1",
 		}
 
-		if (this.options.awsAccessKey && this.options.awsSecretKey) {
-			// Create credentials object with all properties at once
+		if (this.options.awsUseProfile && this.options.awsProfile) {
+			// Use profile-based credentials if enabled and profile is set
+			clientConfig.credentials = fromIni({
+				profile: this.options.awsProfile,
+			})
+		} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
+			// Use direct credentials if provided
 			clientConfig.credentials = {
 				accessKeyId: this.options.awsAccessKey,
 				secretAccessKey: this.options.awsSecretKey,

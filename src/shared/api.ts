@@ -33,6 +33,8 @@ export interface ApiHandlerOptions {
 	awsUseCrossRegionInference?: boolean
 	awsUsePromptCache?: boolean
 	awspromptCacheId?: string
+	awsProfile?: string
+	awsUseProfile?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
