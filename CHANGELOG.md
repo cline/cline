@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 3.1.5
+
+### Patch Changes
+
+-   Another fix to the auto approve menu
+
 ## [3.1.4]
 
 -   Bug fixes to the auto approve menu
