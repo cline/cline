@@ -1,11 +1,9 @@
 # Roo Cline Changelog
 
-## 3.1.3
+## [3.1.3]
 
-### Patch Changes
-
--   Add auto-approve menu (thanks Cline!)
--   Fix VSCode LM
+-   Add auto-approve chat bar (thanks Cline!)
+-   Fix bug with VS Code Language Models integration
 
 ## [3.1.2]
 
