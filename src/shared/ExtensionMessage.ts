@@ -93,6 +93,7 @@ export interface ExtensionState {
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string
+	autoApprovalEnabled?: boolean
 }
 
 export interface ClineMessage {
