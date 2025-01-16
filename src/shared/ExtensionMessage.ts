@@ -18,6 +18,7 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
 	text?: string
@@ -30,6 +31,7 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	openAiModels?: string[]
 	mcpServers?: McpServer[]
 }
 
