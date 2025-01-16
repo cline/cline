@@ -56,6 +56,7 @@ import { fixModelHtmlEscaping } from "../utils/string"
 import { OpenAiHandler } from "../api/providers/openai"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
+import { BrowserSettings } from "../shared/BrowserSettings"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -69,10 +70,11 @@ export class Cline {
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
-	private browserSession: BrowserSession
+	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
+	private browserSettings: BrowserSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -107,6 +109,7 @@ export class Cline {
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
+		browserSettings: BrowserSettings,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -116,10 +119,11 @@ export class Cline {
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
-		this.browserSession = new BrowserSession(provider.context)
+		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
+		this.browserSettings = browserSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -130,6 +134,11 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+	}
+
+	updateBrowserSettings(browserSettings: BrowserSettings) {
+		this.browserSettings = browserSettings
+		this.browserSession.browserSettings = browserSettings
 	}
 
 	// Storing task to disk for history
@@ -1177,7 +1186,12 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub)
+		let systemPrompt = await SYSTEM_PROMPT(
+			cwd,
+			this.api.getModel().info.supportsComputerUse ?? false,
+			mcpHub,
+			this.browserSettings,
+		)
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -3009,40 +3023,22 @@ export class Cline {
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
 		return await Promise.all([
-			// Process userContent array, which contains various block types:
-			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
-			// We need to apply parseMentions() to:
-			// 1. All TextBlockParam's text (first user message with task)
-			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
+			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
+			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
 			Promise.all(
 				userContent.map(async (block) => {
 					if (block.type === "text") {
-						return {
-							...block,
-							text: await parseMentions(block.text, cwd, this.urlContentFetcher),
-						}
-					} else if (block.type === "tool_result") {
-						const isUserMessage = (text: string) => text.includes("<feedback>") || text.includes("<answer>")
-						if (typeof block.content === "string" && isUserMessage(block.content)) {
+						// We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
+						// FIXME: Only parse text in between these tags instead of the entire text block which may contain other tool results. This is part of a larger issue where we shouldn't be using regex to parse mentions in the first place (ie for cases where file paths have spaces)
+						if (
+							block.text.includes("<feedback>") ||
+							block.text.includes("<answer>") ||
+							block.text.includes("<task>") ||
+							block.text.includes("<user_message>")
+						) {
 							return {
 								...block,
-								content: await parseMentions(block.content, cwd, this.urlContentFetcher),
-							}
-						} else if (Array.isArray(block.content)) {
-							const parsedContent = await Promise.all(
-								block.content.map(async (contentBlock) => {
-									if (contentBlock.type === "text" && isUserMessage(contentBlock.text)) {
-										return {
-											...contentBlock,
-											text: await parseMentions(contentBlock.text, cwd, this.urlContentFetcher),
-										}
-									}
-									return contentBlock
-								}),
-							)
-							return {
-								...block,
-								content: parsedContent,
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
 							}
 						}
 					}
@@ -3166,6 +3162,22 @@ export class Cline {
 		if (terminalDetails) {
 			details += terminalDetails
 		}
+
+		// Add current time information with timezone
+		// const now = new Date()
+		// const formatter = new Intl.DateTimeFormat(undefined, {
+		// 	year: "numeric",
+		// 	month: "numeric",
+		// 	day: "numeric",
+		// 	hour: "numeric",
+		// 	minute: "numeric",
+		// 	second: "numeric",
+		// 	hour12: true,
+		// })
+		// const timeZone = formatter.resolvedOptions().timeZone
+		// const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
+		// const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
+		// details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`

@@ -2,6 +2,7 @@
 
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { BrowserSettings } from "./BrowserSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 
@@ -46,6 +47,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
+	browserSettings: BrowserSettings
 }
 
 export interface ClineMessage {
