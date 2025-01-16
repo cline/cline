@@ -2,6 +2,8 @@
 
 A fork of Cline, an autonomous coding agent, with some additional experimental features. It’s been mainly writing itself recently, with a light touch of human guidance here and there.
 
+You can track what's new at our [CHANGELOG](CHANGELOG.md), with some highlights below.
+
 ## New in 3.1: Chat Mode Prompt Customization & Prompt Enhancements
 
 Hot off the heels of **v3.0** introducing Code, Architect, and Ask chat modes, one of the most requested features has arrived: **customizable prompts for each mode**! 🎉
@@ -21,7 +23,7 @@ As always, we’d love to hear your thoughts and ideas! What features do you wan
 
 You can now choose between different prompts for Roo Cline to better suit your workflow. Here’s what’s available:
 
-- **Code:** (existing behavior): The default mode where Cline helps you write code and execute tasks.
+- **Code:** (existing behavior) The default mode where Cline helps you write code and execute tasks.
 
 - **Architect:** "You are Cline, a software architecture expert..." Ideal for thinking through high-level technical design and system architecture. Can’t write code or run commands.
 
@@ -37,38 +39,6 @@ It’s super simple! There’s a dropdown in the bottom left of the chat input t
 
 Right now, switching modes is a manual process. In the future, we’d love to give Cline the ability to suggest mode switches based on context. For now, we’d really appreciate your feedback on this feature.
 
-Give it a try and let us know what you think in the reddit: https://www.reddit.com/r/roocline 🚀
-
-## Experimental Features
-
-- Different chat modes for coding, architecting code, and asking questions about the codebase
-- Drag and drop images into chats
-- Delete messages from chats
-- @-mention Git commits to include their context in the chat
-- Save different API configurations to quickly switch between providers and settings
-- "Enhance prompt" button (OpenRouter models only for now)
-- Sound effects for feedback
-- Option to use browsers of different sizes and adjust screenshot quality
-- Quick prompt copying from history
-- Copy markdown from chat messages
-- OpenRouter compression support
-- Includes current time in the system prompt
-- Uses a file system watcher to more reliably watch for file system changes
-- Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
-- Support for DeepSeek V3
-- Support for Amazon Nova and Meta 3, 3.1, and 3.2 models via AWS Bedrock
-- Support for Glama
-- Support for listing models from OpenAI-compatible providers
-- Support for adding OpenAI-compatible models with or without streaming
-- Experimental support for VS Code Language Models (e.g. Copilot)
-- Per-tool MCP auto-approval
-- Enable/disable individual MCP servers
-- Enable/disable the MCP feature overall
-- Automatically retry failed API requests with a configurable delay
-- Configurable delay after auto-writes to allow diagnostics to detect potential problems
-- Control the number of terminal output lines to pass to the model when executing commands
-- Runs alongside the original Cline
-
 ## Disclaimer
 
 **Please note** that Roo Veterinary, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo-Cline, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
@@ -80,10 +50,9 @@ Here's an example of Roo-Cline autonomously creating a snake game with "Always a
 https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
 ## Contributing
-To contribute to the project, start by exploring [open issues](https://github.com/RooVetGit/Roo-Cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join the [Roo Cline Reddit](https://www.reddit.com/r/roocline/) and the [Cline Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
+To contribute to the project, start by exploring [open issues](https://github.com/RooVetGit/Roo-Cline/issues) or checking our [feature request board](https://github.com/RooVetGit/Roo-Cline/discussions/categories/feature-requests). We'd also love to have you join the [Roo Cline Reddit](https://www.reddit.com/r/roocline/) to share ideas and connect with other contributors.
 
-<details>
-<summary>Local Setup</summary>
+### Local Setup
 
 1. Install dependencies:
    ```bash
@@ -108,10 +77,8 @@ To contribute to the project, start by exploring [open issues](https://github.co
 
 5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
-</details>
+### Publishing
 
-<details>
-<summary>Publishing</summary>
 We use [changesets](https://github.com/changesets/changesets) for versioning and publishing this package. To make changes:
 
 1. Create a PR with your changes
@@ -126,11 +93,7 @@ Once your merge is successful:
 - This PR will:
   - Update the version based on your changeset
   - Update the `CHANGELOG.md` file
-  - Create a git tag
-- The PR will be automatically approved and merged
-- A new version and git release will be published
-
-</details>
+- Once the PR is approved and merged, a new version will be published
 
 ---
 
@@ -144,7 +107,7 @@ Once your merge is successful:
 <table>
 <tbody>
 <td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=rooveterinaryinc.roo-cline" target="_blank"><strong>Download on VS Marketplace</strong></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" target="_blank"><strong>Download on VS Marketplace</strong></a>
 </td>
 <td align="center">
 <a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>
