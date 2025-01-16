@@ -30,6 +30,7 @@ export interface ExtensionMessage {
 		| "requestVsCodeLmModels"
 		| "updatePrompt"
 		| "systemPrompt"
+		| "autoApprovalEnabled"
 	text?: string
 	action?:
 		| "chatButtonClicked"

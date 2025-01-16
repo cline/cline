@@ -72,6 +72,7 @@ export interface WebviewMessage {
 		| "getSystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
+		| "autoApprovalEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

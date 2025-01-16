@@ -109,7 +109,7 @@ describe("AutoApproveMenu", () => {
         // Verify menu items are visible
         expect(screen.getByText("Read files and directories")).toBeInTheDocument()
         expect(screen.getByText("Edit files")).toBeInTheDocument()
-        expect(screen.getByText("Execute safe commands")).toBeInTheDocument()
+        expect(screen.getByText("Execute approved commands")).toBeInTheDocument()
         expect(screen.getByText("Use the browser")).toBeInTheDocument()
         expect(screen.getByText("Use MCP servers")).toBeInTheDocument()
         expect(screen.getByText("Retry failed requests")).toBeInTheDocument()
@@ -139,7 +139,7 @@ describe("AutoApproveMenu", () => {
         expect(defaultMockState.setAlwaysAllowWrite).toHaveBeenCalledWith(true)
         
         // Click execute commands checkbox
-        fireEvent.click(screen.getByText("Execute safe commands"))
+        fireEvent.click(screen.getByText("Execute approved commands"))
         expect(defaultMockState.setAlwaysAllowExecute).toHaveBeenCalledWith(true)
     })
 

@@ -98,6 +98,7 @@ type GlobalStateKey =
 	| "modeApiConfigs"
 	| "customPrompts"
 	| "enhancementApiConfigId"
+	| "autoApprovalEnabled"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -873,6 +874,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "enhancementApiConfigId":
 						await this.updateGlobalState("enhancementApiConfigId", message.text)
+						await this.postStateToWebview()
+						break
+					case "autoApprovalEnabled":
+						await this.updateGlobalState("autoApprovalEnabled", message.bool)
 						await this.postStateToWebview()
 						break
 					case "enhancePrompt":
