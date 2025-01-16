@@ -5,6 +5,7 @@
 -   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
 -   Fix bug related to configuration profile switching (thanks @samhvw8!)
 -   Improvements to fuzzy search in mentions, history, and model lists (thanks @samhvw8!)
+-   PKCE support for Glama (thanks @punkpeye!)
 -   Use 'developer' message for o1 system prompt
 
 ## [3.1.1]
