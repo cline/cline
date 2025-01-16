@@ -961,10 +961,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								await this.configManager.SaveConfig(message.text, message.apiConfiguration);
 								let listApiConfig = await this.configManager.ListConfig();
 								
-								// Update listApiConfigMeta first to ensure UI has latest data
-								await this.updateGlobalState("listApiConfigMeta", listApiConfig);
-
 								await Promise.all([
+									this.updateGlobalState("listApiConfigMeta", listApiConfig),
 									this.updateApiConfiguration(message.apiConfiguration),
 									this.updateGlobalState("currentApiConfigName", message.text),
 								])
@@ -1006,12 +1004,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							try {
 								const apiConfig = await this.configManager.LoadConfig(message.text);
 								const listApiConfig = await this.configManager.ListConfig();
-								const config = listApiConfig?.find(c => c.name === message.text);
 								
-								// Update listApiConfigMeta first to ensure UI has latest data
-								await this.updateGlobalState("listApiConfigMeta", listApiConfig);
-
 								await Promise.all([
+									this.updateGlobalState("listApiConfigMeta", listApiConfig),
 									this.updateGlobalState("currentApiConfigName", message.text),
 									this.updateApiConfiguration(apiConfig),
 								])
