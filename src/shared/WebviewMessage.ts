@@ -22,6 +22,7 @@ export interface WebviewMessage {
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
+		| "refreshGlamaModels"
 		| "refreshOpenRouterModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
