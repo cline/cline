@@ -527,7 +527,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					flexDirection: "column",
 					gap: "8px",
 					backgroundColor: "var(--vscode-input-background)",
-					minHeight: "100px",
 					margin: "10px 15px",
 					padding: "8px"
 				}}
@@ -652,7 +651,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onHeightChange?.(height)
 						}}
 						placeholder={placeholderText}
-						minRows={4}
+						minRows={2}
 						maxRows={20}
 						autoFocus={true}
 						style={{
