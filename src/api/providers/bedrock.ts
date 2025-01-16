@@ -1,5 +1,6 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { fromIni } from "@aws-sdk/credential-providers"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
@@ -9,22 +10,62 @@ export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicBedrock
 
+	private profile: string
+
+	private initializationPromise: Promise<void>
+
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+		this.profile = options.awsProfile || "bedrock"
+		// Initialize with empty credentials that will be replaced by initializeClient()
 		this.client = new AnthropicBedrock({
-			// Authenticate by either providing the keys below or use the default AWS credential providers, such as
-			// using ~/.aws/credentials or the "AWS_SECRET_ACCESS_KEY" and "AWS_ACCESS_KEY_ID" environment variables.
-			...(this.options.awsAccessKey ? { awsAccessKey: this.options.awsAccessKey } : {}),
-			...(this.options.awsSecretKey ? { awsSecretKey: this.options.awsSecretKey } : {}),
-			...(this.options.awsSessionToken ? { awsSessionToken: this.options.awsSessionToken } : {}),
-
-			// awsRegion changes the aws region to which the request is made. By default, we read AWS_REGION,
-			// and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.
-			awsRegion: this.options.awsRegion,
+			awsAccessKey: "",
+			awsSecretKey: "",
+			awsRegion: this.options.awsRegion || process.env.AWS_REGION || "us-east-1"
 		})
+		this.initializationPromise = this.initializeClient()
+	}
+
+	private async initializeClient() {
+		try {
+			const credentials = await this._getCredentials()
+			this.client = new AnthropicBedrock({
+				awsAccessKey: credentials.accessKeyId,
+				awsSecretKey: credentials.secretAccessKey,
+				...(credentials.sessionToken && { awsSessionToken: credentials.sessionToken }),
+				awsRegion: this.options.awsRegion || process.env.AWS_REGION || "us-east-1"
+			})
+		} catch (error) {
+			console.error("Failed to initialize Bedrock client:", error)
+			throw error
+		}
+	}
+
+	private async _getCredentials() {
+		try {
+			// First try explicit credentials if provided
+			if (this.options.awsAccessKey && this.options.awsSecretKey) {
+				return {
+					accessKeyId: this.options.awsAccessKey,
+					secretAccessKey: this.options.awsSecretKey,
+					sessionToken: this.options.awsSessionToken
+				}
+			}
+
+			// Then try loading from specified AWS profile
+			return await fromIni({
+				profile: this.profile,
+				ignoreCache: true
+			})()
+		} catch (e) {
+			console.warn(`AWS profile '${this.profile}' not found in ~/.aws/credentials, using default profile`)
+			return await fromIni()()
+		}
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		// Wait for client initialization to complete
+		await this.initializationPromise
 		// cross region inference requires prefixing the model id with the region
 		let modelId: string
 		if (this.options.awsUseCrossRegionInference) {
