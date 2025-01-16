@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 3.1.4
+
+### Patch Changes
+
+-   Bug fixes to the auto approve menu
+
 ## [3.1.3]
 
 -   Add auto-approve chat bar (thanks Cline!)
