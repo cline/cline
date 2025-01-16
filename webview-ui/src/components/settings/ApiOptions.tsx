@@ -373,6 +373,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</div>
+					<VSCodeTextField
+						value={apiConfiguration?.awsProfile || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("awsProfile")}
+						placeholder="Default: bedrock">
+						<span style={{ fontWeight: 500 }}>AWS Profile (optional)</span>
+					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
