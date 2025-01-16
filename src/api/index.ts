@@ -48,6 +48,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
+		case "vscode-lm":
+			return new VsCodeLmHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
