@@ -1,5 +1,10 @@
 # Roo Cline Changelog
 
+## [3.1.3]
+
+-   Add auto-approve chat bar (thanks Cline!)
+-   Fix bug with VS Code Language Models integration
+
 ## [3.1.2]
 
 -   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
