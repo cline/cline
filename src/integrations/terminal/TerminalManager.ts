@@ -161,8 +161,10 @@ export class TerminalManager {
 	}
 
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
+		const terminals = TerminalRegistry.getAllTerminals()
+
 		// Find available terminal from our pool first (created for this task)
-		const availableTerminal = TerminalRegistry.getAllTerminals().find((t) => {
+		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
 				return false
 			}
@@ -173,11 +175,21 @@ export class TerminalManager {
 			}
 			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
 		})
+		if (matchingTerminal) {
+			this.terminalIds.add(matchingTerminal.id)
+			return matchingTerminal
+		}
+
+		// If no matching terminal exists, try to find any non-busy terminal
+		const availableTerminal = terminals.find((t) => !t.busy)
 		if (availableTerminal) {
+			// Navigate back to the desired directory
+			await this.runCommand(availableTerminal, `cd "${cwd}"`)
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
 
+		// If all terminals are busy, create a new one
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
