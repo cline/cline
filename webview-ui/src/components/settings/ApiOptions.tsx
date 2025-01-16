@@ -4,7 +4,7 @@ import {
 	VSCodeLink,
 	VSCodeRadio,
 	VSCodeRadioGroup,
-	VSCodeTextField,
+	VSCodeTextField
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
@@ -33,6 +33,7 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import * as vscodemodels from "vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, {
 	ModelDescriptionMarkdown,
@@ -50,6 +51,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	const { apiConfiguration, setApiConfiguration, uriScheme, onUpdateApiConfig } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
+	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -70,21 +72,24 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
 		} else if (selectedProvider === "lmstudio") {
 			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
+		} else if (selectedProvider === "vscode-lm") {
+			vscode.postMessage({ type: "requestVsCodeLmModels" })
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio") {
+		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" ? 2000 : null)
-
+	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null)
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && message.ollamaModels) {
 			setOllamaModels(message.ollamaModels)
 		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
 			setLmStudioModels(message.lmStudioModels)
+		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
+			setVsCodeLmModels(message.vsCodeLmModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -139,6 +144,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						{ value: "vertex", label: "GCP Vertex AI" },
 						{ value: "bedrock", label: "AWS Bedrock" },
 						{ value: "glama", label: "Glama" },
+						{ value: "vscode-lm", label: "VS Code LM API" },
 						{ value: "lmstudio", label: "LM Studio" },
 						{ value: "ollama", label: "Ollama" }
 					]}
@@ -206,11 +212,12 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.glamaApiKey && (
-						<VSCodeLink
-							href="https://glama.ai/settings/api-keys"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							You can get an Glama API key by signing up here.
-						</VSCodeLink>
+						<VSCodeButtonLink
+							href={getGlamaAuthUrl(uriScheme)}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get Glama API Key
+						</VSCodeButtonLink>
 					)}
 					<p
 						style={{
@@ -619,6 +626,59 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				</div>
 			)}
 
+			{selectedProvider === "vscode-lm" && (
+				<div>
+					<div className="dropdown-container">
+						<label htmlFor="vscode-lm-model">
+							<span style={{ fontWeight: 500 }}>Language Model</span>
+						</label>
+						{vsCodeLmModels.length > 0 ? (
+							<Dropdown
+								id="vscode-lm-model"
+								value={apiConfiguration?.vsCodeLmModelSelector ?
+									`${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` :
+									""}
+								onChange={(value: unknown) => {
+									const valueStr = (value as DropdownOption).value;
+									const [vendor, family] = valueStr.split('/');
+									setApiConfiguration({
+										...apiConfiguration,
+										vsCodeLmModelSelector: valueStr ? { vendor, family } : undefined
+									});
+								}}
+								style={{ width: "100%" }}
+								options={[
+									{ value: "", label: "Select a model..." },
+									...vsCodeLmModels.map((model) => ({
+										value: `${model.vendor}/${model.family}`,
+										label: `${model.vendor} - ${model.family}`
+									}))
+								]}
+							/>
+						) : (
+							<p style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+								The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot).
+								The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.
+							</p>
+						)}
+
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-errorForeground)",
+								fontWeight: 500,
+							}}>
+							Note: This is a very experimental integration and may not work as expected. Please report any issues to the Roo-Cline GitHub repository.
+						</p>
+					</div>
+				</div>
+			)}
+
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
@@ -739,8 +799,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	)
 }
 
+export function getGlamaAuthUrl(uriScheme?: string) {
+	const callbackUrl = `${uriScheme || "vscode"}://rooveterinaryinc.roo-cline/glama`
+
+	return `https://glama.ai/oauth/authorize?callback_url=${encodeURIComponent(callbackUrl)}`
+}
+
 export function getOpenRouterAuthUrl(uriScheme?: string) {
-	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://rooveterinaryinc.roo-cline/openrouter`
 }
 
 export const formatPrice = (price: number) => {
@@ -931,6 +997,17 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "vscode-lm":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.vsCodeLmModelSelector ?
+					`${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}` :
+					"",
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					supportsImages: false, // VSCode LM API currently doesn't support images
+				},
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

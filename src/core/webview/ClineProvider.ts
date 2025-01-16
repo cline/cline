@@ -93,6 +93,7 @@ type GlobalStateKey =
 	| "requestDelaySeconds"
 	| "currentApiConfigName"
 	| "listApiConfigMeta"
+	| "vsCodeLmModelSelector"
 	| "mode"
 	| "modeApiConfigs"
 	| "customPrompts"
@@ -571,8 +572,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const lmStudioModels = await this.getLmStudioModels(message.text)
 						this.postMessageToWebview({ type: "lmStudioModels", lmStudioModels })
 						break
+					case "requestVsCodeLmModels":
+						const vsCodeLmModels = await this.getVsCodeLmModels()
+						this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
+						break
 					case "refreshGlamaModels":
-							await this.refreshGlamaModels()
+						await this.refreshGlamaModels()
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
@@ -1109,6 +1114,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterModelId,
 			openRouterModelInfo,
 			openRouterUseMiddleOutTransform,
+			vsCodeLmModelSelector,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1140,6 +1146,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("openRouterModelId", openRouterModelId)
 		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 		await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
+		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		} 
@@ -1210,6 +1217,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	// VSCode LM API
+	private async getVsCodeLmModels() {
+		try {
+			const models = await vscode.lm.selectChatModels({});
+			return models || [];
+		} catch (error) {
+			console.error('Error fetching VS Code LM models:', error);
+			return [];
+		}
+	}
+
 	// OpenAi
 
 	async getOpenAiModels(baseUrl?: string, apiKey?: string) {
@@ -1266,6 +1284,33 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
+	}
+
+	async handleGlamaCallback(code: string) {
+		let apiKey: string
+		try {
+			const response = await axios.post("https://glama.ai/api/gateway/v1/auth/exchange-code", { code })
+			if (response.data && response.data.apiKey) {
+				apiKey = response.data.apiKey
+			} else {
+				throw new Error("Invalid response from Glama API")
+			}
+		} catch (error) {
+			console.error("Error exchanging code for API key:", error)
+			throw error
+		}
+
+		const glama: ApiProvider = "glama"
+		await this.updateGlobalState("apiProvider", glama)
+		await this.storeSecret("glamaApiKey", apiKey)
+		await this.postStateToWebview()
+		if (this.cline) {
+			this.cline.api = buildApiHandler({
+				apiProvider: glama,
+				glamaApiKey: apiKey,
+			})
+		}
+		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
 
 	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
@@ -1742,6 +1787,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
+			vsCodeLmModelSelector,
 			mode,
 			modeApiConfigs,
 			customPrompts,
@@ -1800,6 +1846,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
 			this.getGlobalState("currentApiConfigName") as Promise<string | undefined>,
 			this.getGlobalState("listApiConfigMeta") as Promise<ApiConfigMeta[] | undefined>,
+			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("mode") as Promise<Mode | undefined>,
 			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
 			this.getGlobalState("customPrompts") as Promise<CustomPrompts | undefined>,
@@ -1852,6 +1899,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				openRouterUseMiddleOutTransform,
+				vsCodeLmModelSelector,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
