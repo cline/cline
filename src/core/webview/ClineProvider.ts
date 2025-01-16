@@ -58,6 +58,7 @@ type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
+	| "isAzureOpenAiService"
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
@@ -392,6 +393,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								deepSeekApiKey,
+								isAzureOpenAiService,
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
@@ -418,6 +420,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
+							await this.updateGlobalState("isAzureOpenAiService", isAzureOpenAiService)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -1023,6 +1026,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
+			isAzureOpenAiService,
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
@@ -1054,6 +1058,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
+			this.getGlobalState("isAzureOpenAiService") as Promise<boolean | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
@@ -1102,6 +1107,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				geminiApiKey,
 				openAiNativeApiKey,
 				deepSeekApiKey,
+				isAzureOpenAiService,
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
