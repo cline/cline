@@ -124,16 +124,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		switch (message.type) {
 			case "state": {
 				const newState = message.state!
-				// Set autoApprovalEnabled to true if undefined and any individual flag is true
-				if (newState.autoApprovalEnabled === undefined) {
-					newState.autoApprovalEnabled = !!(
-						newState.alwaysAllowBrowser ||
-						newState.alwaysAllowReadOnly ||
-						newState.alwaysAllowWrite ||
-						newState.alwaysAllowExecute ||
-						newState.alwaysAllowMcp ||
-						newState.alwaysApproveResubmit)
-				}
 				setState(prevState => ({
 					...prevState,
 					...newState

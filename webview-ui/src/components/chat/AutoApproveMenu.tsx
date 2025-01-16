@@ -1,6 +1,7 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+import { vscode } from "../../utils/vscode"
 
 interface AutoApproveAction {
 	id: string
@@ -50,7 +51,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		},
 		{
 			id: "executeCommands",
-			label: "Execute safe commands",
+			label: "Execute approved commands",
 			shortName: "Commands",
 			enabled: alwaysAllowExecute ?? false,
 			description:
@@ -89,12 +90,41 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		.join(", ")
 
 	// Individual checkbox handlers - each one only updates its own state
-	const handleReadOnlyChange = useCallback(() => setAlwaysAllowReadOnly(!(alwaysAllowReadOnly ?? false)), [alwaysAllowReadOnly, setAlwaysAllowReadOnly])
-	const handleWriteChange = useCallback(() => setAlwaysAllowWrite(!(alwaysAllowWrite ?? false)), [alwaysAllowWrite, setAlwaysAllowWrite])
-	const handleExecuteChange = useCallback(() => setAlwaysAllowExecute(!(alwaysAllowExecute ?? false)), [alwaysAllowExecute, setAlwaysAllowExecute])
-	const handleBrowserChange = useCallback(() => setAlwaysAllowBrowser(!(alwaysAllowBrowser ?? false)), [alwaysAllowBrowser, setAlwaysAllowBrowser])
-	const handleMcpChange = useCallback(() => setAlwaysAllowMcp(!(alwaysAllowMcp ?? false)), [alwaysAllowMcp, setAlwaysAllowMcp])
-	const handleRetryChange = useCallback(() => setAlwaysApproveResubmit(!(alwaysApproveResubmit ?? false)), [alwaysApproveResubmit, setAlwaysApproveResubmit])
+	const handleReadOnlyChange = useCallback(() => {
+		const newValue = !(alwaysAllowReadOnly ?? false)
+		setAlwaysAllowReadOnly(newValue)
+		vscode.postMessage({ type: "alwaysAllowReadOnly", bool: newValue })
+	}, [alwaysAllowReadOnly, setAlwaysAllowReadOnly])
+
+	const handleWriteChange = useCallback(() => {
+		const newValue = !(alwaysAllowWrite ?? false)
+		setAlwaysAllowWrite(newValue)
+		vscode.postMessage({ type: "alwaysAllowWrite", bool: newValue })
+	}, [alwaysAllowWrite, setAlwaysAllowWrite])
+
+	const handleExecuteChange = useCallback(() => {
+		const newValue = !(alwaysAllowExecute ?? false)
+		setAlwaysAllowExecute(newValue)
+		vscode.postMessage({ type: "alwaysAllowExecute", bool: newValue })
+	}, [alwaysAllowExecute, setAlwaysAllowExecute])
+
+	const handleBrowserChange = useCallback(() => {
+		const newValue = !(alwaysAllowBrowser ?? false)
+		setAlwaysAllowBrowser(newValue)
+		vscode.postMessage({ type: "alwaysAllowBrowser", bool: newValue })
+	}, [alwaysAllowBrowser, setAlwaysAllowBrowser])
+
+	const handleMcpChange = useCallback(() => {
+		const newValue = !(alwaysAllowMcp ?? false)
+		setAlwaysAllowMcp(newValue)
+		vscode.postMessage({ type: "alwaysAllowMcp", bool: newValue })
+	}, [alwaysAllowMcp, setAlwaysAllowMcp])
+
+	const handleRetryChange = useCallback(() => {
+		const newValue = !(alwaysApproveResubmit ?? false)
+		setAlwaysApproveResubmit(newValue)
+		vscode.postMessage({ type: "alwaysApproveResubmit", bool: newValue })
+	}, [alwaysApproveResubmit, setAlwaysApproveResubmit])
 
 	// Map action IDs to their specific handlers
 	const actionHandlers: Record<AutoApproveAction['id'], () => void> = {
@@ -129,7 +159,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				<div onClick={(e) => e.stopPropagation()}>
 					<VSCodeCheckbox
 						checked={autoApprovalEnabled ?? false}
-						onChange={() => setAutoApprovalEnabled(!(autoApprovalEnabled ?? false))}
+						onChange={() => {
+							const newValue = !(autoApprovalEnabled ?? false)
+							setAutoApprovalEnabled(newValue)
+							vscode.postMessage({ type: "autoApprovalEnabled", bool: newValue })
+						}}
 					/>
 				</div>
 				<div style={{
