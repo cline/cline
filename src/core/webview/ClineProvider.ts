@@ -877,7 +877,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "autoApprovalEnabled":
-						await this.updateGlobalState("autoApprovalEnabled", message.bool)
+						await this.updateGlobalState("autoApprovalEnabled", message.bool ?? false)
 						await this.postStateToWebview()
 						break
 					case "enhancePrompt":
@@ -1644,6 +1644,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode,
 			customPrompts,
 			enhancementApiConfigId,
+			autoApprovalEnabled,
 		} = await this.getState()
 
 		const allowedCommands = vscode.workspace
@@ -1683,6 +1684,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode: mode ?? codeMode,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
+			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
 
@@ -1797,6 +1799,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modeApiConfigs,
 			customPrompts,
 			enhancementApiConfigId,
+			autoApprovalEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1856,6 +1859,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
 			this.getGlobalState("customPrompts") as Promise<CustomPrompts | undefined>,
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
+			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1959,6 +1963,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modeApiConfigs: modeApiConfigs ?? {} as Record<Mode, string>,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
+			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
 

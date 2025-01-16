@@ -93,6 +93,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		mode: codeMode,
 		customPrompts: defaultPrompts,
 		enhancementApiConfigId: '',
+		autoApprovalEnabled: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
