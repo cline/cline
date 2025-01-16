@@ -268,7 +268,6 @@ Your diff here
 
 				for (const subHunk of subHunks) {
 					const subContextStr = prepareSearchString(subHunk.changes)
-          console.log(subContextStr)
 					const subSearchResult = findBestMatch(subContextStr, subHunkResult, 0, this.confidenceThreshold)
 
 					if (subSearchResult.confidence >= this.confidenceThreshold) {
