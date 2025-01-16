@@ -3149,20 +3149,20 @@ export class Cline {
 		}
 
 		// Add current time information with timezone
-		const now = new Date()
-		const formatter = new Intl.DateTimeFormat(undefined, {
-			year: "numeric",
-			month: "numeric",
-			day: "numeric",
-			hour: "numeric",
-			minute: "numeric",
-			second: "numeric",
-			hour12: true,
-		})
-		const timeZone = formatter.resolvedOptions().timeZone
-		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
-		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
-		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
+		// const now = new Date()
+		// const formatter = new Intl.DateTimeFormat(undefined, {
+		// 	year: "numeric",
+		// 	month: "numeric",
+		// 	day: "numeric",
+		// 	hour: "numeric",
+		// 	minute: "numeric",
+		// 	second: "numeric",
+		// 	hour12: true,
+		// })
+		// const timeZone = formatter.resolvedOptions().timeZone
+		// const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
+		// const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
+		// details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`

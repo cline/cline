@@ -3,7 +3,6 @@
 ## [3.1.6]
 
 - Fix bug where filepaths with Chinese characters would not show up in context mention menu (thanks @chi-chat!)
-- Add timestamp to prompts to help with certain MCP servers that need the current time (thanks @MrUbens!)
 - Update Anthropic model prices (thanks @timoteostewart!)
 
 ## [3.1.5]
