@@ -1,12 +1,11 @@
 # Roo Cline Changelog
 
-## 3.1.2
+## [3.1.2]
 
-### Patch Changes
-
--   Experimental support for VS Code Language Models (thanks @RaySinner / @julesmons!)
+-   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
 -   Fix bug related to configuration profile switching (thanks @samhvw8!)
--   Improvements to fuzzy search in mentions, history, and model lists
+-   Improvements to fuzzy search in mentions, history, and model lists (thanks @samhvw8!)
+-   Use 'developer' message for o1 system prompt
 
 ## [3.1.1]
 
