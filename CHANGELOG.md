@@ -1,5 +1,12 @@
 # Roo Cline Changelog
 
+## 3.1.3
+
+### Patch Changes
+
+-   Add auto-approve menu (thanks Cline!)
+-   Fix VSCode LM
+
 ## [3.1.2]
 
 -   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
