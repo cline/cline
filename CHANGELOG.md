@@ -1,5 +1,13 @@
 # Roo Cline Changelog
 
+## 3.1.2
+
+### Patch Changes
+
+-   Experimental support for VS Code Language Models (thanks @RaySinner / @julesmons!)
+-   Fix bug related to configuration profile switching (thanks @samhvw8!)
+-   Improvements to fuzzy search in mentions, history, and model lists
+
 ## [3.1.1]
 
 -   Visual fixes to chat input and settings for the light+ themes

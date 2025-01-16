@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -163,7 +163,7 @@
               "description": "The vendor of the language model (e.g. copilot)"
             },
             "family": {
-              "type": "string", 
+              "type": "string",
               "description": "The family of the language model (e.g. gpt-4)"
             }
           },
