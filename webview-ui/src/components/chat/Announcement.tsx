@@ -19,8 +19,8 @@ const AnnouncementSpacer = styled.div`
 	margin: 8px 0;
 `
 
+// Avoid code duplication by using a styled component
 const AnnouncementIcon = styled.span`
-	// shared style
 	font-size: 12px;
 	margin-right: 4px;
 `
