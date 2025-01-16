@@ -27,7 +27,7 @@ If you're planning to work on a bigger feature, please create a [feature request
     - If you dismissed the prompts, you can install them manually from the Extensions panel
 
 2. **Local Development**
-    - Run `npm install` to install dependencies
+    - Run `npm run install:all` to install dependencies
     - Run `npm run test` to run tests locally
     - Before submitting PR, run `npm run format:fix` to format your code
 
