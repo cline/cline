@@ -12,30 +12,17 @@ const AnnouncementContainer = styled.div`
 	flex-shrink: 0;
 `
 
-const AnnouncementIcon = styled.span`
-	fontSize: 12px,
-	marginRight: 4px
-`
-
-const AnnouncementHeader = styled.h3`
-	margin: 0 0 8px;
-`
-
-const AnnouncementList = styled.ul`
-	margin: 0 0 8px;
-	padding-left: 12px;
-`
-
-const AnnouncementListInner = styled.ul`
-	margin: 4px 0;
-	padding-left: 22;
-`
-
 const AnnouncementSpacer = styled.div`
 	height: 1px;
 	background: ${getVarValue(FOREGROUND_VAR)};
 	opacity: 0.1;
 	margin: 8px 0;
+`
+
+const AnnouncementIcon = styled.span`
+	// shared style
+	font-size: 12px;
+	margin-right: 4px;
 `
 
 interface AnnouncementProps {
@@ -57,14 +44,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<AnnouncementHeader>
+			<h3 style={{ margin: "0 0 8px" }}>
 				🎉{"  "}New in v{minorVersion}
-			</AnnouncementHeader>
-			<AnnouncementList>
+			</h3>
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
 					<b>Checkpoints are here!</b> Cline now saves a snapshot of your workspace at each step of the task. Hover over
 					any message to see two new buttons:
-					<AnnouncementListInner>
+					<ul style={{ margin: "4px 0", paddingLeft: "22px" }}>
 						<li>
 							<AnnouncementIcon className="codicon codicon-diff-multiple"></AnnouncementIcon>
 							<b>Compare</b> shows you a diff between the snapshot and your current workspace
@@ -73,13 +60,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							<AnnouncementIcon className="codicon codicon-discard"></AnnouncementIcon>
 							<b>Restore</b> lets you revert your project's files back to that point in the task
 						</li>
-					</AnnouncementListInner>
+					</ul>
 				</li>
 				<li>
 					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes Cline
 					made to your workspace throughout the task
 				</li>
-			</AnnouncementList>
+			</ul>
 			<p style={{ margin: "8px 0" }}>
 				<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
 					See a demo of Checkpoints here!
