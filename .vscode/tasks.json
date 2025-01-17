@@ -4,6 +4,21 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "compile",
+			"type": "npm",
+			"script": "compile",
+			"dependsOn": ["npm: build:webview"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			},
+			"problemMatcher": ["$tsc", "$eslint-stylish"]
+		},
+		{
 			"label": "watch",
 			"dependsOn": ["npm: build:webview", "npm: watch:tsc", "npm: watch:esbuild"],
 			"presentation": {
