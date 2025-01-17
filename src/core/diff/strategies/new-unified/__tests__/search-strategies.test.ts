@@ -1,10 +1,14 @@
-import { findAnchorMatch, findExactMatch, findSimilarityMatch, findLevenshteinMatch } from "../search-strategies";
+import { findAnchorMatch, findExactMatch, findSimilarityMatch, findLevenshteinMatch } from "../search-strategies"
 
-type SearchStrategy = (searchStr: string, content: string[], startIndex?: number) => {
-    index: number;
-    confidence: number;
-    strategy: string;
-};
+type SearchStrategy = (
+	searchStr: string,
+	content: string[],
+	startIndex?: number
+) => {
+	index: number
+	confidence: number
+	strategy: string
+}
 
 const testCases = [
     {
@@ -134,20 +138,21 @@ const testCases = [
         expected: { index: -1, confidence: 0 },
         strategies: ["exact", "similarity"],
     },
-];
-
+]
 
 describe("findExactMatch", () => {
     testCases.forEach(({ name, searchStr, content, startIndex, expected, strategies }) => {
-        if (!strategies?.includes("exact")) {return;}
+		if (!strategies?.includes("exact")) {
+			return
+		}
         it(name, () => {
-            const result = findExactMatch(searchStr, content, startIndex);
-            expect(result.index).toBe(expected.index);
-            expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence);
-            expect(result.strategy).toMatch(/exact(-overlapping)?/);
-        });
-    });
-});
+			const result = findExactMatch(searchStr, content, startIndex)
+			expect(result.index).toBe(expected.index)
+			expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence)
+			expect(result.strategy).toMatch(/exact(-overlapping)?/)
+		})
+	})
+})
 
 describe("findAnchorMatch", () => {
     const anchorTestCases = [
@@ -160,7 +165,14 @@ describe("findAnchorMatch", () => {
         {
             name: "should return no match if anchor positions cannot be validated",
             searchStr: "unique line\ncontext line 1\ncontext line 2",
-            content: ["different line 1", "different line 2", "different line 3", "another unique line", "context line 1", "context line 2"],
+			content: [
+				"different line 1",
+				"different line 2",
+				"different line 3",
+				"another unique line",
+				"context line 1",
+				"context line 2",
+			],
             expected: { index: -1, confidence: 0 },
         },
         {
@@ -179,7 +191,16 @@ describe("findAnchorMatch", () => {
         {
             name: "should return a match even if there are more lines in content",
             searchStr: "unique line\ncontext line 1\ncontext line 2",
-            content: ["line1", "line2", "unique line", "context line 1", "context line 2", "line 6", "extra line 1", "extra line 2"],
+			content: [
+				"line1",
+				"line2",
+				"unique line",
+				"context line 1",
+				"context line 2",
+				"line 6",
+				"extra line 1",
+				"extra line 2",
+			],
             expected: { index: 2, confidence: 1 },
         },
         {
@@ -200,38 +221,42 @@ describe("findAnchorMatch", () => {
             content: ["line1", "line2", "non-unique line", "context line 1", "context line 2", "non-unique line"],
             expected: { index: -1, confidence: 0 },
         },
-    ];
+	]
 
     anchorTestCases.forEach(({ name, searchStr, content, startIndex, expected }) => {
         it(name, () => {
-            const result = findAnchorMatch(searchStr, content, startIndex);
-            expect(result.index).toBe(expected.index);
-            expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence);
-            expect(result.strategy).toBe("anchor");
-        });
-    });
-});
+			const result = findAnchorMatch(searchStr, content, startIndex)
+			expect(result.index).toBe(expected.index)
+			expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence)
+			expect(result.strategy).toBe("anchor")
+		})
+	})
+})
 
 describe("findSimilarityMatch", () => {
     testCases.forEach(({ name, searchStr, content, startIndex, expected, strategies }) => {
-         if (!strategies?.includes("similarity")) {return;}
+		if (!strategies?.includes("similarity")) {
+			return
+		}
         it(name, () => {
-            const result = findSimilarityMatch(searchStr, content, startIndex);
-            expect(result.index).toBe(expected.index);
-            expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence);
-            expect(result.strategy).toBe("similarity");
-        });
-    });
-});
+			const result = findSimilarityMatch(searchStr, content, startIndex)
+			expect(result.index).toBe(expected.index)
+			expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence)
+			expect(result.strategy).toBe("similarity")
+		})
+	})
+})
 
 describe("findLevenshteinMatch", () => {
     testCases.forEach(({ name, searchStr, content, startIndex, expected, strategies }) => {
-        if (!strategies?.includes("levenshtein")) {return;}
+		if (!strategies?.includes("levenshtein")) {
+			return
+		}
         it(name, () => {
-            const result = findLevenshteinMatch(searchStr, content, startIndex);
-             expect(result.index).toBe(expected.index);
-            expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence);
-            expect(result.strategy).toBe("levenshtein");
-        });
-    });
-}); 
+			const result = findLevenshteinMatch(searchStr, content, startIndex)
+			expect(result.index).toBe(expected.index)
+			expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence)
+			expect(result.strategy).toBe("levenshtein")
+		})
+	})
+})
