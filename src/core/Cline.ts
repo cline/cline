@@ -45,7 +45,8 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
-import { addCustomInstructions, codeMode, SYSTEM_PROMPT } from "./prompts/system"
+import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
+import { modes, defaultModeSlug } from "../shared/modes"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
@@ -1126,7 +1127,7 @@ export class Cline {
 				// Validate tool use based on current mode
 				const { mode } = await this.providerRef.deref()?.getState() ?? {}
 				try {
-					validateToolUse(block.name, mode ?? codeMode)
+					validateToolUse(block.name, mode ?? defaultModeSlug)
 				} catch (error) {
 					this.consecutiveMistakeCount++
 					pushToolResult(formatResponse.toolError(error.message))
@@ -2585,12 +2586,12 @@ export class Cline {
 
 		// Add current mode and any mode-specific warnings
 		const { mode } = await this.providerRef.deref()?.getState() ?? {}
-		const currentMode = mode ?? codeMode
+		const currentMode = mode ?? defaultModeSlug
 		details += `\n\n# Current Mode\n${currentMode}`
-		
+
 		// Add warning if not in code mode
 		if (!isToolAllowedForMode('write_to_file', currentMode) || !isToolAllowedForMode('execute_command', currentMode)) {
-			details += `\n\nNOTE: You are currently in '${currentMode}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to 'code' mode. Note that only the user can switch modes.`
+			details += `\n\nNOTE: You are currently in '${currentMode}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeSlug}' mode. Note that only the user can switch modes.`
 		}
 
 		if (includeFileDetails) {

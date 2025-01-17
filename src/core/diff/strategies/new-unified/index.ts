@@ -107,7 +107,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 		return { hunks }
 	}
 
-	getToolDescription(cwd: string): string {
+	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
 		return `# apply_diff Tool Rules:
 
 Generate a unified diff similar to what "diff -U0" would produce. 
@@ -173,7 +173,7 @@ Format Requirements:
 Be precise, consistent, and follow these rules carefully to generate correct diffs!
 
 Parameters:
-- path: (required) The path of the file to apply the diff to (relative to the current working directory ${cwd})
+- path: (required) The path of the file to apply the diff to (relative to the current working directory ${args.cwd})
 - diff: (required) The diff content in unified format to apply to the file.
 
 Usage:

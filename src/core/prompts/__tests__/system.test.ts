@@ -5,7 +5,7 @@ import { ClineProvider } from '../../../core/webview/ClineProvider'
 import { SearchReplaceDiffStrategy } from '../../../core/diff/strategies/search-replace'
 import fs from 'fs/promises'
 import os from 'os'
-import { codeMode, askMode, architectMode } from '../modes'
+import { defaultModeSlug, modes } from '../../../shared/modes'
 // Import path utils to get access to toPosix string extension
 import '../../../utils/path'
 
@@ -169,11 +169,37 @@ describe('addCustomInstructions', () => {
     jest.clearAllMocks()
   })
 
+  it('should generate correct prompt for architect mode', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined,
+      undefined,
+      undefined,
+      'architect'
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
+  it('should generate correct prompt for ask mode', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined,
+      undefined,
+      undefined,
+      'ask'
+    )
+    
+    expect(prompt).toMatchSnapshot()
+  })
+
   it('should prioritize mode-specific rules for code mode', async () => {
     const instructions = await addCustomInstructions(
       {},
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     expect(instructions).toMatchSnapshot()
   })
@@ -182,7 +208,7 @@ describe('addCustomInstructions', () => {
     const instructions = await addCustomInstructions(
       {},
       '/test/path',
-      askMode
+      modes[2].slug
     )
     expect(instructions).toMatchSnapshot()
   })
@@ -191,7 +217,7 @@ describe('addCustomInstructions', () => {
     const instructions = await addCustomInstructions(
       {},
       '/test/path',
-      architectMode
+      modes[1].slug
     )
     
     expect(instructions).toMatchSnapshot()
@@ -215,7 +241,7 @@ describe('addCustomInstructions', () => {
     const instructions = await addCustomInstructions(
       {},
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     
     expect(instructions).toMatchSnapshot()
@@ -225,7 +251,7 @@ describe('addCustomInstructions', () => {
     const instructions = await addCustomInstructions(
       { preferredLanguage: 'Spanish' },
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     
     expect(instructions).toMatchSnapshot()
@@ -247,7 +273,7 @@ describe('addCustomInstructions', () => {
         preferredLanguage: 'French'
       },
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     expect(instructions).toMatchSnapshot()
   })
@@ -288,7 +314,7 @@ describe('addCustomInstructions', () => {
         }
       },
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     
     expect(instructions).toMatchSnapshot()
@@ -303,7 +329,7 @@ describe('addCustomInstructions', () => {
         }
       },
       '/test/path',
-      codeMode
+      defaultModeSlug
     )
     
     const instructionParts = instructions.split('\n\n')

@@ -11,15 +11,24 @@ import { getUseMcpToolDescription } from './use-mcp-tool'
 import { getAccessMcpResourceDescription } from './access-mcp-resource'
 import { DiffStrategy } from '../../diff/DiffStrategy'
 import { McpHub } from '../../../services/mcp/McpHub'
-import { Mode, codeMode, askMode } from '../modes'
-import { CODE_ALLOWED_TOOLS, READONLY_ALLOWED_TOOLS, ToolName, ReadOnlyToolName } from '../../tool-lists'
+import { Mode, ToolName, getModeConfig, isToolAllowedForMode } from '../../../shared/modes'
+import { ToolArgs } from './types'
 
-type AllToolNames = ToolName | ReadOnlyToolName;
-
-// Helper function to safely check if a tool is allowed
-function hasAllowedTool(tools: readonly string[], tool: AllToolNames): boolean {
-    return tools.includes(tool);
-}
+// Map of tool names to their description functions
+const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined> = {
+    'execute_command': args => getExecuteCommandDescription(args),
+    'read_file': args => getReadFileDescription(args),
+    'write_to_file': args => getWriteToFileDescription(args),
+    'search_files': args => getSearchFilesDescription(args),
+    'list_files': args => getListFilesDescription(args),
+    'list_code_definition_names': args => getListCodeDefinitionNamesDescription(args),
+    'browser_action': args => getBrowserActionDescription(args),
+    'ask_followup_question': () => getAskFollowupQuestionDescription(),
+    'attempt_completion': () => getAttemptCompletionDescription(),
+    'use_mcp_tool': args => getUseMcpToolDescription(args),
+    'access_mcp_resource': args => getAccessMcpResourceDescription(args),
+    'apply_diff': args => args.diffStrategy ? args.diffStrategy.getToolDescription({ cwd: args.cwd, toolOptions: args.toolOptions }) : ''
+};
 
 export function getToolDescriptionsForMode(
     mode: Mode,
@@ -29,63 +38,32 @@ export function getToolDescriptionsForMode(
     browserViewportSize?: string,
     mcpHub?: McpHub
 ): string {
-    const descriptions = []
+    const config = getModeConfig(mode);
+    const args: ToolArgs = {
+        cwd,
+        supportsComputerUse,
+        diffStrategy,
+        browserViewportSize,
+        mcpHub
+    };
 
-    const allowedTools = mode === codeMode ? CODE_ALLOWED_TOOLS : READONLY_ALLOWED_TOOLS;
-
-    // Core tools based on mode
-    if (hasAllowedTool(allowedTools, 'execute_command')) {
-        descriptions.push(getExecuteCommandDescription(cwd));
-    }
-    if (hasAllowedTool(allowedTools, 'read_file')) {
-        descriptions.push(getReadFileDescription(cwd));
-    }
-    if (hasAllowedTool(allowedTools, 'write_to_file')) {
-        descriptions.push(getWriteToFileDescription(cwd));
-    }
-
-    // Optional diff strategy
-    if (diffStrategy && hasAllowedTool(allowedTools, 'apply_diff')) {
-        descriptions.push(diffStrategy.getToolDescription(cwd));
-    }
-
-    // File operation tools
-    if (hasAllowedTool(allowedTools, 'search_files')) {
-        descriptions.push(getSearchFilesDescription(cwd));
-    }
-    if (hasAllowedTool(allowedTools, 'list_files')) {
-        descriptions.push(getListFilesDescription(cwd));
-    }
-    if (hasAllowedTool(allowedTools, 'list_code_definition_names')) {
-        descriptions.push(getListCodeDefinitionNamesDescription(cwd));
-    }
-
-    // Browser actions
-    if (supportsComputerUse && hasAllowedTool(allowedTools, 'browser_action')) {
-        descriptions.push(getBrowserActionDescription(cwd, browserViewportSize));
-    }
-
-    // Common tools at the end
-    if (hasAllowedTool(allowedTools, 'ask_followup_question')) {
-        descriptions.push(getAskFollowupQuestionDescription());
-    }
-    if (hasAllowedTool(allowedTools, 'attempt_completion')) {
-        descriptions.push(getAttemptCompletionDescription());
-    }
-
-    // MCP tools if available
-    if (mcpHub) {
-        if (hasAllowedTool(allowedTools, 'use_mcp_tool')) {
-            descriptions.push(getUseMcpToolDescription());
+    // Map tool descriptions in the exact order specified in the mode's tools array
+    const descriptions = config.tools.map(([toolName, toolOptions]) => {
+        const descriptionFn = toolDescriptionMap[toolName];
+        if (!descriptionFn || !isToolAllowedForMode(toolName as ToolName, mode)) {
+            return undefined;
         }
-        if (hasAllowedTool(allowedTools, 'access_mcp_resource')) {
-            descriptions.push(getAccessMcpResourceDescription());
-        }
-    }
 
-    return `# Tools\n\n${descriptions.filter(Boolean).join('\n\n')}`
+        return descriptionFn({
+            ...args,
+            toolOptions
+        });
+    });
+
+    return `# Tools\n\n${descriptions.filter(Boolean).join('\n\n')}`;
 }
 
+// Export individual description functions for backward compatibility
 export {
     getExecuteCommandDescription,
     getReadFileDescription,

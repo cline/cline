@@ -2,7 +2,7 @@ import { ClineProvider } from '../ClineProvider'
 import * as vscode from 'vscode'
 import { ExtensionMessage, ExtensionState } from '../../../shared/ExtensionMessage'
 import { setSoundEnabled } from '../../../utils/sound'
-import { codeMode } from '../../prompts/system';
+import { defaultModeSlug, modes } from '../../../shared/modes';
 
 // Mock delay module
 jest.mock('delay', () => {
@@ -288,7 +288,7 @@ describe('ClineProvider', () => {
             fuzzyMatchThreshold: 1.0,
             mcpEnabled: true,
             requestDelaySeconds: 5,
-            mode: codeMode,
+            mode: defaultModeSlug,
         }
         
         const message: ExtensionMessage = { 

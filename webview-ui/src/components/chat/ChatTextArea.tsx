@@ -14,7 +14,7 @@ import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
-import { Mode } from "../../../../src/core/prompts/types"
+import { Mode, modes } from "../../../../src/shared/modes"
 import { CaretIcon } from "../common/CaretIcon"
 
 interface ChatTextAreaProps {
@@ -721,18 +721,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									flex: "0 0 auto"
 								}}
 							>
-								<option value="code" style={{
-									backgroundColor: "var(--vscode-dropdown-background)",
-									color: "var(--vscode-dropdown-foreground)"
-								}}>Code</option>
-								<option value="architect" style={{
-									backgroundColor: "var(--vscode-dropdown-background)",
-									color: "var(--vscode-dropdown-foreground)"
-								}}>Architect</option>
-								<option value="ask" style={{
-									backgroundColor: "var(--vscode-dropdown-background)",
-									color: "var(--vscode-dropdown-foreground)"
-								}}>Ask</option>
+								{modes.map(mode => (
+									<option
+										key={mode.slug}
+										value={mode.slug}
+										style={{
+											backgroundColor: "var(--vscode-dropdown-background)",
+											color: "var(--vscode-dropdown-foreground)"
+										}}
+									>
+										{mode.name}
+									</option>
+								))}
 							</select>
 							<div style={caretContainerStyle}>
 								<CaretIcon />

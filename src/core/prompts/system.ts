@@ -1,10 +1,16 @@
+import { Mode, modes, CustomPrompts, PromptComponent, getRoleDefinition, defaultModeSlug } from "../../shared/modes"
 import { DiffStrategy } from "../diff/DiffStrategy"
 import { McpHub } from "../../services/mcp/McpHub"
-import { CODE_PROMPT } from "./code"
-import { ARCHITECT_PROMPT } from "./architect"
-import { ASK_PROMPT } from "./ask"
-import { Mode, codeMode, architectMode, askMode } from "./modes"
-import { CustomPrompts } from "../../shared/modes"
+import { getToolDescriptionsForMode } from "./tools"
+import {
+    getRulesSection,
+    getSystemInfoSection,
+    getObjectiveSection,
+    getSharedToolUseSection,
+    getMcpServersSection,
+    getToolUseGuidelinesSection,
+    getCapabilitiesSection
+} from "./sections"
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -53,7 +59,7 @@ interface State {
 export async function addCustomInstructions(
     state: State,
     cwd: string,
-    mode: Mode = codeMode
+    mode: Mode = defaultModeSlug
 ): Promise<string> {
     const ruleFileContent = await loadRuleFiles(cwd, mode)
     const allInstructions = []
@@ -66,8 +72,9 @@ export async function addCustomInstructions(
         allInstructions.push(state.customInstructions.trim())
     }
 
-    if (state.customPrompts?.[mode]?.customInstructions?.trim()) {
-        allInstructions.push(state.customPrompts[mode].customInstructions.trim())
+    const customPrompt = state.customPrompts?.[mode]
+    if (typeof customPrompt === 'object' && customPrompt?.customInstructions?.trim()) {
+        allInstructions.push(customPrompt.customInstructions.trim())
     }
 
     if (ruleFileContent && ruleFileContent.trim()) {
@@ -87,23 +94,63 @@ ${joinedInstructions}`
         : ""
 }
 
+async function generatePrompt(
+    cwd: string,
+    supportsComputerUse: boolean,
+    mode: Mode,
+    mcpHub?: McpHub,
+    diffStrategy?: DiffStrategy,
+    browserViewportSize?: string,
+    promptComponent?: PromptComponent,
+): Promise<string> {
+    const basePrompt = `${promptComponent?.roleDefinition || getRoleDefinition(mode)}
+
+${getSharedToolUseSection()}
+
+${getToolDescriptionsForMode(mode, cwd, supportsComputerUse, diffStrategy, browserViewportSize, mcpHub)}
+
+${getToolUseGuidelinesSection()}
+
+${await getMcpServersSection(mcpHub, diffStrategy)}
+
+${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, diffStrategy)}
+
+${getRulesSection(cwd, supportsComputerUse, diffStrategy)}
+
+${getSystemInfoSection(cwd)}
+
+${getObjectiveSection()}`;
+
+    return basePrompt;
+}
+
 export const SYSTEM_PROMPT = async (
     cwd: string,
     supportsComputerUse: boolean,
     mcpHub?: McpHub,
     diffStrategy?: DiffStrategy,
     browserViewportSize?: string,
-    mode: Mode = codeMode,
+    mode: Mode = defaultModeSlug,
     customPrompts?: CustomPrompts,
 ) => {
-    switch (mode) {
-        case architectMode:
-            return ARCHITECT_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.architect)
-        case askMode:
-            return ASK_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.ask)
-        default:
-            return CODE_PROMPT(cwd, supportsComputerUse, mcpHub, diffStrategy, browserViewportSize, customPrompts?.code)
-    }
-}
+    const getPromptComponent = (value: unknown) => {
+        if (typeof value === 'object' && value !== null) {
+            return value as PromptComponent;
+        }
+        return undefined;
+    };
 
-export { codeMode, architectMode, askMode }
+    // Use default mode if not found
+    const currentMode = modes.find(m => m.slug === mode) || modes[0];
+    const promptComponent = getPromptComponent(customPrompts?.[currentMode.slug]);
+
+    return generatePrompt(
+        cwd,
+        supportsComputerUse,
+        currentMode.slug,
+        mcpHub,
+        diffStrategy,
+        browserViewportSize,
+        promptComponent
+    );
+}
