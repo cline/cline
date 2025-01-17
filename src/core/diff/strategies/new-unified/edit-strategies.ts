@@ -1,249 +1,271 @@
-import { diff_match_patch } from 'diff-match-patch';
-import { EditResult, Hunk } from './types';
-import { getDMPSimilarity, validateEditResult } from './search-strategies';
-import * as path from 'path';
-import simpleGit, { SimpleGit } from 'simple-git';
-import * as tmp from 'tmp';
-import * as fs from 'fs';
+import { diff_match_patch } from "diff-match-patch"
+import { EditResult, Hunk } from "./types"
+import { getDMPSimilarity, validateEditResult } from "./search-strategies"
+import * as path from "path"
+import simpleGit, { SimpleGit } from "simple-git"
+import * as tmp from "tmp"
+import * as fs from "fs"
 
-// Helper function to infer indentation
-function inferIndentation(line: string, contextLines: string[], previousIndent: string = ''): string {
-  const match = line.match(/^(\s+)/);
-  if (match) {
-    return match[1];
-  }
+// Helper function to infer indentation - simplified version
+function inferIndentation(line: string, contextLines: string[], previousIndent: string = ""): string {
+	// If the line has explicit indentation in the change, use it exactly
+	const lineMatch = line.match(/^(\s+)/)
+	if (lineMatch) {
+		return lineMatch[1]
+	}
 
-  for (const contextLine of contextLines) {
-    const contextMatch = contextLine.match(/^(\s+)/);
+	// If we have context lines, use the indentation from the first context line
+	const contextLine = contextLines[0]
+	if (contextLine) {
+		const contextMatch = contextLine.match(/^(\s+)/)
     if (contextMatch) {
-      const currentLineDepth = (line.match(/^\s*/)?.[0] || '').length;
-      const contextLineDepth = contextMatch[1].length;
-      
-      if (currentLineDepth > contextLineDepth) {
-        return contextMatch[1] + ' '.repeat(2);
-      }
-      return contextMatch[1];
-    }
-  }
+			return contextMatch[1]
+		}
+	}
 
-  return previousIndent;
+	// Fallback to previous indent
+	return previousIndent
 }
 
 // Context matching edit strategy
-export function applyContextMatching(hunk: Hunk, content: string[], matchPosition: number, confidenceThreshold: number): EditResult {
+export function applyContextMatching(
+	hunk: Hunk,
+	content: string[],
+	matchPosition: number,
+): EditResult {
   if (matchPosition === -1) {
-    return { confidence: 0, result: content, strategy: 'context' };
-  }
+		return { confidence: 0, result: content, strategy: "context" }
+	}
 
-  const newResult = [...content.slice(0, matchPosition)];
-  let sourceIndex = matchPosition;
-  let previousIndent = '';
-  let contextLinesProcessed = 0;
+	const newResult = [...content.slice(0, matchPosition)]
+	let sourceIndex = matchPosition
 
   for (const change of hunk.changes) {
-    if (change.type === 'context') {
-      newResult.push(change.originalLine || (change.indent + change.content));
-      previousIndent = change.indent;
-      sourceIndex++;
-      contextLinesProcessed++;
-    } else if (change.type === 'add') {
-      const indent = change.indent || inferIndentation(change.content, 
-        hunk.changes.filter(c => c.type === 'context' && c.originalLine).map(c => c.originalLine || ''),
-        previousIndent
-      );
-      newResult.push(indent + change.content);
-      previousIndent = indent;
-    } else if (change.type === 'remove') {
-      sourceIndex++;
-    }
-  }
+		if (change.type === "context") {
+			// Use the original line from content if available
+			if (sourceIndex < content.length) {
+				newResult.push(content[sourceIndex])
+			} else {
+				const line = change.indent ? change.indent + change.content : change.content
+				newResult.push(line)
+			}
+			sourceIndex++
+		} else if (change.type === "add") {
+			// Use exactly the indentation from the change
+			const baseIndent = change.indent || ""
 
-  // Only append remaining content after the hunk's actual span in the original content
-  const remainingContentStart = matchPosition + contextLinesProcessed + hunk.changes.filter(c => c.type === 'remove').length;
-  newResult.push(...content.slice(remainingContentStart));
-  
-  // Calculate the window size based on all changes
-  const windowSize = hunk.changes.length;
-  
-  // Validate the result using the full window size
-  const similarity = getDMPSimilarity(
-    content.slice(matchPosition, matchPosition + windowSize).join('\n'),
-    newResult.slice(matchPosition, matchPosition + windowSize).join('\n')
-  )
+			// Handle multi-line additions
+			const lines = change.content.split("\n").map((line) => {
+				// If the line already has indentation, preserve it relative to the base indent
+				const lineIndentMatch = line.match(/^(\s*)(.*)/)
+				if (lineIndentMatch) {
+					const [, lineIndent, content] = lineIndentMatch
+					// Only add base indent if the line doesn't already have it
+					return lineIndent ? line : baseIndent + content
+				}
+				return baseIndent + line
+			})
 
-  const confidence = validateEditResult(hunk, newResult.slice(matchPosition, matchPosition + windowSize).join('\n'), confidenceThreshold);
+			newResult.push(...lines)
+		} else if (change.type === "remove") {
+			// Handle multi-line removes by incrementing sourceIndex for each line
+			const removedLines = change.content.split("\n").length
+			sourceIndex += removedLines
+		}
+	}
 
-  return { 
-    confidence: similarity * confidence,
-    result: newResult,
-    strategy: 'context'
-  };
+	// Append remaining content
+	newResult.push(...content.slice(sourceIndex))
+
+	// Calculate confidence based on the actual changes
+	const afterText = newResult.slice(matchPosition, newResult.length - (content.length - sourceIndex)).join("\n")
+
+	const confidence = validateEditResult(hunk, afterText)
+
+	return { 
+		confidence,
+		result: newResult,
+		strategy: "context"
+	}
 }
 
 // DMP edit strategy
-export function applyDMP(hunk: Hunk, content: string[], matchPosition: number, confidenceThreshold: number): EditResult {
+export function applyDMP(
+	hunk: Hunk,
+	content: string[],
+	matchPosition: number,
+): EditResult {
   if (matchPosition === -1) {
-    return { confidence: 0, result: content, strategy: 'dmp' };
-  }
+		return { confidence: 0, result: content, strategy: "dmp" }
+	}
 
-  const dmp = new diff_match_patch();
+	const dmp = new diff_match_patch()
+
+	// Calculate total lines in before block accounting for multi-line content
+	const beforeLineCount = hunk.changes
+		.filter((change) => change.type === "context" || change.type === "remove")
+		.reduce((count, change) => count + change.content.split("\n").length, 0)
   
   // Build BEFORE block (context + removals)
   const beforeLines = hunk.changes
-    .filter(change => change.type === 'context' || change.type === 'remove')
-    .map(change => change.originalLine || (change.indent + change.content));
+		.filter((change) => change.type === "context" || change.type === "remove")
+		.map((change) => {
+			if (change.originalLine) {
+				return change.originalLine
+			}
+			return change.indent ? change.indent + change.content : change.content
+		})
   
   // Build AFTER block (context + additions)
   const afterLines = hunk.changes
-    .filter(change => change.type === 'context' || change.type === 'add')
-    .map(change => change.originalLine || (change.indent + change.content));
-  
-  // Convert to text
-  const beforeText = beforeLines.join('\n');
-  const afterText = afterLines.join('\n');
-  
-  // Create the patch
-  const patch = dmp.patch_make(beforeText, afterText);
-  
-  // Get the target text from content
-  const targetText = content.slice(matchPosition, matchPosition + beforeLines.length).join('\n');
-  
-  // Apply the patch
-  const [patchedText] = dmp.patch_apply(patch, targetText);
-  
-  // Split patched text back into lines
-  const patchedLines = patchedText.split('\n');
-  
-  // Construct the final result
+		.filter((change) => change.type === "context" || change.type === "add")
+		.map((change) => {
+			if (change.originalLine) {
+				return change.originalLine
+			}
+			return change.indent ? change.indent + change.content : change.content
+		})
+
+	// Convert to text with proper line endings
+	const beforeText = beforeLines.join("\n")
+	const afterText = afterLines.join("\n")
+
+	// Create and apply patch
+	const patch = dmp.patch_make(beforeText, afterText)
+	const targetText = content.slice(matchPosition, matchPosition + beforeLineCount).join("\n")
+	const [patchedText] = dmp.patch_apply(patch, targetText)
+
+	// Split result and preserve line endings
+	const patchedLines = patchedText.split("\n")
+
+	// Construct final result
   const newResult = [
     ...content.slice(0, matchPosition),
     ...patchedLines,
-    ...content.slice(matchPosition + beforeLines.length)
-  ];
+		...content.slice(matchPosition + beforeLineCount),
+	]
   
-  // Calculate confidence
-  const similarity = getDMPSimilarity(beforeText, targetText);
-  const confidence = validateEditResult(hunk, patchedText, confidenceThreshold);
+	const confidence = validateEditResult(hunk, patchedText)
   
   return {
-    confidence: similarity * confidence,
+		confidence,
     result: newResult,
-    strategy: 'dmp'
-  };
+		strategy: "dmp",
+	}
 }
 
 // Git fallback strategy that works with full content
 async function applyGitFallback(hunk: Hunk, content: string[]): Promise<EditResult> {
-	let tmpDir: tmp.DirResult | undefined;
-	
-	try {
-		tmpDir = tmp.dirSync({ unsafeCleanup: true });
-		const git: SimpleGit = simpleGit(tmpDir.name);
-		
-		await git.init();
-		await git.addConfig('user.name', 'Temp');
-		await git.addConfig('user.email', 'temp@example.com');
+	let tmpDir: tmp.DirResult | undefined
 
-		const filePath = path.join(tmpDir.name, 'file.txt');
+	try {
+		tmpDir = tmp.dirSync({ unsafeCleanup: true })
+		const git: SimpleGit = simpleGit(tmpDir.name)
+
+		await git.init()
+		await git.addConfig("user.name", "Temp")
+		await git.addConfig("user.email", "temp@example.com")
+
+		const filePath = path.join(tmpDir.name, "file.txt")
 
 		const searchLines = hunk.changes
-			.filter(change => change.type === 'context' || change.type === 'remove')
-			.map(change => change.originalLine || (change.indent + change.content));
+			.filter((change) => change.type === "context" || change.type === "remove")
+			.map((change) => change.originalLine || change.indent + change.content)
 		
 		const replaceLines = hunk.changes
-			.filter(change => change.type === 'context' || change.type === 'add')
-			.map(change => change.originalLine || (change.indent + change.content));
+			.filter((change) => change.type === "context" || change.type === "add")
+			.map((change) => change.originalLine || change.indent + change.content)
 
-		const searchText = searchLines.join('\n');
-		const replaceText = replaceLines.join('\n');
-		const originalText = content.join('\n');
+		const searchText = searchLines.join("\n")
+		const replaceText = replaceLines.join("\n")
+		const originalText = content.join("\n")
 
 		try {
-			fs.writeFileSync(filePath, originalText);
-			await git.add('file.txt');
-			const originalCommit = await git.commit('original');
-			console.log('Strategy 1 - Original commit:', originalCommit.commit);
+			fs.writeFileSync(filePath, originalText)
+			await git.add("file.txt")
+			const originalCommit = await git.commit("original")
+			console.log("Strategy 1 - Original commit:", originalCommit.commit)
 
-			fs.writeFileSync(filePath, searchText);
-			await git.add('file.txt');
-			const searchCommit1 = await git.commit('search');
-			console.log('Strategy 1 - Search commit:', searchCommit1.commit);
+			fs.writeFileSync(filePath, searchText)
+			await git.add("file.txt")
+			const searchCommit1 = await git.commit("search")
+			console.log("Strategy 1 - Search commit:", searchCommit1.commit)
 
-			fs.writeFileSync(filePath, replaceText);
-			await git.add('file.txt');
-			const replaceCommit = await git.commit('replace');
-			console.log('Strategy 1 - Replace commit:', replaceCommit.commit);
+			fs.writeFileSync(filePath, replaceText)
+			await git.add("file.txt")
+			const replaceCommit = await git.commit("replace")
+			console.log("Strategy 1 - Replace commit:", replaceCommit.commit)
 
-			console.log('Strategy 1 - Attempting checkout of:', originalCommit.commit);
-			await git.raw(['checkout', originalCommit.commit]);
+			console.log("Strategy 1 - Attempting checkout of:", originalCommit.commit)
+			await git.raw(["checkout", originalCommit.commit])
 			try {
-				console.log('Strategy 1 - Attempting cherry-pick of:', replaceCommit.commit);
-				await git.raw(['cherry-pick', '--minimal', replaceCommit.commit]);
-				
-				const newText = fs.readFileSync(filePath, 'utf-8');
-				const newLines = newText.split('\n');
+				console.log("Strategy 1 - Attempting cherry-pick of:", replaceCommit.commit)
+				await git.raw(["cherry-pick", "--minimal", replaceCommit.commit])
+
+				const newText = fs.readFileSync(filePath, "utf-8")
+				const newLines = newText.split("\n")
 				return {
 					confidence: 1,
 					result: newLines,
-					strategy: 'git-fallback'
-				};
+					strategy: "git-fallback",
+				}
 			} catch (cherryPickError) {
-				console.error('Strategy 1 failed with merge conflict');
+				console.error("Strategy 1 failed with merge conflict")
 			}
 		} catch (error) {
-			console.error('Strategy 1 failed:', error);
+			console.error("Strategy 1 failed:", error)
 		}
 
 		try {
-			await git.init();
-			await git.addConfig('user.name', 'Temp');
-			await git.addConfig('user.email', 'temp@example.com');
+			await git.init()
+			await git.addConfig("user.name", "Temp")
+			await git.addConfig("user.email", "temp@example.com")
 
-			fs.writeFileSync(filePath, searchText);
-			await git.add('file.txt');
-			const searchCommit = await git.commit('search');
-			const searchHash = searchCommit.commit.replace(/^HEAD /, '');
-			console.log('Strategy 2 - Search commit:', searchHash);
+			fs.writeFileSync(filePath, searchText)
+			await git.add("file.txt")
+			const searchCommit = await git.commit("search")
+			const searchHash = searchCommit.commit.replace(/^HEAD /, "")
+			console.log("Strategy 2 - Search commit:", searchHash)
 
-			fs.writeFileSync(filePath, replaceText);
-			await git.add('file.txt');
-			const replaceCommit = await git.commit('replace');
-			const replaceHash = replaceCommit.commit.replace(/^HEAD /, '');
-			console.log('Strategy 2 - Replace commit:', replaceHash);
+			fs.writeFileSync(filePath, replaceText)
+			await git.add("file.txt")
+			const replaceCommit = await git.commit("replace")
+			const replaceHash = replaceCommit.commit.replace(/^HEAD /, "")
+			console.log("Strategy 2 - Replace commit:", replaceHash)
 
-			console.log('Strategy 2 - Attempting checkout of:', searchHash);
-			await git.raw(['checkout', searchHash]);
-			fs.writeFileSync(filePath, originalText);
-			await git.add('file.txt');
-			const originalCommit2 = await git.commit('original');
-			console.log('Strategy 2 - Original commit:', originalCommit2.commit);
+			console.log("Strategy 2 - Attempting checkout of:", searchHash)
+			await git.raw(["checkout", searchHash])
+			fs.writeFileSync(filePath, originalText)
+			await git.add("file.txt")
+			const originalCommit2 = await git.commit("original")
+			console.log("Strategy 2 - Original commit:", originalCommit2.commit)
 
 			try {
-				console.log('Strategy 2 - Attempting cherry-pick of:', replaceHash);
-				await git.raw(['cherry-pick', '--minimal', replaceHash]);
-				
-				const newText = fs.readFileSync(filePath, 'utf-8');
-				const newLines = newText.split('\n');
+				console.log("Strategy 2 - Attempting cherry-pick of:", replaceHash)
+				await git.raw(["cherry-pick", "--minimal", replaceHash])
+
+				const newText = fs.readFileSync(filePath, "utf-8")
+				const newLines = newText.split("\n")
 				return {
 					confidence: 1,
 					result: newLines,
-					strategy: 'git-fallback'
-				};
+					strategy: "git-fallback",
+				}
 			} catch (cherryPickError) {
-				console.error('Strategy 2 failed with merge conflict');
+				console.error("Strategy 2 failed with merge conflict")
 			}
 		} catch (error) {
-			console.error('Strategy 2 failed:', error);
+			console.error("Strategy 2 failed:", error)
 		}
 
-		console.error('Git fallback failed');
-		return { confidence: 0, result: content, strategy: 'git-fallback' };
+		console.error("Git fallback failed")
+		return { confidence: 0, result: content, strategy: "git-fallback" }
 	} catch (error) {
-		console.error('Git fallback strategy failed:', error);
-		return { confidence: 0, result: content, strategy: 'git-fallback' };
+		console.error("Git fallback strategy failed:", error)
+		return { confidence: 0, result: content, strategy: "git-fallback" }
 	} finally {
 		if (tmpDir) {
-			tmpDir.removeCallback();
+			tmpDir.removeCallback()
 		}
 	}
 }
@@ -258,24 +280,26 @@ export async function applyEdit(
 ): Promise<EditResult> {
 	// Don't attempt regular edits if confidence is too low
 	if (confidence < confidenceThreshold) {
-		console.log(`Search confidence (${confidence}) below minimum threshold (${confidenceThreshold}), trying git fallback...`);
-		return applyGitFallback(hunk, content);
+		console.log(
+			`Search confidence (${confidence}) below minimum threshold (${confidenceThreshold}), trying git fallback...`
+		)
+		return applyGitFallback(hunk, content)
 	}
 
 	// Try each strategy in sequence until one succeeds
 	const strategies = [
-		{ name: 'dmp', apply: () => applyDMP(hunk, content, matchPosition, confidenceThreshold) },
-		{ name: 'context', apply: () => applyContextMatching(hunk, content, matchPosition, confidenceThreshold) },
-		{ name: 'git-fallback', apply: () => applyGitFallback(hunk, content) }
-	];
+		{ name: "dmp", apply: () => applyDMP(hunk, content, matchPosition) },
+		{ name: "context", apply: () => applyContextMatching(hunk, content, matchPosition) },
+		{ name: "git-fallback", apply: () => applyGitFallback(hunk, content) },
+	]
 
 	// Try strategies sequentially until one succeeds
 	for (const strategy of strategies) {
-		const result = await strategy.apply();
+		const result = await strategy.apply()
 		if (result.confidence >= confidenceThreshold) {
-			return result;
+			return result
 		}
 	}
 
-	return { confidence: 0, result: content, strategy: 'none' };
+	return { confidence: 0, result: content, strategy: "none" }
 }
