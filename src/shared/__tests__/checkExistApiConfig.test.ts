@@ -49,6 +49,7 @@ describe('checkExistKey', () => {
       geminiApiKey: undefined,
       openAiNativeApiKey: undefined,
       deepSeekApiKey: undefined,
+      mistralApiKey: undefined,
       vsCodeLmModelSelector: undefined
     };
     expect(checkExistKey(config)).toBe(false);

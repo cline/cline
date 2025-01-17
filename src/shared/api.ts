@@ -13,6 +13,7 @@ export type ApiProvider =
 	| "openai-native"
 	| "deepseek"
 	| "vscode-lm"
+	| "mistral"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -43,6 +44,7 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
+	mistralApiKey?: string
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
 	openAiStreamingEnabled?: boolean
@@ -549,3 +551,18 @@ export const deepSeekModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 
+
+// Mistral
+// https://docs.mistral.ai/getting-started/models/models_overview/
+export type MistralModelId = keyof typeof mistralModels
+export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralModels = {
+	"codestral-latest": {
+		maxTokens: 32_768,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+} as const satisfies Record<string, ModelInfo>

@@ -22,6 +22,8 @@ import {
 	geminiModels,
 	glamaDefaultModelId,
 	glamaDefaultModelInfo,
+	mistralDefaultModelId,
+	mistralModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -145,6 +147,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						{ value: "bedrock", label: "AWS Bedrock" },
 						{ value: "glama", label: "Glama" },
 						{ value: "vscode-lm", label: "VS Code LM API" },
+						{ value: "mistral", label: "Mistral" },
 						{ value: "lmstudio", label: "LM Studio" },
 						{ value: "ollama", label: "Ollama" }
 					]}
@@ -252,6 +255,37 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								href="https://platform.openai.com/api-keys"
 								style={{ display: "inline", fontSize: "inherit" }}>
 								You can get an OpenAI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "mistral" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.mistralApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("mistralApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Mistral API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.mistralApiKey && (
+							<VSCodeLink
+								href="https://console.mistral.ai/codestral/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Mistral API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -778,6 +812,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
+							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</div>
 
 						<ModelInfoView
@@ -978,6 +1013,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelId: apiConfiguration?.glamaModelId || glamaDefaultModelId,
 				selectedModelInfo: apiConfiguration?.glamaModelInfo || glamaDefaultModelInfo,
 			}
+		case "mistral":
+			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,
