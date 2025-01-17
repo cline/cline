@@ -32,7 +32,10 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 				// o1 doesnt support streaming or non-1 temp but does support a developer prompt
 				const response = await this.client.chat.completions.create({
 					model: modelId,
-					messages: [{ role: modelId === "o1" ? "developer" : "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					messages: [
+						{ role: modelId === "o1" ? "developer" : "user", content: systemPrompt },
+						...convertToOpenAiMessages(messages),
+					],
 				})
 				yield {
 					type: "text",
@@ -98,14 +101,14 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 					// o1 doesn't support non-1 temp
 					requestOptions = {
 						model: modelId,
-						messages: [{ role: "user", content: prompt }]
+						messages: [{ role: "user", content: prompt }],
 					}
 					break
 				default:
 					requestOptions = {
 						model: modelId,
 						messages: [{ role: "user", content: prompt }],
-						temperature: 0
+						temperature: 0,
 					}
 			}
 

@@ -8,7 +8,7 @@
 export function detectCodeOmission(
 	originalFileContent: string,
 	newFileContent: string,
-	predictedLineCount: number
+	predictedLineCount: number,
 ): boolean {
 	// Skip all checks if predictedLineCount is less than 100
 	if (!predictedLineCount || predictedLineCount < 100) {
@@ -20,7 +20,17 @@ export function detectCodeOmission(
 
 	const originalLines = originalFileContent.split("\n")
 	const newLines = newFileContent.split("\n")
-	const omissionKeywords = ["remain", "remains", "unchanged", "rest", "previous", "existing", "content", "same", "..."]
+	const omissionKeywords = [
+		"remain",
+		"remains",
+		"unchanged",
+		"rest",
+		"previous",
+		"existing",
+		"content",
+		"same",
+		"...",
+	]
 
 	const commentPatterns = [
 		/^\s*\/\//, // Single-line comment for most languages
@@ -39,7 +49,7 @@ export function detectCodeOmission(
 			if (omissionKeywords.some((keyword) => words.includes(keyword))) {
 				if (!originalLines.includes(line)) {
 					// For files with 100+ lines, only flag if content is more than 20% shorter
-					if (lengthRatio <= 0.80) {
+					if (lengthRatio <= 0.8) {
 						return true
 					}
 				}

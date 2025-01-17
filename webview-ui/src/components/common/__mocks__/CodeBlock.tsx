@@ -1,12 +1,10 @@
-import * as React from 'react';
+import * as React from "react"
 
 interface CodeBlockProps {
-  children?: React.ReactNode;
-  language?: string;
+	children?: React.ReactNode
+	language?: string
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = () => (
-  <div data-testid="mock-code-block">Mocked Code Block</div>
-);
+const CodeBlock: React.FC<CodeBlockProps> = () => <div data-testid="mock-code-block">Mocked Code Block</div>
 
-export default CodeBlock;
+export default CodeBlock

@@ -136,7 +136,7 @@ export class BrowserSession {
 		let screenshotBase64 = await this.page.screenshot({
 			...options,
 			type: "webp",
-			quality: (await this.context.globalState.get("screenshotQuality") as number | undefined) ?? 75,
+			quality: ((await this.context.globalState.get("screenshotQuality")) as number | undefined) ?? 75,
 		})
 		let screenshot = `data:image/webp;base64,${screenshotBase64}`
 
@@ -247,7 +247,7 @@ export class BrowserSession {
 	}
 
 	async scrollDown(): Promise<BrowserActionResult> {
-		const size = (await this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
+		const size = ((await this.context.globalState.get("browserViewportSize")) as string | undefined) || "900x600"
 		const height = parseInt(size.split("x")[1])
 		return this.doAction(async (page) => {
 			await page.evaluate((scrollHeight) => {
@@ -261,7 +261,7 @@ export class BrowserSession {
 	}
 
 	async scrollUp(): Promise<BrowserActionResult> {
-		const size = (await this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
+		const size = ((await this.context.globalState.get("browserViewportSize")) as string | undefined) || "900x600"
 		const height = parseInt(size.split("x")[1])
 		return this.doAction(async (page) => {
 			await page.evaluate((scrollHeight) => {

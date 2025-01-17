@@ -10,14 +10,14 @@ type McpToolRowProps = {
 
 const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 	const handleAlwaysAllowChange = () => {
-		if (!serverName) return;
-		
+		if (!serverName) return
+
 		vscode.postMessage({
 			type: "toggleToolAlwaysAllow",
 			serverName,
 			toolName: tool.name,
-			alwaysAllow: !tool.alwaysAllow
-		});
+			alwaysAllow: !tool.alwaysAllow,
+		})
 	}
 
 	return (
@@ -35,10 +35,7 @@ const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && alwaysAllowMcp && (
-					<VSCodeCheckbox
-						checked={tool.alwaysAllow}
-						onChange={handleAlwaysAllowChange}
-						data-tool={tool.name}>
+					<VSCodeCheckbox checked={tool.alwaysAllow} onChange={handleAlwaysAllowChange} data-tool={tool.name}>
 						Always allow
 					</VSCodeCheckbox>
 				)}

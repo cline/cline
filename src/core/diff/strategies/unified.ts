@@ -2,8 +2,8 @@ import { applyPatch } from "diff"
 import { DiffStrategy, DiffResult } from "../types"
 
 export class UnifiedDiffStrategy implements DiffStrategy {
-    getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
-        return `## apply_diff
+	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
+		return `## apply_diff
 Description: Apply a unified diff to a file at the specified path. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in unified diff format (diff -U3).
 
 Parameters:
@@ -106,32 +106,32 @@ Usage:
 Your diff here
 </diff>
 </apply_diff>`
-    }
+	}
 
-    async applyDiff(originalContent: string, diffContent: string): Promise<DiffResult> {
-        try {
-            const result = applyPatch(originalContent, diffContent)
-            if (result === false) {
-                return {
-                    success: false,
-                    error: "Failed to apply unified diff - patch rejected",
-                    details: {
-                        searchContent: diffContent
-                    }
-                }
-            }
-            return {
-                success: true,
-                content: result
-            }
-        } catch (error) {
-            return {
-                success: false,
-                error: `Error applying unified diff: ${error.message}`,
-                details: {
-                    searchContent: diffContent
-                }
-            }
-        }
-    }
+	async applyDiff(originalContent: string, diffContent: string): Promise<DiffResult> {
+		try {
+			const result = applyPatch(originalContent, diffContent)
+			if (result === false) {
+				return {
+					success: false,
+					error: "Failed to apply unified diff - patch rejected",
+					details: {
+						searchContent: diffContent,
+					},
+				}
+			}
+			return {
+				success: true,
+				content: result,
+			}
+		} catch (error) {
+			return {
+				success: false,
+				error: `Error applying unified diff: ${error.message}`,
+				details: {
+					searchContent: diffContent,
+				},
+			}
+		}
+	}
 }

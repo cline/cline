@@ -94,7 +94,7 @@ export interface ExtensionState {
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string
-  	experimentalDiffStrategy?: boolean
+	experimentalDiffStrategy?: boolean
 	autoApprovalEnabled?: boolean
 }
 

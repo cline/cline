@@ -1,5 +1,5 @@
 export function getSharedToolUseSection(): string {
-    return `====
+	return `====
 
 TOOL USE
 

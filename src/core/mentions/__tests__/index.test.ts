@@ -1,20 +1,20 @@
 // Create mock vscode module before importing anything
 const createMockUri = (scheme: string, path: string) => ({
 	scheme,
-	authority: '',
+	authority: "",
 	path,
-	query: '',
-	fragment: '',
+	query: "",
+	fragment: "",
 	fsPath: path,
 	with: jest.fn(),
 	toString: () => path,
 	toJSON: () => ({
 		scheme,
-		authority: '',
+		authority: "",
 		path,
-		query: '',
-		fragment: ''
-	})
+		query: "",
+		fragment: "",
+	}),
 })
 
 const mockExecuteCommand = jest.fn()
@@ -23,9 +23,11 @@ const mockShowErrorMessage = jest.fn()
 
 const mockVscode = {
 	workspace: {
-		workspaceFolders: [{
-			uri: { fsPath: "/test/workspace" }
-		}]
+		workspaceFolders: [
+			{
+				uri: { fsPath: "/test/workspace" },
+			},
+		],
 	},
 	window: {
 		showErrorMessage: mockShowErrorMessage,
@@ -34,17 +36,17 @@ const mockVscode = {
 		createTextEditorDecorationType: jest.fn(),
 		createOutputChannel: jest.fn(),
 		createWebviewPanel: jest.fn(),
-		activeTextEditor: undefined
+		activeTextEditor: undefined,
 	},
 	commands: {
-		executeCommand: mockExecuteCommand
+		executeCommand: mockExecuteCommand,
 	},
 	env: {
-		openExternal: mockOpenExternal
+		openExternal: mockOpenExternal,
 	},
 	Uri: {
-		parse: jest.fn((url: string) => createMockUri('https', url)),
-		file: jest.fn((path: string) => createMockUri('file', path))
+		parse: jest.fn((url: string) => createMockUri("https", url)),
+		file: jest.fn((path: string) => createMockUri("file", path)),
 	},
 	Position: jest.fn(),
 	Range: jest.fn(),
@@ -54,12 +56,12 @@ const mockVscode = {
 		Error: 0,
 		Warning: 1,
 		Information: 2,
-		Hint: 3
-	}
+		Hint: 3,
+	},
 }
 
 // Mock modules
-jest.mock('vscode', () => mockVscode)
+jest.mock("vscode", () => mockVscode)
 jest.mock("../../../services/browser/UrlContentFetcher")
 jest.mock("../../../utils/git")
 
@@ -74,7 +76,7 @@ describe("mentions", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks()
-		
+
 		// Create a mock instance with just the methods we need
 		mockUrlContentFetcher = {
 			launchBrowser: jest.fn().mockResolvedValue(undefined),
@@ -94,14 +96,10 @@ Date: Mon Jan 5 23:50:06 2025 -0500
 Detailed commit message with multiple lines
 - Fixed parsing issue
 - Added tests`
-			
+
 			jest.mocked(git.getCommitInfo).mockResolvedValue(commitInfo)
 
-			const result = await parseMentions(
-				`Check out this commit @${commitHash}`,
-				mockCwd,
-				mockUrlContentFetcher
-			)
+			const result = await parseMentions(`Check out this commit @${commitHash}`, mockCwd, mockUrlContentFetcher)
 
 			expect(result).toContain(`'${commitHash}' (see below for commit info)`)
 			expect(result).toContain(`<git_commit hash="${commitHash}">`)
@@ -111,14 +109,10 @@ Detailed commit message with multiple lines
 		it("should handle errors fetching git info", async () => {
 			const commitHash = "abc1234"
 			const errorMessage = "Failed to get commit info"
-			
+
 			jest.mocked(git.getCommitInfo).mockRejectedValue(new Error(errorMessage))
 
-			const result = await parseMentions(
-				`Check out this commit @${commitHash}`,
-				mockCwd,
-				mockUrlContentFetcher
-			)
+			const result = await parseMentions(`Check out this commit @${commitHash}`, mockCwd, mockUrlContentFetcher)
 
 			expect(result).toContain(`'${commitHash}' (see below for commit info)`)
 			expect(result).toContain(`<git_commit hash="${commitHash}">`)
@@ -143,13 +137,15 @@ Detailed commit message with multiple lines
 			const mockUri = mockVscode.Uri.parse(url)
 			expect(mockOpenExternal).toHaveBeenCalled()
 			const calledArg = mockOpenExternal.mock.calls[0][0]
-			expect(calledArg).toEqual(expect.objectContaining({
-				scheme: mockUri.scheme,
-				authority: mockUri.authority,
-				path: mockUri.path,
-				query: mockUri.query,
-				fragment: mockUri.fragment
-			}))
+			expect(calledArg).toEqual(
+				expect.objectContaining({
+					scheme: mockUri.scheme,
+					authority: mockUri.authority,
+					path: mockUri.path,
+					query: mockUri.query,
+					fragment: mockUri.fragment,
+				}),
+			)
 		})
 	})
 })

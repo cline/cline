@@ -1,7 +1,7 @@
 import { ApiConfiguration, ApiProvider } from "./api"
 import { Mode, PromptComponent } from "./modes"
 
-export type PromptMode = Mode | 'enhance'
+export type PromptMode = Mode | "enhance"
 
 export type AudioType = "notification" | "celebration" | "progress_loop"
 
@@ -72,7 +72,7 @@ export interface WebviewMessage {
 		| "getSystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
-    	| "experimentalDiffStrategy"
+		| "experimentalDiffStrategy"
 		| "autoApprovalEnabled"
 	text?: string
 	disabled?: boolean

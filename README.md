@@ -10,14 +10,15 @@ Hot off the heels of **v3.0** introducing Code, Architect, and Ask chat modes, o
 
 You can now tailor the **role definition** and **custom instructions** for every chat mode to perfectly fit your workflow. Want to adjust Architect mode to focus more on system scalability? Or tweak Ask mode for deeper research queries? Done. Plus, you can define these via **mode-specific `.clinerules-[mode]` files**. You’ll find all of this in the new **Prompts** tab in the top menu.
 
-The second big feature in this release is a complete revamp of **prompt enhancements**. This feature helps you craft messages to get even better results from Cline. Here’s what’s new:  
-- Works with **any provider** and API configuration, not just OpenRouter.  
-- Fully customizable prompts to match your unique needs.  
+The second big feature in this release is a complete revamp of **prompt enhancements**. This feature helps you craft messages to get even better results from Cline. Here’s what’s new:
+
+- Works with **any provider** and API configuration, not just OpenRouter.
+- Fully customizable prompts to match your unique needs.
 - Same simple workflow: just hit the ✨ **Enhance Prompt** button in the chat input to try it out.
 
 Whether you’re using GPT-4, other APIs, or switching configurations, this gives you total control over how your prompts are optimized.
 
-As always, we’d love to hear your thoughts and ideas! What features do you want to see in **v3.2**? Drop by https://www.reddit.com/r/roocline and join the discussion - we're building Roo Cline together. 🚀  
+As always, we’d love to hear your thoughts and ideas! What features do you want to see in **v3.2**? Drop by https://www.reddit.com/r/roocline and join the discussion - we're building Roo Cline together. 🚀
 
 ## New in 3.0 - Chat Modes!
 
@@ -33,6 +34,7 @@ You can now choose between different prompts for Roo Cline to better suit your w
 It’s super simple! There’s a dropdown in the bottom left of the chat input to switch modes. Right next to it, you’ll find a way to switch between the API configuration profiles associated with the current mode (configured on the settings screen).
 
 **Why Add This?**
+
 - It keeps Cline from being overly eager to jump into solving problems when you just want to think or ask questions.
 - Each mode remembers the API configuration you last used with it. For example, you can use more thoughtful models like OpenAI o1 for Architect and Ask, while sticking with Sonnet or DeepSeek for coding tasks.
 - It builds on research suggesting better results when separating "thinking" from "coding," explained well in this very thoughtful [article](https://aider.chat/2024/09/26/architect.html) from aider.
@@ -50,25 +52,27 @@ Here's an example of Roo-Cline autonomously creating a snake game with "Always a
 https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
 
 ## Contributing
+
 To contribute to the project, start by exploring [open issues](https://github.com/RooVetGit/Roo-Cline/issues) or checking our [feature request board](https://github.com/RooVetGit/Roo-Cline/discussions/categories/feature-requests). We'd also love to have you join the [Roo Cline Reddit](https://www.reddit.com/r/roocline/) to share ideas and connect with other contributors.
 
 ### Local Setup
 
 1. Install dependencies:
-   ```bash
-   npm run install:all
-   ```
+
+    ```bash
+    npm run install:all
+    ```
 
 2. Build the VSIX file:
-   ```bash
-   npm run build
-   ```
+    ```bash
+    npm run build
+    ```
 3. The new VSIX file will be created in the `bin/` directory
 4. Install the extension from the VSIX file as described below:
 
-   - **Option 1:** Drag and drop the `.vsix` file into your VSCode-compatible editor's Extensions panel (Cmd/Ctrl+Shift+X).
+    - **Option 1:** Drag and drop the `.vsix` file into your VSCode-compatible editor's Extensions panel (Cmd/Ctrl+Shift+X).
 
-   - **Option 2:** Install the plugin using the CLI, make sure you have your VSCode-compatible CLI installed and in your `PATH` variable. Cursor example: `export PATH="$PATH:/Applications/Cursor.app/Contents/MacOS"`
+    - **Option 2:** Install the plugin using the CLI, make sure you have your VSCode-compatible CLI installed and in your `PATH` variable. Cursor example: `export PATH="$PATH:/Applications/Cursor.app/Contents/MacOS"`
 
     ```bash
     # Ex: cursor --install-extension bin/roo-cline-2.0.1.vsix
@@ -83,16 +87,17 @@ We use [changesets](https://github.com/changesets/changesets) for versioning and
 
 1. Create a PR with your changes
 2. Create a new changeset by running `npm run changeset`
-   - Select the appropriate kind of change - `patch` for bug fixes, `minor` for new features, or `major` for breaking changes
-   - Write a clear description of your changes that will be included in the changelog
+    - Select the appropriate kind of change - `patch` for bug fixes, `minor` for new features, or `major` for breaking changes
+    - Write a clear description of your changes that will be included in the changelog
 3. Get the PR approved and pass all checks
 4. Merge it
 
 Once your merge is successful:
+
 - The release workflow will automatically create a new "Changeset version bump" PR
 - This PR will:
-  - Update the version based on your changeset
-  - Update the `CHANGELOG.md` file
+    - Update the version based on your changeset
+    - Update the `CHANGELOG.md` file
 - Once the PR is approved and merged, a new version will be published
 
 ---
@@ -193,9 +198,9 @@ Try asking Cline to "test the app", and watch as he runs a command like `npm run
 
 Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol), Cline can extend his capabilities through custom tools. While you can use [community-made servers](https://github.com/modelcontextprotocol/servers), Cline can instead create and install tools tailored to your specific workflow. Just ask Cline to "add a tool" and he will handle everything, from creating a new MCP server to installing it into the extension. These custom tools then become part of Cline's toolkit, ready to use in future tasks.
 
--   "add a tool that fetches Jira tickets": Retrieve ticket ACs and put Cline to work
--   "add a tool that manages AWS EC2s": Check server metrics and scale instances up or down
--   "add a tool that pulls the latest PagerDuty incidents": Fetch details and ask Cline to fix bugs
+- "add a tool that fetches Jira tickets": Retrieve ticket ACs and put Cline to work
+- "add a tool that manages AWS EC2s": Check server metrics and scale instances up or down
+- "add a tool that pulls the latest PagerDuty incidents": Fetch details and ask Cline to fix bugs
 
 <!-- Transparent pixel to create line break after floating image -->
 

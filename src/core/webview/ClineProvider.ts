@@ -98,7 +98,7 @@ type GlobalStateKey =
 	| "modeApiConfigs"
 	| "customPrompts"
 	| "enhancementApiConfigId"
-  	| "experimentalDiffStrategy"
+	| "experimentalDiffStrategy"
 	| "autoApprovalEnabled"
 
 export const GlobalFileNames = {
@@ -254,14 +254,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
-      experimentalDiffStrategy
+			experimentalDiffStrategy,
 		} = await this.getState()
 
 		const modePrompt = customPrompts?.[mode]
-		const modeInstructions = typeof modePrompt === 'object' ? modePrompt.customInstructions : undefined
-		const effectiveInstructions = [globalInstructions, modeInstructions]
-			.filter(Boolean)
-			.join('\n\n')
+		const modeInstructions = typeof modePrompt === "object" ? modePrompt.customInstructions : undefined
+		const effectiveInstructions = [globalInstructions, modeInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
 			this,
@@ -272,7 +270,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 			undefined,
-			experimentalDiffStrategy
+			experimentalDiffStrategy,
 		)
 	}
 
@@ -285,14 +283,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
-      experimentalDiffStrategy
+			experimentalDiffStrategy,
 		} = await this.getState()
 
 		const modePrompt = customPrompts?.[mode]
-		const modeInstructions = typeof modePrompt === 'object' ? modePrompt.customInstructions : undefined
-		const effectiveInstructions = [globalInstructions, modeInstructions]
-			.filter(Boolean)
-			.join('\n\n')
+		const modeInstructions = typeof modePrompt === "object" ? modePrompt.customInstructions : undefined
+		const effectiveInstructions = [globalInstructions, modeInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
 			this,
@@ -303,7 +299,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			undefined,
 			historyItem,
-			experimentalDiffStrategy
+			experimentalDiffStrategy,
 		)
 	}
 
@@ -403,7 +399,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
-
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
@@ -450,53 +445,53 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 						})
 
-
-						this.configManager.ListConfig().then(async (listApiConfig) => {
-
-							if (!listApiConfig) {
-								return
-							}
-
-							if (listApiConfig.length === 1) {
-								// check if first time init then sync with exist config
-								if (!checkExistKey(listApiConfig[0])) {
-									const {
-										apiConfiguration,
-									} = await this.getState()
-									await this.configManager.SaveConfig(listApiConfig[0].name ?? "default", apiConfiguration)
-									listApiConfig[0].apiProvider = apiConfiguration.apiProvider
+						this.configManager
+							.ListConfig()
+							.then(async (listApiConfig) => {
+								if (!listApiConfig) {
+									return
 								}
-							}
 
-							let currentConfigName = await this.getGlobalState("currentApiConfigName") as string
-
-							if (currentConfigName) {
-								if (!await this.configManager.HasConfig(currentConfigName)) {
-									// current config name not valid, get first config in list
-									await this.updateGlobalState("currentApiConfigName", listApiConfig?.[0]?.name)
-									if (listApiConfig?.[0]?.name) {
-										const apiConfig = await this.configManager.LoadConfig(listApiConfig?.[0]?.name);
-
-										await Promise.all([
-											this.updateGlobalState("listApiConfigMeta", listApiConfig),
-											this.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
-											this.updateApiConfiguration(apiConfig),
-										])
-										await this.postStateToWebview()
-										return
+								if (listApiConfig.length === 1) {
+									// check if first time init then sync with exist config
+									if (!checkExistKey(listApiConfig[0])) {
+										const { apiConfiguration } = await this.getState()
+										await this.configManager.SaveConfig(
+											listApiConfig[0].name ?? "default",
+											apiConfiguration,
+										)
+										listApiConfig[0].apiProvider = apiConfiguration.apiProvider
 									}
-
 								}
-							}
 
+								let currentConfigName = (await this.getGlobalState("currentApiConfigName")) as string
 
-							await Promise.all(
-								[
+								if (currentConfigName) {
+									if (!(await this.configManager.HasConfig(currentConfigName))) {
+										// current config name not valid, get first config in list
+										await this.updateGlobalState("currentApiConfigName", listApiConfig?.[0]?.name)
+										if (listApiConfig?.[0]?.name) {
+											const apiConfig = await this.configManager.LoadConfig(
+												listApiConfig?.[0]?.name,
+											)
+
+											await Promise.all([
+												this.updateGlobalState("listApiConfigMeta", listApiConfig),
+												this.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
+												this.updateApiConfiguration(apiConfig),
+											])
+											await this.postStateToWebview()
+											return
+										}
+									}
+								}
+
+								await Promise.all([
 									await this.updateGlobalState("listApiConfigMeta", listApiConfig),
-									await this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
-								]
-							)
-						}).catch(console.error);
+									await this.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
+								])
+							})
+							.catch(console.error)
 
 						break
 					case "newTask":
@@ -593,7 +588,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshOpenAiModels":
 						if (message?.values?.baseUrl && message?.values?.apiKey) {
-							const openAiModels = await this.getOpenAiModels(message?.values?.baseUrl, message?.values?.apiKey)
+							const openAiModels = await this.getOpenAiModels(
+								message?.values?.baseUrl,
+								message?.values?.apiKey,
+							)
 							this.postMessageToWebview({ type: "openAiModels", openAiModels })
 						}
 						break
@@ -625,12 +623,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						break
 					case "allowedCommands":
-						await this.context.globalState.update('allowedCommands', message.commands);
+						await this.context.globalState.update("allowedCommands", message.commands)
 						// Also update workspace settings
 						await vscode.workspace
-							.getConfiguration('roo-cline')
-							.update('allowedCommands', message.commands, vscode.ConfigurationTarget.Global);
-						break;
+							.getConfiguration("roo-cline")
+							.update("allowedCommands", message.commands, vscode.ConfigurationTarget.Global)
+						break
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
@@ -651,7 +649,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.mcpHub?.toggleToolAlwaysAllow(
 								message.serverName!,
 								message.toolName!,
-								message.alwaysAllow!
+								message.alwaysAllow!,
 							)
 						} catch (error) {
 							console.error(`Failed to toggle auto-approve for tool ${message.toolName}:`, error)
@@ -660,10 +658,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "toggleMcpServer": {
 						try {
-							await this.mcpHub?.toggleServerDisabled(
-								message.serverName!,
-								message.disabled!
-							)
+							await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
 						} catch (error) {
 							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
 						}
@@ -683,7 +678,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "soundEnabled":
 						const soundEnabled = message.bool ?? true
 						await this.updateGlobalState("soundEnabled", soundEnabled)
-						setSoundEnabled(soundEnabled)  // Add this line to update the sound utility
+						setSoundEnabled(soundEnabled) // Add this line to update the sound utility
 						await this.postStateToWebview()
 						break
 					case "soundVolume":
@@ -729,84 +724,84 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "mode":
 						const newMode = message.text as Mode
 						await this.updateGlobalState("mode", newMode)
-						
+
 						// Load the saved API config for the new mode if it exists
 						const savedConfigId = await this.configManager.GetModeConfigId(newMode)
 						const listApiConfig = await this.configManager.ListConfig()
-						
+
 						// Update listApiConfigMeta first to ensure UI has latest data
 						await this.updateGlobalState("listApiConfigMeta", listApiConfig)
-						
+
 						// If this mode has a saved config, use it
 						if (savedConfigId) {
-							const config = listApiConfig?.find(c => c.id === savedConfigId)
+							const config = listApiConfig?.find((c) => c.id === savedConfigId)
 							if (config?.name) {
 								const apiConfig = await this.configManager.LoadConfig(config.name)
 								await Promise.all([
 									this.updateGlobalState("currentApiConfigName", config.name),
-									this.updateApiConfiguration(apiConfig)
+									this.updateApiConfiguration(apiConfig),
 								])
 							}
 						} else {
 							// If no saved config for this mode, save current config as default
 							const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 							if (currentApiConfigName) {
-								const config = listApiConfig?.find(c => c.name === currentApiConfigName)
+								const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
 								if (config?.id) {
 									await this.configManager.SetModeConfig(newMode, config.id)
 								}
 							}
 						}
-						
+
 						await this.postStateToWebview()
 						break
 					case "updateEnhancedPrompt":
-						const existingPrompts = await this.getGlobalState("customPrompts") || {}
-						
+						const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+
 						const updatedPrompts = {
 							...existingPrompts,
-							enhance: message.text
+							enhance: message.text,
 						}
-						
+
 						await this.updateGlobalState("customPrompts", updatedPrompts)
-						
+
 						// Get current state and explicitly include customPrompts
 						const currentState = await this.getState()
-						
+
 						const stateWithPrompts = {
 							...currentState,
-							customPrompts: updatedPrompts
+							customPrompts: updatedPrompts,
 						}
-						
+
 						// Post state with prompts
 						this.view?.webview.postMessage({
 							type: "state",
-							state: stateWithPrompts
+							state: stateWithPrompts,
 						})
 						break
 					case "updatePrompt":
 						if (message.promptMode && message.customPrompt !== undefined) {
-							const existingPrompts = await this.getGlobalState("customPrompts") || {}
-							
+							const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+
 							const updatedPrompts = {
 								...existingPrompts,
-								[message.promptMode]: message.customPrompt
+								[message.promptMode]: message.customPrompt,
 							}
-							
+
 							await this.updateGlobalState("customPrompts", updatedPrompts)
-							
+
 							// Get current state and explicitly include customPrompts
 							const currentState = await this.getState()
-							
+
 							const stateWithPrompts = {
 								...currentState,
-								customPrompts: updatedPrompts
+								customPrompts: updatedPrompts,
 							}
-							
+
 							// Post state with prompts
 							this.view?.webview.postMessage({
 								type: "state",
-								state: stateWithPrompts
+								state: stateWithPrompts,
 							})
 						}
 						break
@@ -817,60 +812,79 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"Just this message",
 							"This and all subsequent messages",
 						)
-						if ((answer === "Just this message" || answer === "This and all subsequent messages") &&
-							this.cline && typeof message.value === 'number' && message.value) {
-							const timeCutoff = message.value - 1000; // 1 second buffer before the message to delete
-							const messageIndex = this.cline.clineMessages.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
-							const apiConversationHistoryIndex = this.cline.apiConversationHistory.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
-							
+						if (
+							(answer === "Just this message" || answer === "This and all subsequent messages") &&
+							this.cline &&
+							typeof message.value === "number" &&
+							message.value
+						) {
+							const timeCutoff = message.value - 1000 // 1 second buffer before the message to delete
+							const messageIndex = this.cline.clineMessages.findIndex(
+								(msg) => msg.ts && msg.ts >= timeCutoff,
+							)
+							const apiConversationHistoryIndex = this.cline.apiConversationHistory.findIndex(
+								(msg) => msg.ts && msg.ts >= timeCutoff,
+							)
+
 							if (messageIndex !== -1) {
 								const { historyItem } = await this.getTaskWithId(this.cline.taskId)
-								
+
 								if (answer === "Just this message") {
 									// Find the next user message first
 									const nextUserMessage = this.cline.clineMessages
 										.slice(messageIndex + 1)
-										.find(msg => msg.type === "say" && msg.say === "user_feedback")
-									
+										.find((msg) => msg.type === "say" && msg.say === "user_feedback")
+
 									// Handle UI messages
 									if (nextUserMessage) {
 										// Find absolute index of next user message
-										const nextUserMessageIndex = this.cline.clineMessages.findIndex(msg => msg === nextUserMessage)
+										const nextUserMessageIndex = this.cline.clineMessages.findIndex(
+											(msg) => msg === nextUserMessage,
+										)
 										// Keep messages before current message and after next user message
 										await this.cline.overwriteClineMessages([
 											...this.cline.clineMessages.slice(0, messageIndex),
-											...this.cline.clineMessages.slice(nextUserMessageIndex)
+											...this.cline.clineMessages.slice(nextUserMessageIndex),
 										])
 									} else {
 										// If no next user message, keep only messages before current message
 										await this.cline.overwriteClineMessages(
-											this.cline.clineMessages.slice(0, messageIndex)
+											this.cline.clineMessages.slice(0, messageIndex),
 										)
 									}
-									
+
 									// Handle API messages
 									if (apiConversationHistoryIndex !== -1) {
 										if (nextUserMessage && nextUserMessage.ts) {
 											// Keep messages before current API message and after next user message
 											await this.cline.overwriteApiConversationHistory([
-												...this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex),
-												...this.cline.apiConversationHistory.filter(msg => msg.ts && msg.ts >= nextUserMessage.ts)
+												...this.cline.apiConversationHistory.slice(
+													0,
+													apiConversationHistoryIndex,
+												),
+												...this.cline.apiConversationHistory.filter(
+													(msg) => msg.ts && msg.ts >= nextUserMessage.ts,
+												),
 											])
 										} else {
 											// If no next user message, keep only messages before current API message
 											await this.cline.overwriteApiConversationHistory(
-												this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex)
+												this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex),
 											)
 										}
 									}
 								} else if (answer === "This and all subsequent messages") {
 									// Delete this message and all that follow
-									await this.cline.overwriteClineMessages(this.cline.clineMessages.slice(0, messageIndex))
+									await this.cline.overwriteClineMessages(
+										this.cline.clineMessages.slice(0, messageIndex),
+									)
 									if (apiConversationHistoryIndex !== -1) {
-										await this.cline.overwriteApiConversationHistory(this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex))
+										await this.cline.overwriteApiConversationHistory(
+											this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex),
+										)
 									}
 								}
-								
+
 								await this.initClineWithHistoryItem(historyItem)
 							}
 						}
@@ -891,12 +905,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "enhancePrompt":
 						if (message.text) {
 							try {
-								const { apiConfiguration, customPrompts, listApiConfigMeta, enhancementApiConfigId } = await this.getState()
-								
+								const { apiConfiguration, customPrompts, listApiConfigMeta, enhancementApiConfigId } =
+									await this.getState()
+
 								// Try to get enhancement config first, fall back to current config
 								let configToUse: ApiConfiguration = apiConfiguration
 								if (enhancementApiConfigId) {
-									const config = listApiConfigMeta?.find(c => c.id === enhancementApiConfigId)
+									const config = listApiConfigMeta?.find((c) => c.id === enhancementApiConfigId)
 									if (config?.name) {
 										const loadedConfig = await this.configManager.LoadConfig(config.name)
 										if (loadedConfig.apiProvider) {
@@ -904,41 +919,49 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										}
 									}
 								}
-								
+
 								const getEnhancePrompt = (value: string | PromptComponent | undefined): string => {
-									if (typeof value === 'string') {
-										return value;
+									if (typeof value === "string") {
+										return value
 									}
-									return enhance.prompt; // Use the constant from modes.ts which we know is a string
+									return enhance.prompt // Use the constant from modes.ts which we know is a string
 								}
 								const enhancedPrompt = await enhancePrompt(
 									configToUse,
 									message.text,
-									getEnhancePrompt(customPrompts?.enhance)
+									getEnhancePrompt(customPrompts?.enhance),
 								)
 								await this.postMessageToWebview({
 									type: "enhancedPrompt",
-									text: enhancedPrompt
+									text: enhancedPrompt,
 								})
 							} catch (error) {
 								console.error("Error enhancing prompt:", error)
 								vscode.window.showErrorMessage("Failed to enhance prompt")
 								await this.postMessageToWebview({
-									type: "enhancedPrompt"
+									type: "enhancedPrompt",
 								})
 							}
 						}
 						break
 					case "getSystemPrompt":
 						try {
-							const { apiConfiguration, customPrompts, customInstructions, preferredLanguage, browserViewportSize, mcpEnabled } = await this.getState()
-							const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ''
+							const {
+								apiConfiguration,
+								customPrompts,
+								customInstructions,
+								preferredLanguage,
+								browserViewportSize,
+								mcpEnabled,
+							} = await this.getState()
+							const cwd =
+								vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
 
 							const mode = message.mode ?? defaultModeSlug
 							const instructions = await addCustomInstructions(
 								{ customInstructions, customPrompts, preferredLanguage },
 								cwd,
-								mode
+								mode,
 							)
 
 							const systemPrompt = await SYSTEM_PROMPT(
@@ -948,14 +971,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								undefined,
 								browserViewportSize ?? "900x600",
 								mode,
-								customPrompts
+								customPrompts,
 							)
 							const fullPrompt = instructions ? `${systemPrompt}${instructions}` : systemPrompt
-							
+
 							await this.postMessageToWebview({
 								type: "systemPrompt",
 								text: fullPrompt,
-								mode: message.mode
+								mode: message.mode,
 							})
 						} catch (error) {
 							console.error("Error getting system prompt:", error)
@@ -969,7 +992,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								const commits = await searchCommits(message.query || "", cwd)
 								await this.postMessageToWebview({
 									type: "commitSearchResults",
-									commits
+									commits,
 								})
 							} catch (error) {
 								console.error("Error searching commits:", error)
@@ -981,9 +1004,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "upsertApiConfiguration":
 						if (message.text && message.apiConfiguration) {
 							try {
-								await this.configManager.SaveConfig(message.text, message.apiConfiguration);
-								let listApiConfig = await this.configManager.ListConfig();
-								
+								await this.configManager.SaveConfig(message.text, message.apiConfiguration)
+								let listApiConfig = await this.configManager.ListConfig()
+
 								await Promise.all([
 									this.updateGlobalState("listApiConfigMeta", listApiConfig),
 									this.updateApiConfiguration(message.apiConfiguration),
@@ -1002,18 +1025,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							try {
 								const { oldName, newName } = message.values
 
-								await this.configManager.SaveConfig(newName, message.apiConfiguration);
+								await this.configManager.SaveConfig(newName, message.apiConfiguration)
 								await this.configManager.DeleteConfig(oldName)
 
-								let listApiConfig = await this.configManager.ListConfig();
-								const config = listApiConfig?.find(c => c.name === newName);
-								
-								// Update listApiConfigMeta first to ensure UI has latest data
-								await this.updateGlobalState("listApiConfigMeta", listApiConfig);
+								let listApiConfig = await this.configManager.ListConfig()
+								const config = listApiConfig?.find((c) => c.name === newName)
 
-								await Promise.all([
-									this.updateGlobalState("currentApiConfigName", newName),
-								])
+								// Update listApiConfigMeta first to ensure UI has latest data
+								await this.updateGlobalState("listApiConfigMeta", listApiConfig)
+
+								await Promise.all([this.updateGlobalState("currentApiConfigName", newName)])
 
 								await this.postStateToWebview()
 							} catch (error) {
@@ -1025,9 +1046,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "loadApiConfiguration":
 						if (message.text) {
 							try {
-								const apiConfig = await this.configManager.LoadConfig(message.text);
-								const listApiConfig = await this.configManager.ListConfig();
-								
+								const apiConfig = await this.configManager.LoadConfig(message.text)
+								const listApiConfig = await this.configManager.ListConfig()
+
 								await Promise.all([
 									this.updateGlobalState("listApiConfigMeta", listApiConfig),
 									this.updateGlobalState("currentApiConfigName", message.text),
@@ -1054,16 +1075,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 
 							try {
-								await this.configManager.DeleteConfig(message.text);
-								const listApiConfig = await this.configManager.ListConfig();
-								
+								await this.configManager.DeleteConfig(message.text)
+								const listApiConfig = await this.configManager.ListConfig()
+
 								// Update listApiConfigMeta first to ensure UI has latest data
-								await this.updateGlobalState("listApiConfigMeta", listApiConfig);
+								await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 
 								// If this was the current config, switch to first available
 								let currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 								if (message.text === currentApiConfigName && listApiConfig?.[0]?.name) {
-									const apiConfig = await this.configManager.LoadConfig(listApiConfig[0].name);
+									const apiConfig = await this.configManager.LoadConfig(listApiConfig[0].name)
 									await Promise.all([
 										this.updateGlobalState("currentApiConfigName", listApiConfig[0].name),
 										this.updateApiConfiguration(apiConfig),
@@ -1079,7 +1100,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "getListApiConfiguration":
 						try {
-							let listApiConfig = await this.configManager.ListConfig();
+							let listApiConfig = await this.configManager.ListConfig()
 							await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 							this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
 						} catch (error) {
@@ -1087,7 +1108,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							vscode.window.showErrorMessage("Failed to get list api configuration")
 						}
 						break
-          case "experimentalDiffStrategy":
+					case "experimentalDiffStrategy":
 						await this.updateGlobalState("experimentalDiffStrategy", message.bool ?? false)
 						// Update diffStrategy in current Cline instance if it exists
 						if (this.cline) {
@@ -1103,13 +1124,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	private async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
 		// Update mode's default config
-		const { mode } = await this.getState();
+		const { mode } = await this.getState()
 		if (mode) {
-			const currentApiConfigName = await this.getGlobalState("currentApiConfigName");
-			const listApiConfig = await this.configManager.ListConfig();
-			const config = listApiConfig?.find(c => c.name === currentApiConfigName);
+			const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
+			const listApiConfig = await this.configManager.ListConfig()
+			const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
 			if (config?.id) {
-				await this.configManager.SetModeConfig(mode, config.id);
+				await this.configManager.SetModeConfig(mode, config.id)
 			}
 		}
 
@@ -1181,7 +1202,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("mistralApiKey", mistralApiKey)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
-		} 
+		}
 	}
 
 	async updateCustomInstructions(instructions?: string) {
@@ -1252,11 +1273,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// VSCode LM API
 	private async getVsCodeLmModels() {
 		try {
-			const models = await vscode.lm.selectChatModels({});
-			return models || [];
+			const models = await vscode.lm.selectChatModels({})
+			return models || []
 		} catch (error) {
-			console.error('Error fetching VS Code LM models:', error);
-			return [];
+			console.error("Error fetching VS Code LM models:", error)
+			return []
 		}
 	}
 
@@ -1346,10 +1367,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const glamaModelsFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.glamaModels,
-		)
+		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
 		const fileExists = await fileExistsAtPath(glamaModelsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(glamaModelsFilePath, "utf8")
@@ -1359,10 +1377,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async refreshGlamaModels() {
-		const glamaModelsFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.glamaModels,
-		)
+		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
 
 		let models: Record<string, ModelInfo> = {}
 		try {
@@ -1397,7 +1412,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			*/
 			if (response.data) {
-				const rawModels = response.data;
+				const rawModels = response.data
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000
@@ -1565,7 +1580,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		uiMessagesFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = (await this.getGlobalState("taskHistory") as HistoryItem[] | undefined) || []
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
@@ -1630,7 +1645,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = (await this.getGlobalState("taskHistory") as HistoryItem[]) || []
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		await this.updateGlobalState("taskHistory", updatedTaskHistory)
 
@@ -1671,13 +1686,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode,
 			customPrompts,
 			enhancementApiConfigId,
-      		experimentalDiffStrategy,
+			experimentalDiffStrategy,
 			autoApprovalEnabled,
 		} = await this.getState()
 
-		const allowedCommands = vscode.workspace
-			.getConfiguration('roo-cline')
-			.get<string[]>('allowedCommands') || []
+		const allowedCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1700,7 +1713,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume: soundVolume ?? 0.5,
 			browserViewportSize: browserViewportSize ?? "900x600",
 			screenshotQuality: screenshotQuality ?? 75,
-			preferredLanguage: preferredLanguage ?? 'English',
+			preferredLanguage: preferredLanguage ?? "English",
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
@@ -1712,7 +1725,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode: mode ?? defaultModeSlug,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
-      		experimentalDiffStrategy: experimentalDiffStrategy ?? false,
+			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
@@ -1829,7 +1842,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modeApiConfigs,
 			customPrompts,
 			enhancementApiConfigId,
-      		experimentalDiffStrategy,
+			experimentalDiffStrategy,
 			autoApprovalEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1891,7 +1904,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
 			this.getGlobalState("customPrompts") as Promise<CustomPrompts | undefined>,
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
-      		this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
+			this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 		])
 
@@ -1962,48 +1975,50 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			mode: mode ?? defaultModeSlug,
-			preferredLanguage: preferredLanguage ?? (() => {
-				// Get VSCode's locale setting
-				const vscodeLang = vscode.env.language;
-				// Map VSCode locale to our supported languages
-				const langMap: { [key: string]: string } = {
-					'en': 'English',
-					'ar': 'Arabic',
-					'pt-br': 'Brazilian Portuguese',
-					'cs': 'Czech',
-					'fr': 'French',
-					'de': 'German',
-					'hi': 'Hindi',
-					'hu': 'Hungarian',
-					'it': 'Italian',
-					'ja': 'Japanese',
-					'ko': 'Korean',
-					'pl': 'Polish',
-					'pt': 'Portuguese',
-					'ru': 'Russian',
-					'zh-cn': 'Simplified Chinese',
-					'es': 'Spanish',
-					'zh-tw': 'Traditional Chinese',
-					'tr': 'Turkish'
-				};
-				// Return mapped language or default to English
-				return langMap[vscodeLang.split('-')[0]] ?? 'English';
-			})(),
+			preferredLanguage:
+				preferredLanguage ??
+				(() => {
+					// Get VSCode's locale setting
+					const vscodeLang = vscode.env.language
+					// Map VSCode locale to our supported languages
+					const langMap: { [key: string]: string } = {
+						en: "English",
+						ar: "Arabic",
+						"pt-br": "Brazilian Portuguese",
+						cs: "Czech",
+						fr: "French",
+						de: "German",
+						hi: "Hindi",
+						hu: "Hungarian",
+						it: "Italian",
+						ja: "Japanese",
+						ko: "Korean",
+						pl: "Polish",
+						pt: "Portuguese",
+						ru: "Russian",
+						"zh-cn": "Simplified Chinese",
+						es: "Spanish",
+						"zh-tw": "Traditional Chinese",
+						tr: "Turkish",
+					}
+					// Return mapped language or default to English
+					return langMap[vscodeLang.split("-")[0]] ?? "English"
+				})(),
 			mcpEnabled: mcpEnabled ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: requestDelaySeconds ?? 5,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
-			modeApiConfigs: modeApiConfigs ?? {} as Record<Mode, string>,
+			modeApiConfigs: modeApiConfigs ?? ({} as Record<Mode, string>),
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
-      		experimentalDiffStrategy: experimentalDiffStrategy ?? false,
+			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = (await this.getGlobalState("taskHistory") as HistoryItem[] | undefined) || []
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 
 		if (existingItemIndex !== -1) {

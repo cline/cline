@@ -127,7 +127,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	}, [alwaysApproveResubmit, setAlwaysApproveResubmit])
 
 	// Map action IDs to their specific handlers
-	const actionHandlers: Record<AutoApproveAction['id'], () => void> = {
+	const actionHandlers: Record<AutoApproveAction["id"], () => void> = {
 		readFiles: handleReadOnlyChange,
 		editFiles: handleWriteChange,
 		executeCommands: handleExecuteChange,
@@ -166,25 +166,30 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						}}
 					/>
 				</div>
-				<div style={{
-					display: 'flex',
-					alignItems: 'center',
-					gap: '4px',
-					flex: 1,
-					minWidth: 0
-				}}>
-					<span style={{
-						color: "var(--vscode-foreground)",
-						flexShrink: 0
-					}}>Auto-approve:</span>
-					<span style={{
-						color: "var(--vscode-descriptionForeground)",
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-						whiteSpace: "nowrap",
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "4px",
 						flex: 1,
-						minWidth: 0
+						minWidth: 0,
 					}}>
+					<span
+						style={{
+							color: "var(--vscode-foreground)",
+							flexShrink: 0,
+						}}>
+						Auto-approve:
+					</span>
+					<span
+						style={{
+							color: "var(--vscode-descriptionForeground)",
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+							flex: 1,
+							minWidth: 0,
+						}}>
 						{enabledActionsList || "None"}
 					</span>
 					<span
@@ -210,9 +215,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{actions.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<div onClick={(e) => e.stopPropagation()}>
-								<VSCodeCheckbox
-									checked={action.enabled}
-									onChange={actionHandlers[action.id]}>
+								<VSCodeCheckbox checked={action.enabled} onChange={actionHandlers[action.id]}>
 									{action.label}
 								</VSCodeCheckbox>
 							</div>

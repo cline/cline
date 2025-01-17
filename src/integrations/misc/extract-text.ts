@@ -55,19 +55,20 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 }
 
 export function addLineNumbers(content: string, startLine: number = 1): string {
-	const lines = content.split('\n')
+	const lines = content.split("\n")
 	const maxLineNumberWidth = String(startLine + lines.length - 1).length
 	return lines
 		.map((line, index) => {
-			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, ' ')
+			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, " ")
 			return `${lineNumber} | ${line}`
-		}).join('\n')
+		})
+		.join("\n")
 }
 // Checks if every line in the content has line numbers prefixed (e.g., "1 | content" or "123 | content")
 // Line numbers must be followed by a single pipe character (not double pipes)
 export function everyLineHasLineNumbers(content: string): boolean {
 	const lines = content.split(/\r?\n/)
-	return lines.length > 0 && lines.every(line => /^\s*\d+\s+\|(?!\|)/.test(line))
+	return lines.length > 0 && lines.every((line) => /^\s*\d+\s+\|(?!\|)/.test(line))
 }
 
 // Strips line numbers from content while preserving the actual content
@@ -76,16 +77,16 @@ export function everyLineHasLineNumbers(content: string): boolean {
 export function stripLineNumbers(content: string): string {
 	// Split into lines to handle each line individually
 	const lines = content.split(/\r?\n/)
-	
+
 	// Process each line
-	const processedLines = lines.map(line => {
+	const processedLines = lines.map((line) => {
 		// Match line number pattern and capture everything after the pipe
 		const match = line.match(/^\s*\d+\s+\|(?!\|)\s?(.*)$/)
 		return match ? match[1] : line
 	})
-	
+
 	// Join back with original line endings
-	const lineEnding = content.includes('\r\n') ? '\r\n' : '\n'
+	const lineEnding = content.includes("\r\n") ? "\r\n" : "\n"
 	return processedLines.join(lineEnding)
 }
 
@@ -109,7 +110,7 @@ export function truncateOutput(content: string, lineLimit?: number): string {
 		return content
 	}
 
-	const lines = content.split('\n')
+	const lines = content.split("\n")
 	if (lines.length <= lineLimit) {
 		return content
 	}
@@ -119,6 +120,6 @@ export function truncateOutput(content: string, lineLimit?: number): string {
 	return [
 		...lines.slice(0, beforeLimit),
 		`\n[...${lines.length - lineLimit} lines omitted...]\n`,
-		...lines.slice(-afterLimit)
-	].join('\n')
+		...lines.slice(-afterLimit),
+	].join("\n")
 }

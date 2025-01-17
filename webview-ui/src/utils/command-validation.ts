@@ -1,4 +1,4 @@
-import { parse } from 'shell-quote'
+import { parse } from "shell-quote"
 
 type ShellToken = string | { op: string } | { command: string }
 
@@ -46,39 +46,39 @@ export function parseCommand(command: string): string[] {
 	let currentCommand: string[] = []
 
 	for (const token of tokens) {
-		if (typeof token === 'object' && 'op' in token) {
+		if (typeof token === "object" && "op" in token) {
 			// Chain operator - split command
-			if (['&&', '||', ';', '|'].includes(token.op)) {
-	if (currentCommand.length > 0) {
-		commands.push(currentCommand.join(' '))
-		currentCommand = []
-	}
+			if (["&&", "||", ";", "|"].includes(token.op)) {
+				if (currentCommand.length > 0) {
+					commands.push(currentCommand.join(" "))
+					currentCommand = []
+				}
 			} else {
-	// Other operators (>, &) are part of the command
-	currentCommand.push(token.op)
+				// Other operators (>, &) are part of the command
+				currentCommand.push(token.op)
 			}
-		} else if (typeof token === 'string') {
+		} else if (typeof token === "string") {
 			// Check if it's a subshell placeholder
 			const subshellMatch = token.match(/__SUBSH_(\d+)__/)
 			if (subshellMatch) {
-	if (currentCommand.length > 0) {
-		commands.push(currentCommand.join(' '))
-		currentCommand = []
-	}
-	commands.push(subshells[parseInt(subshellMatch[1])])
+				if (currentCommand.length > 0) {
+					commands.push(currentCommand.join(" "))
+					currentCommand = []
+				}
+				commands.push(subshells[parseInt(subshellMatch[1])])
 			} else {
-	currentCommand.push(token)
+				currentCommand.push(token)
 			}
 		}
 	}
 
 	// Add any remaining command
 	if (currentCommand.length > 0) {
-		commands.push(currentCommand.join(' '))
+		commands.push(currentCommand.join(" "))
 	}
 
 	// Restore quotes and redirections
-	return commands.map(cmd => {
+	return commands.map((cmd) => {
 		let result = cmd
 		// Restore quotes
 		result = result.replace(/__QUOTE_(\d+)__/g, (_, i) => quotes[parseInt(i)])
@@ -91,15 +91,10 @@ export function parseCommand(command: string): string[] {
 /**
  * Check if a single command is allowed based on prefix matching.
  */
-export function isAllowedSingleCommand(
-	command: string,
-	allowedCommands: string[]
-): boolean {
+export function isAllowedSingleCommand(command: string, allowedCommands: string[]): boolean {
 	if (!command || !allowedCommands?.length) return false
 	const trimmedCommand = command.trim().toLowerCase()
-	return allowedCommands.some(prefix =>
-		trimmedCommand.startsWith(prefix.toLowerCase())
-	)
+	return allowedCommands.some((prefix) => trimmedCommand.startsWith(prefix.toLowerCase()))
 }
 
 /**
@@ -110,7 +105,7 @@ export function validateCommand(command: string, allowedCommands: string[]): boo
 	if (!command?.trim()) return true
 
 	// Block subshell execution attempts
-	if (command.includes('$(') || command.includes('`')) {
+	if (command.includes("$(") || command.includes("`")) {
 		return false
 	}
 
@@ -118,9 +113,9 @@ export function validateCommand(command: string, allowedCommands: string[]): boo
 	const subCommands = parseCommand(command)
 
 	// Then ensure every sub-command starts with an allowed prefix
-	return subCommands.every(cmd => {
+	return subCommands.every((cmd) => {
 		// Remove simple PowerShell-like redirections (e.g. 2>&1) before checking
-		const cmdWithoutRedirection = cmd.replace(/\d*>&\d*/, '').trim()
+		const cmdWithoutRedirection = cmd.replace(/\d*>&\d*/, "").trim()
 		return isAllowedSingleCommand(cmdWithoutRedirection, allowedCommands)
 	})
 }

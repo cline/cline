@@ -159,7 +159,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 }
 
 // Server Row Component
-const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer, alwaysAllowMcp?: boolean }) => {
+const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowMcp?: boolean }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const getStatusColor = () => {
@@ -216,9 +216,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer, alwaysAllowM
 						style={{
 							width: "20px",
 							height: "10px",
-							backgroundColor: server.disabled ?
-								"var(--vscode-titleBar-inactiveForeground)" :
-								"var(--vscode-button-background)",
+							backgroundColor: server.disabled
+								? "var(--vscode-titleBar-inactiveForeground)"
+								: "var(--vscode-button-background)",
 							borderRadius: "5px",
 							position: "relative",
 							cursor: "pointer",
@@ -229,30 +229,31 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer, alwaysAllowM
 							vscode.postMessage({
 								type: "toggleMcpServer",
 								serverName: server.name,
-								disabled: !server.disabled
-							});
+								disabled: !server.disabled,
+							})
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
+								e.preventDefault()
 								vscode.postMessage({
 									type: "toggleMcpServer",
 									serverName: server.name,
-									disabled: !server.disabled
-								});
+									disabled: !server.disabled,
+								})
 							}
-						}}
-					>
-						<div style={{
-							width: "6px",
-							height: "6px",
-							backgroundColor: "var(--vscode-titleBar-activeForeground)",
-							borderRadius: "50%",
-							position: "absolute",
-							top: "2px",
-							left: server.disabled ? "2px" : "12px",
-							transition: "left 0.2s",
-						}} />
+						}}>
+						<div
+							style={{
+								width: "6px",
+								height: "6px",
+								backgroundColor: "var(--vscode-titleBar-activeForeground)",
+								borderRadius: "50%",
+								position: "absolute",
+								top: "2px",
+								left: server.disabled ? "2px" : "12px",
+								transition: "left 0.2s",
+							}}
+						/>
 					</div>
 				</div>
 				<div
