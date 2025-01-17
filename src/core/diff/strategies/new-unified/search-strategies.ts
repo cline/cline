@@ -271,8 +271,9 @@ export function findLevenshteinMatch(searchStr: string, content: string[], start
 		const similarity = getDMPSimilarity(searchStr, closestMatch)
 		const contextSimilarity = validateContextLines(searchStr, closestMatch, confidenceThreshold)
 		const confidence = Math.min(similarity, contextSimilarity)
+    console.log(searchStr, closestMatch, index, confidence)
 		return {
-			index,
+			index: confidence === 0 ? -1 : index,
 			confidence: index !== -1 ? confidence : 0,
 			strategy: "levenshtein",
 		}
@@ -281,92 +282,91 @@ export function findLevenshteinMatch(searchStr: string, content: string[], start
 	return { index: -1, confidence: 0, strategy: "levenshtein" }
 }
 
-// Helper function to identify anchor lines based on uniqueness and complexity
-function identifyAnchors(searchStr: string, content: string[]): { line: string; index: number; weight: number }[] {
-	const searchLines = searchStr.split("\n")
-	const contentStr = content.join("\n")
-	const anchors: { line: string; index: number; weight: number }[] = []
+// Helper function to identify anchor lines
+function identifyAnchors(searchStr: string): { first: string | null; last: string | null } {
+	const searchLines = searchStr.split("\n");
+	let first: string | null = null;
+	let last: string | null = null;
 
-	for (let i = 0; i < searchLines.length; i++) {
-		const line = searchLines[i]
-		if (!line.trim()) {continue} // Skip empty lines
-
-		// Calculate line complexity (more special chars = more unique)
-		const specialChars = (line.match(/[^a-zA-Z0-9\s]/g) || []).length
-		const complexity = specialChars / line.length
-
-		// Count occurrences in content
-		const regex = new RegExp(line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")
-		const matches = contentStr.match(regex)
-		const occurrences = matches ? matches.length : 0
-
-		// Calculate uniqueness weight
-		const uniquenessWeight = occurrences <= 1 ? 1 : 1 / occurrences
-		const weight = uniquenessWeight * (0.7 + 0.3 * complexity)
-
-		if (weight > 0.5) {
-			// Only consider lines with high enough weight
-			anchors.push({ line, index: i, weight })
+	// Find the first non-empty line
+	for (const line of searchLines) {
+		if (line.trim()) {
+			first = line;
+			break;
 		}
 	}
 
-	// Sort by weight descending
-	return anchors.sort((a, b) => b.weight - a.weight)
-}
-
-// Helper function to validate anchor positions
-function validateAnchorPositions(
-	anchors: { line: string; index: number }[],
-	content: string[],
-	searchLines: string[]
-): number {
-	for (const anchor of anchors) {
-		const anchorIndex = content.findIndex((line) => line === anchor.line)
-		if (anchorIndex !== -1) {
-			// Check if surrounding context matches
-			const contextBefore = searchLines.slice(Math.max(0, anchor.index - 2), anchor.index).join("\n")
-			const contextAfter = searchLines.slice(anchor.index + 1, anchor.index + 3).join("\n")
-			const contentBefore = content.slice(Math.max(0, anchorIndex - 2), anchorIndex).join("\n")
-			const contentAfter = content.slice(anchorIndex + 1, anchorIndex + 3).join("\n")
-
-			const beforeSimilarity = evaluateSimilarity(contextBefore, contentBefore)
-			const afterSimilarity = evaluateSimilarity(contextAfter, contentAfter)
-
-			if (beforeSimilarity > 0.8 && afterSimilarity > 0.8) {
-				return anchorIndex - anchor.index
-			}
+	// Find the last non-empty line
+	for (let i = searchLines.length - 1; i >= 0; i--) {
+		if (searchLines[i].trim()) {
+			last = searchLines[i];
+			break;
 		}
 	}
-	return -1
+
+	return { first, last };
 }
 
 // Anchor-based search strategy
 export function findAnchorMatch(searchStr: string, content: string[], startIndex: number = 0, confidenceThreshold: number = 0.97): SearchResult {
-	const searchLines = searchStr.split("\n")
-	const anchors = identifyAnchors(searchStr, content.slice(startIndex))
+	const searchLines = searchStr.split("\n");
+	const { first, last } = identifyAnchors(searchStr);
 
-	if (anchors.length === 0) {
-		return { index: -1, confidence: 0, strategy: "anchor" }
+	if (!first || !last) {
+		return { index: -1, confidence: 0, strategy: "anchor" };
 	}
 
-	// Try to validate position using top anchors
-	const offset = validateAnchorPositions(anchors.slice(0, 3), content.slice(startIndex), searchLines)
+	let firstIndex = -1;
+	let lastIndex = -1;
 
-	if (offset !== -1) {
-		const matchPosition = startIndex + offset
-		const matchedContent = content.slice(matchPosition, matchPosition + searchLines.length).join("\n")
-		const similarity = getDMPSimilarity(searchStr, matchedContent)
-		const contextSimilarity = validateContextLines(searchStr, matchedContent, confidenceThreshold)
-		const confidence = Math.min(similarity, contextSimilarity) * (1 + anchors[0].weight * 0.1) // Boost confidence based on anchor weight
-
-		return {
-			index: matchPosition,
-			confidence: Math.min(1, confidence), // Cap at 1
-			strategy: "anchor",
+	// Check if the first anchor is unique
+	let firstOccurrences = 0;
+	for (const contentLine of content) {
+		if (contentLine === first) {
+			firstOccurrences++;
 		}
 	}
 
-	return { index: -1, confidence: 0, strategy: "anchor" }
+	if (firstOccurrences !== 1) {
+		return { index: -1, confidence: 0, strategy: "anchor" };
+	}
+
+	// Find the first anchor
+	for (let i = startIndex; i < content.length; i++) {
+		if (content[i] === first) {
+			firstIndex = i;
+			break;
+		}
+	}
+
+	// Find the last anchor
+	for (let i = content.length - 1; i >= startIndex; i--) {
+		if (content[i] === last) {
+			lastIndex = i;
+			break;
+		}
+	}
+
+	if (firstIndex === -1 || lastIndex === -1 || lastIndex <= firstIndex) {
+		return { index: -1, confidence: 0, strategy: "anchor" };
+	}
+
+	// Validate the context
+	const expectedContext = searchLines.slice(searchLines.indexOf(first) + 1, searchLines.indexOf(last)).join("\n");
+	const actualContext = content.slice(firstIndex + 1, lastIndex).join("\n");
+	const contextSimilarity = evaluateSimilarity(expectedContext, actualContext);
+
+	if (contextSimilarity < getAdaptiveThreshold(content.length, confidenceThreshold)) {
+		return { index: -1, confidence: 0, strategy: "anchor" };
+	}
+
+	const confidence = 1;
+
+	return {
+		index: firstIndex,
+		confidence: confidence,
+		strategy: "anchor",
+	};
 }
 
 // Main search function that tries all strategies
