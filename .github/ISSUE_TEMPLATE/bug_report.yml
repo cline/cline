@@ -11,10 +11,13 @@ body:
               - OpenRouter
               - Anthropic
               - Google Gemini
-              - GCP Vertex AI
-              - AWS Bedrock
+              - DeepSeek
               - OpenAI
               - OpenAI Compatible
+              - GCP Vertex AI
+              - AWS Bedrock
+              - Glama
+              - VS Code LM API
               - LM Studio
               - Ollama
       validations:
