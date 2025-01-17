@@ -155,7 +155,7 @@ export function applyDMP(
 }
 
 // Git fallback strategy that works with full content
-async function applyGitFallback(hunk: Hunk, content: string[]): Promise<EditResult> {
+export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<EditResult> {
 	let tmpDir: tmp.DirResult | undefined
 
 	try {

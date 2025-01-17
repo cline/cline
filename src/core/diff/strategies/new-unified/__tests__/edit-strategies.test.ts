@@ -1,4 +1,4 @@
-import { applyContextMatching, applyDMP } from "../edit-strategies"
+import { applyContextMatching, applyDMP, applyGitFallback } from "../edit-strategies"
 import { Hunk } from "../types"
 
 const testCases = [
@@ -255,5 +255,41 @@ describe("applyDMP", () => {
 			expect(result.confidence).toBeGreaterThanOrEqual(expected.confidence)
 			expect(result.strategy).toBe("dmp")
 		})
+	})
+})
+
+describe("applyGitFallback", () => {
+	it("should successfully apply changes using git operations", async () => {
+		const hunk = {
+			changes: [
+				{ type: "context", content: "line1", indent: "" },
+				{ type: "remove", content: "line2", indent: "" },
+				{ type: "add", content: "new line2", indent: "" },
+				{ type: "context", content: "line3", indent: "" }
+			]
+		} as Hunk
+
+		const content = ["line1", "line2", "line3"]
+		const result = await applyGitFallback(hunk, content)
+
+		expect(result.result.join("\n")).toEqual("line1\nnew line2\nline3")
+		expect(result.confidence).toBe(1)
+		expect(result.strategy).toBe("git-fallback")
+	})
+
+	it("should return original content with 0 confidence when changes cannot be applied", async () => {
+		const hunk = {
+			changes: [
+				{ type: "context", content: "nonexistent", indent: "" },
+				{ type: "add", content: "new line", indent: "" }
+			]
+		} as Hunk
+
+		const content = ["line1", "line2", "line3"]
+		const result = await applyGitFallback(hunk, content)
+
+		expect(result.result).toEqual(content)
+		expect(result.confidence).toBe(0)
+		expect(result.strategy).toBe("git-fallback")
 	})
 })
