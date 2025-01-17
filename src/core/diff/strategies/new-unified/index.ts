@@ -259,7 +259,7 @@ Your diff here
 			const contextStr = prepareSearchString(hunk.changes)
 			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result, 0, this.confidenceThreshold)
 
-			if (confidence < 1.1) {
+			if (confidence < this.confidenceThreshold) {
         console.log('Full hunk application failed, trying sub-hunks strategy')
 				// Try splitting the hunk into smaller hunks
 				const subHunks = this.splitHunk(hunk)
