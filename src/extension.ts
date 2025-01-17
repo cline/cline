@@ -27,13 +27,11 @@ export function activate(context: vscode.ExtensionContext) {
 	outputChannel.appendLine("Cline extension activated")
 
 	// Get default commands from configuration
-	const defaultCommands = vscode.workspace
-		.getConfiguration('roo-cline')
-		.get<string[]>('allowedCommands') || [];
+	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
 
 	// Initialize global state if not already set
-	if (!context.globalState.get('allowedCommands')) {
-		context.globalState.update('allowedCommands', defaultCommands);
+	if (!context.globalState.get("allowedCommands")) {
+		context.globalState.update("allowedCommands", defaultCommands)
 	}
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)

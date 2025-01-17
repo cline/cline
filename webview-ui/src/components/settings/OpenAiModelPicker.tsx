@@ -37,19 +37,16 @@ const OpenAiModelPicker: React.FC = () => {
 
 	const debouncedRefreshModels = useMemo(
 		() =>
-			debounce(
-				(baseUrl: string, apiKey: string) => {
-					vscode.postMessage({
-						type: "refreshOpenAiModels",
-						values: {
-							baseUrl,
-							apiKey
-						}
-					})
-				},
-				50
-			),
-		[]
+			debounce((baseUrl: string, apiKey: string) => {
+				vscode.postMessage({
+					type: "refreshOpenAiModels",
+					values: {
+						baseUrl,
+						apiKey,
+					},
+				})
+			}, 50),
+		[],
 	)
 
 	useEffect(() => {
@@ -57,10 +54,7 @@ const OpenAiModelPicker: React.FC = () => {
 			return
 		}
 
-		debouncedRefreshModels(
-			apiConfiguration.openAiBaseUrl,
-			apiConfiguration.openAiApiKey
-		)
+		debouncedRefreshModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
 
 		// Cleanup debounced function
 		return () => {
@@ -94,7 +88,7 @@ const OpenAiModelPicker: React.FC = () => {
 
 	const fzf = useMemo(() => {
 		return new Fzf(searchableItems, {
-			selector: item => item.html
+			selector: (item) => item.html,
 		})
 	}, [searchableItems])
 
@@ -102,9 +96,9 @@ const OpenAiModelPicker: React.FC = () => {
 		if (!searchTerm) return searchableItems
 
 		const searchResults = fzf.find(searchTerm)
-		return searchResults.map(result => ({
+		return searchResults.map((result) => ({
 			...result.item,
-			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight"),
 		}))
 	}, [searchableItems, searchTerm, fzf])
 

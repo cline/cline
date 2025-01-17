@@ -1,6 +1,6 @@
 function osName() {
-  return 'macOS';
+	return "macOS"
 }
 
-module.exports = osName;
-module.exports.default = osName;
+module.exports = osName
+module.exports.default = osName

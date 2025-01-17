@@ -265,8 +265,8 @@ describe("applyGitFallback", () => {
 				{ type: "context", content: "line1", indent: "" },
 				{ type: "remove", content: "line2", indent: "" },
 				{ type: "add", content: "new line2", indent: "" },
-				{ type: "context", content: "line3", indent: "" }
-			]
+				{ type: "context", content: "line3", indent: "" },
+			],
 		} as Hunk
 
 		const content = ["line1", "line2", "line3"]
@@ -281,8 +281,8 @@ describe("applyGitFallback", () => {
 		const hunk = {
 			changes: [
 				{ type: "context", content: "nonexistent", indent: "" },
-				{ type: "add", content: "new line", indent: "" }
-			]
+				{ type: "add", content: "new line", indent: "" },
+			],
 		} as Hunk
 
 		const content = ["line1", "line2", "line3"]

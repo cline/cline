@@ -1,7 +1,7 @@
-import { ToolArgs } from './types';
+import { ToolArgs } from "./types"
 
 export function getSearchFilesDescription(args: ToolArgs): string {
-    return `## search_files
+	return `## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
 Parameters:
 - path: (required) The path of the directory to search in (relative to the current working directory ${args.cwd}). This directory will be recursively searched.

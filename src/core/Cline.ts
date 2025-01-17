@@ -13,7 +13,13 @@ import { ApiHandler, SingleCompletionHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile, addLineNumbers, stripLineNumbers, everyLineHasLineNumbers, truncateOutput } from "../integrations/misc/extract-text"
+import {
+	extractTextFromFile,
+	addLineNumbers,
+	stripLineNumbers,
+	everyLineHasLineNumbers,
+	truncateOutput,
+} from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -112,7 +118,7 @@ export class Cline {
 		experimentalDiffStrategy: boolean = false,
 	) {
 		if (!task && !images && !historyItem) {
-			throw new Error('Either historyItem or task/images must be provided');
+			throw new Error("Either historyItem or task/images must be provided")
 		}
 
 		this.taskId = crypto.randomUUID()
@@ -144,7 +150,8 @@ export class Cline {
 	async updateDiffStrategy(experimentalDiffStrategy?: boolean) {
 		// If not provided, get from current state
 		if (experimentalDiffStrategy === undefined) {
-			const { experimentalDiffStrategy: stateExperimentalDiffStrategy } = await this.providerRef.deref()?.getState() ?? {}
+			const { experimentalDiffStrategy: stateExperimentalDiffStrategy } =
+				(await this.providerRef.deref()?.getState()) ?? {}
 			experimentalDiffStrategy = stateExperimentalDiffStrategy ?? false
 		}
 		this.diffStrategy = getDiffStrategy(this.api.getModel().id, this.fuzzyMatchThreshold, experimentalDiffStrategy)
@@ -471,7 +478,7 @@ export class Cline {
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
-		await this.getSavedApiConversationHistory()
+			await this.getSavedApiConversationHistory()
 
 		// Now present the cline messages to the user and ask if they want to resume
 
@@ -582,8 +589,8 @@ export class Cline {
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
-							? previousAssistantMessage.content
-							: [{ type: "text", text: previousAssistantMessage.content }]
+						? previousAssistantMessage.content
+						: [{ type: "text", text: previousAssistantMessage.content }]
 
 					const toolUseBlocks = assistantContent.filter(
 						(block) => block.type === "tool_use",
@@ -756,8 +763,8 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		const { terminalOutputLineLimit } = await this.providerRef.deref()?.getState() ?? {}
-		const output = truncateOutput(lines.join('\n'), terminalOutputLineLimit)
+		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+		const output = truncateOutput(lines.join("\n"), terminalOutputLineLimit)
 		const result = output.trim()
 
 		if (userFeedback) {
@@ -788,7 +795,8 @@ export class Cline {
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		let mcpHub: McpHub | undefined
 
-		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } = await this.providerRef.deref()?.getState() ?? {}
+		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } =
+			(await this.providerRef.deref()?.getState()) ?? {}
 
 		if (mcpEnabled ?? true) {
 			mcpHub = this.providerRef.deref()?.mcpHub
@@ -801,24 +809,27 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, preferredLanguage, mode, customPrompts } = await this.providerRef.deref()?.getState() ?? {}
-		const systemPrompt = await SYSTEM_PROMPT(
-			cwd,
-			this.api.getModel().info.supportsComputerUse ?? false,
-			mcpHub,
-			this.diffStrategy,
-			browserViewportSize,
-			mode,
-			customPrompts
-		) + await addCustomInstructions(
-			{
-				customInstructions: this.customInstructions,
+		const { browserViewportSize, preferredLanguage, mode, customPrompts } =
+			(await this.providerRef.deref()?.getState()) ?? {}
+		const systemPrompt =
+			(await SYSTEM_PROMPT(
+				cwd,
+				this.api.getModel().info.supportsComputerUse ?? false,
+				mcpHub,
+				this.diffStrategy,
+				browserViewportSize,
+				mode,
 				customPrompts,
-				preferredLanguage
-			},
-			cwd,
-			mode
-		)
+			)) +
+			(await addCustomInstructions(
+				{
+					customInstructions: this.customInstructions,
+					customPrompts,
+					preferredLanguage,
+				},
+				cwd,
+				mode,
+			))
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -845,18 +856,18 @@ export class Cline {
 			if (Array.isArray(content)) {
 				if (!this.api.getModel().info.supportsImages) {
 					// Convert image blocks to text descriptions
-					content = content.map(block => {
-						if (block.type === 'image') {
+					content = content.map((block) => {
+						if (block.type === "image") {
 							// Convert image blocks to text descriptions
 							// Note: We can't access the actual image content/url due to API limitations,
 							// but we can indicate that an image was present in the conversation
 							return {
-								type: 'text',
-								text: '[Referenced image in conversation]'
-							};
+								type: "text",
+								text: "[Referenced image in conversation]",
+							}
 						}
-						return block;
-					});
+						return block
+					})
 				}
 			}
 			return { role, content }
@@ -876,7 +887,12 @@ export class Cline {
 				// Automatically retry with delay
 				// Show countdown timer in error color
 				for (let i = requestDelay; i > 0; i--) {
-					await this.say("api_req_retry_delayed", `${errorMsg}\n\nRetrying in ${i} seconds...`, undefined, true)
+					await this.say(
+						"api_req_retry_delayed",
+						`${errorMsg}\n\nRetrying in ${i} seconds...`,
+						undefined,
+						true,
+					)
 					await delay(1000)
 				}
 				await this.say("api_req_retry_delayed", `${errorMsg}\n\nRetrying now...`, undefined, false)
@@ -1125,7 +1141,7 @@ export class Cline {
 				}
 
 				// Validate tool use based on current mode
-				const { mode } = await this.providerRef.deref()?.getState() ?? {}
+				const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
 				try {
 					validateToolUse(block.name, mode ?? defaultModeSlug)
 				} catch (error) {
@@ -1192,7 +1208,10 @@ export class Cline {
 									await this.diffViewProvider.open(relPath)
 								}
 								// editor is open, stream content in
-								await this.diffViewProvider.update(everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent, false)
+								await this.diffViewProvider.update(
+									everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
+									false,
+								)
 								break
 							} else {
 								if (!relPath) {
@@ -1209,7 +1228,9 @@ export class Cline {
 								}
 								if (!predictedLineCount) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "line_count"))
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("write_to_file", "line_count"),
+									)
 									await this.diffViewProvider.reset()
 									break
 								}
@@ -1224,17 +1245,28 @@ export class Cline {
 									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
-								await this.diffViewProvider.update(everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent, true)
+								await this.diffViewProvider.update(
+									everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
+									true,
+								)
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 
 								// Check for code omissions before proceeding
-								if (detectCodeOmission(this.diffViewProvider.originalContent || "", newContent, predictedLineCount)) {
+								if (
+									detectCodeOmission(
+										this.diffViewProvider.originalContent || "",
+										newContent,
+										predictedLineCount,
+									)
+								) {
 									if (this.diffStrategy) {
 										await this.diffViewProvider.revertChanges()
-										pushToolResult(formatResponse.toolError(
-											`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`
-										))
+										pushToolResult(
+											formatResponse.toolError(
+												`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
+											),
+										)
 										break
 									} else {
 										vscode.window
@@ -1285,7 +1317,7 @@ export class Cline {
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || "")}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1347,21 +1379,24 @@ export class Cline {
 								const originalContent = await fs.readFile(absolutePath, "utf-8")
 
 								// Apply the diff to the original content
-								const diffResult = await this.diffStrategy?.applyDiff(
-									originalContent, 
-									diffContent, 
-									parseInt(block.params.start_line ?? ''), 
-									parseInt(block.params.end_line ?? '')
-								) ?? {
+								const diffResult = (await this.diffStrategy?.applyDiff(
+									originalContent,
+									diffContent,
+									parseInt(block.params.start_line ?? ""),
+									parseInt(block.params.end_line ?? ""),
+								)) ?? {
 									success: false,
-									error: "No diff strategy available"
+									error: "No diff strategy available",
 								}
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
-									const currentCount = (this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
+									const currentCount =
+										(this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 									this.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
-									const errorDetails = diffResult.details ? JSON.stringify(diffResult.details, null, 2) : ''
-									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${diffResult.error}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ''}\n</error_details>`
+									const errorDetails = diffResult.details
+										? JSON.stringify(diffResult.details, null, 2)
+										: ""
+									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${diffResult.error}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
 									if (currentCount >= 2) {
 										await this.say("error", formattedError)
 									}
@@ -1373,9 +1408,9 @@ export class Cline {
 								this.consecutiveMistakeCountForApplyDiff.delete(relPath)
 								// Show diff view before asking for approval
 								this.diffViewProvider.editType = "modify"
-								await this.diffViewProvider.open(relPath);
-								await this.diffViewProvider.update(diffResult.content, true);
-								await this.diffViewProvider.scrollToFirstDiff();
+								await this.diffViewProvider.open(relPath)
+								await this.diffViewProvider.update(diffResult.content, true)
+								await this.diffViewProvider.scrollToFirstDiff()
 
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -1403,7 +1438,7 @@ export class Cline {
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || '')}\n</final_file_content>\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || "")}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1411,7 +1446,9 @@ export class Cline {
 											`${newProblemsMessage}`,
 									)
 								} else {
-									pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
+									pushToolResult(
+										`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`,
+									)
 								}
 								await this.diffViewProvider.reset()
 								break
@@ -1615,7 +1652,7 @@ export class Cline {
 									await this.ask(
 										"browser_action_launch",
 										removeClosingTag("url", url),
-										block.partial
+										block.partial,
 									).catch(() => {})
 								} else {
 									await this.say(
@@ -1744,7 +1781,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {}
+									() => {},
 								)
 								break
 							} else {
@@ -2409,7 +2446,7 @@ export class Cline {
 			Promise.all(
 				userContent.map(async (block) => {
 					const shouldProcessMentions = (text: string) =>
-						text.includes("<task>") || text.includes("<feedback>");
+						text.includes("<task>") || text.includes("<feedback>")
 
 					if (block.type === "text") {
 						if (shouldProcessMentions(block.text)) {
@@ -2418,7 +2455,7 @@ export class Cline {
 								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
 							}
 						}
-						return block;
+						return block
 					} else if (block.type === "tool_result") {
 						if (typeof block.content === "string") {
 							if (shouldProcessMentions(block.content)) {
@@ -2427,7 +2464,7 @@ export class Cline {
 									content: await parseMentions(block.content, cwd, this.urlContentFetcher),
 								}
 							}
-							return block;
+							return block
 						} else if (Array.isArray(block.content)) {
 							const parsedContent = await Promise.all(
 								block.content.map(async (contentBlock) => {
@@ -2445,7 +2482,7 @@ export class Cline {
 								content: parsedContent,
 							}
 						}
-						return block;
+						return block
 					}
 					return block
 				}),
@@ -2571,26 +2608,29 @@ export class Cline {
 		// Add current time information with timezone
 		const now = new Date()
 		const formatter = new Intl.DateTimeFormat(undefined, {
-			year: 'numeric',
-			month: 'numeric',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: 'numeric',
-			second: 'numeric',
-			hour12: true
+			year: "numeric",
+			month: "numeric",
+			day: "numeric",
+			hour: "numeric",
+			minute: "numeric",
+			second: "numeric",
+			hour12: true,
 		})
 		const timeZone = formatter.resolvedOptions().timeZone
 		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
-		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? '+' : ''}${timeZoneOffset}:00`
+		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		// Add current mode and any mode-specific warnings
-		const { mode } = await this.providerRef.deref()?.getState() ?? {}
+		const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
 		details += `\n\n# Current Mode\n${currentMode}`
 
 		// Add warning if not in code mode
-		if (!isToolAllowedForMode('write_to_file', currentMode) || !isToolAllowedForMode('execute_command', currentMode)) {
+		if (
+			!isToolAllowedForMode("write_to_file", currentMode) ||
+			!isToolAllowedForMode("execute_command", currentMode)
+		) {
 			details += `\n\nNOTE: You are currently in '${currentMode}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeSlug}' mode. Note that only the user can switch modes.`
 		}
 

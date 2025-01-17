@@ -46,18 +46,15 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	const debouncedRefreshModels = useMemo(
 		() =>
-			debounce(
-				() => {
-					vscode.postMessage({ type: "refreshOpenRouterModels" })
-				},
-				50
-			),
-		[]
+			debounce(() => {
+				vscode.postMessage({ type: "refreshOpenRouterModels" })
+			}, 50),
+		[],
 	)
 
 	useMount(() => {
 		debouncedRefreshModels()
-		
+
 		// Cleanup debounced function
 		return () => {
 			debouncedRefreshModels.clear()
@@ -90,7 +87,7 @@ const OpenRouterModelPicker: React.FC = () => {
 
 	const fzf = useMemo(() => {
 		return new Fzf(searchableItems, {
-			selector: item => item.html
+			selector: (item) => item.html,
 		})
 	}, [searchableItems])
 
@@ -98,9 +95,9 @@ const OpenRouterModelPicker: React.FC = () => {
 		if (!searchTerm) return searchableItems
 
 		const searchResults = fzf.find(searchTerm)
-		return searchResults.map(result => ({
+		return searchResults.map((result) => ({
 			...result.item,
-			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight"),
 		}))
 	}, [searchableItems, searchTerm, fzf])
 

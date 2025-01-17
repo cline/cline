@@ -1,5 +1,5 @@
 export function getObjectiveSection(): string {
-    return `====
+	return `====
 
 OBJECTIVE
 

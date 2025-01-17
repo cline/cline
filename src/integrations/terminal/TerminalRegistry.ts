@@ -19,8 +19,8 @@ export class TerminalRegistry {
 			name: "Roo Cline",
 			iconPath: new vscode.ThemeIcon("rocket"),
 			env: {
-				PAGER: "cat"
-			}
+				PAGER: "cat",
+			},
 		})
 		const newInfo: TerminalInfo = {
 			terminal,

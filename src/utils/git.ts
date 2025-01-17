@@ -15,7 +15,7 @@ export interface GitCommit {
 
 async function checkGitRepo(cwd: string): Promise<boolean> {
 	try {
-		await execAsync('git rev-parse --git-dir', { cwd })
+		await execAsync("git rev-parse --git-dir", { cwd })
 		return true
 	} catch (error) {
 		return false
@@ -24,7 +24,7 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 
 async function checkGitInstalled(): Promise<boolean> {
 	try {
-		await execAsync('git --version')
+		await execAsync("git --version")
 		return true
 	} catch (error) {
 		return false
@@ -47,18 +47,16 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 
 		// Search commits by hash or message, limiting to 10 results
 		const { stdout } = await execAsync(
-			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` +
-			`--grep="${query}" --regexp-ignore-case`,
-			{ cwd }
+			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--grep="${query}" --regexp-ignore-case`,
+			{ cwd },
 		)
 
 		let output = stdout
 		if (!output.trim() && /^[a-f0-9]+$/i.test(query)) {
 			// If no results from grep search and query looks like a hash, try searching by hash
 			const { stdout: hashStdout } = await execAsync(
-				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` +
-				`--author-date-order ${query}`,
-				{ cwd }
+				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--author-date-order ${query}`,
+				{ cwd },
 			).catch(() => ({ stdout: "" }))
 
 			if (!hashStdout.trim()) {
@@ -69,7 +67,10 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 		}
 
 		const commits: GitCommit[] = []
-		const lines = output.trim().split("\n").filter(line => line !== "--")
+		const lines = output
+			.trim()
+			.split("\n")
+			.filter((line) => line !== "--")
 
 		for (let i = 0; i < lines.length; i += 5) {
 			commits.push({
@@ -77,7 +78,7 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 				shortHash: lines[i + 1],
 				subject: lines[i + 2],
 				author: lines[i + 3],
-				date: lines[i + 4]
+				date: lines[i + 4],
 			})
 		}
 
@@ -101,34 +102,27 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 		}
 
 		// Get commit info, stats, and diff separately
-		const { stdout: info } = await execAsync(
-			`git show --format="%H%n%h%n%s%n%an%n%ad%n%b" --no-patch ${hash}`,
-			{ cwd }
-		)
-		const [fullHash, shortHash, subject, author, date, body] = info.trim().split('\n')
-		
-		const { stdout: stats } = await execAsync(
-			`git show --stat --format="" ${hash}`,
-			{ cwd }
-		)
+		const { stdout: info } = await execAsync(`git show --format="%H%n%h%n%s%n%an%n%ad%n%b" --no-patch ${hash}`, {
+			cwd,
+		})
+		const [fullHash, shortHash, subject, author, date, body] = info.trim().split("\n")
 
-		const { stdout: diff } = await execAsync(
-			`git show --format="" ${hash}`,
-			{ cwd }
-		)
+		const { stdout: stats } = await execAsync(`git show --stat --format="" ${hash}`, { cwd })
+
+		const { stdout: diff } = await execAsync(`git show --format="" ${hash}`, { cwd })
 
 		const summary = [
 			`Commit: ${shortHash} (${fullHash})`,
 			`Author: ${author}`,
 			`Date: ${date}`,
 			`\nMessage: ${subject}`,
-			body ? `\nDescription:\n${body}` : '',
-			'\nFiles Changed:',
+			body ? `\nDescription:\n${body}` : "",
+			"\nFiles Changed:",
 			stats.trim(),
-			'\nFull Changes:'
-		].join('\n')
+			"\nFull Changes:",
+		].join("\n")
 
-		const output = summary + '\n\n' + diff.trim()
+		const output = summary + "\n\n" + diff.trim()
 		return truncateOutput(output, GIT_OUTPUT_LINE_LIMIT)
 	} catch (error) {
 		console.error("Error getting commit info:", error)
@@ -149,13 +143,13 @@ export async function getWorkingState(cwd: string): Promise<string> {
 		}
 
 		// Get status of working directory
-		const { stdout: status } = await execAsync('git status --short', { cwd })
+		const { stdout: status } = await execAsync("git status --short", { cwd })
 		if (!status.trim()) {
 			return "No changes in working directory"
 		}
 
 		// Get all changes (both staged and unstaged) compared to HEAD
-		const { stdout: diff } = await execAsync('git diff HEAD', { cwd })
+		const { stdout: diff } = await execAsync("git diff HEAD", { cwd })
 		const lineLimit = GIT_OUTPUT_LINE_LIMIT
 		const output = `Working directory changes:\n\n${status}\n\n${diff}`.trim()
 		return truncateOutput(output, lineLimit)

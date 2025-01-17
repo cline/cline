@@ -31,8 +31,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	const { browserViewportSize = "900x600" } = useExtensionState()
 	const [viewportWidth, viewportHeight] = browserViewportSize.split("x").map(Number)
-	const aspectRatio = (viewportHeight / viewportWidth * 100).toFixed(2)
-	const defaultMousePosition = `${Math.round(viewportWidth/2)},${Math.round(viewportHeight/2)}`
+	const aspectRatio = ((viewportHeight / viewportWidth) * 100).toFixed(2)
+	const defaultMousePosition = `${Math.round(viewportWidth / 2)},${Math.round(viewportHeight / 2)}`
 
 	const isLastApiReqInterrupted = useMemo(() => {
 		// Check if last api_req_started is cancelled
@@ -171,7 +171,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const displayState = isLastPage
 		? {
 				url: currentPage?.currentState.url || latestState.url || initialUrl,
-				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || defaultMousePosition,
+				mousePosition:
+					currentPage?.currentState.mousePosition || latestState.mousePosition || defaultMousePosition,
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
 			}
@@ -226,7 +227,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	}, [isBrowsing, currentPage?.nextAction?.messages])
 
 	// Use latest click position while browsing, otherwise use display state
-	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition || defaultMousePosition
+	const mousePosition = isBrowsing
+		? latestClickPosition || displayState.mousePosition
+		: displayState.mousePosition || defaultMousePosition
 
 	const [browserSessionRow, { height: rowHeight }] = useSize(
 		<div style={{ padding: "10px 6px 10px 15px", marginBottom: -10 }}>

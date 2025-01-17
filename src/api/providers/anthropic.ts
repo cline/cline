@@ -181,14 +181,14 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				max_tokens: this.getModel().info.maxTokens || 8192,
 				temperature: 0,
 				messages: [{ role: "user", content: prompt }],
-				stream: false
+				stream: false,
 			})
 
 			const content = response.content[0]
-			if (content.type === 'text') {
+			if (content.type === "text") {
 				return content.text
 			}
-			return ''
+			return ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Anthropic completion error: ${error.message}`)

@@ -1,27 +1,27 @@
-import { UnifiedDiffStrategy } from '../unified'
+import { UnifiedDiffStrategy } from "../unified"
 
-describe('UnifiedDiffStrategy', () => {
-    let strategy: UnifiedDiffStrategy
+describe("UnifiedDiffStrategy", () => {
+	let strategy: UnifiedDiffStrategy
 
-    beforeEach(() => {
-        strategy = new UnifiedDiffStrategy()
-    })
+	beforeEach(() => {
+		strategy = new UnifiedDiffStrategy()
+	})
 
-    describe('getToolDescription', () => {
-        it('should return tool description with correct cwd', () => {
-            const cwd = '/test/path'
-            const description = strategy.getToolDescription({ cwd })
-            
-            expect(description).toContain('apply_diff')
-            expect(description).toContain(cwd)
-            expect(description).toContain('Parameters:')
-            expect(description).toContain('Format Requirements:')
-        })
-    })
+	describe("getToolDescription", () => {
+		it("should return tool description with correct cwd", () => {
+			const cwd = "/test/path"
+			const description = strategy.getToolDescription({ cwd })
 
-    describe('applyDiff', () => {
-        it('should successfully apply a function modification diff', async () => {
-            const originalContent = `import { Logger } from '../logger';
+			expect(description).toContain("apply_diff")
+			expect(description).toContain(cwd)
+			expect(description).toContain("Parameters:")
+			expect(description).toContain("Format Requirements:")
+		})
+	})
+
+	describe("applyDiff", () => {
+		it("should successfully apply a function modification diff", async () => {
+			const originalContent = `import { Logger } from '../logger';
 
 function calculateTotal(items: number[]): number {
   return items.reduce((sum, item) => {
@@ -31,7 +31,7 @@ function calculateTotal(items: number[]): number {
 
 export { calculateTotal };`
 
-            const diffContent = `--- src/utils/helper.ts
+			const diffContent = `--- src/utils/helper.ts
 +++ src/utils/helper.ts
 @@ -1,9 +1,10 @@
  import { Logger } from '../logger';
@@ -47,7 +47,7 @@ export { calculateTotal };`
  
  export { calculateTotal };`
 
-            const expected = `import { Logger } from '../logger';
+			const expected = `import { Logger } from '../logger';
 
 function calculateTotal(items: number[]): number {
   const total = items.reduce((sum, item) => {
@@ -58,21 +58,21 @@ function calculateTotal(items: number[]): number {
 
 export { calculateTotal };`
 
-            const result = await strategy.applyDiff(originalContent, diffContent)
-            expect(result.success).toBe(true)
-            if (result.success) {
-                expect(result.content).toBe(expected)
-            }
-        })
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(expected)
+			}
+		})
 
-        it('should successfully apply a diff adding a new method', async () => {
-            const originalContent = `class Calculator {
+		it("should successfully apply a diff adding a new method", async () => {
+			const originalContent = `class Calculator {
   add(a: number, b: number): number {
     return a + b;
   }
 }`
 
-            const diffContent = `--- src/Calculator.ts
+			const diffContent = `--- src/Calculator.ts
 +++ src/Calculator.ts
 @@ -1,5 +1,9 @@
  class Calculator {
@@ -85,7 +85,7 @@ export { calculateTotal };`
 +  }
  }`
 
-            const expected = `class Calculator {
+			const expected = `class Calculator {
   add(a: number, b: number): number {
     return a + b;
   }
@@ -95,15 +95,15 @@ export { calculateTotal };`
   }
 }`
 
-            const result = await strategy.applyDiff(originalContent, diffContent)
-            expect(result.success).toBe(true)
-            if (result.success) {
-                expect(result.content).toBe(expected)
-            }
-        })
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(expected)
+			}
+		})
 
-        it('should successfully apply a diff modifying imports', async () => {
-            const originalContent = `import { useState } from 'react';
+		it("should successfully apply a diff modifying imports", async () => {
+			const originalContent = `import { useState } from 'react';
 import { Button } from './components';
 
 function App() {
@@ -111,7 +111,7 @@ function App() {
   return <Button onClick={() => setCount(count + 1)}>{count}</Button>;
 }`
 
-            const diffContent = `--- src/App.tsx
+			const diffContent = `--- src/App.tsx
 +++ src/App.tsx
 @@ -1,7 +1,8 @@
 -import { useState } from 'react';
@@ -124,7 +124,7 @@ function App() {
    return <Button onClick={() => setCount(count + 1)}>{count}</Button>;
  }`
 
-            const expected = `import { useState, useEffect } from 'react';
+			const expected = `import { useState, useEffect } from 'react';
 import { Button } from './components';
 
 function App() {
@@ -132,16 +132,16 @@ function App() {
   useEffect(() => { document.title = \`Count: \${count}\` }, [count]);
   return <Button onClick={() => setCount(count + 1)}>{count}</Button>;
 }`
-          
-            const result = await strategy.applyDiff(originalContent, diffContent)
-            expect(result.success).toBe(true)
-            if (result.success) {
-                expect(result.content).toBe(expected)
-            }
-        })
 
-        it('should successfully apply a diff with multiple hunks', async () => {
-            const originalContent = `import { readFile, writeFile } from 'fs';
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(expected)
+			}
+		})
+
+		it("should successfully apply a diff with multiple hunks", async () => {
+			const originalContent = `import { readFile, writeFile } from 'fs';
 
 function processFile(path: string) {
   readFile(path, 'utf8', (err, data) => {
@@ -155,7 +155,7 @@ function processFile(path: string) {
 
 export { processFile };`
 
-            const diffContent = `--- src/file-processor.ts
+			const diffContent = `--- src/file-processor.ts
 +++ src/file-processor.ts
 @@ -1,12 +1,14 @@
 -import { readFile, writeFile } from 'fs';
@@ -182,7 +182,7 @@ export { processFile };`
  
  export { processFile };`
 
-            const expected = `import { promises as fs } from 'fs';
+			const expected = `import { promises as fs } from 'fs';
 import { join } from 'path';
 
 async function processFile(path: string) {
@@ -198,32 +198,31 @@ async function processFile(path: string) {
 
 export { processFile };`
 
-            const result = await strategy.applyDiff(originalContent, diffContent)
-            expect(result.success).toBe(true)
-            if (result.success) {
-                expect(result.content).toBe(expected)
-            }
-        })
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(expected)
+			}
+		})
 
-        it('should handle empty original content', async () => {
-            const originalContent = ''
-            const diffContent = `--- empty.ts
+		it("should handle empty original content", async () => {
+			const originalContent = ""
+			const diffContent = `--- empty.ts
 +++ empty.ts
 @@ -0,0 +1,3 @@
 +export function greet(name: string): string {
 +  return \`Hello, \${name}!\`;
 +}`
 
-            const expected = `export function greet(name: string): string {
+			const expected = `export function greet(name: string): string {
   return \`Hello, \${name}!\`;
 }\n`
 
-            const result = await strategy.applyDiff(originalContent, diffContent)
-            expect(result.success).toBe(true)
-            if (result.success) {
-                expect(result.content).toBe(expected)
-            }
-        })
-    })
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(expected)
+			}
+		})
+	})
 })
-

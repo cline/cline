@@ -69,24 +69,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useEffect(() => {
 			const messageHandler = (event: MessageEvent) => {
 				const message = event.data
-				if (message.type === 'enhancedPrompt') {
+				if (message.type === "enhancedPrompt") {
 					if (message.text) {
 						setInputValue(message.text)
 					}
 					setIsEnhancingPrompt(false)
-				} else if (message.type === 'commitSearchResults') {
+				} else if (message.type === "commitSearchResults") {
 					const commits = message.commits.map((commit: any) => ({
 						type: ContextMenuOptionType.Git,
 						value: commit.hash,
 						label: commit.subject,
 						description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
-						icon: "$(git-commit)"
+						icon: "$(git-commit)",
 					}))
 					setGitCommits(commits)
 				}
 			}
-			window.addEventListener('message', messageHandler)
-			return () => window.removeEventListener('message', messageHandler)
+			window.addEventListener("message", messageHandler)
+			return () => window.removeEventListener("message", messageHandler)
 		}, [setInputValue])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
@@ -109,12 +109,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
 				const message: WebviewMessage = {
 					type: "searchCommits",
-					query: searchQuery || ""
+					query: searchQuery || "",
 				} as const
 				vscode.postMessage(message)
 			}
 		}, [selectedType, searchQuery])
-		
+
 		const handleEnhancePrompt = useCallback(() => {
 			if (!textAreaDisabled) {
 				const trimmedInput = inputValue.trim()
@@ -126,7 +126,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					vscode.postMessage(message)
 				} else {
-					const promptDescription = "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
+					const promptDescription =
+						"The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
 					setInputValue(promptDescription)
 				}
 			}
@@ -170,9 +171,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
-				if (type === ContextMenuOptionType.File ||
+				if (
+					type === ContextMenuOptionType.File ||
 					type === ContextMenuOptionType.Folder ||
-					type === ContextMenuOptionType.Git) {
+					type === ContextMenuOptionType.Git
+				) {
 					if (!value) {
 						setSelectedType(type)
 						setSearchQuery("")
@@ -505,7 +508,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			paddingRight: "6px",
 			WebkitAppearance: "none" as const,
 			MozAppearance: "none" as const,
-			appearance: "none" as const
+			appearance: "none" as const,
 		}
 
 		const caretContainerStyle = {
@@ -514,11 +517,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			top: "50%",
 			transform: "translateY(-45%)",
 			pointerEvents: "none" as const,
-			opacity: textAreaDisabled ? 0.5 : 0.8
+			opacity: textAreaDisabled ? 0.5 : 0.8,
 		}
 
 		return (
-			<div 
+			<div
 				className="chat-text-area"
 				style={{
 					opacity: textAreaDisabled ? 0.5 : 1,
@@ -528,15 +531,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					gap: "8px",
 					backgroundColor: "var(--vscode-input-background)",
 					margin: "10px 15px",
-					padding: "8px"
+					padding: "8px",
 				}}
 				onDrop={async (e) => {
 					e.preventDefault()
 					const files = Array.from(e.dataTransfer.files)
 					const text = e.dataTransfer.getData("text")
 					if (text) {
-						const newValue =
-							inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+						const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
 						setInputValue(newValue)
 						const newCursorPosition = cursorPosition + text.length
 						setCursorPosition(newCursorPosition)
@@ -567,11 +569,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						const imageDataArray = await Promise.all(imagePromises)
 						const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 						if (dataUrls.length > 0) {
-							setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
-							if (typeof vscode !== 'undefined') {
+							setSelectedImages((prevImages) =>
+								[...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE),
+							)
+							if (typeof vscode !== "undefined") {
 								vscode.postMessage({
-									type: 'draggedImages',
-									dataUrls: dataUrls
+									type: "draggedImages",
+									dataUrls: dataUrls,
 								})
 							}
 						} else {
@@ -581,8 +585,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}}
 				onDragOver={(e) => {
 					e.preventDefault()
-				}}
-			>
+				}}>
 				{showContextMenu && (
 					<div ref={contextMenuContainerRef}>
 						<ContextMenu
@@ -596,15 +599,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						/>
 					</div>
 				)}
-				
-				<div style={{
-					position: "relative",
-					flex: "1 1 auto",
-					display: "flex",
-					flexDirection: "column-reverse",
-					minHeight: 0,
-					overflow: "hidden"
-				}}>
+
+				<div
+					style={{
+						position: "relative",
+						flex: "1 1 auto",
+						display: "flex",
+						flexDirection: "column-reverse",
+						minHeight: 0,
+						overflow: "hidden",
+					}}>
 					<div
 						ref={highlightLayerRef}
 						style={{
@@ -620,7 +624,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							lineHeight: "var(--vscode-editor-line-height)",
 							padding: "8px",
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
-							zIndex: 1
+							zIndex: 1,
 						}}
 					/>
 					<DynamicTextArea
@@ -671,7 +675,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: "0 1 auto",
-							zIndex: 2
+							zIndex: 2,
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -687,22 +691,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							bottom: "36px",
 							left: "16px",
 							zIndex: 2,
-							marginBottom: "8px"
+							marginBottom: "8px",
 						}}
 					/>
 				)}
 
-				<div style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginTop: "auto",
-					paddingTop: "8px"
-				}}>
-					<div style={{
+				<div
+					style={{
 						display: "flex",
-						alignItems: "center"
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginTop: "auto",
+						paddingTop: "8px",
 					}}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+						}}>
 						<div style={{ position: "relative", display: "inline-block" }}>
 							<select
 								value={mode}
@@ -712,24 +718,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									setMode(newMode)
 									vscode.postMessage({
 										type: "mode",
-										text: newMode
+										text: newMode,
 									})
 								}}
 								style={{
 									...selectStyle,
 									minWidth: "70px",
-									flex: "0 0 auto"
-								}}
-							>
-								{modes.map(mode => (
+									flex: "0 0 auto",
+								}}>
+								{modes.map((mode) => (
 									<option
 										key={mode.slug}
 										value={mode.slug}
 										style={{
 											backgroundColor: "var(--vscode-dropdown-background)",
-											color: "var(--vscode-dropdown-foreground)"
-										}}
-									>
+											color: "var(--vscode-dropdown-foreground)",
+										}}>
 										{mode.name}
 									</option>
 								))}
@@ -739,36 +743,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</div>
 						</div>
 
-						<div style={{
-							position: "relative",
-							display: "inline-block",
-							flex: "1 1 auto",
-							minWidth: 0,
-							maxWidth: "150px",
-							overflow: "hidden"
-						}}>
+						<div
+							style={{
+								position: "relative",
+								display: "inline-block",
+								flex: "1 1 auto",
+								minWidth: 0,
+								maxWidth: "150px",
+								overflow: "hidden",
+							}}>
 							<select
 								value={currentApiConfigName}
 								disabled={textAreaDisabled}
-								onChange={(e) => vscode.postMessage({
-									type: "loadApiConfiguration",
-									text: e.target.value
-								})}
+								onChange={(e) =>
+									vscode.postMessage({
+										type: "loadApiConfiguration",
+										text: e.target.value,
+									})
+								}
 								style={{
 									...selectStyle,
 									width: "100%",
-									textOverflow: "ellipsis"
-								}}
-							>
+									textOverflow: "ellipsis",
+								}}>
 								{(listApiConfigMeta || [])?.map((config) => (
 									<option
 										key={config.name}
 										value={config.name}
 										style={{
 											backgroundColor: "var(--vscode-dropdown-background)",
-											color: "var(--vscode-dropdown-foreground)"
-										}}
-									>
+											color: "var(--vscode-dropdown-foreground)",
+										}}>
 										{config.name}
 									</option>
 								))}
@@ -779,19 +784,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 
-					<div style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "12px"
-					}}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "12px",
+						}}>
 						<div style={{ display: "flex", alignItems: "center" }}>
 							{isEnhancingPrompt ? (
-								<span className="codicon codicon-loading codicon-modifier-spin" style={{
-									color: "var(--vscode-input-foreground)",
-									opacity: 0.5,
-									fontSize: 16.5,
-									marginRight: 10
-								}} />
+								<span
+									className="codicon codicon-loading codicon-modifier-spin"
+									style={{
+										color: "var(--vscode-input-foreground)",
+										opacity: 0.5,
+										fontSize: 16.5,
+										marginRight: 10,
+									}}
+								/>
 							) : (
 								<span
 									role="button"
@@ -803,12 +812,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								/>
 							)}
 						</div>
-						<span 
+						<span
 							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
 							onClick={() => !shouldDisableImages && onSelectImages()}
 							style={{ fontSize: 16.5 }}
 						/>
-						<span 
+						<span
 							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
 							onClick={() => !textAreaDisabled && onSend()}
 							style={{ fontSize: 15 }}

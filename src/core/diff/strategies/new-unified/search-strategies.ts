@@ -69,26 +69,26 @@ export function getDMPSimilarity(original: string, modified: string): number {
 export function validateEditResult(hunk: Hunk, result: string): number {
 	// Build the expected text from the hunk
 	const expectedText = hunk.changes
-		.filter(change => change.type === "context" || change.type === "add")
-		.map(change => change.indent ? change.indent + change.content : change.content)
-		.join("\n");
+		.filter((change) => change.type === "context" || change.type === "add")
+		.map((change) => (change.indent ? change.indent + change.content : change.content))
+		.join("\n")
 
 	// Calculate similarity between the result and expected text
-	const similarity = getDMPSimilarity(expectedText, result);
+	const similarity = getDMPSimilarity(expectedText, result)
 
 	// If the result is unchanged from original, return low confidence
 	const originalText = hunk.changes
-		.filter(change => change.type === "context" || change.type === "remove")
-		.map(change => change.indent ? change.indent + change.content : change.content)
-		.join("\n");
+		.filter((change) => change.type === "context" || change.type === "remove")
+		.map((change) => (change.indent ? change.indent + change.content : change.content))
+		.join("\n")
 
-	const originalSimilarity = getDMPSimilarity(originalText, result);
+	const originalSimilarity = getDMPSimilarity(originalText, result)
 	if (originalSimilarity > 0.97 && similarity !== 1) {
-		return 0.8 * similarity;  // Some confidence since we found the right location
+		return 0.8 * similarity // Some confidence since we found the right location
 	}
-  
+
 	// For partial matches, scale the confidence but keep it high if we're close
-	return similarity;
+	return similarity
 }
 
 // Helper function to validate context lines against original content
@@ -114,7 +114,7 @@ function validateContextLines(searchStr: string, content: string, confidenceThre
 function createOverlappingWindows(
 	content: string[],
 	searchSize: number,
-	overlapSize: number = DEFAULT_OVERLAP_SIZE
+	overlapSize: number = DEFAULT_OVERLAP_SIZE,
 ): { window: string[]; startIndex: number }[] {
 	const windows: { window: string[]; startIndex: number }[] = []
 
@@ -140,7 +140,7 @@ function createOverlappingWindows(
 // Helper function to combine overlapping matches
 function combineOverlappingMatches(
 	matches: (SearchResult & { windowIndex: number })[],
-	overlapSize: number = DEFAULT_OVERLAP_SIZE
+	overlapSize: number = DEFAULT_OVERLAP_SIZE,
 ): SearchResult[] {
 	if (matches.length === 0) {
 		return []
@@ -162,7 +162,7 @@ function combineOverlappingMatches(
 			(m) =>
 				Math.abs(m.windowIndex - match.windowIndex) === 1 &&
 				Math.abs(m.index - match.index) <= overlapSize &&
-				!usedIndices.has(m.windowIndex)
+				!usedIndices.has(m.windowIndex),
 		)
 
 		if (overlapping.length > 0) {
@@ -196,7 +196,7 @@ export function findExactMatch(
 	searchStr: string,
 	content: string[],
 	startIndex: number = 0,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const windows = createOverlappingWindows(content.slice(startIndex), searchLines.length)
@@ -210,7 +210,7 @@ export function findExactMatch(
 			const matchedContent = windowData.window
 				.slice(
 					windowStr.slice(0, exactMatch).split("\n").length - 1,
-					windowStr.slice(0, exactMatch).split("\n").length - 1 + searchLines.length
+					windowStr.slice(0, exactMatch).split("\n").length - 1 + searchLines.length,
 				)
 				.join("\n")
 
@@ -236,7 +236,7 @@ export function findSimilarityMatch(
 	searchStr: string,
 	content: string[],
 	startIndex: number = 0,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): SearchResult {
 	const searchLines = searchStr.split("\n")
 	let bestScore = 0
@@ -269,7 +269,7 @@ export function findLevenshteinMatch(
 	searchStr: string,
 	content: string[],
 	startIndex: number = 0,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const candidates = []
@@ -324,7 +324,7 @@ export function findAnchorMatch(
 	searchStr: string,
 	content: string[],
 	startIndex: number = 0,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): SearchResult {
 	const searchLines = searchStr.split("\n")
 	const { first, last } = identifyAnchors(searchStr)
@@ -391,7 +391,7 @@ export function findBestMatch(
 	searchStr: string,
 	content: string[],
 	startIndex: number = 0,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): SearchResult {
 	const strategies = [findExactMatch, findAnchorMatch, findSimilarityMatch, findLevenshteinMatch]
 

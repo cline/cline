@@ -55,16 +55,17 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
-						<div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-							<span style={{ lineHeight: '1.2' }}>{option.label}</span>
-							<span style={{
-								fontSize: '0.85em',
-								opacity: 0.7,
-								whiteSpace: 'nowrap',
-								overflow: 'hidden',
-								textOverflow: 'ellipsis',
-								lineHeight: '1.2'
-							}}>
+						<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+							<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+							<span
+								style={{
+									fontSize: "0.85em",
+									opacity: 0.7,
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									lineHeight: "1.2",
+								}}>
 								{option.description}
 							</span>
 						</div>
@@ -168,33 +169,33 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								flex: 1,
 								minWidth: 0,
 								overflow: "hidden",
-								paddingTop: 0
+								paddingTop: 0,
 							}}>
 							<i
 								className={`codicon codicon-${getIconForOption(option)}`}
-								style={{ 
+								style={{
 									marginRight: "6px",
 									flexShrink: 0,
 									fontSize: "14px",
-									marginTop: 0
+									marginTop: 0,
 								}}
 							/>
 							{renderOptionContent(option)}
 						</div>
-						{((option.type === ContextMenuOptionType.File ||
-						   option.type === ContextMenuOptionType.Folder ||
-						   option.type === ContextMenuOptionType.Git) &&
-						   !option.value) && (
-							<i
-								className="codicon codicon-chevron-right"
-								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
-							/>
-						)}
+						{(option.type === ContextMenuOptionType.File ||
+							option.type === ContextMenuOptionType.Folder ||
+							option.type === ContextMenuOptionType.Git) &&
+							!option.value && (
+								<i
+									className="codicon codicon-chevron-right"
+									style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
+								/>
+							)}
 						{(option.type === ContextMenuOptionType.Problems ||
-						   ((option.type === ContextMenuOptionType.File ||
-							 option.type === ContextMenuOptionType.Folder ||
-							 option.type === ContextMenuOptionType.Git) &&
-							 option.value)) && (
+							((option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder ||
+								option.type === ContextMenuOptionType.Git) &&
+								option.value)) && (
 							<i
 								className="codicon codicon-add"
 								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}

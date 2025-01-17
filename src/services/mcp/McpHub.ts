@@ -40,11 +40,11 @@ const StdioConfigSchema = z.object({
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
 	alwaysAllow: AlwaysAllowSchema.optional(),
-	disabled: z.boolean().optional()
+	disabled: z.boolean().optional(),
 })
 
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(StdioConfigSchema)
+	mcpServers: z.record(StdioConfigSchema),
 })
 
 export class McpHub {
@@ -63,9 +63,7 @@ export class McpHub {
 
 	getServers(): McpServer[] {
 		// Only return enabled servers
-		return this.connections
-			.filter((conn) => !conn.server.disabled)
-			.map((conn) => conn.server)
+		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
 	async getMcpServersPath(): Promise<string> {
@@ -300,9 +298,9 @@ export class McpHub {
 			const alwaysAllowConfig = config.mcpServers[serverName]?.alwaysAllow || []
 
 			// Mark tools as always allowed based on settings
-			const tools = (response?.tools || []).map(tool => ({
+			const tools = (response?.tools || []).map((tool) => ({
 				...tool,
-				alwaysAllow: alwaysAllowConfig.includes(tool.name)
+				alwaysAllow: alwaysAllowConfig.includes(tool.name),
 			}))
 
 			console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
@@ -471,28 +469,28 @@ export class McpHub {
 	}
 
 	// Public methods for server management
-	
+
 	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
 		let settingsPath: string
 		try {
 			settingsPath = await this.getMcpSettingsFilePath()
-			
+
 			// Ensure the settings file exists and is accessible
 			try {
 				await fs.access(settingsPath)
 			} catch (error) {
-				console.error('Settings file not accessible:', error)
-				throw new Error('Settings file not accessible')
+				console.error("Settings file not accessible:", error)
+				throw new Error("Settings file not accessible")
 			}
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
 			// Validate the config structure
-			if (!config || typeof config !== 'object') {
-				throw new Error('Invalid config structure')
+			if (!config || typeof config !== "object") {
+				throw new Error("Invalid config structure")
 			}
-			
-			if (!config.mcpServers || typeof config.mcpServers !== 'object') {
+
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
 				config.mcpServers = {}
 			}
 
@@ -500,28 +498,28 @@ export class McpHub {
 				// Create a new server config object to ensure clean structure
 				const serverConfig = {
 					...config.mcpServers[serverName],
-					disabled
+					disabled,
 				}
-				
+
 				// Ensure required fields exist
 				if (!serverConfig.alwaysAllow) {
 					serverConfig.alwaysAllow = []
 				}
-				
+
 				config.mcpServers[serverName] = serverConfig
-				
+
 				// Write the entire config back
 				const updatedConfig = {
-					mcpServers: config.mcpServers
+					mcpServers: config.mcpServers,
 				}
-				
+
 				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
 
-				const connection = this.connections.find(conn => conn.server.name === serverName)
+				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					try {
 						connection.server.disabled = disabled
-						
+
 						// Only refresh capabilities if connected
 						if (connection.server.status === "connected") {
 							connection.server.tools = await this.fetchToolsList(serverName)
@@ -540,7 +538,9 @@ export class McpHub {
 			if (error instanceof Error) {
 				console.error("Error details:", error.message, error.stack)
 			}
-			vscode.window.showErrorMessage(`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`)
+			vscode.window.showErrorMessage(
+				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+			)
 			throw error
 		}
 	}
@@ -617,12 +617,11 @@ export class McpHub {
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
-			const connection = this.connections.find(conn => conn.server.name === serverName)
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
 			if (connection) {
 				connection.server.tools = await this.fetchToolsList(serverName)
 				await this.notifyWebviewOfServerChanges()
 			}
-
 		} catch (error) {
 			console.error("Failed to update always allow settings:", error)
 			vscode.window.showErrorMessage("Failed to update always allow settings")

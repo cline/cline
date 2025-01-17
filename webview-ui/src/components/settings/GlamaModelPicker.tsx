@@ -38,7 +38,6 @@ const GlamaModelPicker: React.FC = () => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-
 	useEffect(() => {
 		if (apiConfiguration?.glamaModelId && apiConfiguration?.glamaModelId !== searchTerm) {
 			setSearchTerm(apiConfiguration?.glamaModelId)
@@ -47,18 +46,15 @@ const GlamaModelPicker: React.FC = () => {
 
 	const debouncedRefreshModels = useMemo(
 		() =>
-			debounce(
-				() => {
-					vscode.postMessage({ type: "refreshGlamaModels" })
-				},
-				50
-			),
-		[]
+			debounce(() => {
+				vscode.postMessage({ type: "refreshGlamaModels" })
+			}, 50),
+		[],
 	)
 
 	useMount(() => {
 		debouncedRefreshModels()
-		
+
 		// Cleanup debounced function
 		return () => {
 			debouncedRefreshModels.clear()
@@ -91,7 +87,7 @@ const GlamaModelPicker: React.FC = () => {
 
 	const fzf = useMemo(() => {
 		return new Fzf(searchableItems, {
-			selector: item => item.html
+			selector: (item) => item.html,
 		})
 	}, [searchableItems])
 
@@ -99,9 +95,9 @@ const GlamaModelPicker: React.FC = () => {
 		if (!searchTerm) return searchableItems
 
 		const searchResults = fzf.find(searchTerm)
-		return searchResults.map(result => ({
+		return searchResults.map((result) => ({
 			...result.item,
-			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight")
+			html: highlightFzfMatch(result.item.html, Array.from(result.positions), "model-item-highlight"),
 		}))
 	}, [searchableItems, searchTerm, fzf])
 
