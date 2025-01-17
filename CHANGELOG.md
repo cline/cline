@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 3.1.6
-
-### Patch Changes
+## [3.1.6]
 
 -   Add Mistral (thanks Cline!)
 
