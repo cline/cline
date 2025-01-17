@@ -99,6 +99,7 @@ type GlobalStateKey =
 	| "modeApiConfigs"
 	| "customPrompts"
 	| "enhancementApiConfigId"
+  	| "experimentalDiffStrategy"
 	| "autoApprovalEnabled"
 
 export const GlobalFileNames = {
@@ -254,6 +255,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
+      experimentalDiffStrategy
 		} = await this.getState()
 
 		const modeInstructions = customPrompts?.[mode]?.customInstructions
@@ -268,7 +270,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			fuzzyMatchThreshold,
 			task,
-			images
+			images,
+			undefined,
+			experimentalDiffStrategy
 		)
 	}
 
@@ -281,6 +285,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
+      experimentalDiffStrategy
 		} = await this.getState()
 
 		const modeInstructions = customPrompts?.[mode]?.customInstructions
@@ -296,7 +301,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
+			experimentalDiffStrategy
 		)
 	}
 
@@ -1070,6 +1076,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							vscode.window.showErrorMessage("Failed to get list api configuration")
 						}
 						break
+          case "experimentalDiffStrategy":
+						await this.updateGlobalState("experimentalDiffStrategy", message.bool ?? false)
+						// Update diffStrategy in current Cline instance if it exists
+						if (this.cline) {
+							await this.cline.updateDiffStrategy(message.bool ?? false)
+						}
+						await this.postStateToWebview()
 				}
 			},
 			null,
@@ -1541,7 +1554,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		uiMessagesFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const history = (await this.getGlobalState("taskHistory") as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
@@ -1606,7 +1619,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+		const taskHistory = (await this.getGlobalState("taskHistory") as HistoryItem[]) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		await this.updateGlobalState("taskHistory", updatedTaskHistory)
 
@@ -1647,6 +1660,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode,
 			customPrompts,
 			enhancementApiConfigId,
+      		experimentalDiffStrategy,
 			autoApprovalEnabled,
 		} = await this.getState()
 
@@ -1687,6 +1701,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mode: mode ?? codeMode,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
+      		experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
@@ -1803,6 +1818,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modeApiConfigs,
 			customPrompts,
 			enhancementApiConfigId,
+      		experimentalDiffStrategy,
 			autoApprovalEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1864,6 +1880,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
 			this.getGlobalState("customPrompts") as Promise<CustomPrompts | undefined>,
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
+      		this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 		])
 
@@ -1969,13 +1986,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modeApiConfigs: modeApiConfigs ?? {} as Record<Mode, string>,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
+      		experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 		}
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
+		const history = (await this.getGlobalState("taskHistory") as HistoryItem[] | undefined) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
+
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
 		} else {

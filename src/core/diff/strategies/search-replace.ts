@@ -127,7 +127,7 @@ Your search/replace content here
 </apply_diff>`
     }
 
-    applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): DiffResult {
+    async applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): Promise<DiffResult> {
         // Extract the search and replace blocks
         const match = diffContent.match(/<<<<<<< SEARCH\n([\s\S]*?)\n?=======\n([\s\S]*?)\n?>>>>>>> REPLACE/);
         if (!match) {

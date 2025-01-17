@@ -72,6 +72,7 @@ export interface WebviewMessage {
 		| "getSystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
+    	| "experimentalDiffStrategy"
 		| "autoApprovalEnabled"
 	text?: string
 	disabled?: boolean

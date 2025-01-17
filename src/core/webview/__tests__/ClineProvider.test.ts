@@ -610,6 +610,8 @@ describe('ClineProvider', () => {
             true,
             1.0,
             'Test task',
+            undefined,
+            undefined,
             undefined
         );
     });

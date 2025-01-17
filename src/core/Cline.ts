@@ -52,6 +52,7 @@ import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { OpenRouterHandler } from "../api/providers/openrouter"
 import { McpHub } from "../services/mcp/McpHub"
+import crypto from "crypto"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -71,6 +72,7 @@ export class Cline {
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
+	fuzzyMatchThreshold: number = 1.0
 
 	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
@@ -105,28 +107,46 @@ export class Cline {
 		fuzzyMatchThreshold?: number,
 		task?: string | undefined,
 		images?: string[] | undefined,
-		historyItem?: HistoryItem | undefined
+		historyItem?: HistoryItem | undefined,
+		experimentalDiffStrategy: boolean = false,
 	) {
-		this.providerRef = new WeakRef(provider)
+		if (!task && !images && !historyItem) {
+			throw new Error('Either historyItem or task/images must be provided');
+		}
+
+		this.taskId = crypto.randomUUID()
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
-		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.diffEnabled = enableDiff ?? false
-		if (this.diffEnabled && this.api.getModel().id) {
-			this.diffStrategy = getDiffStrategy(this.api.getModel().id, fuzzyMatchThreshold ?? 1.0)
-		}
+		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
+		this.providerRef = new WeakRef(provider)
+		this.diffViewProvider = new DiffViewProvider(cwd)
+
 		if (historyItem) {
 			this.taskId = historyItem.id
-			this.resumeTaskFromHistory()
-		} else if (task || images) {
-			this.taskId = Date.now().toString()
-			this.startTask(task, images)
-		} else {
-			throw new Error("Either historyItem or task/images must be provided")
 		}
+
+		// Initialize diffStrategy based on current state
+		this.updateDiffStrategy(experimentalDiffStrategy)
+
+		if (task || images) {
+			this.startTask(task, images)
+		} else if (historyItem) {
+			this.resumeTaskFromHistory()
+		}
+	}
+
+	// Add method to update diffStrategy
+	async updateDiffStrategy(experimentalDiffStrategy?: boolean) {
+		// If not provided, get from current state
+		if (experimentalDiffStrategy === undefined) {
+			const { experimentalDiffStrategy: stateExperimentalDiffStrategy } = await this.providerRef.deref()?.getState() ?? {}
+			experimentalDiffStrategy = stateExperimentalDiffStrategy ?? false
+		}
+		this.diffStrategy = getDiffStrategy(this.api.getModel().id, this.fuzzyMatchThreshold, experimentalDiffStrategy)
 	}
 
 	// Storing task to disk for history
@@ -1326,7 +1346,7 @@ export class Cline {
 								const originalContent = await fs.readFile(absolutePath, "utf-8")
 
 								// Apply the diff to the original content
-								const diffResult = this.diffStrategy?.applyDiff(
+								const diffResult = await this.diffStrategy?.applyDiff(
 									originalContent, 
 									diffContent, 
 									parseInt(block.params.start_line ?? ''), 
