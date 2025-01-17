@@ -9,6 +9,9 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import { findLast } from "../../../../src/shared/array"
+import { BrowserSettingsMenu } from "../browser/BrowserSettingsMenu"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -21,6 +24,7 @@ interface BrowserSessionRowProps {
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
+	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
@@ -169,17 +173,19 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const currentPage = pages[currentPageIndex]
 	const isLastPage = currentPageIndex === pages.length - 1
 
+	const defaultMousePosition = `${browserSettings.viewport.width * 0.7},${browserSettings.viewport.height * 0.5}`
+
 	// Use latest state if we're on the last page and don't have a state yet
 	const displayState = isLastPage
 		? {
 				url: currentPage?.currentState.url || latestState.url || initialUrl,
-				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || "700,400",
+				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || defaultMousePosition,
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
 			}
 		: {
 				url: currentPage?.currentState.url || initialUrl,
-				mousePosition: currentPage?.currentState.mousePosition || "700,400",
+				mousePosition: currentPage?.currentState.mousePosition || defaultMousePosition,
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot,
 			}
@@ -230,6 +236,14 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 	}
 
+	const shouldShowSettings = useMemo(() => {
+		const lastMessage = messages[messages.length - 1]
+		return lastMessage?.ask === "browser_action_launch" || lastMessage?.say === "browser_action_launch"
+	}, [messages])
+
+	// Calculate maxWidth
+	const maxWidth = browserSettings.viewport.width < BROWSER_VIEWPORT_PRESETS["Small Desktop (900x600)"].width ? 200 : undefined
+
 	const [browserSessionRow, { height }] = useSize(
 		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
 			<div
@@ -257,43 +271,51 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				style={{
 					borderRadius: 3,
 					border: "1px solid var(--vscode-editorGroup-border)",
-					overflow: "hidden",
+					// overflow: "hidden",
 					backgroundColor: CODE_BLOCK_BG_COLOR,
-					marginBottom: 10,
+					// marginBottom: 10,
+					maxWidth,
+					margin: "0 auto 10px auto", // Center the container
 				}}>
 				{/* URL Bar */}
 				<div
 					style={{
 						margin: "5px auto",
 						width: "calc(100% - 10px)",
-						boxSizing: "border-box", // includes padding in width calculation
-						backgroundColor: "var(--vscode-input-background)",
-						border: "1px solid var(--vscode-input-border)",
-						borderRadius: "4px",
-						padding: "3px 5px",
 						display: "flex",
 						alignItems: "center",
-						justifyContent: "center",
-						color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
-						fontSize: "12px",
+						gap: "4px",
 					}}>
 					<div
 						style={{
-							textOverflow: "ellipsis",
-							overflow: "hidden",
-							whiteSpace: "nowrap",
-							width: "100%",
-							textAlign: "center",
+							flex: 1,
+							backgroundColor: "var(--vscode-input-background)",
+							border: "1px solid var(--vscode-input-border)",
+							borderRadius: "4px",
+							padding: "3px 5px",
+							minWidth: 0,
+							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
+							fontSize: "12px",
 						}}>
-						{displayState.url || "http"}
+						<div
+							style={{
+								textOverflow: "ellipsis",
+								overflow: "hidden",
+								whiteSpace: "nowrap",
+								width: "100%",
+								textAlign: "center",
+							}}>
+							{displayState.url || "http"}
+						</div>
 					</div>
+					<BrowserSettingsMenu disabled={!shouldShowSettings} maxWidth={maxWidth} />
 				</div>
 
 				{/* Screenshot Area */}
 				<div
 					style={{
 						width: "100%",
-						paddingBottom: "calc(200%/3)",
+						paddingBottom: `${(browserSettings.viewport.height / browserSettings.viewport.width) * 100}%`,
 						position: "relative",
 						backgroundColor: "var(--vscode-input-background)",
 					}}>
@@ -338,8 +360,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(parseInt(mousePosition.split(",")[1]) / 600) * 100}%`,
-								left: `${(parseInt(mousePosition.split(",")[0]) / 900) * 100}%`,
+								top: `${(parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
+								left: `${(parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
@@ -355,7 +377,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							display: "flex",
 							alignItems: "center",
 							gap: "4px",
-							width: "100%",
+							// width: "100%",
 							justifyContent: "flex-start",
 							cursor: "pointer",
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,

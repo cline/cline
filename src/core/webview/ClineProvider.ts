@@ -23,6 +23,7 @@ import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -40,6 +41,7 @@ type SecretKey =
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
+	| "mistralApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -62,6 +64,7 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
+	| "browserSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -211,17 +214,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, autoApprovalSettings, customInstructions, task, images)
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
+		this.cline = new Cline(this, apiConfiguration, autoApprovalSettings, browserSettings, customInstructions, task, images)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings } = await this.getState()
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			autoApprovalSettings,
+			browserSettings,
 			customInstructions,
 			undefined,
 			undefined,
@@ -390,6 +394,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								deepSeekApiKey,
+								mistralApiKey,
 								isAzureOpenAiService,
 								azureApiVersion,
 								openRouterModelId,
@@ -417,6 +422,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
+							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.updateGlobalState("isAzureOpenAiService", isAzureOpenAiService)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
@@ -439,6 +445,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postStateToWebview()
 						}
 						break
+					case "browserSettings":
+						if (message.browserSettings) {
+							await this.updateGlobalState("browserSettings", message.browserSettings)
+							if (this.cline) {
+								this.cline.updateBrowserSettings(message.browserSettings)
+							}
+							await this.postStateToWebview()
+						}
+						break
+					// case "relaunchChromeDebugMode":
+					// 	if (this.cline) {
+					// 		this.cline.browserSession.relaunchChromeDebugMode()
+					// 	}
+					// 	break
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -911,8 +931,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		const { apiConfiguration, lastShownAnnouncementId, customInstructions, taskHistory, autoApprovalSettings } =
-			await this.getState()
+		const {
+			apiConfiguration,
+			lastShownAnnouncementId,
+			customInstructions,
+			taskHistory,
+			autoApprovalSettings,
+			browserSettings,
+		} = await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -924,6 +950,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			autoApprovalSettings,
+			browserSettings,
 		}
 	}
 
@@ -1002,6 +1029,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
+			mistralApiKey,
 			isAzureOpenAiService,
 			azureApiVersion,
 			openRouterModelId,
@@ -1010,6 +1038,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
+			browserSettings,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1033,6 +1062,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
+			this.getSecret("mistralApiKey") as Promise<string | undefined>,
 			this.getGlobalState("isAzureOpenAiService") as Promise<boolean | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
@@ -1041,6 +1071,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
+			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1081,6 +1112,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				geminiApiKey,
 				openAiNativeApiKey,
 				deepSeekApiKey,
+				mistralApiKey,
 				isAzureOpenAiService,
 				azureApiVersion,
 				openRouterModelId,
@@ -1090,6 +1122,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 		}
 	}
 
@@ -1166,6 +1199,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"geminiApiKey",
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
+			"mistralApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
