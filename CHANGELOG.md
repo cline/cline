@@ -1,5 +1,11 @@
 # Roo Cline Changelog
 
+## 3.1.6
+
+### Patch Changes
+
+-   Add Mistral (thanks Cline!)
+
 ## [3.1.4 - 3.1.5]
 
 -   Bug fixes to the auto approve menu
