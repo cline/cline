@@ -46,6 +46,11 @@ jest.mock('../ChatRow', () => ({
   }
 }))
 
+jest.mock('../AutoApproveMenu', () => ({
+  __esModule: true,
+  default: () => null,
+}))
+
 interface ChatTextAreaProps {
   onSend: (value: string) => void;
   inputValue?: string;
@@ -139,6 +144,89 @@ describe('ChatView - Auto Approval Tests', () => {
     jest.clearAllMocks()
   })
 
+  it('does not auto-approve any actions when autoApprovalEnabled is false', () => {
+    render(
+      <ExtensionStateContextProvider>
+        <ChatView
+          isHidden={false}
+          showAnnouncement={false}
+          hideAnnouncement={() => {}}
+          showHistoryView={() => {}}
+        />
+      </ExtensionStateContextProvider>
+    )
+
+    // First hydrate state with initial task
+    mockPostMessage({
+      autoApprovalEnabled: false,
+      alwaysAllowBrowser: true,
+      alwaysAllowReadOnly: true,
+      alwaysAllowWrite: true,
+      alwaysAllowExecute: true,
+      allowedCommands: ['npm test'],
+      clineMessages: [
+        {
+          type: 'say',
+          say: 'task',
+          ts: Date.now() - 2000,
+          text: 'Initial task'
+        }
+      ]
+    })
+
+    // Test various types of actions that should not be auto-approved
+    const testCases = [
+      {
+        ask: 'browser_action_launch',
+        text: JSON.stringify({ action: 'launch', url: 'http://example.com' })
+      },
+      {
+        ask: 'tool',
+        text: JSON.stringify({ tool: 'readFile', path: 'test.txt' })
+      },
+      {
+        ask: 'tool',
+        text: JSON.stringify({ tool: 'editedExistingFile', path: 'test.txt' })
+      },
+      {
+        ask: 'command',
+        text: 'npm test'
+      }
+    ]
+
+    testCases.forEach(testCase => {
+      mockPostMessage({
+        autoApprovalEnabled: false,
+        alwaysAllowBrowser: true,
+        alwaysAllowReadOnly: true,
+        alwaysAllowWrite: true,
+        alwaysAllowExecute: true,
+        allowedCommands: ['npm test'],
+        clineMessages: [
+          {
+            type: 'say',
+            say: 'task',
+            ts: Date.now() - 2000,
+            text: 'Initial task'
+          },
+          {
+            type: 'ask',
+            ask: testCase.ask,
+            ts: Date.now(),
+            text: testCase.text,
+            partial: false
+          }
+        ]
+      })
+
+      // Verify no auto-approval message was sent
+      expect(vscode.postMessage).not.toHaveBeenCalledWith({
+        type: 'askResponse',
+        askResponse: 'yesButtonClicked'
+      })
+    })
+  })
+
   it('auto-approves browser actions when alwaysAllowBrowser is enabled', async () => {
     render(
       <ExtensionStateContextProvider>
@@ -153,6 +241,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // First hydrate state with initial task
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: true,
       clineMessages: [
         {
@@ -166,6 +255,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // Then send the browser action ask message
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: true,
       clineMessages: [
         {
@@ -207,6 +297,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // First hydrate state with initial task
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowReadOnly: true,
       clineMessages: [
         {
@@ -220,6 +311,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // Then send the read-only tool ask message
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowReadOnly: true,
       clineMessages: [
         {
@@ -262,6 +354,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
       // First hydrate state with initial task
       mockPostMessage({
+        autoApprovalEnabled: true,
         alwaysAllowWrite: true,
         writeDelayMs: 0,
         clineMessages: [
@@ -276,6 +369,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
       // Then send the write tool ask message
       mockPostMessage({
+        autoApprovalEnabled: true,
         alwaysAllowWrite: true,
         writeDelayMs: 0,
         clineMessages: [
@@ -318,6 +412,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
       // First hydrate state with initial task
       mockPostMessage({
+        autoApprovalEnabled: true,
         alwaysAllowWrite: true,
         clineMessages: [
           {
@@ -331,6 +426,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
       // Then send a non-tool write operation message
       mockPostMessage({
+        autoApprovalEnabled: true,
         alwaysAllowWrite: true,
         clineMessages: [
           {
@@ -371,6 +467,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // First hydrate state with initial task
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowExecute: true,
       allowedCommands: ['npm test'],
       clineMessages: [
@@ -385,6 +482,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // Then send the command ask message
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowExecute: true,
       allowedCommands: ['npm test'],
       clineMessages: [
@@ -427,6 +525,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // First hydrate state with initial task
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowExecute: true,
       allowedCommands: ['npm test'],
       clineMessages: [
@@ -441,6 +540,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
     // Then send the disallowed command ask message
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowExecute: true,
       allowedCommands: ['npm test'],
       clineMessages: [
@@ -498,6 +598,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
         // First hydrate state with initial task
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'npm run build', 'echo', 'Select-String'],
           clineMessages: [
@@ -512,6 +613,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
         // Then send the chained command ask message
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'npm run build', 'echo', 'Select-String'],
           clineMessages: [
@@ -585,6 +687,7 @@ describe('ChatView - Auto Approval Tests', () => {
 
         // Then send the chained command ask message
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'Select-String'],
           clineMessages: [
@@ -643,6 +746,7 @@ describe('ChatView - Auto Approval Tests', () => {
         jest.clearAllMocks()
 
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'Select-String'],
           clineMessages: [
@@ -656,6 +760,7 @@ describe('ChatView - Auto Approval Tests', () => {
         })
 
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'Select-String'],
           clineMessages: [
@@ -688,6 +793,7 @@ describe('ChatView - Auto Approval Tests', () => {
         jest.clearAllMocks()
 
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'Select-String'],
           clineMessages: [
@@ -701,6 +807,7 @@ describe('ChatView - Auto Approval Tests', () => {
         })
 
         mockPostMessage({
+          autoApprovalEnabled: true,
           alwaysAllowExecute: true,
           allowedCommands: ['npm test', 'Select-String'],
           clineMessages: [
@@ -748,6 +855,7 @@ describe('ChatView - Sound Playing Tests', () => {
 
     // First hydrate state with initial task and streaming
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: true,
       clineMessages: [
         {
@@ -768,6 +876,7 @@ describe('ChatView - Sound Playing Tests', () => {
 
     // Then send the browser action ask message (streaming finished)
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: true,
       clineMessages: [
         {
@@ -807,6 +916,7 @@ describe('ChatView - Sound Playing Tests', () => {
 
     // First hydrate state with initial task and streaming
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: false,
       clineMessages: [
         {
@@ -827,6 +937,7 @@ describe('ChatView - Sound Playing Tests', () => {
 
     // Then send the browser action ask message (streaming finished)
     mockPostMessage({
+      autoApprovalEnabled: true,
       alwaysAllowBrowser: false,
       clineMessages: [
         {

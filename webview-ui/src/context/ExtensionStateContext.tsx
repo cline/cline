@@ -63,8 +63,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCustomPrompts: (value: CustomPrompts) => void
 	enhancementApiConfigId?: string
 	setEnhancementApiConfigId: (value: string) => void
-  experimentalDiffStrategy: boolean
+	experimentalDiffStrategy: boolean
 	setExperimentalDiffStrategy: (value: boolean) => void
+	autoApprovalEnabled?: boolean
+	setAutoApprovalEnabled: (value: boolean) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -93,7 +95,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		mode: codeMode,
 		customPrompts: defaultPrompts,
 		enhancementApiConfigId: '',
-    experimentalDiffStrategy: false,
+		experimentalDiffStrategy: false,
+		autoApprovalEnabled: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -124,11 +127,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
+				const newState = message.state!
 				setState(prevState => ({
 					...prevState,
-					...message.state!
+					...newState
 				}))
-				const config = message.state?.apiConfiguration
+				const config = newState.apiConfiguration
 				const hasKey = checkExistKey(config)
 				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
@@ -210,6 +214,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		fuzzyMatchThreshold: state.fuzzyMatchThreshold,
 		writeDelayMs: state.writeDelayMs,
 		screenshotQuality: state.screenshotQuality,
+		experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
 		setApiConfiguration: (value) => setState((prevState) => ({
 			...prevState,
 			apiConfiguration: value
@@ -240,8 +245,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
 		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
 		setEnhancementApiConfigId: (value) => setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
-    experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
-		setExperimentalDiffStrategy: (value) => setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value }))
+		setExperimentalDiffStrategy: (value) => setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
+		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

@@ -11,6 +11,7 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ApiStream } from "./transform/stream"
 
 export interface SingleCompletionHandler {
@@ -47,6 +48,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
+		case "vscode-lm":
+			return new VsCodeLmHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

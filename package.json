@@ -3,7 +3,7 @@
   "displayName": "Roo Cline",
   "description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
   "publisher": "RooVeterinaryInc",
-  "version": "3.1.1",
+  "version": "3.1.5",
   "icon": "assets/icons/rocket.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -42,7 +42,10 @@
     "ai",
     "llama"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage",
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -151,6 +154,20 @@
             "git show"
           ],
           "description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled"
+        },
+        "roo-cline.vsCodeLmModelSelector": {
+          "type": "object",
+          "properties": {
+            "vendor": {
+              "type": "string",
+              "description": "The vendor of the language model (e.g. copilot)"
+            },
+            "family": {
+              "type": "string",
+              "description": "The family of the language model (e.g. gpt-4)"
+            }
+          },
+          "description": "Settings for VSCode Language Model API"
         }
       }
     }
@@ -232,7 +249,7 @@
     "isbinaryfile": "^5.0.2",
     "mammoth": "^1.8.0",
     "monaco-vscode-textmate-theme-converter": "^0.1.7",
-    "openai": "^4.73.1",
+    "openai": "^4.78.1",
     "os-name": "^6.0.0",
     "p-wait-for": "^5.0.2",
     "pdf-parse": "^1.1.1",

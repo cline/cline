@@ -1,5 +1,22 @@
 # Roo Cline Changelog
 
+## [3.1.4 - 3.1.5]
+
+-   Bug fixes to the auto approve menu
+
+## [3.1.3]
+
+-   Add auto-approve chat bar (thanks Cline!)
+-   Fix bug with VS Code Language Models integration
+
+## [3.1.2]
+
+-   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
+-   Fix bug related to configuration profile switching (thanks @samhvw8!)
+-   Improvements to fuzzy search in mentions, history, and model lists (thanks @samhvw8!)
+-   PKCE support for Glama (thanks @punkpeye!)
+-   Use 'developer' message for o1 system prompt
+
 ## [3.1.1]
 
 -   Visual fixes to chat input and settings for the light+ themes

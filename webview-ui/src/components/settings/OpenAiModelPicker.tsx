@@ -1,6 +1,7 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Fzf } from "fzf"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
+import debounce from "debounce"
 import { useRemark } from "react-remark"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -34,18 +35,38 @@ const OpenAiModelPicker: React.FC = () => {
 		}
 	}, [apiConfiguration, searchTerm])
 
+	const debouncedRefreshModels = useMemo(
+		() =>
+			debounce(
+				(baseUrl: string, apiKey: string) => {
+					vscode.postMessage({
+						type: "refreshOpenAiModels",
+						values: {
+							baseUrl,
+							apiKey
+						}
+					})
+				},
+				50
+			),
+		[]
+	)
+
 	useEffect(() => {
 		if (!apiConfiguration?.openAiBaseUrl || !apiConfiguration?.openAiApiKey) {
 			return
 		}
 
-		vscode.postMessage({
-			type: "refreshOpenAiModels", values: {
-				baseUrl: apiConfiguration?.openAiBaseUrl,
-				apiKey: apiConfiguration?.openAiApiKey
-			}
-		})
-	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey])
+		debouncedRefreshModels(
+			apiConfiguration.openAiBaseUrl,
+			apiConfiguration.openAiApiKey
+		)
+
+		// Cleanup debounced function
+		return () => {
+			debouncedRefreshModels.clear()
+		}
+	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey, debouncedRefreshModels])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

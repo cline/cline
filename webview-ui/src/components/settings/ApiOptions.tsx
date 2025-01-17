@@ -1,11 +1,10 @@
+import { Checkbox, Dropdown } from "vscrui"
+import type { DropdownOption } from "vscrui"
 import {
-	VSCodeCheckbox,
-	VSCodeDropdown,
 	VSCodeLink,
-	VSCodeOption,
 	VSCodeRadio,
 	VSCodeRadioGroup,
-	VSCodeTextField,
+	VSCodeTextField
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
@@ -34,6 +33,7 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import * as vscodemodels from "vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, {
 	ModelDescriptionMarkdown,
@@ -51,6 +51,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	const { apiConfiguration, setApiConfiguration, uriScheme, onUpdateApiConfig } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
+	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -71,54 +72,48 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
 		} else if (selectedProvider === "lmstudio") {
 			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
+		} else if (selectedProvider === "vscode-lm") {
+			vscode.postMessage({ type: "requestVsCodeLmModels" })
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio") {
+		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" ? 2000 : null)
-
+	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null)
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && message.ollamaModels) {
 			setOllamaModels(message.ollamaModels)
 		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
 			setLmStudioModels(message.lmStudioModels)
+		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
+			setVsCodeLmModels(message.vsCodeLmModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
 
-	/*
-	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
-	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
-
-	In our case, when the user switches between providers, we recalculate the selectedModelId depending on the provider, the default model for that provider, and a modelId that the user may have selected. Unfortunately, the VSCodeDropdown component wouldn't select this calculated value, and would default to the first "Select a model..." option instead, which makes it seem like the model was cleared out when it wasn't. 
-
-	As a workaround, we create separate instances of the dropdown for each provider, and then conditionally render the one that matches the current provider.
-	*/
 	const createDropdown = (models: Record<string, ModelInfo>) => {
+		const options: DropdownOption[] = [
+			{ value: "", label: "Select a model..." },
+			...Object.keys(models).map((modelId) => ({
+				value: modelId,
+				label: modelId,
+			}))
+		]
 		return (
-			<VSCodeDropdown
+			<Dropdown
 				id="model-id"
 				value={selectedModelId}
-				onChange={handleInputChange("apiModelId")}
-				style={{ width: "100%" }}>
-				<VSCodeOption value="">Select a model...</VSCodeOption>
-				{Object.keys(models).map((modelId) => (
-					<VSCodeOption
-						key={modelId}
-						value={modelId}
-						style={{
-							whiteSpace: "normal",
-							wordWrap: "break-word",
-							maxWidth: "100%",
-						}}>
-						{modelId}
-					</VSCodeOption>
-				))}
-			</VSCodeDropdown>
+				onChange={(value: unknown) => {handleInputChange("apiModelId")({
+					target: {
+						value: (value as DropdownOption).value
+					}
+				})}}
+				style={{ width: "100%" }}
+				options={options}
+			/>
 		)
 	}
 
@@ -128,23 +123,32 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				<label htmlFor="api-provider">
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
-				<VSCodeDropdown
+				<Dropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
-					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
-					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
-					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
-					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
-					<VSCodeOption value="glama">Glama</VSCodeOption>
-					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
-					<VSCodeOption value="ollama">Ollama</VSCodeOption>
-				</VSCodeDropdown>
+					onChange={(value: unknown) => {
+						handleInputChange("apiProvider")({
+							target: {
+								value: (value as DropdownOption).value
+							}
+						})
+					}}
+					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}
+					options={[
+						{ value: "openrouter", label: "OpenRouter" },
+						{ value: "anthropic", label: "Anthropic" },
+						{ value: "gemini", label: "Google Gemini" },
+						{ value: "deepseek", label: "DeepSeek" },
+						{ value: "openai-native", label: "OpenAI" },
+						{ value: "openai", label: "OpenAI Compatible" },
+						{ value: "vertex", label: "GCP Vertex AI" },
+						{ value: "bedrock", label: "AWS Bedrock" },
+						{ value: "glama", label: "Glama" },
+						{ value: "vscode-lm", label: "VS Code LM API" },
+						{ value: "lmstudio", label: "LM Studio" },
+						{ value: "ollama", label: "Ollama" }
+					]}
+				/>
 			</div>
 
 			{selectedProvider === "anthropic" && (
@@ -158,17 +162,16 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
 
-					<VSCodeCheckbox
+					<Checkbox
 						checked={anthropicBaseUrlSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setAnthropicBaseUrlSelected(isChecked)
-							if (!isChecked) {
+						onChange={(checked: boolean) => {
+							setAnthropicBaseUrlSelected(checked)
+							if (!checked) {
 								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
 							}
 						}}>
 						Use custom base URL
-					</VSCodeCheckbox>
+					</Checkbox>
 
 					{anthropicBaseUrlSelected && (
 						<VSCodeTextField
@@ -209,11 +212,12 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.glamaApiKey && (
-						<VSCodeLink
-							href="https://glama.ai/settings/api-keys"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							You can get an Glama API key by signing up here.
-						</VSCodeLink>
+						<VSCodeButtonLink
+							href={getGlamaAuthUrl(uriScheme)}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get Glama API Key
+						</VSCodeButtonLink>
 					)}
 					<p
 						style={{
@@ -286,15 +290,16 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							</span>
 						)} */}
 					</p>
-					<VSCodeCheckbox
+					<Checkbox
 						checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setApiConfiguration({ ...apiConfiguration, openRouterUseMiddleOutTransform: isChecked })
+						onChange={(checked: boolean) => {
+							handleInputChange("openRouterUseMiddleOutTransform")({
+								target: { value: checked },
+							})
 						}}>
 						Compress prompts and message chains to the context size (<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
-					</VSCodeCheckbox>
-					<br/>
+					</Checkbox>
+					<br />
 				</div>
 			)}
 
@@ -328,45 +333,44 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
 						</label>
-						<VSCodeDropdown
+						<Dropdown
 							id="aws-region-dropdown"
 							value={apiConfiguration?.awsRegion || ""}
 							style={{ width: "100%" }}
-							onChange={handleInputChange("awsRegion")}>
-							<VSCodeOption value="">Select a region...</VSCodeOption>
-							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
-							<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
-							<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
-							{/* <VSCodeOption value="us-west-1">us-west-1</VSCodeOption> */}
-							<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
-							{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
-							{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
-							<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
-							<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
-							<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
-							{/* <VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption> */}
-							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
-							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
-							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
-							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
-							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
-							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
-							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
-							{/* <VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption> */}
-							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
-							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
-							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
-							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
-						</VSCodeDropdown>
+							onChange={(value: unknown) => {handleInputChange("awsRegion")({
+								target: {
+									value: (value as DropdownOption).value
+								}
+							})}}
+							options={[
+								{ value: "", label: "Select a region..." },
+								{ value: "us-east-1", label: "us-east-1" },
+								{ value: "us-east-2", label: "us-east-2" },
+								{ value: "us-west-2", label: "us-west-2" },
+								{ value: "ap-south-1", label: "ap-south-1" },
+								{ value: "ap-northeast-1", label: "ap-northeast-1" },
+								{ value: "ap-northeast-2", label: "ap-northeast-2" },
+								{ value: "ap-southeast-1", label: "ap-southeast-1" },
+								{ value: "ap-southeast-2", label: "ap-southeast-2" },
+								{ value: "ca-central-1", label: "ca-central-1" },
+								{ value: "eu-central-1", label: "eu-central-1" },
+								{ value: "eu-west-1", label: "eu-west-1" },
+								{ value: "eu-west-2", label: "eu-west-2" },
+								{ value: "eu-west-3", label: "eu-west-3" },
+								{ value: "sa-east-1", label: "sa-east-1" },
+								{ value: "us-gov-west-1", label: "us-gov-west-1" }
+							]}
+						/>
 					</div>
-					<VSCodeCheckbox
+					<Checkbox
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
+						onChange={(checked: boolean) => {
+							handleInputChange("awsUseCrossRegionInference")({
+								target: { value: checked },
+							})
 						}}>
 						Use cross-region inference
-					</VSCodeCheckbox>
+					</Checkbox>
 					<p
 						style={{
 							fontSize: "12px",
@@ -393,18 +397,24 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<label htmlFor="vertex-region-dropdown">
 							<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 						</label>
-						<VSCodeDropdown
+						<Dropdown
 							id="vertex-region-dropdown"
 							value={apiConfiguration?.vertexRegion || ""}
 							style={{ width: "100%" }}
-							onChange={handleInputChange("vertexRegion")}>
-							<VSCodeOption value="">Select a region...</VSCodeOption>
-							<VSCodeOption value="us-east5">us-east5</VSCodeOption>
-							<VSCodeOption value="us-central1">us-central1</VSCodeOption>
-							<VSCodeOption value="europe-west1">europe-west1</VSCodeOption>
-							<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
-							<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
-						</VSCodeDropdown>
+							onChange={(value: unknown) => {handleInputChange("vertexRegion")({
+								target: {
+									value: (value as DropdownOption).value
+								}
+							})}}
+							options={[
+								{ value: "", label: "Select a region..." },
+								{ value: "us-east5", label: "us-east5" },
+								{ value: "us-central1", label: "us-central1" },
+								{ value: "europe-west1", label: "europe-west1" },
+								{ value: "europe-west4", label: "europe-west4" },
+								{ value: "asia-southeast1", label: "asia-southeast1" }
+							]}
+						/>
 					</div>
 					<p
 						style={{
@@ -477,29 +487,26 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					</VSCodeTextField>
 					<OpenAiModelPicker />
 					<div style={{ display: 'flex', alignItems: 'center' }}>
-						<VSCodeCheckbox
+						<Checkbox
 							checked={apiConfiguration?.openAiStreamingEnabled ?? true}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked
-								setApiConfiguration({
-									...apiConfiguration,
-									openAiStreamingEnabled: isChecked
+							onChange={(checked: boolean) => {
+								handleInputChange("openAiStreamingEnabled")({
+									target: { value: checked },
 								})
 							}}>
 							Enable streaming
-						</VSCodeCheckbox>
+						</Checkbox>
 					</div>
-					<VSCodeCheckbox
+					<Checkbox
 						checked={azureApiVersionSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setAzureApiVersionSelected(isChecked)
-							if (!isChecked) {
+						onChange={(checked: boolean) => {
+							setAzureApiVersionSelected(checked)
+							if (!checked) {
 								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
 							}
 						}}>
 						Set Azure API version
-					</VSCodeCheckbox>
+					</Checkbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
@@ -616,6 +623,63 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							</VSCodeLink>
 						)}
 					</p>
+				</div>
+			)}
+
+			{selectedProvider === "vscode-lm" && (
+				<div>
+					<div className="dropdown-container">
+						<label htmlFor="vscode-lm-model">
+							<span style={{ fontWeight: 500 }}>Language Model</span>
+						</label>
+						{vsCodeLmModels.length > 0 ? (
+							<Dropdown
+								id="vscode-lm-model"
+								value={apiConfiguration?.vsCodeLmModelSelector ?
+									`${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` :
+									""}
+								onChange={(value: unknown) => {
+									const valueStr = (value as DropdownOption)?.value;
+									if (!valueStr) {
+										return
+									}
+									const [vendor, family] = valueStr.split('/');
+									handleInputChange("vsCodeLmModelSelector")({
+										target: {
+											value: { vendor, family } 
+										}
+									})
+								}}
+								style={{ width: "100%" }}
+								options={[
+									{ value: "", label: "Select a model..." },
+									...vsCodeLmModels.map((model) => ({
+										value: `${model.vendor}/${model.family}`,
+										label: `${model.vendor} - ${model.family}`
+									}))
+								]}
+							/>
+						) : (
+							<p style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+								The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot).
+								The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.
+							</p>
+						)}
+
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-errorForeground)",
+								fontWeight: 500,
+							}}>
+							Note: This is a very experimental integration and may not work as expected. Please report any issues to the Roo-Cline GitHub repository.
+						</p>
+					</div>
 				</div>
 			)}
 
@@ -739,8 +803,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	)
 }
 
+export function getGlamaAuthUrl(uriScheme?: string) {
+	const callbackUrl = `${uriScheme || "vscode"}://rooveterinaryinc.roo-cline/glama`
+
+	return `https://glama.ai/oauth/authorize?callback_url=${encodeURIComponent(callbackUrl)}`
+}
+
 export function getOpenRouterAuthUrl(uriScheme?: string) {
-	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://rooveterinaryinc.roo-cline/openrouter`
 }
 
 export const formatPrice = (price: number) => {
@@ -931,6 +1001,17 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "vscode-lm":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.vsCodeLmModelSelector ?
+					`${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}` :
+					"",
+				selectedModelInfo: {
+					...openAiModelInfoSaneDefaults,
+					supportsImages: false, // VSCode LM API currently doesn't support images
+				},
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

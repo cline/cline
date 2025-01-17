@@ -23,14 +23,16 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		switch (this.getModel().id) {
+		const modelId = this.getModel().id
+		switch (modelId) {
 			case "o1":
 			case "o1-preview":
 			case "o1-mini": {
-				// o1 doesnt support streaming, non-1 temp, or system prompt
+				// o1-preview and o1-mini don't support streaming, non-1 temp, or system prompt
+				// o1 doesnt support streaming or non-1 temp but does support a developer prompt
 				const response = await this.client.chat.completions.create({
-					model: this.getModel().id,
-					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					model: modelId,
+					messages: [{ role: modelId === "o1" ? "developer" : "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 				})
 				yield {
 					type: "text",
@@ -93,7 +95,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 				case "o1":
 				case "o1-preview":
 				case "o1-mini":
-					// o1 doesn't support non-1 temp or system prompt
+					// o1 doesn't support non-1 temp
 					requestOptions = {
 						model: modelId,
 						messages: [{ role: "user", content: prompt }]

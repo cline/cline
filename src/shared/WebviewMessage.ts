@@ -61,17 +61,19 @@ export interface WebviewMessage {
 		| "terminalOutputLineLimit"
 		| "mcpEnabled"
 		| "searchCommits"
+		| "refreshGlamaModels"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
 		| "setApiConfigPassword"
+		| "requestVsCodeLmModels"
 		| "mode"
 		| "updatePrompt"
 		| "updateEnhancedPrompt"
 		| "getSystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
-    | "experimentalDiffStrategy"
-
+    	| "experimentalDiffStrategy"
+		| "autoApprovalEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

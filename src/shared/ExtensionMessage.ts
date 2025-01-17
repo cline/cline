@@ -25,8 +25,12 @@ export interface ExtensionMessage {
 		| "enhancedPrompt"
 		| "commitSearchResults"
 		| "listApiConfig"
+		| "vsCodeLmModels"
+		| "vsCodeLmApiAvailable"
+		| "requestVsCodeLmModels"
 		| "updatePrompt"
 		| "systemPrompt"
+		| "autoApprovalEnabled"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -40,6 +44,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	glamaModels?: Record<string, ModelInfo>
@@ -89,7 +94,8 @@ export interface ExtensionState {
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string
-  experimentalDiffStrategy?: boolean
+  	experimentalDiffStrategy?: boolean
+	autoApprovalEnabled?: boolean
 }
 
 export interface ClineMessage {
