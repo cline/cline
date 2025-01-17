@@ -3,6 +3,7 @@
 ## [3.1.6]
 
 -   Add Mistral (thanks Cline!)
+-   Fix bug with VSCode LM configuration profile saving (thanks @samhvw8!)
 
 ## [3.1.4 - 3.1.5]
 
