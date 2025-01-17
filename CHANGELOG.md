@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.1.10]
+
+- New icon!
+
 ## [3.1.9]
 
 - Add Mistral API provider with codestral-latest model
