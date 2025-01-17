@@ -639,12 +639,16 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 									`${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` :
 									""}
 								onChange={(value: unknown) => {
-									const valueStr = (value as DropdownOption).value;
+									const valueStr = (value as DropdownOption)?.value;
+									if (!valueStr) {
+										return
+									}
 									const [vendor, family] = valueStr.split('/');
-									setApiConfiguration({
-										...apiConfiguration,
-										vsCodeLmModelSelector: valueStr ? { vendor, family } : undefined
-									});
+									handleInputChange("vsCodeLmModelSelector")({
+										target: {
+											value: { vendor, family } 
+										}
+									})
 								}}
 								style={{ width: "100%" }}
 								options={[
