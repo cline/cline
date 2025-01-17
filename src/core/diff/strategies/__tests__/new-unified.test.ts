@@ -28,7 +28,7 @@ describe('main', () => {
   describe('getToolDescription', () => {
       it('should return tool description with correct cwd', () => {
           const cwd = '/test/path'
-          const description = strategy.getToolDescription(cwd)
+          const description = strategy.getToolDescription({ cwd })
           
           expect(description).toContain('apply_diff')
           expect(description).toContain(cwd)

@@ -17,7 +17,7 @@ import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { WebviewMessage, PromptMode } from "../../shared/WebviewMessage"
-import { defaultPrompts } from "../../shared/modes"
+import { defaultModeSlug, defaultPrompts } from "../../shared/modes"
 import { SYSTEM_PROMPT, addCustomInstructions } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
 import { Cline } from "../Cline"
@@ -29,8 +29,7 @@ import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
-import { Mode } from "../prompts/types"
-import { codeMode, CustomPrompts } from "../../shared/modes"
+import { Mode, modes, CustomPrompts, PromptComponent, enhance } from "../../shared/modes"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -258,7 +257,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
       experimentalDiffStrategy
 		} = await this.getState()
 
-		const modeInstructions = customPrompts?.[mode]?.customInstructions
+		const modePrompt = customPrompts?.[mode]
+		const modeInstructions = typeof modePrompt === 'object' ? modePrompt.customInstructions : undefined
 		const effectiveInstructions = [globalInstructions, modeInstructions]
 			.filter(Boolean)
 			.join('\n\n')
@@ -288,7 +288,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
       experimentalDiffStrategy
 		} = await this.getState()
 
-		const modeInstructions = customPrompts?.[mode]?.customInstructions
+		const modePrompt = customPrompts?.[mode]
+		const modeInstructions = typeof modePrompt === 'object' ? modePrompt.customInstructions : undefined
 		const effectiveInstructions = [globalInstructions, modeInstructions]
 			.filter(Boolean)
 			.join('\n\n')
@@ -904,7 +905,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									}
 								}
 								
-								const enhancedPrompt = await enhancePrompt(configToUse, message.text, customPrompts?.enhance)
+								const getEnhancePrompt = (value: string | PromptComponent | undefined): string => {
+									if (typeof value === 'string') {
+										return value;
+									}
+									return enhance.prompt; // Use the constant from modes.ts which we know is a string
+								}
+								const enhancedPrompt = await enhancePrompt(
+									configToUse,
+									message.text,
+									getEnhancePrompt(customPrompts?.enhance)
+								)
 								await this.postMessageToWebview({
 									type: "enhancedPrompt",
 									text: enhancedPrompt
@@ -923,7 +934,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const { apiConfiguration, customPrompts, customInstructions, preferredLanguage, browserViewportSize, mcpEnabled } = await this.getState()
 							const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ''
 
-							const mode = message.mode ?? codeMode
+							const mode = message.mode ?? defaultModeSlug
 							const instructions = await addCustomInstructions(
 								{ customInstructions, customPrompts, preferredLanguage },
 								cwd,
@@ -1698,7 +1709,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestDelaySeconds: requestDelaySeconds ?? 5,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
-			mode: mode ?? codeMode,
+			mode: mode ?? defaultModeSlug,
 			customPrompts: customPrompts ?? {},
 			enhancementApiConfigId,
       		experimentalDiffStrategy: experimentalDiffStrategy ?? false,
@@ -1950,7 +1961,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-			mode: mode ?? codeMode,
+			mode: mode ?? defaultModeSlug,
 			preferredLanguage: preferredLanguage ?? (() => {
 				// Get VSCode's locale setting
 				const vscodeLang = vscode.env.language;

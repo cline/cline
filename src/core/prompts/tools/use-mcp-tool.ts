@@ -1,4 +1,9 @@
-export function getUseMcpToolDescription(): string {
+import { ToolArgs } from './types';
+
+export function getUseMcpToolDescription(args: ToolArgs): string | undefined {
+    if (!args.mcpHub) {
+        return undefined;
+    }
     return `## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:

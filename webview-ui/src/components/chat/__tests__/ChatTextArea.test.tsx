@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import ChatTextArea from '../ChatTextArea';
 import { useExtensionState } from '../../../context/ExtensionStateContext';
 import { vscode } from '../../../utils/vscode';
-import { codeMode } from '../../../../../src/shared/modes';
+import { defaultModeSlug } from '../../../../../src/shared/modes';
 
 // Mock modules
 jest.mock('../../../utils/vscode', () => ({
@@ -33,7 +33,7 @@ describe('ChatTextArea', () => {
     selectedImages: [],
     setSelectedImages: jest.fn(),
     onHeightChange: jest.fn(),
-    mode: codeMode,
+    mode: defaultModeSlug,
     setMode: jest.fn(),
   };
 

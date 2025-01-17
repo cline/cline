@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeTextArea, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { defaultPrompts, askMode, codeMode, architectMode, Mode, PromptComponent } from "../../../../src/shared/modes"
+import { defaultPrompts, modes, Mode, PromptComponent, getRoleDefinition } from "../../../../src/shared/modes"
 import { vscode } from "../../utils/vscode"
 import React, { useState, useEffect } from "react"
 
@@ -8,11 +8,10 @@ type PromptsViewProps = {
 	onDone: () => void
 }
 
-const AGENT_MODES = [
-	{ id: codeMode, label: 'Code' },
-	{ id: architectMode, label: 'Architect' },
-	{ id: askMode, label: 'Ask' },
-] as const
+const AGENT_MODES = modes.map(mode => ({
+	id: mode.slug,
+	label: mode.name
+}))
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const {
@@ -52,16 +51,16 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => window.removeEventListener('message', handler)
 	}, [])
 
-	type AgentMode = typeof codeMode | typeof architectMode | typeof askMode
+	type AgentMode = string;
 
-	const updateAgentPrompt = (mode: AgentMode, promptData: PromptComponent) => {
-		const updatedPrompt = {
-			...customPrompts?.[mode],
-			...promptData
-		}
+	const updateAgentPrompt = (mode: Mode, promptData: PromptComponent) => {
+		const existingPrompt = customPrompts?.[mode]
+		const updatedPrompt = typeof existingPrompt === 'object'
+			? { ...existingPrompt, ...promptData }
+			: promptData
 
 		// Only include properties that differ from defaults
-		if (updatedPrompt.roleDefinition === defaultPrompts[mode].roleDefinition) {
+		if (updatedPrompt.roleDefinition === getRoleDefinition(mode)) {
 			delete updatedPrompt.roleDefinition
 		}
 
@@ -93,8 +92,9 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	const handleAgentReset = (mode: AgentMode) => {
+		const existingPrompt = customPrompts?.[mode]
 		updateAgentPrompt(mode, {
-			...customPrompts?.[mode],
+			...(typeof existingPrompt === 'object' ? existingPrompt : {}),
 			roleDefinition: undefined
 		})
 	}
@@ -103,12 +103,15 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		updateEnhancePrompt(undefined)
 	}
 
-	const getAgentPromptValue = (mode: AgentMode): string => {
-		return customPrompts?.[mode]?.roleDefinition ?? defaultPrompts[mode].roleDefinition
+	const getAgentPromptValue = (mode: Mode): string => {
+		const prompt = customPrompts?.[mode]
+		return typeof prompt === 'object' ? prompt.roleDefinition ?? getRoleDefinition(mode) : getRoleDefinition(mode);
 	}
 
 	const getEnhancePromptValue = (): string => {
-		return customPrompts?.enhance ?? defaultPrompts.enhance
+		const enhance = customPrompts?.enhance
+		const defaultEnhance = typeof defaultPrompts.enhance === 'string' ? defaultPrompts.enhance : ''
+		return typeof enhance === 'string' ? enhance : defaultEnhance
 	}
 
 	const handleTestEnhancement = () => {
@@ -251,11 +254,15 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							Add behavioral guidelines specific to {activeTab} mode. These instructions enhance the base behaviors defined above.
 						</div>
 						<VSCodeTextArea
-							value={customPrompts?.[activeTab]?.customInstructions ?? ''}
+							value={(() => {
+								const prompt = customPrompts?.[activeTab]
+								return typeof prompt === 'object' ? prompt.customInstructions ?? '' : ''
+							})()}
 							onChange={(e) => {
 								const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
+								const existingPrompt = customPrompts?.[activeTab]
 								updateAgentPrompt(activeTab, {
-									...customPrompts?.[activeTab],
+									...(typeof existingPrompt === 'object' ? existingPrompt : {}),
 									customInstructions: value.trim() || undefined
 								})
 							}}
@@ -274,12 +281,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								onClick={() => {
 									// First create/update the file with current custom instructions
 									const defaultContent = `# ${activeTab} Mode Rules\n\nAdd mode-specific rules and guidelines here.`
+									const existingPrompt = customPrompts?.[activeTab]
+									const existingInstructions = typeof existingPrompt === 'object' ? existingPrompt.customInstructions : undefined
 									vscode.postMessage({
 										type: "updatePrompt",
 										promptMode: activeTab,
 										customPrompt: {
-											...customPrompts?.[activeTab],
-											customInstructions: customPrompts?.[activeTab]?.customInstructions || defaultContent
+											...(typeof existingPrompt === 'object' ? existingPrompt : {}),
+											customInstructions: existingInstructions || defaultContent
 										}
 									})
 									// Then open the file

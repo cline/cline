@@ -65,7 +65,7 @@ export class SearchReplaceDiffStrategy implements DiffStrategy {
         this.bufferLines = bufferLines ?? BUFFER_LINES;
     }
 
-    getToolDescription(cwd: string): string {
+    getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
         return `## apply_diff
 Description: Request to replace existing code using a search and replace block.
 This tool allows for precise, surgical replaces to files by specifying exactly what content to search for and what to replace it with.
@@ -76,7 +76,7 @@ If you're not confident in the exact content to search for, use the read_file to
 When applying the diffs, be extra careful to remember to change any closing brackets or other syntax that may be affected by the diff farther down in the file.
 
 Parameters:
-- path: (required) The path of the file to modify (relative to the current working directory ${cwd})
+- path: (required) The path of the file to modify (relative to the current working directory ${args.cwd})
 - diff: (required) The search/replace block defining the changes.
 - start_line: (required) The line number where the search block starts.
 - end_line: (required) The line number where the search block ends.

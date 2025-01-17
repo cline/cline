@@ -15,10 +15,10 @@ export type DiffResult =
 export interface DiffStrategy {
     /**
      * Get the tool description for this diff strategy
-     * @param cwd The current working directory
+     * @param args The tool arguments including cwd and toolOptions
      * @returns The complete tool description including format requirements and examples
      */
-    getToolDescription(cwd: string): string
+    getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string
 
     /**
      * Apply a diff to the original content

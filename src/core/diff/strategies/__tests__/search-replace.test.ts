@@ -1521,12 +1521,12 @@ function two() {
 
         it('should include the current working directory', async () => {
             const cwd = '/test/dir'
-            const description = await strategy.getToolDescription(cwd)
+            const description = await strategy.getToolDescription({ cwd })
             expect(description).toContain(`relative to the current working directory ${cwd}`)
         })
 
         it('should include required format elements', async () => {
-            const description = await strategy.getToolDescription('/test')
+            const description = await strategy.getToolDescription({ cwd: '/test' })
             expect(description).toContain('<<<<<<< SEARCH')
             expect(description).toContain('=======')
             expect(description).toContain('>>>>>>> REPLACE')
@@ -1535,7 +1535,7 @@ function two() {
         })
 
         it('should document start_line and end_line parameters', async () => {
-            const description = await strategy.getToolDescription('/test')
+            const description = await strategy.getToolDescription({ cwd: '/test' })
             expect(description).toContain('start_line: (required) The line number where the search block starts.')
             expect(description).toContain('end_line: (required) The line number where the search block ends.')
         })
