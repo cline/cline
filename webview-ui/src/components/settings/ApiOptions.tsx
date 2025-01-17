@@ -292,7 +292,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.mistralApiKey && (
 							<VSCodeLink
-								href="https://console.mistral.ai/codestral/"
+								href="https://console.mistral.ai/codestral"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
