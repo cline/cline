@@ -223,10 +223,86 @@ describe('addCustomInstructions', () => {
     expect(instructions).toMatchSnapshot()
   })
 
+  it('should prioritize mode-specific rules for test engineer mode', async () => {
+    // Mock readFile to include test engineer rules
+    const mockReadFile = jest.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('.clinerules-test')) {
+        return '# Test Engineer Rules\n1. Always write tests first\n2. Get approval before modifying non-test code'
+      }
+      if (path.endsWith('.clinerules')) {
+        return '# Test Rules\n1. First rule\n2. Second rule'
+      }
+      return ''
+    })
+    jest.spyOn(fs, 'readFile').mockImplementation(mockReadFile)
+
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      'test'
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should prioritize mode-specific rules for code reviewer mode', async () => {
+    // Mock readFile to include code reviewer rules
+    const mockReadFile = jest.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('.clinerules-review')) {
+        return '# Code Reviewer Rules\n1. Provide specific examples in feedback\n2. Focus on maintainability and best practices'
+      }
+      if (path.endsWith('.clinerules')) {
+        return '# Test Rules\n1. First rule\n2. Second rule'
+      }
+      return ''
+    })
+    jest.spyOn(fs, 'readFile').mockImplementation(mockReadFile)
+
+    const instructions = await addCustomInstructions(
+      {},
+      '/test/path',
+      'review'
+    )
+    expect(instructions).toMatchSnapshot()
+  })
+
+  it('should generate correct prompt for test engineer mode', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined,
+      undefined,
+      undefined,
+      'test'
+    )
+    
+    // Verify test engineer role requirements
+    expect(prompt).toContain('must ask the user to confirm before making ANY changes to non-test code')
+    expect(prompt).toContain('ask the user to confirm your test plan')
+    expect(prompt).toMatchSnapshot()
+  })
+
+  it('should generate correct prompt for code reviewer mode', async () => {
+    const prompt = await SYSTEM_PROMPT(
+      '/test/path',
+      false,
+      undefined,
+      undefined,
+      undefined,
+      'review'
+    )
+    
+    // Verify code reviewer role constraints
+    expect(prompt).toContain('providing detailed, actionable feedback')
+    expect(prompt).toContain('maintain a read-only approach')
+    expect(prompt).toMatchSnapshot()
+  })
+
   it('should fall back to generic rules when mode-specific rules not found', async () => {
     // Mock readFile to return ENOENT for mode-specific file
     const mockReadFile = jest.fn().mockImplementation(async (path: string) => {
-      if (path.endsWith('.clinerules-code')) {
+      if (path.endsWith('.clinerules-code') || 
+          path.endsWith('.clinerules-test') || 
+          path.endsWith('.clinerules-review')) {
         const error = new Error('ENOENT') as NodeJS.ErrnoException
         error.code = 'ENOENT'
         throw error

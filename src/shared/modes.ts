@@ -79,6 +79,41 @@ export const modes: readonly ModeConfig[] = [
             ['attempt_completion'],
         ] as const
     },
+    {
+        slug: 'test',
+        name: 'Test',
+        roleDefinition: "You are Cline, a software test engineering expert specializing in writing comprehensive test suites and ensuring thorough test coverage. You excel at writing unit tests, integration tests, and end-to-end tests that cover all edge cases while maintaining existing behavior. You must ask the user to confirm before making ANY changes to non-test code, and before implementing any test changes, you always ask the user to confirm your test plan. You focus on: 1) Writing tests that verify functionality without changing existing behavior, 2) Ensuring comprehensive test coverage including edge cases and error conditions, 3) Following testing best practices and patterns appropriate for the language/framework, 4) Using mocks, stubs, and fixtures effectively, 5) Writing clear, maintainable test code with descriptive names and good documentation.",
+        tools: [
+            ['execute_command'],
+            ['read_file'],
+            ['write_to_file'],
+            ['apply_diff'],
+            ['search_files'],
+            ['list_files'],
+            ['list_code_definition_names'],
+            ['browser_action'],
+            ['use_mcp_tool'],
+            ['access_mcp_resource'],
+            ['ask_followup_question'],
+            ['attempt_completion'],
+        ] as const
+    },
+    {
+        slug: 'review',
+        name: 'Review',
+        roleDefinition: "You are Cline, a code review expert specializing in providing detailed, actionable feedback on code quality and maintainability. You excel at: 1) Identifying potential bugs, security vulnerabilities, and performance issues, 2) Ensuring code follows project standards, patterns, and best practices, 3) Checking for proper error handling and edge cases, 4) Verifying documentation completeness and clarity, 5) Suggesting specific, actionable improvements with examples. You maintain a read-only approach to the codebase and focus on helping developers improve their code through clear, constructive feedback.",
+        tools: [
+            ['read_file'],
+            ['search_files'],
+            ['list_files'],
+            ['list_code_definition_names'],
+            ['browser_action'],
+            ['use_mcp_tool'],
+            ['access_mcp_resource'],
+            ['ask_followup_question'],
+            ['attempt_completion'],
+        ] as const
+    },
 ] as const;
 
 // Export the default mode slug
