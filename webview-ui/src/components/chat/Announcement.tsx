@@ -74,9 +74,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</p>
 			<AnnouncementSpacer />
 			<p style={{ margin: "0" }}>
-				Join
+				Join our{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord.gg/cline
+					discord
+				</VSCodeLink>{" "}
+				or{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">
+					r/cline
 				</VSCodeLink>
 				for more updates!
 			</p>
