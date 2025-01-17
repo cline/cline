@@ -1,5 +1,9 @@
 # Change Log
 
+## [3.1.9]
+
+- Add Mistral API provider with codestral-latest model
+
 ## [3.1.7]
 
 - Add ability to change viewport size and headless mode when Cline asks to launch the browser
