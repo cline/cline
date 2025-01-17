@@ -7,7 +7,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 	private readonly confidenceThreshold: number
 
 	constructor(confidenceThreshold: number = 1) {
-		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8);
+		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8)
 	}
 
 	private parseUnifiedDiff(diff: string): Diff {
@@ -196,7 +196,7 @@ Your diff here
 		for (let i = 0; i < hunk.changes.length; i++) {
 			const change = hunk.changes[i]
 
-			if (change.type === 'context') {
+			if (change.type === "context") {
 				if (!currentHunk) {
 					contextBefore.push(change)
 					if (contextBefore.length > MAX_CONTEXT_LINES) {
@@ -251,16 +251,20 @@ Your diff here
 		if (!parsedDiff.hunks.length) {
 			return {
 				success: false,
-				error: "No hunks found in diff. Please ensure your diff includes actual changes and follows the unified diff format."
+				error: "No hunks found in diff. Please ensure your diff includes actual changes and follows the unified diff format.",
 			}
 		}
 
 		for (const hunk of parsedDiff.hunks) {
 			const contextStr = prepareSearchString(hunk.changes)
-			const { index: matchPosition, confidence, strategy } = findBestMatch(contextStr, result, 0, this.confidenceThreshold)
+			const {
+				index: matchPosition,
+				confidence,
+				strategy,
+			} = findBestMatch(contextStr, result, 0, this.confidenceThreshold)
 
 			if (confidence < this.confidenceThreshold) {
-        console.log('Full hunk application failed, trying sub-hunks strategy')
+				console.log("Full hunk application failed, trying sub-hunks strategy")
 				// Try splitting the hunk into smaller hunks
 				const subHunks = this.splitHunk(hunk)
 				let subHunkSuccess = true
@@ -271,7 +275,13 @@ Your diff here
 					const subSearchResult = findBestMatch(subContextStr, subHunkResult, 0, this.confidenceThreshold)
 
 					if (subSearchResult.confidence >= this.confidenceThreshold) {
-						const subEditResult = await applyEdit(subHunk, subHunkResult, subSearchResult.index, subSearchResult.confidence, this.confidenceThreshold)
+						const subEditResult = await applyEdit(
+							subHunk,
+							subHunkResult,
+							subSearchResult.index,
+							subSearchResult.confidence,
+							this.confidenceThreshold
+						)
 						if (subEditResult.confidence >= this.confidenceThreshold) {
 							subHunkResult = subEditResult.result
 							continue
@@ -287,16 +297,20 @@ Your diff here
 				}
 
 				// If sub-hunks also failed, return the original error
-				const contextLines = hunk.changes.filter(c => c.type === "context").length
+				const contextLines = hunk.changes.filter((c) => c.type === "context").length
 				const totalLines = hunk.changes.length
 				const contextRatio = contextLines / totalLines
 
-				let errorMsg = `Failed to find a matching location in the file (${Math.floor(confidence * 100)}% confidence, needs ${Math.floor(this.confidenceThreshold * 100)}%)\n\n`
+				let errorMsg = `Failed to find a matching location in the file (${Math.floor(
+					confidence * 100
+				)}% confidence, needs ${Math.floor(this.confidenceThreshold * 100)}%)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += `- Search Strategy Used: ${strategy}\n`
-				errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(contextRatio * 100)}%)\n`
+				errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(
+					contextRatio * 100
+				)}%)\n`
 				errorMsg += `- Attempted to split into ${subHunks.length} sub-hunks but still failed\n`
-				
+
 				if (contextRatio < 0.2) {
 					errorMsg += "\nPossible Issues:\n"
 					errorMsg += "- Not enough context lines to uniquely identify the location\n"
@@ -308,7 +322,8 @@ Your diff here
 				} else {
 					errorMsg += "\nPossible Issues:\n"
 					errorMsg += "- The diff may be targeting a different version of the file\n"
-					errorMsg += "- There may be too many changes in a single hunk, try splitting the changes into multiple hunks\n"
+					errorMsg +=
+						"- There may be too many changes in a single hunk, try splitting the changes into multiple hunks\n"
 				}
 
 				if (startLine && endLine) {
@@ -323,7 +338,9 @@ Your diff here
 				result = editResult.result
 			} else {
 				// Edit failure - likely due to content mismatch
-				let errorMsg = `Failed to apply the edit using ${editResult.strategy} strategy (${Math.floor(editResult.confidence * 100)}% confidence)\n\n`
+				let errorMsg = `Failed to apply the edit using ${editResult.strategy} strategy (${Math.floor(
+					editResult.confidence * 100
+				)}% confidence)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += "- The location was found but the content didn't match exactly\n"
 				errorMsg += "- This usually means the file has been modified since the diff was created\n"
