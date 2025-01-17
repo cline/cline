@@ -1988,18 +1988,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = (await this.getGlobalState("taskHistory") as HistoryItem[] | undefined) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
-		
-		// Ensure experimentalDiffStrategy is included from current settings if not already set
-		const { experimentalDiffStrategy } = await this.getState() ?? {}
-		const updatedItem = {
-			...item,
-			experimentalDiffStrategy: item.experimentalDiffStrategy ?? experimentalDiffStrategy
-		}
 
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = updatedItem
+			history[existingItemIndex] = item
 		} else {
-			history.push(updatedItem)
+			history.push(item)
 		}
 		await this.updateGlobalState("taskHistory", history)
 		return history
