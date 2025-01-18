@@ -14,6 +14,7 @@ export type ApiProvider =
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	anthropicAdvisorModelId?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -60,10 +61,13 @@ export interface ModelInfo {
 	description?: string
 }
 
+export type ModelType = "base" | "advisor"
+
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
+export const anthropicDefaultAdvisorModelId: AnthropicModelId = "claude-3-opus-20240229"
 export const anthropicModels = {
 	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
@@ -192,7 +196,6 @@ export const openRouterDefaultAdvisorModelInfo: ModelInfo = {
 	description:
 		"The latest and strongest model family from OpenAI, o1 is designed to spend more time thinking before responding.\n\nThe o1 models are optimized for math, science, programming, and other STEM-related tasks. They consistently exhibit PhD-level accuracy on benchmarks in physics, chemistry, and biology. Learn more in the [launch announcement](https://openai.com/o1).\n\nNote: This model is currently experimental and not suitable for production use-cases, and may be heavily rate-limited.",
 }
-export type ModelType = "base" | "advisor"
 
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude

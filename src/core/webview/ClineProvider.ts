@@ -45,6 +45,7 @@ type SecretKey =
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
+	| "anthropicAdvisorModelId"
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
 	| "vertexProjectId"
@@ -382,6 +383,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const {
 								apiProvider,
 								apiModelId,
+								anthropicAdvisorModelId,
 								apiKey,
 								openRouterApiKey,
 								awsAccessKey,
@@ -411,6 +413,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
+							await this.updateGlobalState("anthropicAdvisorModelId", anthropicAdvisorModelId)
 							await this.storeSecret("apiKey", apiKey)
 							await this.storeSecret("openRouterApiKey", openRouterApiKey)
 							await this.storeSecret("awsAccessKey", awsAccessKey)
@@ -1019,6 +1022,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const [
 			storedApiProvider,
 			apiModelId,
+			anthropicAdvisorModelId,
 			apiKey,
 			openRouterApiKey,
 			awsAccessKey,
@@ -1053,6 +1057,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
+			this.getGlobalState("anthropicAdvisorModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
@@ -1104,6 +1109,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration: {
 				apiProvider,
 				apiModelId,
+				anthropicAdvisorModelId,
 				apiKey,
 				openRouterApiKey,
 				awsAccessKey,

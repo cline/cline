@@ -13,6 +13,8 @@ import {
 	ApiConfiguration,
 	ApiProvider,
 	ModelInfo,
+	ModelType,
+	anthropicDefaultAdvisorModelId,
 	anthropicDefaultModelId,
 	anthropicModels,
 	azureOpenAiDefaultApiVersion,
@@ -39,6 +41,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import styled from "styled-components"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -52,6 +55,21 @@ const TabPanel = ({ children, isSelected }: { children: React.ReactNode; isSelec
 	return <div style={{ marginTop: 10 }}>{children}</div>
 }
 
+const StyledTabButton = styled.button<{ isSelected: boolean }>`
+	background: transparent;
+	border: none;
+	padding: 8px 16px;
+	color: ${(props) => (props.isSelected ? "var(--vscode-tab-activeForeground)" : "var(--vscode-tab-inactiveForeground)")};
+	cursor: pointer;
+	border-bottom: 2px solid ${(props) => (props.isSelected ? "var(--vscode-foreground)" : "transparent")};
+	font-size: 12px;
+	font-weight: 500;
+
+	&:hover {
+		color: var(--vscode-tab-activeForeground);
+	}
+`
+
 const TabButton = ({
 	isSelected,
 	onClick,
@@ -62,20 +80,9 @@ const TabButton = ({
 	children: React.ReactNode
 }) => {
 	return (
-		<button
-			onClick={onClick}
-			style={{
-				background: "var(--vscode-tab-inactiveBackground)",
-				border: "none",
-				padding: "8px 16px",
-				color: isSelected ? "var(--vscode-tab-activeForeground)" : "var(--vscode-tab-inactiveForeground)",
-				cursor: "pointer",
-				borderBottom: `2px solid ${isSelected ? "var(--vscode-foreground)" : "transparent"}`,
-				fontSize: "12px",
-				fontWeight: 500,
-			}}>
+		<StyledTabButton isSelected={isSelected} onClick={onClick}>
 			{children}
-		</button>
+		</StyledTabButton>
 	)
 }
 
@@ -95,7 +102,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 		})
 	}
 
-	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
+	const { selectedProvider, selectedModelId, selectedModelInfo, selectedAdvisorModelId } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
@@ -138,12 +145,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 
 	As a workaround, we create separate instances of the dropdown for each provider, and then conditionally render the one that matches the current provider.
 	*/
-	const createDropdown = (models: Record<string, ModelInfo>) => {
+	const createDropdown = (models: Record<string, ModelInfo>, modelType?: ModelType) => {
 		return (
 			<VSCodeDropdown
 				id="model-id"
-				value={selectedModelId}
-				onChange={handleInputChange("apiModelId")}
+				// right now anthropic is the only non-openrouter provider that supports advisor models.
+				// if anthropic then selectedAdvisorId will always have value
+				value={modelType === "advisor" ? selectedAdvisorModelId || selectedModelId : selectedModelId}
+				onChange={
+					modelType === "advisor" ? handleInputChange("anthropicAdvisorModelId") : handleInputChange("apiModelId")
+				}
 				style={{ width: "100%" }}>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{Object.keys(models).map((modelId) => (
@@ -751,6 +762,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 			)}
 
 			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "anthropic" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -760,7 +772,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
-							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
@@ -778,7 +789,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 					</>
 				)}
 
-			{selectedProvider !== "openrouter" && modelIdErrorMessage && (
+			{selectedProvider !== "openrouter" && selectedProvider !== "anthropic" && modelIdErrorMessage && (
 				<p
 					style={{
 						margin: "-10px 0 4px 0",
@@ -789,7 +800,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 				</p>
 			)}
 
-			{selectedProvider === "openrouter" && showModelOptions && (
+			{(selectedProvider === "openrouter" || selectedProvider === "anthropic") && showModelOptions && (
 				<div style={{ marginTop: -5 }}>
 					<div style={{ display: "flex", borderBottom: "1px solid var(--vscode-panel-border)" }}>
 						<TabButton isSelected={selectedTab === "base"} onClick={() => setSelectedTab("base")}>
@@ -810,7 +821,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 							This is the default driver model for Cline. It will read and edit files, run commands, and more, with
 							your permission at each step.
 						</p>
-						<OpenRouterModelPicker modelType="base" key="base-model-picker" />
+						{selectedProvider === "anthropic" && (
+							<div className="dropdown-container" style={{ marginBottom: 15 }}>
+								{createDropdown(anthropicModels, "base")}
+							</div>
+						)}
+						{selectedProvider === "openrouter" && <OpenRouterModelPicker modelType="base" key="base-model-picker" />}
 						{modelIdErrorMessage && (
 							<p
 								style={{
@@ -833,7 +849,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 							The Cline model can call this smarter, more powerful model to ask for help on planning out a task,
 							fixing a hard bug, and other complex problems.
 						</p>
-						<OpenRouterModelPicker modelType="advisor" key="advisor-model-picker" />
+						{selectedProvider === "anthropic" && (
+							<div className="dropdown-container" style={{ marginBottom: 15 }}>
+								{createDropdown(anthropicModels, "advisor")}
+							</div>
+						)}
+						{selectedProvider === "openrouter" && (
+							<OpenRouterModelPicker modelType="advisor" key="advisor-model-picker" />
+						)}
 						{advisorModelIdErrorMessage && (
 							<p
 								style={{
@@ -1017,7 +1040,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	}
 	switch (provider) {
 		case "anthropic":
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
+			return {
+				...getProviderData(anthropicModels, anthropicDefaultModelId),
+				selectedAdvisorModelId: apiConfiguration?.anthropicAdvisorModelId || anthropicDefaultAdvisorModelId,
+			}
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
