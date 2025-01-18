@@ -24,17 +24,19 @@ describe("main", () => {
 		})
 	})
 
-	describe("getToolDescription", () => {
-		it("should return tool description with correct cwd", () => {
-			const cwd = "/test/path"
-			const description = strategy.getToolDescription({ cwd })
-
-			expect(description).toContain("apply_diff")
-			expect(description).toContain(cwd)
-			expect(description).toContain("Parameters:")
-			expect(description).toContain("Format Requirements:")
-		})
-	})
+  describe('getToolDescription', () => {
+      it('should return tool description with correct cwd', () => {
+          const cwd = '/test/path'
+          const description = strategy.getToolDescription(cwd)
+          
+          expect(description).toContain('apply_diff Tool - Generate Precise Code Changes')
+          expect(description).toContain(cwd)
+          expect(description).toContain('Step-by-Step Instructions')
+          expect(description).toContain('Requirements')
+          expect(description).toContain('Examples')
+          expect(description).toContain('Parameters:')
+      })
+  })
 
 	it("should apply simple diff correctly", async () => {
 		const original = `line1
