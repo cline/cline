@@ -259,6 +259,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
+									height: 17,
 								}}>
 								<div
 									style={{
@@ -355,6 +356,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										display: "flex",
 										justifyContent: "space-between",
 										alignItems: "center",
+										height: 17,
 									}}>
 									<div
 										style={{
