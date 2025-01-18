@@ -66,14 +66,6 @@ describe("AwsBedrockHandler", () => {
 
 	describe("AWS SDK client configuration", () => {
 		it("should configure client with profile credentials when profile mode is enabled", async () => {
-			// Import the fromIni function to mock it
-			jest.mock("@aws-sdk/credential-providers", () => ({
-				fromIni: jest.fn().mockReturnValue({
-					accessKeyId: "profile-access-key",
-					secretAccessKey: "profile-secret-key",
-				}),
-			}))
-
 			const handlerWithProfile = new AwsBedrockHandler({
 				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 				awsRegion: "us-east-1",
