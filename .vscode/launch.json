@@ -13,6 +13,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 			],
+			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "compile",
 			"env": {
