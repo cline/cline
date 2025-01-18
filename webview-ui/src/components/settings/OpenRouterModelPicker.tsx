@@ -4,15 +4,28 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "../../../../src/shared/api"
+import {
+	ModelType,
+	openRouterDefaultAdvisorModelId,
+	openRouterDefaultAdvisorModelInfo,
+	openRouterDefaultModelId,
+} from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
-const OpenRouterModelPicker: React.FC = () => {
+export interface OpenRouterModelPickerProps {
+	modelType: ModelType
+}
+
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(
+		modelType === "advisor"
+			? apiConfiguration?.openRouterAdvisorModelId || openRouterDefaultAdvisorModelId
+			: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+	)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -24,13 +37,20 @@ const OpenRouterModelPicker: React.FC = () => {
 		// could be setting invalid model id/undefined info but validation will catch it
 		setApiConfiguration({
 			...apiConfiguration,
-			openRouterModelId: newModelId,
-			openRouterModelInfo: openRouterModels[newModelId],
+			...(modelType === "advisor"
+				? {
+						openRouterAdvisorModelId: newModelId,
+						openRouterAdvisorModelInfo: openRouterModels[newModelId],
+					}
+				: {
+						openRouterModelId: newModelId,
+						openRouterModelInfo: openRouterModels[newModelId],
+					}),
 		})
 		setSearchTerm(newModelId)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+	const { selectedModelId, selectedModelInfo, selectedAdvisorModelId, selectedAdvisorModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
@@ -129,7 +149,7 @@ const OpenRouterModelPicker: React.FC = () => {
 	}, [selectedIndex])
 
 	return (
-		<>
+		<div style={{ width: "100%" }}>
 			<style>
 				{`
 				.model-item-highlight {
@@ -138,10 +158,10 @@ const OpenRouterModelPicker: React.FC = () => {
 				}
 				`}
 			</style>
-			<div>
-				<label htmlFor="model-search">
+			<div style={{ display: "flex", flexDirection: "column" }}>
+				{/* <label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
-				</label>
+				</label> */}
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
@@ -200,8 +220,14 @@ const OpenRouterModelPicker: React.FC = () => {
 
 			{hasInfo ? (
 				<ModelInfoView
-					selectedModelId={selectedModelId}
-					modelInfo={selectedModelInfo}
+					selectedModelId={
+						modelType === "advisor" ? selectedAdvisorModelId || openRouterDefaultAdvisorModelId : selectedModelId
+					}
+					modelInfo={
+						modelType === "advisor"
+							? selectedAdvisorModelInfo || openRouterDefaultAdvisorModelInfo
+							: selectedModelInfo
+					}
 					isDescriptionExpanded={isDescriptionExpanded}
 					setIsDescriptionExpanded={setIsDescriptionExpanded}
 				/>
@@ -225,7 +251,7 @@ const OpenRouterModelPicker: React.FC = () => {
 					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
-		</>
+		</div>
 	)
 }
 

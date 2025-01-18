@@ -2,7 +2,15 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	ModelType,
+	openRouterDefaultAdvisorModelId,
+	openRouterDefaultAdvisorModelInfo,
+	openRouterDefaultModelId,
+	openRouterDefaultModelInfo,
+} from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import delay from "delay"
@@ -23,7 +31,9 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], modelType?: ModelType): ApiStream {
+		const model = modelType === "advisor" ? this.getAdvisorModel() : this.getModel()
+
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -32,7 +42,7 @@ export class OpenRouterHandler implements ApiHandler {
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
-		switch (this.getModel().id) {
+		switch (model.id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -83,7 +93,7 @@ export class OpenRouterHandler implements ApiHandler {
 		// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
-		switch (this.getModel().id) {
+		switch (model.id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -97,15 +107,15 @@ export class OpenRouterHandler implements ApiHandler {
 		}
 
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-		let shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
+		let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
 		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
-		if (this.getModel().id === "deepseek/deepseek-chat") {
+		if (model.id === "deepseek/deepseek-chat") {
 			shouldApplyMiddleOutTransform = true
 		}
 
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
+			model: model.id,
 			max_tokens: maxTokens,
 			temperature: 0,
 			messages: openAiMessages,
@@ -179,6 +189,18 @@ export class OpenRouterHandler implements ApiHandler {
 		return {
 			id: openRouterDefaultModelId,
 			info: openRouterDefaultModelInfo,
+		}
+	}
+
+	getAdvisorModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.openRouterAdvisorModelId
+		const modelInfo = this.options.openRouterAdvisorModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
+		}
+		return {
+			id: openRouterDefaultAdvisorModelId,
+			info: openRouterDefaultAdvisorModelInfo,
 		}
 	}
 }

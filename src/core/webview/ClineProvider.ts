@@ -61,7 +61,9 @@ type GlobalStateKey =
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
 	| "openRouterModelId"
+	| "openRouterAdvisorModelId"
 	| "openRouterModelInfo"
+	| "openRouterAdvisorModelInfo"
 	| "autoApprovalSettings"
 	| "browserSettings"
 
@@ -354,6 +356,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									)
 									await this.postStateToWebview()
 								}
+								if (apiConfiguration.openRouterAdvisorModelId) {
+									await this.updateGlobalState(
+										"openRouterAdvisorModelInfo",
+										openRouterModels[apiConfiguration.openRouterAdvisorModelId],
+									)
+									await this.postStateToWebview()
+								}
 							}
 						})
 						break
@@ -397,6 +406,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
+								openRouterAdvisorModelId,
+								openRouterAdvisorModelInfo,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -424,6 +435,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.updateGlobalState("openRouterAdvisorModelId", openRouterAdvisorModelId)
+							await this.updateGlobalState("openRouterAdvisorModelInfo", openRouterAdvisorModelInfo)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1030,6 +1043,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterAdvisorModelId,
+			openRouterAdvisorModelInfo,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
@@ -1062,6 +1077,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterAdvisorModelId") as Promise<string | undefined>,
+			this.getGlobalState("openRouterAdvisorModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
@@ -1111,6 +1128,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterAdvisorModelId,
+				openRouterAdvisorModelInfo,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

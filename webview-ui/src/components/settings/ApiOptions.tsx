@@ -11,6 +11,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
+	ApiProvider,
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
@@ -26,6 +27,8 @@ import {
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
+	openRouterDefaultAdvisorModelId,
+	openRouterDefaultAdvisorModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
@@ -41,15 +44,49 @@ interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
+	advisorModelIdErrorMessage?: string
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
+const TabPanel = ({ children, isSelected }: { children: React.ReactNode; isSelected: boolean }) => {
+	if (!isSelected) return null
+	return <div style={{ marginTop: 10 }}>{children}</div>
+}
+
+const TabButton = ({
+	isSelected,
+	onClick,
+	children,
+}: {
+	isSelected: boolean
+	onClick: () => void
+	children: React.ReactNode
+}) => {
+	return (
+		<button
+			onClick={onClick}
+			style={{
+				background: "var(--vscode-tab-inactiveBackground)",
+				border: "none",
+				padding: "8px 16px",
+				color: isSelected ? "var(--vscode-tab-activeForeground)" : "var(--vscode-tab-inactiveForeground)",
+				cursor: "pointer",
+				borderBottom: `2px solid ${isSelected ? "var(--vscode-foreground)" : "transparent"}`,
+				fontSize: "12px",
+				fontWeight: 500,
+			}}>
+			{children}
+		</button>
+	)
+}
+
+const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, advisorModelIdErrorMessage }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [selectedTab, setSelectedTab] = useState("base")
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -713,8 +750,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</p>
 			)}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker />}
-
 			{selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
@@ -743,7 +778,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					</>
 				)}
 
-			{modelIdErrorMessage && (
+			{selectedProvider !== "openrouter" && modelIdErrorMessage && (
 				<p
 					style={{
 						margin: "-10px 0 4px 0",
@@ -752,6 +787,65 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					}}>
 					{modelIdErrorMessage}
 				</p>
+			)}
+
+			{selectedProvider === "openrouter" && showModelOptions && (
+				<div style={{ marginTop: -5 }}>
+					<div style={{ display: "flex", borderBottom: "1px solid var(--vscode-panel-border)" }}>
+						<TabButton isSelected={selectedTab === "base"} onClick={() => setSelectedTab("base")}>
+							Cline Model
+						</TabButton>
+						<TabButton isSelected={selectedTab === "advisor"} onClick={() => setSelectedTab("advisor")}>
+							Advisor Model
+						</TabButton>
+					</div>
+
+					<TabPanel isSelected={selectedTab === "base"}>
+						<p
+							style={{
+								fontSize: "12px",
+								marginBottom: "10px",
+								color: "var(--vscode-foreground)",
+							}}>
+							This is the default driver model for Cline. It will read and edit files, run commands, and more, with
+							your permission at each step.
+						</p>
+						<OpenRouterModelPicker modelType="base" key="base-model-picker" />
+						{modelIdErrorMessage && (
+							<p
+								style={{
+									margin: "-10px 0 4px 0",
+									fontSize: 12,
+									color: "var(--vscode-errorForeground)",
+								}}>
+								{modelIdErrorMessage}
+							</p>
+						)}
+					</TabPanel>
+
+					<TabPanel isSelected={selectedTab === "advisor"}>
+						<p
+							style={{
+								fontSize: "12px",
+								marginBottom: "10px",
+								color: "var(--vscode-foreground)",
+							}}>
+							The Cline model can call this smarter, more powerful model to ask for help on planning out a task,
+							fixing a hard bug, and other complex problems.
+						</p>
+						<OpenRouterModelPicker modelType="advisor" key="advisor-model-picker" />
+						{advisorModelIdErrorMessage && (
+							<p
+								style={{
+									margin: "-10px 0 4px 0",
+									fontSize: 12,
+									color: "var(--vscode-errorForeground)",
+								}}>
+								{advisorModelIdErrorMessage}
+							</p>
+						)}
+					</TabPanel>
+				</div>
 			)}
 		</div>
 	)
@@ -895,7 +989,13 @@ const ModelInfoSupportsItem = ({
 	</span>
 )
 
-export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
+export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): {
+	selectedProvider: ApiProvider
+	selectedModelId: string
+	selectedModelInfo: ModelInfo
+	selectedAdvisorModelId?: string
+	selectedAdvisorModelInfo?: ModelInfo
+} {
 	const provider = apiConfiguration?.apiProvider || "anthropic"
 	const modelId = apiConfiguration?.apiModelId
 
@@ -935,6 +1035,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+				selectedAdvisorModelId: apiConfiguration?.openRouterAdvisorModelId || openRouterDefaultAdvisorModelId,
+				selectedAdvisorModelInfo: apiConfiguration?.openRouterAdvisorModelInfo || openRouterDefaultAdvisorModelInfo,
 			}
 		case "openai":
 			return {

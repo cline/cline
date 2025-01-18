@@ -1,4 +1,4 @@
-import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
+import { ApiConfiguration, openRouterDefaultAdvisorModelId, openRouterDefaultModelId } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
@@ -76,6 +76,26 @@ export function validateModelId(
 				}
 				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
+					return "The model ID you provided is not available. Please choose a different model."
+				}
+				break
+		}
+	}
+	return undefined
+}
+
+export function validateAdvisorModelId(
+	apiConfiguration?: ApiConfiguration,
+	openRouterModels?: Record<string, ModelInfo>,
+): string | undefined {
+	if (apiConfiguration) {
+		switch (apiConfiguration.apiProvider) {
+			case "openrouter":
+				const advisorModelId = apiConfiguration.openRouterAdvisorModelId || openRouterDefaultAdvisorModelId // in case the user hasn't changed the model id, it will be undefined by default
+				if (!advisorModelId) {
+					return "You must provide a model ID."
+				}
+				if (openRouterModels && !Object.keys(openRouterModels).includes(advisorModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
