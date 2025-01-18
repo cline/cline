@@ -166,7 +166,11 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						onChange={(checked: boolean) => {
 							setAnthropicBaseUrlSelected(checked)
 							if (!checked) {
-								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+								handleInputChange("anthropicBaseUrl")({
+									target: {
+										value: "",
+									},
+								})
 							}
 						}}>
 						Use custom base URL
@@ -537,7 +541,11 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						onChange={(checked: boolean) => {
 							setAzureApiVersionSelected(checked)
 							if (!checked) {
-								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
+								handleInputChange("azureApiVersion")({
+									target: {
+										value: "",
+									},
+								})
 							}
 						}}>
 						Set Azure API version
@@ -552,31 +560,47 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					)}
 
 					{/* Model Info Configuration */}
-					<div style={{ marginTop: 15, padding: 10, border: '1px solid var(--vscode-input-border)', borderRadius: 4 }}>
+					<div
+						style={{
+							marginTop: 15,
+							padding: 10,
+							border: "1px solid var(--vscode-input-border)",
+							borderRadius: 4,
+						}}>
 						<div style={{ marginBottom: 10 }}>
-							<span style={{ fontWeight: 500, fontSize: '14px' }}>Model Configuration</span>
-							<p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', margin: '5px 0' }}>
+							<span style={{ fontWeight: 500, fontSize: "14px" }}>Model Configuration</span>
+							<p
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									margin: "5px 0",
+								}}>
 								Configure the capabilities and pricing for your custom OpenAI-compatible model
 							</p>
 						</div>
 
 						{/* Capabilities Section */}
 						<div style={{ marginBottom: 15 }}>
-							<span style={{ fontWeight: 500, fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>Capabilities</span>
 							<div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 5 }}>
 								<VSCodeTextField
-									value={apiConfiguration?.openAiCusModelInfo?.maxTokens?.toString() || openAiModelInfoSaneDefaults.maxTokens?.toString() || ""}
+									value={
+										apiConfiguration?.openAiCusModelInfo?.maxTokens?.toString() ||
+										openAiModelInfoSaneDefaults.maxTokens?.toString() ||
+										""
+									}
 									type="text"
 									style={{ width: "100%" }}
 									title="Maximum number of tokens the model can generate in a single response"
 									onInput={(e: any) => {
 										const value = parseInt(e.target.value)
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiCusModelInfo: {
-												...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-												maxTokens: isNaN(value) ? undefined : value
-											}
+										handleInputChange("openAiCusModelInfo")({
+											target: {
+												value: {
+													...(apiConfiguration?.openAiCusModelInfo ||
+														openAiModelInfoSaneDefaults),
+													maxTokens: isNaN(value) ? undefined : value,
+												},
+											},
 										})
 									}}
 									placeholder="e.g. 4096">
@@ -584,18 +608,29 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								</VSCodeTextField>
 
 								<VSCodeTextField
-									value={apiConfiguration?.openAiCusModelInfo?.contextWindow?.toString() || openAiModelInfoSaneDefaults.contextWindow?.toString() || ""}
+									value={
+										apiConfiguration?.openAiCusModelInfo?.contextWindow?.toString() ||
+										openAiModelInfoSaneDefaults.contextWindow?.toString() ||
+										""
+									}
 									type="text"
 									style={{ width: "100%" }}
 									title="Total number of tokens (input + output) the model can process in a single request"
 									onInput={(e: any) => {
 										const parsed = parseInt(e.target.value)
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiCusModelInfo: {
-												...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-												contextWindow: e.target.value === "" ? undefined : (isNaN(parsed) ? openAiModelInfoSaneDefaults.contextWindow : parsed)
-											}
+										handleInputChange("openAiCusModelInfo")({
+											target: {
+												value: {
+													...(apiConfiguration?.openAiCusModelInfo ||
+														openAiModelInfoSaneDefaults),
+													contextWindow:
+														e.target.value === ""
+															? undefined
+															: isNaN(parsed)
+																? openAiModelInfoSaneDefaults.contextWindow
+																: parsed,
+												},
+											},
 										})
 									}}
 									placeholder="e.g. 128000">
@@ -603,58 +638,83 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								</VSCodeTextField>
 
 								<div style={{ display: "flex", gap: 20, marginTop: 5 }}>
-									<VSCodeCheckbox
-										checked={apiConfiguration?.openAiCusModelInfo?.supportsImages ?? openAiModelInfoSaneDefaults.supportsImages}
+									<Checkbox
+										checked={
+											apiConfiguration?.openAiCusModelInfo?.supportsImages ??
+											openAiModelInfoSaneDefaults.supportsImages
+										}
 										title="Enable if the model can process and understand images in the input"
-										onChange={(e: any) => {
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													supportsImages: e.target.checked
-												}
+										onChange={(checked: boolean) => {
+											handleInputChange("openAiCusModelInfo")({
+												target: {
+													value: {
+														...(apiConfiguration?.openAiCusModelInfo ||
+															openAiModelInfoSaneDefaults),
+														supportsImages: checked,
+													},
+												},
 											})
 										}}>
 										Supports Images
-									</VSCodeCheckbox>
+									</Checkbox>
 
-									<VSCodeCheckbox
+									<Checkbox
 										checked={apiConfiguration?.openAiCusModelInfo?.supportsComputerUse ?? false}
 										title="Enable if the model can interact with the computer (execute commands, modify files, etc.)"
-										onChange={(e: any) => {
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													supportsComputerUse: e.target.checked
-												}
+										onChange={(checked: boolean) => {
+											handleInputChange("openAiCusModelInfo")({
+												target: {
+													value: {
+														...(apiConfiguration?.openAiCusModelInfo ||
+															openAiModelInfoSaneDefaults),
+														supportsComputerUse: checked,
+													},
+												},
 											})
 										}}>
 										Supports Computer Use
-									</VSCodeCheckbox>
+									</Checkbox>
 								</div>
 							</div>
 						</div>
 
 						{/* Pricing Section */}
 						<div>
-							<span style={{ fontWeight: 500, fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>Pricing (USD per million tokens)</span>
+							<span
+								style={{
+									fontWeight: 500,
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								Pricing (USD per million tokens)
+							</span>
 							<div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 5 }}>
 								{/* Input/Output Prices */}
 								<div style={{ display: "flex", gap: 10 }}>
 									<VSCodeTextField
-										value={apiConfiguration?.openAiCusModelInfo?.inputPrice?.toString() || openAiModelInfoSaneDefaults.inputPrice?.toString() || ""}
+										value={
+											apiConfiguration?.openAiCusModelInfo?.inputPrice?.toString() ??
+											openAiModelInfoSaneDefaults.inputPrice?.toString() ??
+											""
+										}
 										type="text"
 										style={{ width: "100%" }}
 										title="Cost per million tokens in the input/prompt"
 										onChange={(e: any) => {
 											const parsed = parseFloat(e.target.value)
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													inputPrice: e.target.value === "" ? undefined : (isNaN(parsed) ? openAiModelInfoSaneDefaults.inputPrice : parsed)
-												}
+											handleInputChange("openAiCusModelInfo")({
+												target: {
+													value: {
+														...(apiConfiguration?.openAiCusModelInfo ??
+															openAiModelInfoSaneDefaults),
+														inputPrice:
+															e.target.value === ""
+																? undefined
+																: isNaN(parsed)
+																	? openAiModelInfoSaneDefaults.inputPrice
+																	: parsed,
+													},
+												},
 											})
 										}}
 										placeholder="e.g. 0.0001">
@@ -662,71 +722,40 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 									</VSCodeTextField>
 
 									<VSCodeTextField
-										value={apiConfiguration?.openAiCusModelInfo?.outputPrice?.toString() || openAiModelInfoSaneDefaults.outputPrice?.toString() || ""}
+										value={
+											apiConfiguration?.openAiCusModelInfo?.outputPrice?.toString() ||
+											openAiModelInfoSaneDefaults.outputPrice?.toString() ||
+											""
+										}
 										type="text"
 										style={{ width: "100%" }}
 										title="Cost per million tokens in the model's response"
 										onChange={(e: any) => {
 											const parsed = parseFloat(e.target.value)
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													outputPrice: e.target.value === "" ? undefined : (isNaN(parsed) ? openAiModelInfoSaneDefaults.outputPrice : parsed)
-												}
+											handleInputChange("openAiCusModelInfo")({
+												target: {
+													value: {
+														...(apiConfiguration?.openAiCusModelInfo ||
+															openAiModelInfoSaneDefaults),
+														outputPrice:
+															e.target.value === ""
+																? undefined
+																: isNaN(parsed)
+																	? openAiModelInfoSaneDefaults.outputPrice
+																	: parsed,
+													},
+												},
 											})
 										}}
 										placeholder="e.g. 0.0002">
 										<span style={{ fontWeight: 500 }}>Output Price</span>
 									</VSCodeTextField>
 								</div>
-
-								{/* Cache Prices */}
-								<div style={{ display: "flex", gap: 10 }}>
-									<VSCodeTextField
-										value={apiConfiguration?.openAiCusModelInfo?.cacheWritesPrice?.toString() || openAiModelInfoSaneDefaults.cacheWritesPrice?.toString() || ""}
-										type="text"
-										style={{ width: "100%" }}
-										title="Cost per million tokens when writing to the prompt cache"
-										onChange={(e: any) => {
-											const parsed = parseFloat(e.target.value)
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													cacheWritesPrice: e.target.value === "" ? undefined : (isNaN(parsed) ? openAiModelInfoSaneDefaults.cacheWritesPrice : parsed)
-												}
-											})
-										}}
-										placeholder="e.g. 0.0001">
-										<span style={{ fontWeight: 500 }}>Cache Write Price</span>
-									</VSCodeTextField>
-
-									<VSCodeTextField
-										value={apiConfiguration?.openAiCusModelInfo?.cacheReadsPrice?.toString() || openAiModelInfoSaneDefaults.cacheReadsPrice?.toString() || ""}
-										type="text"
-										style={{ width: "100%" }}
-										title="Cost per million tokens when reading from the prompt cache"
-										onChange={(e: any) => {
-											const parsed = parseFloat(e.target.value)
-											setApiConfiguration({
-												...apiConfiguration,
-												openAiCusModelInfo: {
-													...(apiConfiguration?.openAiCusModelInfo || openAiModelInfoSaneDefaults),
-													cacheReadsPrice: e.target.value === "" ? undefined : (isNaN(parsed) ? openAiModelInfoSaneDefaults.cacheReadsPrice : parsed)
-												}
-											})
-										}}
-										placeholder="e.g. 0.00001">
-										<span style={{ fontWeight: 500 }}>Cache Read Price</span>
-									</VSCodeTextField>
-								</div>
 							</div>
 						</div>
 					</div>
 
-					{ /* TODO: model info here */}
-
+					{/* TODO: model info here */}
 
 					<p
 						style={{
