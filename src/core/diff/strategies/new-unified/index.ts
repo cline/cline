@@ -107,7 +107,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 		return { hunks }
 	}
 
-	getToolDescription(cwd: string): string {
+	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
 		return `# apply_diff Tool - Generate Precise Code Changes
 
 Generate a unified diff that can be cleanly applied to modify code files.
@@ -164,8 +164,8 @@ Generate a unified diff that can be cleanly applied to modify code files.
 \`\`\`
 
 Parameters:
-- path: (required) The path of the file to apply the diff to (relative to the current working directory ${args.cwd})
-- diff: (required) The diff content in unified format to apply to the file.
+- path: (required) File path relative to ${args.cwd}
+- diff: (required) Unified diff content in unified format to apply to the file.
 
 Usage:
 <apply_diff>
@@ -233,7 +233,7 @@ Your diff here
 		originalContent: string,
 		diffContent: string,
 		startLine?: number,
-		endLine?: number,
+		endLine?: number
 	): Promise<DiffResult> {
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
 		const originalLines = originalContent.split("\n")
@@ -271,7 +271,7 @@ Your diff here
 							subHunkResult,
 							subSearchResult.index,
 							subSearchResult.confidence,
-							this.confidenceThreshold,
+							this.confidenceThreshold
 						)
 						if (subEditResult.confidence >= this.confidenceThreshold) {
 							subHunkResult = subEditResult.result
@@ -293,12 +293,12 @@ Your diff here
 				const contextRatio = contextLines / totalLines
 
 				let errorMsg = `Failed to find a matching location in the file (${Math.floor(
-					confidence * 100,
+					confidence * 100
 				)}% confidence, needs ${Math.floor(this.confidenceThreshold * 100)}%)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += `- Search Strategy Used: ${strategy}\n`
 				errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(
-					contextRatio * 100,
+					contextRatio * 100
 				)}%)\n`
 				errorMsg += `- Attempted to split into ${subHunks.length} sub-hunks but still failed\n`
 
@@ -330,7 +330,7 @@ Your diff here
 			} else {
 				// Edit failure - likely due to content mismatch
 				let errorMsg = `Failed to apply the edit using ${editResult.strategy} strategy (${Math.floor(
-					editResult.confidence * 100,
+					editResult.confidence * 100
 				)}% confidence)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += "- The location was found but the content didn't match exactly\n"
