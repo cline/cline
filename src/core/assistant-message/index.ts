@@ -19,6 +19,7 @@ export const toolUseNames = [
 	"browser_action",
 	"use_mcp_tool",
 	"access_mcp_resource",
+	"consult_advisor",
 	"ask_followup_question",
 	"attempt_completion",
 ] as const
@@ -43,6 +44,7 @@ export const toolParamNames = [
 	"tool_name",
 	"arguments",
 	"uri",
+	"problem",
 	"question",
 	"result",
 ] as const

@@ -148,6 +148,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Approve")
 							setSecondaryButtonText("Reject")
 							break
+						case "consult_advisor":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("consult_advisor")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Approve")
+							setSecondaryButtonText("Reject")
+							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
 							setTextAreaDisabled(isPartial)
@@ -196,9 +203,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "browser_action_launch":
 						case "command":
 						case "use_mcp_server":
+						case "consult_advisor":
 						case "command_output":
 						case "mcp_server_request_started":
 						case "mcp_server_response":
+						case "consult_advisor_request_started":
+						case "consult_advisor_response":
 						case "completion_result":
 						case "tool":
 							break
@@ -267,6 +277,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "command": // user can provide feedback to a tool or command use
 						case "command_output": // user can send input to command stdin
 						case "use_mcp_server":
+						case "consult_advisor":
 						case "completion_result": // if this happens then the user has feedback for the completion result
 						case "resume_task":
 						case "resume_completed_task":
@@ -309,6 +320,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "tool":
 			case "browser_action_launch":
 			case "use_mcp_server":
+			case "consult_advisor":
 			case "resume_task":
 			case "mistake_limit_reached":
 			case "auto_approval_max_req_reached":
@@ -348,6 +360,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			case "tool":
 			case "browser_action_launch":
 			case "use_mcp_server":
+			case "consult_advisor":
 				// responds to the API with a "This operation failed" and lets it try again
 				vscode.postMessage({
 					type: "askResponse",
@@ -459,6 +472,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					break
 				case "mcp_server_request_started":
+				case "consult_advisor_request_started":
 					return false
 			}
 			return true

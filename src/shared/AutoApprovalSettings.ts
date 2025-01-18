@@ -8,6 +8,7 @@ export interface AutoApprovalSettings {
 		executeCommands: boolean // Execute safe commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
+		consultAdvisor?: boolean // Consult the advisor model
 	}
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
@@ -22,6 +23,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		executeCommands: false,
 		useBrowser: false,
 		useMcp: false,
+		consultAdvisor: false,
 	},
 	maxRequests: 20,
 	enableNotifications: false,

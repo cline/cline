@@ -74,6 +74,7 @@ export type ClineAsk =
 	| "auto_approval_max_req_reached"
 	| "browser_action_launch"
 	| "use_mcp_server"
+	| "consult_advisor"
 
 export type ClineSay =
 	| "task"
@@ -95,6 +96,9 @@ export type ClineSay =
 	| "mcp_server_request_started"
 	| "mcp_server_response"
 	| "use_mcp_server"
+	| "consult_advisor"
+	| "consult_advisor_request_started"
+	| "consult_advisor_response"
 	| "diff_error"
 	| "deleted_api_reqs"
 
@@ -137,6 +141,10 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClineConsultAdvisor {
+	problem: string
 }
 
 export interface ClineApiReqInfo {

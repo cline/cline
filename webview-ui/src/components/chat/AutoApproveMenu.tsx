@@ -46,16 +46,25 @@ const ACTION_METADATA: {
 		shortName: "MCP",
 		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
 	},
+	{
+		id: "consultAdvisor",
+		label: "Consult the Advisor model",
+		shortName: "Advisor",
+		description: "Allows Cline to consult the Advisor model to get advice on how to proceed.",
+	},
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const { autoApprovalSettings, apiConfiguration } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
-	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
+	const supportsAdvisor = apiConfiguration?.apiProvider === "openrouter"
+	const actionMetadata = ACTION_METADATA.filter((action) => supportsAdvisor || action.id !== "consultAdvisor")
+
+	const enabledActions = actionMetadata.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
 	const hasEnabledActions = enabledActions.length > 0
 
@@ -219,7 +228,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
 						caution and only enable if you understand the risks.
 					</div>
-					{ACTION_METADATA.map((action) => (
+					{actionMetadata.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox
 								checked={autoApprovalSettings.actions[action.id]}

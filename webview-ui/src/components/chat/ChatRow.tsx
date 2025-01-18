@@ -10,6 +10,7 @@ import {
 	ClineSayTool,
 	ExtensionMessage,
 	COMPLETION_RESULT_CHANGES_FLAG,
+	ClineConsultAdvisor,
 } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -62,7 +63,9 @@ const ChatRow = memo(
 				message.say === "completion_result" ||
 				message.ask === "completion_result" ||
 				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
+				message.ask === "use_mcp_server" ||
+				message.say === "consult_advisor" ||
+				message.ask === "consult_advisor")
 
 		if (shouldShowCheckpoints && isLast) {
 			shouldShowCheckpoints =
@@ -121,6 +124,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
 
 	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
+	const isConsultAdvisorResponding = isLast && lastModifiedMessage?.say === "consult_advisor_request_started"
 
 	const type = message.type === "ask" ? message.ask : message.say
 
@@ -213,6 +217,27 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								Cline {mcpServerUse.type === "use_mcp_tool" ? "used a tool" : "accessed a resource"} on the{" "}
 								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
+						)}
+					</span>,
+				]
+			case "consult_advisor":
+				// const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
+				return [
+					isConsultAdvisorResponding ? (
+						<ProgressIndicator />
+					) : (
+						<span
+							className="codicon codicon-server"
+							style={{
+								color: normalColor,
+								marginBottom: "-1.5px",
+							}}></span>
+					),
+					<span style={{ color: normalColor, fontWeight: "bold" }}>
+						{message.type === "ask" ? (
+							<>Cline wants to consult the Advisor model about:</>
+						) : (
+							<>Cline consulted the Advisor model about:</>
 						)}
 					</span>,
 				]
@@ -718,6 +743,29 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		)
 	}
 
+	if (message.ask === "consult_advisor" || message.say === "consult_advisor") {
+		const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
+		// const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
+		return (
+			<>
+				<div style={headerStyle}>
+					{icon}
+					{title}
+				</div>
+
+				<div
+					style={{
+						background: "var(--vscode-textCodeBlock-background)",
+						borderRadius: "3px",
+						padding: "8px 10px",
+						marginTop: "8px",
+					}}>
+					{consultAdvisor.problem}
+				</div>
+			</>
+		)
+	}
+
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
@@ -1020,6 +1068,28 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						</>
 					)
 				case "mcp_server_response":
+					return (
+						<>
+							<div style={{ paddingTop: 0 }}>
+								<div
+									style={{
+										marginBottom: "4px",
+										opacity: 0.8,
+										fontSize: "12px",
+										textTransform: "uppercase",
+									}}>
+									Response
+								</div>
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						</>
+					)
+				case "consult_advisor_response":
 					return (
 						<>
 							<div style={{ paddingTop: 0 }}>

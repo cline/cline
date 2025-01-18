@@ -206,6 +206,15 @@ Usage:
 <uri>resource URI here</uri>
 </access_mcp_resource>
 
+## consult_advisor
+Description: Request to consult a higher-reasoning advisor model about a problem or question you are facing. This can be used to outline a plan, discuss potential solutions, or resolve errors you are stuck on. The relevant conversation history leading to the problem will also be provided to the advisor for additional context.
+Parameters:
+- problem: (required) A string describing the issue, question, or context you want the advisor to address.
+Usage:
+<consult_advisor>
+<problem>Your problem or question here</problem>
+</consult_advisor>
+
 ## ask_followup_question
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
@@ -815,6 +824,83 @@ You have access to two tools for working with files: **write_to_file** and **rep
 4. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
 
 By thoughtfully selecting between write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.
+
+====
+
+CONSULTING THE ADVISOR MODEL
+
+You can use the consult_advisor tool to get higher-level reasoning or suggestions from an advisor model. The advisor is a more powerful AI model that can provide strategic guidance and help solve complex problems. The conversation history that led to the current situation is automatically passed to the advisor, allowing it to provide contextually relevant guidance based on the full picture of the task at hand.
+
+# When to Use the Advisor
+
+1. Architecting Complex Tasks
+- Before starting implementation of large features or systems
+- When planning new applications or major refactors
+- To break down complex requirements into actionable steps
+- To identify potential technical challenges early
+- To evaluate different technical approaches and their tradeoffs
+- When the solution requires careful consideration of multiple system components
+
+2. Resolving Challenging Bugs
+- When stuck on persistent bugs that you cannot resolve
+- If you've tried multiple approaches without success
+- When facing complex type errors or package incompatibilities
+- When debugging intricate interactions between multiple systems
+- If you need deeper insight into system behavior that may not be apparent
+
+# How to Use Effectively
+
+1. Provide Clear Context
+- Explain the current situation and challenge
+- Include relevant code snippets or error messages
+- Describe what you've already tried
+- Specify what kind of guidance you're seeking
+
+2. Ask Specific Questions
+- Instead of "Why isn't this working?"
+- Better: "I'm encountering this specific type error when integrating these packages, here's what I've tried..."
+
+Example Usage:
+<consult_advisor>
+<problem>
+I'm encountering persistent type errors while working with @types/react-query v4.0.0:
+
+Error: Type 'QueryClient' is not assignable to parameter of type 'never'.
+  The types of 'getQueryCache().notify' are incompatible between these types.
+
+I've tried:
+- Checking package versions compatibility
+- Explicitly typing the QueryClient instance
+- Updating @types/react and @types/react-query
+
+Current package versions:
+react-query: ^3.39.3
+@types/react-query: ^4.0.0
+react: ^18.2.0
+typescript: ^4.9.5
+
+The error persists despite these attempts. Could this be due to version mismatches or breaking changes I'm not aware of?
+</problem>
+</consult_advisor>
+
+# Benefits of Using the Advisor
+
+1. Strategic Guidance
+- Get high-level architectural direction
+- Identify potential pitfalls early
+- Make informed technical decisions
+- Consider long-term implications
+
+2. Problem Resolution
+- Break through debugging roadblocks
+- Get fresh perspectives on complex issues
+- Understand root causes of persistent bugs
+- Solve challenging technical issues
+
+Remember: While you should attempt to solve problems with your own reasoning first, the advisor is a powerful resource available when you're either planning complex systems or truly stuck on a bug. Don't hesitate to consult it when:
+- The scope of the task requires careful architectural planning
+- You've hit a persistent roadblock that you cannot resolve
+- You need deeper insight into complex system interactions
 
 ====
  

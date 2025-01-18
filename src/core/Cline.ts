@@ -31,6 +31,7 @@ import {
 	ClineApiReqInfo,
 	ClineAsk,
 	ClineAskUseMcpServer,
+	ClineConsultAdvisor,
 	ClineMessage,
 	ClineSay,
 	ClineSayBrowserAction,
@@ -1060,6 +1061,8 @@ export class Cline {
 					message.ask === "followup" ||
 					message.say === "use_mcp_server" ||
 					message.ask === "use_mcp_server" ||
+					message.say === "consult_advisor" ||
+					message.ask === "consult_advisor" ||
 					message.say === "browser_action" ||
 					message.say === "browser_action_launch" ||
 					message.ask === "browser_action_launch"
@@ -1170,6 +1173,8 @@ export class Cline {
 				case "access_mcp_resource":
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
+				case "consult_advisor":
+					return this.autoApprovalSettings.actions.consultAdvisor ?? false
 			}
 		}
 		return false
@@ -1388,6 +1393,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.server_name}']`
 						case "access_mcp_resource":
 							return `[${block.name} for '${block.params.server_name}']`
+						case "consult_advisor":
+							return `[${block.name} for '${block.params.problem}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
 						case "attempt_completion":
@@ -2470,6 +2477,66 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("accessing MCP resource", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "consult_advisor": {
+						const problem: string | undefined = block.params.problem
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									problem: removeClosingTag("problem", problem),
+								} satisfies ClineConsultAdvisor)
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "consult_advisor")
+									await this.say("consult_advisor", partialMessage, undefined, block.partial)
+								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "consult_advisor")
+									await this.ask("consult_advisor", partialMessage, block.partial).catch(() => {})
+								}
+
+								break
+							} else {
+								if (!problem) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("consult_advisor", "problem"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify({
+									problem: removeClosingTag("problem", problem),
+								} satisfies ClineConsultAdvisor)
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "consult_advisor")
+									await this.say("consult_advisor", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to consult the Advisor model about: ${problem}`,
+									)
+									this.removeLastPartialMessageIfExistsWithType("say", "consult_advisor")
+									const didApprove = await askApproval("consult_advisor", completeMessage)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// now execute the tool
+								await this.say("consult_advisor_request_started")
+								const resourceResult = "Just try again bro." //await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								await this.say("consult_advisor_response", resourceResult)
+								pushToolResult(formatResponse.toolResult(resourceResult))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("consulting advisor", error)
 							await this.saveCheckpoint()
 							break
 						}
