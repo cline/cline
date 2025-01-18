@@ -21,6 +21,16 @@ export class TerminalRegistry {
 			cwd,
 			name: "Cline",
 			iconPath: new vscode.ThemeIcon("robot"),
+			env: {
+				// VSCode bug#237208: Command output can be lost due to a race between completion
+				// sequences and consumers. Add 50ms delay via PROMPT_COMMAND to ensure the
+				// \x1b]633;D escape sequence arrives after command output is processed.
+				PROMPT_COMMAND: "sleep 0.050",
+
+				// VTE must be disabled because it prevents the prompt command above from executing
+				// See https://wiki.gnome.org/Apps/Terminal/VTE
+				VTE_VERSION: "0",
+			},
 		})
 		const newInfo: TerminalInfo = {
 			terminal,
