@@ -237,8 +237,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	}
 
 	const shouldShowSettings = useMemo(() => {
-		const lastMessage = messages[messages.length - 1]
-		return lastMessage?.ask === "browser_action_launch" || lastMessage?.say === "browser_action_launch"
+		return messages.some((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
 	}, [messages])
 
 	// Calculate maxWidth
@@ -308,7 +307,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							{displayState.url || "http"}
 						</div>
 					</div>
-					<BrowserSettingsMenu disabled={!shouldShowSettings} maxWidth={maxWidth} />
+					{shouldShowSettings && <BrowserSettingsMenu disabled={isBrowsing} maxWidth={maxWidth} />}
 				</div>
 
 				{/* Screenshot Area */}
