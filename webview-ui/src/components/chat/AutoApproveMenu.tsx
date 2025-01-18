@@ -61,7 +61,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
-	const supportsAdvisor = apiConfiguration?.apiProvider === "openrouter"
+	const supportsAdvisor = apiConfiguration?.apiProvider === "openrouter" || apiConfiguration?.apiProvider === "anthropic"
 	const actionMetadata = ACTION_METADATA.filter((action) => supportsAdvisor || action.id !== "consultAdvisor")
 
 	const enabledActions = actionMetadata.filter((action) => autoApprovalSettings.actions[action.id])

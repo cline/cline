@@ -198,6 +198,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "error":
 						case "api_req_finished":
 						case "text":
+						case "advisor_response":
 						case "browser_action":
 						case "browser_action_result":
 						case "browser_action_launch":
@@ -207,8 +208,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "command_output":
 						case "mcp_server_request_started":
 						case "mcp_server_response":
-						case "consult_advisor_request_started":
-						case "consult_advisor_response":
 						case "completion_result":
 						case "tool":
 							break
@@ -472,7 +471,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					break
 				case "mcp_server_request_started":
-				case "consult_advisor_request_started":
 					return false
 			}
 			return true

@@ -124,7 +124,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
 
 	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
-	const isConsultAdvisorResponding = isLast && lastModifiedMessage?.say === "consult_advisor_request_started"
 
 	const type = message.type === "ask" ? message.ask : message.say
 
@@ -223,16 +222,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			case "consult_advisor":
 				// const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
 				return [
-					isConsultAdvisorResponding ? (
-						<ProgressIndicator />
-					) : (
-						<span
-							className="codicon codicon-server"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>
-					),
+					<span
+						className="codicon codicon-server"
+						style={{
+							color: normalColor,
+							marginBottom: "-1.5px",
+						}}></span>,
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
 						{message.type === "ask" ? (
 							<>Cline wants to consult the Advisor model about:</>
@@ -884,6 +879,26 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<Markdown markdown={message.text} />
 						</div>
 					)
+				case "advisor_response":
+					return (
+						<div style={{ paddingTop: 0 }}>
+							<div
+								style={{
+									marginBottom: "4px",
+									opacity: 0.8,
+									fontSize: "12px",
+									textTransform: "uppercase",
+								}}>
+								Response
+							</div>
+							<CodeAccordian
+								code={message.text}
+								language="json"
+								isExpanded={true}
+								onToggleExpand={onToggleExpand}
+							/>
+						</div>
+					)
 				case "user_feedback":
 					return (
 						<div
@@ -1068,28 +1083,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						</>
 					)
 				case "mcp_server_response":
-					return (
-						<>
-							<div style={{ paddingTop: 0 }}>
-								<div
-									style={{
-										marginBottom: "4px",
-										opacity: 0.8,
-										fontSize: "12px",
-										textTransform: "uppercase",
-									}}>
-									Response
-								</div>
-								<CodeAccordian
-									code={message.text}
-									language="json"
-									isExpanded={true}
-									onToggleExpand={onToggleExpand}
-								/>
-							</div>
-						</>
-					)
-				case "consult_advisor_response":
 					return (
 						<>
 							<div style={{ paddingTop: 0 }}>

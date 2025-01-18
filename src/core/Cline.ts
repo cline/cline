@@ -58,6 +58,7 @@ import { OpenAiHandler } from "../api/providers/openai"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
 import { BrowserSettings } from "../shared/BrowserSettings"
+import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -93,6 +94,7 @@ export class Cline {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
+	private advisorProblem?: string
 
 	// streaming
 	isStreaming = false
@@ -105,6 +107,7 @@ export class Cline {
 	private didRejectTool = false
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
+	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
 		provider: ClineProvider,
@@ -1261,7 +1264,49 @@ export class Cline {
 			this.conversationHistoryDeletedRange,
 		)
 
-		const stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+
+		// If we're consulting the advisor, override the request
+		const advisorModel = this.api.getAdvisorModel?.()
+		if (this.advisorProblem && advisorModel) {
+			// Generate markdown
+			const markdownContent = truncatedConversationHistory
+				.map((message) => {
+					const role = message.role === "user" ? "**User:**" : "**Coding Agent:**"
+					const content = Array.isArray(message.content)
+						? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
+						: message.content
+					return `${role}\n\n${content}\n\n`
+				})
+				.join("---\n\n")
+
+			// Don't want to send the entire conv history, just the most recent context
+			// Get approximate char count from token limit
+			const advisorContextWindow = advisorModel.info.contextWindow || 128_000
+			const tokensToKeep = Math.floor(advisorContextWindow / 2)
+			// Estimate ~3 chars per token as a rough approximation
+			const charsToKeep = tokensToKeep * 3
+			// Get last n chars of markdown content
+			const isTruncated = markdownContent.length > charsToKeep
+			const recentContext = (isTruncated ? "... (truncated for brevity)\n\n" : "") + markdownContent.slice(-charsToKeep)
+			const advisorMessage: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text:
+								"\n\nThe conversation history leading up to this point: " +
+								recentContext +
+								"\n\nThe problem the coding agent needs advice on: " +
+								this.advisorProblem,
+						},
+					],
+				},
+			]
+			stream = this.api.createMessage(ADVISOR_SYSTEM_PROMPT(), advisorMessage, "advisor")
+		}
+
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
@@ -1269,13 +1314,23 @@ export class Cline {
 			const firstChunk = await iterator.next()
 			yield firstChunk.value
 		} catch (error) {
-			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-			const { response } = await this.ask("api_req_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
-			if (response !== "yesButtonClicked") {
-				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-				throw new Error("API request failed")
+			if (!this.didAutomaticallyRetryFailedApiRequest) {
+				console.log("first chunk failed, waiting 1 second before retrying")
+				await delay(1000)
+				this.didAutomaticallyRetryFailedApiRequest = true
+			} else {
+				// request failed after retrying automatically once, ask user if they want to retry again
+				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+				const { response } = await this.ask(
+					"api_req_failed",
+					error.message ?? JSON.stringify(serializeError(error), null, 2),
+				)
+				if (response !== "yesButtonClicked") {
+					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
+					throw new Error("API request failed")
+				}
+				await this.say("api_req_retried")
 			}
-			await this.say("api_req_retried")
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
 			return
@@ -1313,6 +1368,11 @@ export class Cline {
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
+				if (this.advisorProblem) {
+					await this.say("advisor_response", block.content, undefined, block.partial)
+					break
+				}
+
 				if (this.didRejectTool || this.didAlreadyUseTool) {
 					break
 				}
@@ -2528,10 +2588,11 @@ export class Cline {
 								}
 
 								// now execute the tool
-								await this.say("consult_advisor_request_started")
-								const resourceResult = "Just try again bro." //await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
-								await this.say("consult_advisor_response", resourceResult)
-								pushToolResult(formatResponse.toolResult(resourceResult))
+								this.advisorProblem = problem
+								// await this.say("consult_advisor_request_started")
+								// const resourceResult = "Just try again bro." //await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								// await this.say("consult_advisor_response", resourceResult)
+								pushToolResult(formatResponse.toolResult("Awaiting response from the Advisor model..."))
 								await this.saveCheckpoint()
 								break
 							}
@@ -2830,10 +2891,13 @@ export class Cline {
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		const advisorRequest = this.advisorProblem ? `(...conversation history)\n\n${this.advisorProblem}` : undefined
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request:
+					advisorRequest ||
+					userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 			}),
 		)
 
@@ -2864,7 +2928,7 @@ export class Cline {
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+			request: advisorRequest || userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessages()
 		await this.providerRef.deref()?.postStateToWebview()
@@ -2944,7 +3008,10 @@ export class Cline {
 			this.didAlreadyUseTool = false
 			this.presentAssistantMessageLocked = false
 			this.presentAssistantMessageHasPendingUpdates = false
+			this.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
+
+			const isCallingAdvisor = this.advisorProblem !== undefined
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
@@ -3033,6 +3100,11 @@ export class Cline {
 			await this.saveClineMessages()
 			await this.providerRef.deref()?.postStateToWebview()
 
+			// If this last request was to the advisor model, then reset advisor problem to give control back to base model
+			if (isCallingAdvisor) {
+				this.advisorProblem = undefined
+			}
+
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
@@ -3054,12 +3126,22 @@ export class Cline {
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_use")
+
 				if (!didToolUse) {
-					this.userMessageContent.push({
-						type: "text",
-						text: formatResponse.noToolsUsed(),
-					})
-					this.consecutiveMistakeCount++
+					if (isCallingAdvisor) {
+						// if the last request was a request to advisor then it wouldn't have used a tool
+						this.userMessageContent.push({
+							type: "text",
+							text: "Please continue with the task, taking into account the advisor's response provided above.",
+						})
+					} else {
+						// normal request where tool use is required
+						this.userMessageContent.push({
+							type: "text",
+							text: formatResponse.noToolsUsed(),
+						})
+						this.consecutiveMistakeCount++
+					}
 				}
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)

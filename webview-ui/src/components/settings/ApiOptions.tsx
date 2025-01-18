@@ -818,7 +818,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 								marginBottom: "10px",
 								color: "var(--vscode-foreground)",
 							}}>
-							This is the default driver model for Cline. It will read and edit files, run commands, and more, with
+							This model is the default driver for Cline. It will read and edit files, run commands, and more, with
 							your permission at each step.
 						</p>
 						{selectedProvider === "anthropic" && (
@@ -846,8 +846,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 								marginBottom: "10px",
 								color: "var(--vscode-foreground)",
 							}}>
-							The Cline model can call this smarter, more powerful model to ask for help on planning out a task,
-							fixing a hard bug, and other complex problems.
+							The Cline model can consult this smarter, more powerful model for help on planning out a task, fixing
+							a hard bug, and other complex problems.
 						</p>
 						{selectedProvider === "anthropic" && (
 							<div className="dropdown-container" style={{ marginBottom: 15 }}>

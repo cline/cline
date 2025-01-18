@@ -97,10 +97,9 @@ export type ClineSay =
 	| "mcp_server_response"
 	| "use_mcp_server"
 	| "consult_advisor"
-	| "consult_advisor_request_started"
-	| "consult_advisor_response"
 	| "diff_error"
 	| "deleted_api_reqs"
+	| "advisor_response"
 
 export interface ClineSayTool {
 	tool:
