@@ -11,6 +11,7 @@ import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { MistralHandler } from "./providers/mistral"
 import { DifyHandler } from "./providers/dify"
 
 export interface ApiHandler {
@@ -41,7 +42,9 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
-		case "dify":
+		case "mistral":
+			return new MistralHandler(options)
+    case "dify":
 			return new DifyHandler(options)
 		default:
 			return new AnthropicHandler(options)
