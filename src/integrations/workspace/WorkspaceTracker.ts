@@ -35,7 +35,7 @@ class WorkspaceTracker {
 			watcher.onDidCreate(async (uri) => {
 				await this.addFilePath(uri.fsPath)
 				this.workspaceDidUpdate()
-			})
+			}),
 		)
 
 		// Renaming files triggers a delete and create event
@@ -44,7 +44,7 @@ class WorkspaceTracker {
 				if (await this.removeFilePath(uri.fsPath)) {
 					this.workspaceDidUpdate()
 				}
-			})
+			}),
 		)
 
 		this.disposables.push(watcher)
@@ -64,7 +64,7 @@ class WorkspaceTracker {
 				filePaths: Array.from(this.filePaths).map((file) => {
 					const relativePath = path.relative(cwd, file).toPosix()
 					return file.endsWith("/") ? relativePath + "/" : relativePath
-				})
+				}),
 			})
 			this.updateTimer = null
 		}, 300) // Debounce for 300ms

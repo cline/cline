@@ -21,7 +21,7 @@ export const isWAV = (filepath: string): boolean => {
 }
 
 let isSoundEnabled = false
-let volume = .5
+let volume = 0.5
 
 /**
  * Set sound configuration

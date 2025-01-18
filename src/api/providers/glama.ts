@@ -72,17 +72,17 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			maxTokens = 8_192
 		}
 
-		const { data: completion, response } = await this.client.chat.completions.create({
-			model: this.getModel().id,
-			max_tokens: maxTokens,
-			temperature: 0,
-			messages: openAiMessages,
-			stream: true,
-		}).withResponse();
+		const { data: completion, response } = await this.client.chat.completions
+			.create({
+				model: this.getModel().id,
+				max_tokens: maxTokens,
+				temperature: 0,
+				messages: openAiMessages,
+				stream: true,
+			})
+			.withResponse()
 
-		const completionRequestId = response.headers.get(
-			'x-completion-request-id',
-		);
+		const completionRequestId = response.headers.get("x-completion-request-id")
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
@@ -96,13 +96,16 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		try {
-			const response = await axios.get(`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`, {
-				headers: {
-					Authorization: `Bearer ${this.options.glamaApiKey}`,
+			const response = await axios.get(
+				`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`,
+				{
+					headers: {
+						Authorization: `Bearer ${this.options.glamaApiKey}`,
+					},
 				},
-			})
+			)
 
-			const completionRequest = response.data;
+			const completionRequest = response.data
 
 			if (completionRequest.tokenUsage) {
 				yield {
@@ -113,7 +116,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 					outputTokens: completionRequest.tokenUsage.completionTokens,
 					totalCost: parseFloat(completionRequest.totalCostUsd),
 				}
-			}			
+			}
 		} catch (error) {
 			console.error("Error fetching Glama completion details", error)
 		}
@@ -126,7 +129,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		
+
 		return { id: glamaDefaultModelId, info: glamaDefaultModelInfo }
 	}
 
@@ -141,7 +144,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			if (this.getModel().id.startsWith("anthropic/")) {
 				requestOptions.max_tokens = 8192
 			}
-			
+
 			const response = await this.client.chat.completions.create(requestOptions)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {

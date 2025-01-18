@@ -1,4 +1,8 @@
-export function highlightFzfMatch(text: string, positions: number[], highlightClassName: string = "history-item-highlight") {
+export function highlightFzfMatch(
+	text: string,
+	positions: number[],
+	highlightClassName: string = "history-item-highlight",
+) {
 	if (!positions.length) return text
 
 	const parts: { text: string; highlight: boolean }[] = []
@@ -12,14 +16,14 @@ export function highlightFzfMatch(text: string, positions: number[], highlightCl
 		if (pos > lastIndex) {
 			parts.push({
 				text: text.substring(lastIndex, pos),
-				highlight: false
+				highlight: false,
 			})
 		}
 
 		// Add highlighted character
 		parts.push({
 			text: text[pos],
-			highlight: true
+			highlight: true,
 		})
 
 		lastIndex = pos + 1
@@ -29,16 +33,12 @@ export function highlightFzfMatch(text: string, positions: number[], highlightCl
 	if (lastIndex < text.length) {
 		parts.push({
 			text: text.substring(lastIndex),
-			highlight: false
+			highlight: false,
 		})
 	}
 
 	// Build final string
 	return parts
-		.map(part =>
-			part.highlight
-				? `<span class="${highlightClassName}">${part.text}</span>`
-				: part.text
-		)
-		.join('')
+		.map((part) => (part.highlight ? `<span class="${highlightClassName}">${part.text}</span>` : part.text))
+		.join("")
 }

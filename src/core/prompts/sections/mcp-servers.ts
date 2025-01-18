@@ -2,47 +2,48 @@ import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
 
 export async function getMcpServersSection(mcpHub?: McpHub, diffStrategy?: DiffStrategy): Promise<string> {
-    if (!mcpHub) {
-        return '';
-    }
+	if (!mcpHub) {
+		return ""
+	}
 
-    const connectedServers = mcpHub.getServers().length > 0
-        ? `${mcpHub
-            .getServers()
-            .filter((server) => server.status === "connected")
-            .map((server) => {
-                const tools = server.tools
-                    ?.map((tool) => {
-                        const schemaStr = tool.inputSchema
-                            ? `    Input Schema:
+	const connectedServers =
+		mcpHub.getServers().length > 0
+			? `${mcpHub
+					.getServers()
+					.filter((server) => server.status === "connected")
+					.map((server) => {
+						const tools = server.tools
+							?.map((tool) => {
+								const schemaStr = tool.inputSchema
+									? `    Input Schema:
     ${JSON.stringify(tool.inputSchema, null, 2).split("\n").join("\n    ")}`
-                            : ""
+									: ""
 
-                        return `- ${tool.name}: ${tool.description}\n${schemaStr}`
-                    })
-                    .join("\n\n")
+								return `- ${tool.name}: ${tool.description}\n${schemaStr}`
+							})
+							.join("\n\n")
 
-                const templates = server.resourceTemplates
-                    ?.map((template) => `- ${template.uriTemplate} (${template.name}): ${template.description}`)
-                    .join("\n")
+						const templates = server.resourceTemplates
+							?.map((template) => `- ${template.uriTemplate} (${template.name}): ${template.description}`)
+							.join("\n")
 
-                const resources = server.resources
-                    ?.map((resource) => `- ${resource.uri} (${resource.name}): ${resource.description}`)
-                    .join("\n")
+						const resources = server.resources
+							?.map((resource) => `- ${resource.uri} (${resource.name}): ${resource.description}`)
+							.join("\n")
 
-                const config = JSON.parse(server.config)
+						const config = JSON.parse(server.config)
 
-                return (
-                    `## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
-                    (tools ? `\n\n### Available Tools\n${tools}` : "") +
-                    (templates ? `\n\n### Resource Templates\n${templates}` : "") +
-                    (resources ? `\n\n### Direct Resources\n${resources}` : "")
-                )
-            })
-            .join("\n\n")}`
-        : "(No MCP servers currently connected)";
+						return (
+							`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+							(tools ? `\n\n### Available Tools\n${tools}` : "") +
+							(templates ? `\n\n### Resource Templates\n${templates}` : "") +
+							(resources ? `\n\n### Direct Resources\n${resources}` : "")
+						)
+					})
+					.join("\n\n")}`
+			: "(No MCP servers currently connected)"
 
-    return `MCP SERVERS
+	return `MCP SERVERS
 
 The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
 
@@ -397,11 +398,11 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
 ## Editing MCP Servers
 
 The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${
-    mcpHub
-        .getServers()
-        .map((server) => server.name)
-        .join(", ") || "(None running currently)"
-}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
+		mcpHub
+			.getServers()
+			.map((server) => server.name)
+			.join(", ") || "(None running currently)"
+	}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
 
 However some MCP servers may be running from installed packages rather than a local repository, in which case it may make more sense to create a new MCP server.
 

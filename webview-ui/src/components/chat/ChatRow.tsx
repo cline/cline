@@ -565,7 +565,13 @@ export const ChatRowContent = ({
 								whiteSpace: "pre-line",
 								wordWrap: "break-word",
 							}}>
-							<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "flex-start",
+									gap: "10px",
+								}}>
 								<span style={{ display: "block", flexGrow: 1 }}>{highlightMentions(message.text)}</span>
 								<VSCodeButton
 									appearance="icon"
@@ -574,17 +580,16 @@ export const ChatRowContent = ({
 										flexShrink: 0,
 										height: "24px",
 										marginTop: "-6px",
-										marginRight: "-6px"
+										marginRight: "-6px",
 									}}
 									disabled={isStreaming}
 									onClick={(e) => {
-										e.stopPropagation();
+										e.stopPropagation()
 										vscode.postMessage({
 											type: "deleteMessage",
-											value: message.ts
-										});
-									}}
-								>
+											value: message.ts,
+										})
+									}}>
 									<span className="codicon codicon-trash"></span>
 								</VSCodeButton>
 							</div>
@@ -835,10 +840,13 @@ export const ChatRowContent = ({
 												tool={{
 													name: useMcpServer.toolName || "",
 													description:
-														server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
-															?.description || "",
-													alwaysAllow: server?.tools?.find((tool) => tool.name === useMcpServer.toolName)
-														?.alwaysAllow || false,
+														server?.tools?.find(
+															(tool) => tool.name === useMcpServer.toolName,
+														)?.description || "",
+													alwaysAllow:
+														server?.tools?.find(
+															(tool) => tool.name === useMcpServer.toolName,
+														)?.alwaysAllow || false,
 												}}
 												serverName={useMcpServer.serverName}
 											/>
@@ -919,14 +927,13 @@ export const ProgressIndicator = () => (
 )
 
 const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boolean }) => {
-	const [isHovering, setIsHovering] = useState(false);
+	const [isHovering, setIsHovering] = useState(false)
 
 	return (
 		<div
 			onMouseEnter={() => setIsHovering(true)}
 			onMouseLeave={() => setIsHovering(false)}
-			style={{ position: "relative" }}
-		>
+			style={{ position: "relative" }}>
 			<div style={{ wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: -15, marginTop: -15 }}>
 				<MarkdownBlock markdown={markdown} />
 			</div>
@@ -938,9 +945,8 @@ const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boo
 						right: "8px",
 						opacity: 0,
 						animation: "fadeIn 0.2s ease-in-out forwards",
-						borderRadius: "4px"
-					}}
-				>
+						borderRadius: "4px",
+					}}>
 					<style>
 						{`
 							@keyframes fadeIn {
@@ -956,21 +962,20 @@ const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boo
 							height: "24px",
 							border: "none",
 							background: "var(--vscode-editor-background)",
-							transition: "background 0.2s ease-in-out"
+							transition: "background 0.2s ease-in-out",
 						}}
 						onClick={() => {
-							navigator.clipboard.writeText(markdown);
+							navigator.clipboard.writeText(markdown)
 							// Flash the button background briefly to indicate success
-							const button = document.activeElement as HTMLElement;
+							const button = document.activeElement as HTMLElement
 							if (button) {
-								button.style.background = "var(--vscode-button-background)";
+								button.style.background = "var(--vscode-button-background)"
 								setTimeout(() => {
-									button.style.background = "";
-								}, 200);
+									button.style.background = ""
+								}, 200)
 							}
 						}}
-						title="Copy as markdown"
-					>
+						title="Copy as markdown">
 						<span className="codicon codicon-copy"></span>
 					</VSCodeButton>
 				</div>

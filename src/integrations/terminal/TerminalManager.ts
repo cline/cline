@@ -146,7 +146,9 @@ export class TerminalManager {
 			process.run(terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => (terminalInfo.terminal as ExtendedTerminal).shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
+			pWaitFor(() => (terminalInfo.terminal as ExtendedTerminal).shellIntegration !== undefined, {
+				timeout: 4000,
+			}).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false

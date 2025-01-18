@@ -9,12 +9,12 @@ import delay from "delay"
 
 // Add custom interface for OpenRouter params
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
-    transforms?: string[];
+	transforms?: string[]
 }
 
 // Add custom interface for OpenRouter usage chunk
 interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
-    fullResponseText: string;
+	fullResponseText: string
 }
 
 import { SingleCompletionHandler } from ".."
@@ -35,7 +35,10 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): AsyncGenerator<ApiStreamChunk> {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+	): AsyncGenerator<ApiStreamChunk> {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -108,7 +111,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				break
 		}
 		// https://openrouter.ai/docs/transforms
-		let fullResponseText = "";
+		let fullResponseText = ""
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
@@ -116,8 +119,8 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			messages: openAiMessages,
 			stream: true,
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
-			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] })
-		} as OpenRouterChatCompletionParams);
+			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] }),
+		} as OpenRouterChatCompletionParams)
 
 		let genId: string | undefined
 
@@ -135,11 +138,11 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
-				fullResponseText += delta.content;
+				fullResponseText += delta.content
 				yield {
 					type: "text",
 					text: delta.content,
-				} as ApiStreamChunk;
+				} as ApiStreamChunk
 			}
 			// if (chunk.usage) {
 			// 	yield {
@@ -170,13 +173,12 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
-				fullResponseText
-			} as OpenRouterApiStreamUsageChunk;
+				fullResponseText,
+			} as OpenRouterApiStreamUsageChunk
 		} catch (error) {
 			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
 		}
-
 	}
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
@@ -193,7 +195,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
 				temperature: 0,
-				stream: false
+				stream: false,
 			})
 
 			if ("error" in response) {

@@ -17,7 +17,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		const urlHost = new URL(this.options.openAiBaseUrl ?? "").host;
+		const urlHost = new URL(this.options.openAiBaseUrl ?? "").host
 		if (urlHost === "azure.com" || urlHost.endsWith(".azure.com")) {
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
@@ -39,7 +39,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 		if (this.options.openAiStreamingEnabled ?? true) {
 			const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 				role: "system",
-				content: systemPrompt
+				content: systemPrompt,
 			}
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
@@ -74,14 +74,14 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			// o1 for instance doesnt support streaming, non-1 temp, or system prompt
 			const systemMessage: OpenAI.Chat.ChatCompletionUserMessageParam = {
 				role: "user",
-				content: systemPrompt
+				content: systemPrompt,
 			}
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: modelId,
 				messages: [systemMessage, ...convertToOpenAiMessages(messages)],
 			}
 			const response = await this.client.chat.completions.create(requestOptions)
-			
+
 			yield {
 				type: "text",
 				text: response.choices[0]?.message.content || "",
@@ -108,7 +108,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 				messages: [{ role: "user", content: prompt }],
 				temperature: 0,
 			}
-			
+
 			const response = await this.client.chat.completions.create(requestOptions)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {

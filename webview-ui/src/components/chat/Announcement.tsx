@@ -33,25 +33,28 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				🎉{"  "}Introducing Roo Cline v{minorVersion}
 			</h2>
 
-			<h3 style={{ margin: "0 0 8px" }}>
-				Agent Modes Customization
-			</h3>
+			<h3 style={{ margin: "0 0 8px" }}>Agent Modes Customization</h3>
 			<p style={{ margin: "5px 0px" }}>
-				Click the new <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon in the menu bar to open the Prompts Settings and customize Agent Modes for new levels of productivity.
+				Click the new <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon in
+				the menu bar to open the Prompts Settings and customize Agent Modes for new levels of productivity.
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
 					<li>Tailor how Roo Cline behaves in different modes: Code, Architect, and Ask.</li>
 					<li>Preview and verify your changes using the Preview System Prompt button.</li>
 				</ul>
 			</p>
 
-			<h3 style={{ margin: "0 0 8px" }}>
-				Prompt Enhancement Configuration
-			</h3>
+			<h3 style={{ margin: "0 0 8px" }}>Prompt Enhancement Configuration</h3>
 			<p style={{ margin: "5px 0px" }}>
-				Now available for all providers! Access it directly in the chat box by clicking the <span className="codicon codicon-sparkle" style={{ fontSize: "10px" }}></span> sparkle icon next to the input field. From there, you can customize the enhancement logic and provider to best suit your workflow.
+				Now available for all providers! Access it directly in the chat box by clicking the{" "}
+				<span className="codicon codicon-sparkle" style={{ fontSize: "10px" }}></span> sparkle icon next to the
+				input field. From there, you can customize the enhancement logic and provider to best suit your
+				workflow.
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
 					<li>Customize how prompts are enhanced for better results in your workflow.</li>
-					<li>Use the sparkle icon in the chat box to select a API configuration and provider (e.g., GPT-4) and configure your own enhancement logic.</li>
+					<li>
+						Use the sparkle icon in the chat box to select a API configuration and provider (e.g., GPT-4)
+						and configure your own enhancement logic.
+					</li>
 					<li>Test your changes instantly with the Preview Prompt Enhancement tool.</li>
 				</ul>
 			</p>

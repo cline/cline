@@ -1,10 +1,10 @@
 function globby(patterns, options) {
-  return Promise.resolve([]);
+	return Promise.resolve([])
 }
 
-globby.sync = function(patterns, options) {
-  return [];
-};
+globby.sync = function (patterns, options) {
+	return []
+}
 
-module.exports = globby;
-module.exports.default = globby;
+module.exports = globby
+module.exports.default = globby

@@ -18,7 +18,7 @@ function inferIndentation(line: string, contextLines: string[], previousIndent: 
 	const contextLine = contextLines[0]
 	if (contextLine) {
 		const contextMatch = contextLine.match(/^(\s+)/)
-    if (contextMatch) {
+		if (contextMatch) {
 			return contextMatch[1]
 		}
 	}
@@ -28,19 +28,15 @@ function inferIndentation(line: string, contextLines: string[], previousIndent: 
 }
 
 // Context matching edit strategy
-export function applyContextMatching(
-	hunk: Hunk,
-	content: string[],
-	matchPosition: number,
-): EditResult {
-  if (matchPosition === -1) {
+export function applyContextMatching(hunk: Hunk, content: string[], matchPosition: number): EditResult {
+	if (matchPosition === -1) {
 		return { confidence: 0, result: content, strategy: "context" }
 	}
 
 	const newResult = [...content.slice(0, matchPosition)]
 	let sourceIndex = matchPosition
 
-  for (const change of hunk.changes) {
+	for (const change of hunk.changes) {
 		if (change.type === "context") {
 			// Use the original line from content if available
 			if (sourceIndex < content.length) {
@@ -82,20 +78,16 @@ export function applyContextMatching(
 
 	const confidence = validateEditResult(hunk, afterText)
 
-	return { 
+	return {
 		confidence,
 		result: newResult,
-		strategy: "context"
+		strategy: "context",
 	}
 }
 
 // DMP edit strategy
-export function applyDMP(
-	hunk: Hunk,
-	content: string[],
-	matchPosition: number,
-): EditResult {
-  if (matchPosition === -1) {
+export function applyDMP(hunk: Hunk, content: string[], matchPosition: number): EditResult {
+	if (matchPosition === -1) {
 		return { confidence: 0, result: content, strategy: "dmp" }
 	}
 
@@ -105,9 +97,9 @@ export function applyDMP(
 	const beforeLineCount = hunk.changes
 		.filter((change) => change.type === "context" || change.type === "remove")
 		.reduce((count, change) => count + change.content.split("\n").length, 0)
-  
-  // Build BEFORE block (context + removals)
-  const beforeLines = hunk.changes
+
+	// Build BEFORE block (context + removals)
+	const beforeLines = hunk.changes
 		.filter((change) => change.type === "context" || change.type === "remove")
 		.map((change) => {
 			if (change.originalLine) {
@@ -115,9 +107,9 @@ export function applyDMP(
 			}
 			return change.indent ? change.indent + change.content : change.content
 		})
-  
-  // Build AFTER block (context + additions)
-  const afterLines = hunk.changes
+
+	// Build AFTER block (context + additions)
+	const afterLines = hunk.changes
 		.filter((change) => change.type === "context" || change.type === "add")
 		.map((change) => {
 			if (change.originalLine) {
@@ -139,17 +131,17 @@ export function applyDMP(
 	const patchedLines = patchedText.split("\n")
 
 	// Construct final result
-  const newResult = [
-    ...content.slice(0, matchPosition),
-    ...patchedLines,
+	const newResult = [
+		...content.slice(0, matchPosition),
+		...patchedLines,
 		...content.slice(matchPosition + beforeLineCount),
 	]
-  
+
 	const confidence = validateEditResult(hunk, patchedText)
-  
-  return {
+
+	return {
 		confidence,
-    result: newResult,
+		result: newResult,
 		strategy: "dmp",
 	}
 }
@@ -171,7 +163,7 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 		const searchLines = hunk.changes
 			.filter((change) => change.type === "context" || change.type === "remove")
 			.map((change) => change.originalLine || change.indent + change.content)
-		
+
 		const replaceLines = hunk.changes
 			.filter((change) => change.type === "context" || change.type === "add")
 			.map((change) => change.originalLine || change.indent + change.content)
@@ -272,16 +264,16 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 
 // Main edit function that tries strategies sequentially
 export async function applyEdit(
-	hunk: Hunk, 
-	content: string[], 
-	matchPosition: number, 
+	hunk: Hunk,
+	content: string[],
+	matchPosition: number,
 	confidence: number,
-	confidenceThreshold: number = 0.97
+	confidenceThreshold: number = 0.97,
 ): Promise<EditResult> {
 	// Don't attempt regular edits if confidence is too low
 	if (confidence < confidenceThreshold) {
 		console.log(
-			`Search confidence (${confidence}) below minimum threshold (${confidenceThreshold}), trying git fallback...`
+			`Search confidence (${confidence}) below minimum threshold (${confidenceThreshold}), trying git fallback...`,
 		)
 		return applyGitFallback(hunk, content)
 	}

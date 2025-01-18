@@ -39,7 +39,23 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, mcpServers, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, allowedCommands, writeDelayMs, mode, setMode, autoApprovalEnabled } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+		mcpServers,
+		alwaysAllowBrowser,
+		alwaysAllowReadOnly,
+		alwaysAllowWrite,
+		alwaysAllowExecute,
+		alwaysAllowMcp,
+		allowedCommands,
+		writeDelayMs,
+		mode,
+		setMode,
+		autoApprovalEnabled,
+	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -178,7 +194,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setEnableButtons(true)
 							setPrimaryButtonText("Resume Task")
 							setSecondaryButtonText("Terminate")
-							setDidClickCancel(false) // special case where we reset the cancel button state							
+							setDidClickCancel(false) // special case where we reset the cancel button state
 							break
 						case "resume_completed_task":
 							setTextAreaDisabled(false)
@@ -490,7 +506,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				return true
 			}
 			const tool = JSON.parse(message.text)
-			return ["readFile", "listFiles", "listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"].includes(tool.tool)
+			return [
+				"readFile",
+				"listFiles",
+				"listFilesTopLevel",
+				"listFilesRecursive",
+				"listCodeDefinitionNames",
+				"searchFiles",
+			].includes(tool.tool)
 		}
 		return false
 	}, [])
@@ -506,26 +529,32 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return false
 	}, [])
 
-	const isMcpToolAlwaysAllowed = useCallback((message: ClineMessage | undefined) => {
-		if (message?.type === "ask" && message.ask === "use_mcp_server") {
-			if (!message.text) {
-				return true
+	const isMcpToolAlwaysAllowed = useCallback(
+		(message: ClineMessage | undefined) => {
+			if (message?.type === "ask" && message.ask === "use_mcp_server") {
+				if (!message.text) {
+					return true
+				}
+				const mcpServerUse = JSON.parse(message.text) as { type: string; serverName: string; toolName: string }
+				if (mcpServerUse.type === "use_mcp_tool") {
+					const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
+					const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
+					return tool?.alwaysAllow || false
+				}
 			}
-			const mcpServerUse = JSON.parse(message.text) as { type: string; serverName: string; toolName: string }
-			if (mcpServerUse.type === "use_mcp_tool") {
-				const server = mcpServers?.find((s: McpServer) => s.name === mcpServerUse.serverName)
-				const tool = server?.tools?.find((t: McpTool) => t.name === mcpServerUse.toolName)
-				return tool?.alwaysAllow || false
-			}
-		}
-		return false
-	}, [mcpServers])
+			return false
+		},
+		[mcpServers],
+	)
 
 	// Check if a command message is allowed
-	const isAllowedCommand = useCallback((message: ClineMessage | undefined): boolean => {
-		if (message?.type !== "ask") return false
-		return validateCommand(message.text || '', allowedCommands || [])
-	}, [allowedCommands])
+	const isAllowedCommand = useCallback(
+		(message: ClineMessage | undefined): boolean => {
+			if (message?.type !== "ask") return false
+			return validateCommand(message.text || "", allowedCommands || [])
+		},
+		[allowedCommands],
+	)
 
 	const isAutoApproved = useCallback(
 		(message: ClineMessage | undefined) => {
@@ -539,7 +568,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message))
 			)
 		},
-		[autoApprovalEnabled, alwaysAllowBrowser, alwaysAllowReadOnly, isReadOnlyToolAction, alwaysAllowWrite, isWriteToolAction, alwaysAllowExecute, isAllowedCommand, alwaysAllowMcp, isMcpToolAlwaysAllowed]
+		[
+			autoApprovalEnabled,
+			alwaysAllowBrowser,
+			alwaysAllowReadOnly,
+			isReadOnlyToolAction,
+			alwaysAllowWrite,
+			isWriteToolAction,
+			alwaysAllowExecute,
+			isAllowedCommand,
+			alwaysAllowMcp,
+			isMcpToolAlwaysAllowed,
+		],
 	)
 
 	useEffect(() => {
@@ -812,7 +852,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, handleRowHeightChange, isStreaming, toggleRowExpansion],
+		[
+			expandedRows,
+			modifiedMessages,
+			groupedMessages.length,
+			handleRowHeightChange,
+			isStreaming,
+			toggleRowExpansion,
+		],
 	)
 
 	useEffect(() => {
@@ -823,13 +870,29 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (isAutoApproved(lastMessage)) {
 				// Add delay for write operations
 				if (lastMessage?.ask === "tool" && isWriteToolAction(lastMessage)) {
-					await new Promise(resolve => setTimeout(resolve, writeDelayMs))
+					await new Promise((resolve) => setTimeout(resolve, writeDelayMs))
 				}
 				handlePrimaryButtonClick()
 			}
 		}
 		autoApprove()
-	}, [clineAsk, enableButtons, handlePrimaryButtonClick, alwaysAllowBrowser, alwaysAllowReadOnly, alwaysAllowWrite, alwaysAllowExecute, alwaysAllowMcp, messages, allowedCommands, mcpServers, isAutoApproved, lastMessage, writeDelayMs, isWriteToolAction])
+	}, [
+		clineAsk,
+		enableButtons,
+		handlePrimaryButtonClick,
+		alwaysAllowBrowser,
+		alwaysAllowReadOnly,
+		alwaysAllowWrite,
+		alwaysAllowExecute,
+		alwaysAllowMcp,
+		messages,
+		allowedCommands,
+		mcpServers,
+		isAutoApproved,
+		lastMessage,
+		writeDelayMs,
+		isWriteToolAction,
+	])
 
 	return (
 		<div
@@ -868,11 +931,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
 						<h2>What can I do for you?</h2>
 						<p>
-							Thanks to the latest breakthroughs in agentic coding capabilities,
-							I can handle complex software development tasks step-by-step. With tools that let me create
-							& edit files, explore complex projects, use the browser, and execute terminal commands
-							(after you grant permission), I can assist you in ways that go beyond code completion or
-							tech support. I can even use MCP to create new tools and extend my own capabilities.
+							Thanks to the latest breakthroughs in agentic coding capabilities, I can handle complex
+							software development tasks step-by-step. With tools that let me create & edit files, explore
+							complex projects, use the browser, and execute terminal commands (after you grant
+							permission), I can assist you in ways that go beyond code completion or tech support. I can
+							even use MCP to create new tools and extend my own capabilities.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}

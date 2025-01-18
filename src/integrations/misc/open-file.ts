@@ -21,8 +21,8 @@ export async function openImage(dataUri: string) {
 }
 
 interface OpenFileOptions {
-	create?: boolean;
-	content?: string;
+	create?: boolean
+	content?: string
 }
 
 export async function openFile(filePath: string, options: OpenFileOptions = {}) {
@@ -30,13 +30,11 @@ export async function openFile(filePath: string, options: OpenFileOptions = {}) 
 		// Get workspace root
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 		if (!workspaceRoot) {
-			throw new Error('No workspace root found')
+			throw new Error("No workspace root found")
 		}
 
 		// If path starts with ./, resolve it relative to workspace root
-		const fullPath = filePath.startsWith('./') ?
-			path.join(workspaceRoot, filePath.slice(2)) :
-			filePath
+		const fullPath = filePath.startsWith("./") ? path.join(workspaceRoot, filePath.slice(2)) : filePath
 
 		const uri = vscode.Uri.file(fullPath)
 
@@ -46,12 +44,12 @@ export async function openFile(filePath: string, options: OpenFileOptions = {}) 
 		} catch {
 			// File doesn't exist
 			if (!options.create) {
-				throw new Error('File does not exist')
+				throw new Error("File does not exist")
 			}
-			
+
 			// Create with provided content or empty string
-			const content = options.content || ''
-			await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'))
+			const content = options.content || ""
+			await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf8"))
 		}
 
 		// Check if the document is already open in a tab group that's not in the active editor's column

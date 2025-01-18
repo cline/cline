@@ -45,7 +45,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			setShowCopyModal(true)
 			setTimeout(() => setShowCopyModal(false), 2000)
 		} catch (error) {
-			console.error('Failed to copy to clipboard:', error)
+			console.error("Failed to copy to clipboard:", error)
 		}
 	}
 
@@ -70,7 +70,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const fzf = useMemo(() => {
 		return new Fzf(presentableTasks, {
-			selector: item => item.task
+			selector: (item) => item.task,
 		})
 	}, [presentableTasks])
 
@@ -78,34 +78,34 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		let results = presentableTasks
 		if (searchQuery) {
 			const searchResults = fzf.find(searchQuery)
-			results = searchResults.map(result => ({
+			results = searchResults.map((result) => ({
 				...result.item,
-				task: highlightFzfMatch(result.item.task, Array.from(result.positions))
+				task: highlightFzfMatch(result.item.task, Array.from(result.positions)),
 			}))
 		}
 
 		// First apply search if needed
-		const searchResults = searchQuery ? results : presentableTasks;
-		
+		const searchResults = searchQuery ? results : presentableTasks
+
 		// Then sort the results
 		return [...searchResults].sort((a, b) => {
 			switch (sortOption) {
 				case "oldest":
-					return (a.ts || 0) - (b.ts || 0);
+					return (a.ts || 0) - (b.ts || 0)
 				case "mostExpensive":
-					return (b.totalCost || 0) - (a.totalCost || 0);
+					return (b.totalCost || 0) - (a.totalCost || 0)
 				case "mostTokens":
-					const aTokens = (a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0);
-					const bTokens = (b.tokensIn || 0) + (b.tokensOut || 0) + (b.cacheWrites || 0) + (b.cacheReads || 0);
-					return bTokens - aTokens;
+					const aTokens = (a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0)
+					const bTokens = (b.tokensIn || 0) + (b.tokensOut || 0) + (b.cacheWrites || 0) + (b.cacheReads || 0)
+					return bTokens - aTokens
 				case "mostRelevant":
 					// Keep fuse order if searching, otherwise sort by newest
-					return searchQuery ? 0 : (b.ts || 0) - (a.ts || 0);
+					return searchQuery ? 0 : (b.ts || 0) - (a.ts || 0)
 				case "newest":
 				default:
-					return (b.ts || 0) - (a.ts || 0);
+					return (b.ts || 0) - (a.ts || 0)
 			}
-		});
+		})
 	}, [presentableTasks, searchQuery, fzf, sortOption])
 
 	return (
@@ -144,11 +144,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}
 				`}
 			</style>
-			{showCopyModal && (
-				<div className="copy-modal">
-					Prompt Copied to Clipboard
-				</div>
-			)}
+			{showCopyModal && <div className="copy-modal">Prompt Copied to Clipboard</div>}
 			<div
 				style={{
 					position: "fixed",
@@ -231,7 +227,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						components={{
 							List: React.forwardRef((props, ref) => (
 								<div {...props} ref={ref} data-testid="virtuoso-item-list" />
-							))
+							)),
 						}}
 						itemContent={(index, item) => (
 							<div
@@ -271,21 +267,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										</span>
 										<div style={{ display: "flex", gap: "4px" }}>
 											<button
-											  title="Copy Prompt"
-											  className="copy-button"
-											  data-appearance="icon"
-											  onClick={(e) => handleCopyTask(e, item.task)}>
-											  <span className="codicon codicon-copy"></span>
+												title="Copy Prompt"
+												className="copy-button"
+												data-appearance="icon"
+												onClick={(e) => handleCopyTask(e, item.task)}>
+												<span className="codicon codicon-copy"></span>
 											</button>
 											<button
-											  title="Delete Task"
-											  className="delete-button"
-											  data-appearance="icon"
-											  onClick={(e) => {
-											    e.stopPropagation()
-											    handleDeleteHistoryItem(item.id)
-											  }}>
-											  <span className="codicon codicon-trash"></span>
+												title="Delete Task"
+												className="delete-button"
+												data-appearance="icon"
+												onClick={(e) => {
+													e.stopPropagation()
+													handleDeleteHistoryItem(item.id)
+												}}>
+												<span className="codicon codicon-trash"></span>
 											</button>
 										</div>
 									</div>

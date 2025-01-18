@@ -1,19 +1,19 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2020",
-    "lib": ["ES2020"],
-    "sourceMap": true,
-    "rootDir": "../..",
-    "strict": false,
-    "noImplicitAny": false,
-    "noImplicitThis": false,
-    "alwaysStrict": false,
-    "skipLibCheck": true,
-    "baseUrl": "../..",
-    "paths": {
-      "*": ["*", "src/*"]
-    }
-  },
-  "exclude": ["node_modules", ".vscode-test"]
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "ES2020",
+		"lib": ["ES2020"],
+		"sourceMap": true,
+		"rootDir": "../..",
+		"strict": false,
+		"noImplicitAny": false,
+		"noImplicitThis": false,
+		"alwaysStrict": false,
+		"skipLibCheck": true,
+		"baseUrl": "../..",
+		"paths": {
+			"*": ["*", "src/*"]
+		}
+	},
+	"exclude": ["node_modules", ".vscode-test"]
 }

@@ -3,7 +3,7 @@ import os from "os"
 import osName from "os-name"
 
 export function getSystemInfoSection(cwd: string): string {
-    return `====
+	return `====
 
 SYSTEM INFORMATION
 

@@ -74,7 +74,7 @@ export function getContextMenuOptions(
 		value: "git-changes",
 		label: "Working changes",
 		description: "Current uncommitted changes",
-		icon: "$(git-commit)"
+		icon: "$(git-commit)",
 	}
 
 	if (query === "") {
@@ -93,8 +93,7 @@ export function getContextMenuOptions(
 		}
 
 		if (selectedType === ContextMenuOptionType.Git) {
-			const commits = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.Git)
+			const commits = queryItems.filter((item) => item.type === ContextMenuOptionType.Git)
 			return commits.length > 0 ? [workingChanges, ...commits] : [workingChanges]
 		}
 
@@ -112,11 +111,11 @@ export function getContextMenuOptions(
 
 	// Check for top-level option matches
 	if ("git".startsWith(lowerQuery)) {
-		suggestions.push({ 
+		suggestions.push({
 			type: ContextMenuOptionType.Git,
 			label: "Git Commits",
 			description: "Search repository history",
-			icon: "$(git-commit)"
+			icon: "$(git-commit)",
 		})
 	} else if ("git-changes".startsWith(lowerQuery)) {
 		suggestions.push(workingChanges)
@@ -130,9 +129,8 @@ export function getContextMenuOptions(
 
 	// Add exact SHA matches to suggestions
 	if (/^[a-f0-9]{7,40}$/i.test(lowerQuery)) {
-		const exactMatches = queryItems.filter((item) =>
-			item.type === ContextMenuOptionType.Git &&
-			item.value?.toLowerCase() === lowerQuery
+		const exactMatches = queryItems.filter(
+			(item) => item.type === ContextMenuOptionType.Git && item.value?.toLowerCase() === lowerQuery,
 		)
 		if (exactMatches.length > 0) {
 			suggestions.push(...exactMatches)
@@ -143,52 +141,50 @@ export function getContextMenuOptions(
 				value: lowerQuery,
 				label: `Commit ${lowerQuery}`,
 				description: "Git commit hash",
-				icon: "$(git-commit)"
+				icon: "$(git-commit)",
 			})
 		}
 	}
 
 	// Create searchable strings array for fzf
-	const searchableItems = queryItems.map(item => ({
+	const searchableItems = queryItems.map((item) => ({
 		original: item,
-		searchStr: [item.value, item.label, item.description].filter(Boolean).join(' ')
+		searchStr: [item.value, item.label, item.description].filter(Boolean).join(" "),
 	}))
 
 	// Initialize fzf instance for fuzzy search
 	const fzf = new Fzf(searchableItems, {
-		selector: item => item.searchStr
+		selector: (item) => item.searchStr,
 	})
 
 	// Get fuzzy matching items
-	const matchingItems = query ? fzf.find(query).map(result => result.item.original) : []
+	const matchingItems = query ? fzf.find(query).map((result) => result.item.original) : []
 
 	// Separate matches by type
-	const fileMatches = matchingItems.filter(item =>
-		item.type === ContextMenuOptionType.File ||
-		item.type === ContextMenuOptionType.Folder
+	const fileMatches = matchingItems.filter(
+		(item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.Folder,
 	)
-	const gitMatches = matchingItems.filter(item =>
-		item.type === ContextMenuOptionType.Git
-	)
-	const otherMatches = matchingItems.filter(item =>
-		item.type !== ContextMenuOptionType.File &&
-		item.type !== ContextMenuOptionType.Folder &&
-		item.type !== ContextMenuOptionType.Git
+	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
+	const otherMatches = matchingItems.filter(
+		(item) =>
+			item.type !== ContextMenuOptionType.File &&
+			item.type !== ContextMenuOptionType.Folder &&
+			item.type !== ContextMenuOptionType.Git,
 	)
 
 	// Combine suggestions with matching items in the desired order
 	if (suggestions.length > 0 || matchingItems.length > 0) {
 		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
-		
+
 		// Remove duplicates based on type and value
 		const seen = new Set()
-		const deduped = allItems.filter(item => {
+		const deduped = allItems.filter((item) => {
 			const key = `${item.type}-${item.value}`
 			if (seen.has(key)) return false
 			seen.add(key)
 			return true
 		})
-		
+
 		return deduped
 	}
 

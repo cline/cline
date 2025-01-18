@@ -13,11 +13,9 @@ import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
-import {
-	checkExistKey
-} from "../../../src/shared/checkExistApiConfig"
+import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
 import { Mode } from "../../../src/core/prompts/types"
-import { codeMode, CustomPrompts, defaultPrompts } from "../../../src/shared/modes"
+import { CustomPrompts, defaultModeSlug, defaultPrompts } from "../../../src/shared/modes"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -25,7 +23,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	theme: any
 	glamaModels: Record<string, ModelInfo>
 	openRouterModels: Record<string, ModelInfo>
-	openAiModels: string[],
+	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -82,7 +80,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		soundVolume: 0.5,
 		diffEnabled: false,
 		fuzzyMatchThreshold: 1.0,
-		preferredLanguage: 'English',
+		preferredLanguage: "English",
 		writeDelayMs: 1000,
 		browserViewportSize: "900x600",
 		screenshotQuality: 75,
@@ -90,11 +88,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		mcpEnabled: true,
 		alwaysApproveResubmit: false,
 		requestDelaySeconds: 5,
-		currentApiConfigName: 'default',
+		currentApiConfigName: "default",
 		listApiConfigMeta: [],
-		mode: codeMode,
+		mode: defaultModeSlug,
 		customPrompts: defaultPrompts,
-		enhancementApiConfigId: '',
+		enhancementApiConfigId: "",
 		experimentalDiffStrategy: false,
 		autoApprovalEnabled: false,
 	})
@@ -112,87 +110,95 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
+	const setListApiConfigMeta = useCallback(
+		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
+		[setState],
+	)
 
-	const setListApiConfigMeta = useCallback((value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })), [setState])
+	const onUpdateApiConfig = useCallback(
+		(apiConfig: ApiConfiguration) => {
+			vscode.postMessage({
+				type: "upsertApiConfiguration",
+				text: state.currentApiConfigName,
+				apiConfiguration: apiConfig,
+			})
+		},
+		[state],
+	)
 
-	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
-		vscode.postMessage({
-			type: "upsertApiConfiguration",
-			text: state.currentApiConfigName,
-			apiConfiguration: apiConfig,
-		})
-	}, [state])
-
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		switch (message.type) {
-			case "state": {
-				const newState = message.state!
-				setState(prevState => ({
-					...prevState,
-					...newState
-				}))
-				const config = newState.apiConfiguration
-				const hasKey = checkExistKey(config)
-				setShowWelcome(!hasKey)
-				setDidHydrateState(true)
-				break
-			}
-			case "theme": {
-				if (message.text) {
-					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
+	const handleMessage = useCallback(
+		(event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "state": {
+					const newState = message.state!
+					setState((prevState) => ({
+						...prevState,
+						...newState,
+					}))
+					const config = newState.apiConfiguration
+					const hasKey = checkExistKey(config)
+					setShowWelcome(!hasKey)
+					setDidHydrateState(true)
+					break
 				}
-				break
-			}
-			case "workspaceUpdated": {
-				setFilePaths(message.filePaths ?? [])
-				break
-			}
-			case "partialMessage": {
-				const partialMessage = message.partialMessage!
-				setState((prevState) => {
-					// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-					const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-					if (lastIndex !== -1) {
-						const newClineMessages = [...prevState.clineMessages]
-						newClineMessages[lastIndex] = partialMessage
-						return { ...prevState, clineMessages: newClineMessages }
+				case "theme": {
+					if (message.text) {
+						setTheme(convertTextMateToHljs(JSON.parse(message.text)))
 					}
-					return prevState
-				})
-				break
+					break
+				}
+				case "workspaceUpdated": {
+					setFilePaths(message.filePaths ?? [])
+					break
+				}
+				case "partialMessage": {
+					const partialMessage = message.partialMessage!
+					setState((prevState) => {
+						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
+						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
+						if (lastIndex !== -1) {
+							const newClineMessages = [...prevState.clineMessages]
+							newClineMessages[lastIndex] = partialMessage
+							return { ...prevState, clineMessages: newClineMessages }
+						}
+						return prevState
+					})
+					break
+				}
+				case "glamaModels": {
+					const updatedModels = message.glamaModels ?? {}
+					setGlamaModels({
+						[glamaDefaultModelId]: glamaDefaultModelInfo, // in case the extension sent a model list without the default model
+						...updatedModels,
+					})
+					break
+				}
+				case "openRouterModels": {
+					const updatedModels = message.openRouterModels ?? {}
+					setOpenRouterModels({
+						[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+						...updatedModels,
+					})
+					break
+				}
+				case "openAiModels": {
+					const updatedModels = message.openAiModels ?? []
+					setOpenAiModels(updatedModels)
+					break
+				}
+				case "mcpServers": {
+					setMcpServers(message.mcpServers ?? [])
+					break
+				}
+				case "listApiConfig": {
+					setListApiConfigMeta(message.listApiConfig ?? [])
+					break
+				}
 			}
-			case "glamaModels": {
-				const updatedModels = message.glamaModels ?? {}
-				setGlamaModels({
-					[glamaDefaultModelId]: glamaDefaultModelInfo, // in case the extension sent a model list without the default model
-					...updatedModels,
-				})
-				break
-			}
-			case "openRouterModels": {
-				const updatedModels = message.openRouterModels ?? {}
-				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					...updatedModels,
-				})
-				break
-			}
-			case "openAiModels": {
-				const updatedModels = message.openAiModels ?? []
-				setOpenAiModels(updatedModels)
-				break
-			}
-			case "mcpServers": {
-				setMcpServers(message.mcpServers ?? [])
-				break
-			}
-			case "listApiConfig": {
-				setListApiConfigMeta(message.listApiConfig ?? [])
-				break
-			}
-		}
-	}, [setListApiConfigMeta])
+		},
+		[setListApiConfigMeta],
+	)
 
 	useEvent("message", handleMessage)
 
@@ -215,10 +221,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		writeDelayMs: state.writeDelayMs,
 		screenshotQuality: state.screenshotQuality,
 		experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
-		setApiConfiguration: (value) => setState((prevState) => ({
-			...prevState,
-			apiConfiguration: value
-		})),
+		setApiConfiguration: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				apiConfiguration: value,
+			})),
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setAlwaysAllowWrite: (value) => setState((prevState) => ({ ...prevState, alwaysAllowWrite: value })),
@@ -230,12 +237,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setSoundVolume: (value) => setState((prevState) => ({ ...prevState, soundVolume: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
-		setBrowserViewportSize: (value: string) => setState((prevState) => ({ ...prevState, browserViewportSize: value })),
+		setBrowserViewportSize: (value: string) =>
+			setState((prevState) => ({ ...prevState, browserViewportSize: value })),
 		setFuzzyMatchThreshold: (value) => setState((prevState) => ({ ...prevState, fuzzyMatchThreshold: value })),
 		setPreferredLanguage: (value) => setState((prevState) => ({ ...prevState, preferredLanguage: value })),
 		setWriteDelayMs: (value) => setState((prevState) => ({ ...prevState, writeDelayMs: value })),
 		setScreenshotQuality: (value) => setState((prevState) => ({ ...prevState, screenshotQuality: value })),
-		setTerminalOutputLineLimit: (value) => setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
+		setTerminalOutputLineLimit: (value) =>
+			setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
 		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
@@ -244,8 +253,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		onUpdateApiConfig,
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
 		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
-		setEnhancementApiConfigId: (value) => setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
-		setExperimentalDiffStrategy: (value) => setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
+		setEnhancementApiConfigId: (value) =>
+			setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
+		setExperimentalDiffStrategy: (value) =>
+			setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 	}
 

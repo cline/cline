@@ -1,11 +1,6 @@
 import { Checkbox, Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
-import {
-	VSCodeLink,
-	VSCodeRadio,
-	VSCodeRadioGroup,
-	VSCodeTextField
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import {
@@ -83,7 +78,12 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null)
+	useInterval(
+		requestLocalModels,
+		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm"
+			? 2000
+			: null,
+	)
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && message.ollamaModels) {
@@ -102,17 +102,19 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			...Object.keys(models).map((modelId) => ({
 				value: modelId,
 				label: modelId,
-			}))
+			})),
 		]
 		return (
 			<Dropdown
 				id="model-id"
 				value={selectedModelId}
-				onChange={(value: unknown) => {handleInputChange("apiModelId")({
-					target: {
-						value: (value as DropdownOption).value
-					}
-				})}}
+				onChange={(value: unknown) => {
+					handleInputChange("apiModelId")({
+						target: {
+							value: (value as DropdownOption).value,
+						},
+					})
+				}}
 				style={{ width: "100%" }}
 				options={options}
 			/>
@@ -131,8 +133,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					onChange={(value: unknown) => {
 						handleInputChange("apiProvider")({
 							target: {
-								value: (value as DropdownOption).value
-							}
+								value: (value as DropdownOption).value,
+							},
 						})
 					}}
 					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}
@@ -149,7 +151,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						{ value: "vscode-lm", label: "VS Code LM API" },
 						{ value: "mistral", label: "Mistral" },
 						{ value: "lmstudio", label: "LM Studio" },
-						{ value: "ollama", label: "Ollama" }
+						{ value: "ollama", label: "Ollama" },
 					]}
 				/>
 			</div>
@@ -331,7 +333,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								target: { value: checked },
 							})
 						}}>
-						Compress prompts and message chains to the context size (<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
+						Compress prompts and message chains to the context size (
+						<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
 					</Checkbox>
 					<br />
 				</div>
@@ -371,11 +374,13 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							id="aws-region-dropdown"
 							value={apiConfiguration?.awsRegion || ""}
 							style={{ width: "100%" }}
-							onChange={(value: unknown) => {handleInputChange("awsRegion")({
-								target: {
-									value: (value as DropdownOption).value
-								}
-							})}}
+							onChange={(value: unknown) => {
+								handleInputChange("awsRegion")({
+									target: {
+										value: (value as DropdownOption).value,
+									},
+								})
+							}}
 							options={[
 								{ value: "", label: "Select a region..." },
 								{ value: "us-east-1", label: "us-east-1" },
@@ -392,7 +397,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								{ value: "eu-west-2", label: "eu-west-2" },
 								{ value: "eu-west-3", label: "eu-west-3" },
 								{ value: "sa-east-1", label: "sa-east-1" },
-								{ value: "us-gov-west-1", label: "us-gov-west-1" }
+								{ value: "us-gov-west-1", label: "us-gov-west-1" },
 							]}
 						/>
 					</div>
@@ -435,18 +440,20 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							id="vertex-region-dropdown"
 							value={apiConfiguration?.vertexRegion || ""}
 							style={{ width: "100%" }}
-							onChange={(value: unknown) => {handleInputChange("vertexRegion")({
-								target: {
-									value: (value as DropdownOption).value
-								}
-							})}}
+							onChange={(value: unknown) => {
+								handleInputChange("vertexRegion")({
+									target: {
+										value: (value as DropdownOption).value,
+									},
+								})
+							}}
 							options={[
 								{ value: "", label: "Select a region..." },
 								{ value: "us-east5", label: "us-east5" },
 								{ value: "us-central1", label: "us-central1" },
 								{ value: "europe-west1", label: "europe-west1" },
 								{ value: "europe-west4", label: "europe-west4" },
-								{ value: "asia-southeast1", label: "asia-southeast1" }
+								{ value: "asia-southeast1", label: "asia-southeast1" },
 							]}
 						/>
 					</div>
@@ -520,7 +527,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
 					<OpenAiModelPicker />
-					<div style={{ display: 'flex', alignItems: 'center' }}>
+					<div style={{ display: "flex", alignItems: "center" }}>
 						<Checkbox
 							checked={apiConfiguration?.openAiStreamingEnabled ?? true}
 							onChange={(checked: boolean) => {
@@ -669,19 +676,21 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						{vsCodeLmModels.length > 0 ? (
 							<Dropdown
 								id="vscode-lm-model"
-								value={apiConfiguration?.vsCodeLmModelSelector ?
-									`${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` :
-									""}
+								value={
+									apiConfiguration?.vsCodeLmModelSelector
+										? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}`
+										: ""
+								}
 								onChange={(value: unknown) => {
-									const valueStr = (value as DropdownOption)?.value;
+									const valueStr = (value as DropdownOption)?.value
 									if (!valueStr) {
 										return
 									}
-									const [vendor, family] = valueStr.split('/');
+									const [vendor, family] = valueStr.split("/")
 									handleInputChange("vsCodeLmModelSelector")({
 										target: {
-											value: { vendor, family } 
-										}
+											value: { vendor, family },
+										},
 									})
 								}}
 								style={{ width: "100%" }}
@@ -689,18 +698,20 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 									{ value: "", label: "Select a model..." },
 									...vsCodeLmModels.map((model) => ({
 										value: `${model.vendor}/${model.family}`,
-										label: `${model.vendor} - ${model.family}`
-									}))
+										label: `${model.vendor} - ${model.family}`,
+									})),
 								]}
 							/>
 						) : (
-							<p style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-								The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot).
-								The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								The VS Code Language Model API allows you to run models provided by other VS Code
+								extensions (including but not limited to GitHub Copilot). The easiest way to get started
+								is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.
 							</p>
 						)}
 
@@ -711,7 +722,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								color: "var(--vscode-errorForeground)",
 								fontWeight: 500,
 							}}>
-							Note: This is a very experimental integration and may not work as expected. Please report any issues to the Roo-Cline GitHub repository.
+							Note: This is a very experimental integration and may not work as expected. Please report
+							any issues to the Roo-Cline GitHub repository.
 						</p>
 					</div>
 				</div>
@@ -1042,9 +1054,9 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		case "vscode-lm":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.vsCodeLmModelSelector ?
-					`${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}` :
-					"",
+				selectedModelId: apiConfiguration?.vsCodeLmModelSelector
+					? `${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}`
+					: "",
 				selectedModelInfo: {
 					...openAiModelInfoSaneDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images

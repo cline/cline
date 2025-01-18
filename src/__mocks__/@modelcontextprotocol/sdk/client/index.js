@@ -1,17 +1,17 @@
 class Client {
-  constructor() {
-    this.request = jest.fn()
-  }
+	constructor() {
+		this.request = jest.fn()
+	}
 
-  connect() {
-    return Promise.resolve()
-  }
+	connect() {
+		return Promise.resolve()
+	}
 
-  close() {
-    return Promise.resolve()
-  }
+	close() {
+		return Promise.resolve()
+	}
 }
 
 module.exports = {
-  Client
+	Client,
 }

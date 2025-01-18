@@ -53,7 +53,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
 				temperature: 0,
-				stream: false
+				stream: false,
 			})
 			return response.choices[0]?.message.content || ""
 		} catch (error) {

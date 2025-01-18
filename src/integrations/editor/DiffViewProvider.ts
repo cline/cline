@@ -132,10 +132,10 @@ export class DiffViewProvider {
 			// Apply the final content
 			const finalEdit = new vscode.WorkspaceEdit()
 			finalEdit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), accumulatedContent)
-						await vscode.workspace.applyEdit(finalEdit)
-						// Clear all decorations at the end (after applying final edit)
-						this.fadedOverlayController.clear()
-						this.activeLineController.clear()
+			await vscode.workspace.applyEdit(finalEdit)
+			// Clear all decorations at the end (after applying final edit)
+			this.fadedOverlayController.clear()
+			this.activeLineController.clear()
 		}
 	}
 
