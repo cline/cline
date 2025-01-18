@@ -35,6 +35,7 @@ STOP! Before proceeding, you MUST verify these requirements:
 1. From the Cline extension, click the `MCP Server` tab
 1. Click the `Edit MCP Settings` button
 
+    <!-- prettier-ignore -->
     <img src="https://github.com/user-attachments/assets/abf908b1-be98-4894-8dc7-ef3d27943a47" alt="MCP Server Panel" width="400" />
 
 1. The MCP settings files should be display in a tab in VS Code.
