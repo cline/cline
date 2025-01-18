@@ -5,8 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
-// In development, process.env.NODE_ENV is 'development'
-const IS_DEV = process.env.NODE_ENV === 'development'
+const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
 	onDone: () => void
