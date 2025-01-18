@@ -5,7 +5,8 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
-const IS_DEV = false // FIXME: use flags when packaging
+// In development, process.env.NODE_ENV is 'development'
+const IS_DEV = process.env.NODE_ENV === 'development'
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -130,12 +131,29 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				<div
 					style={{
+						marginTop: "auto",
+						paddingRight: 8,
+						display: "flex",
+						justifyContent: "center",
+					}}>
+					<VSCodeButton
+						appearance="secondary"
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						style={{
+							margin: "0 0 16px 0",
+							minWidth: "fit-content",
+							whiteSpace: "nowrap",
+						}}>
+						Advanced Settings
+					</VSCodeButton>
+				</div>
+				<div
+					style={{
 						textAlign: "center",
 						color: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 						lineHeight: "1.2",
-						marginTop: "auto",
-						padding: "10px 8px 15px 0px",
+						padding: "0 8px 15px 0",
 					}}>
 					<p
 						style={{

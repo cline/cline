@@ -141,7 +141,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							vscode.postMessage({ type: "openMcpSettings" })
 						}}>
 						<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-						Edit MCP Settings
+						Edit MCP Settingssss
 					</VSCodeButton>
 				</div>
 

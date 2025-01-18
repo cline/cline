@@ -550,10 +550,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.cancelTask()
 						break
 					case "openMcpSettings": {
-						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-						if (mcpSettingsFilePath) {
-							openFile(mcpSettingsFilePath)
-						}
+						await vscode.commands.executeCommand("workbench.action.openSettings")
+						// const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+						// if (mcpSettingsFilePath) {
+						// 	openFile(mcpSettingsFilePath)
+						// }
 						break
 					}
 					case "restartMcpServer": {
@@ -563,6 +564,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							console.error(`Failed to retry connection for ${message.text}:`, error)
 						}
 						break
+					}
+					case "openExtensionSettings": {
+						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+						if (mcpSettingsFilePath) {
+							openFile(mcpSettingsFilePath)
+						}
+						break
+						// await vscode.commands.executeCommand("workbench.action.openSettings")
+						// break
 					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
