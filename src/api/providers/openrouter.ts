@@ -29,8 +29,8 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
-				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline", // Optional, for including your app on openrouter.ai rankings.
-				"X-Title": "Roo-Cline", // Optional. Shows in rankings on openrouter.ai.
+				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+				"X-Title": "Roo-Code",
 			},
 		})
 	}

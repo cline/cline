@@ -240,7 +240,7 @@ const GlamaModelPicker: React.FC = () => {
 					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://glama.ai/models">
 						Glama.
 					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
+					If you're unsure which model to choose, Roo Code works best with{" "}
 					<VSCodeLink
 						style={{ display: "inline", fontSize: "inherit" }}
 						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet")}>

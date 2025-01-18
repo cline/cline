@@ -23,28 +23,70 @@ export async function loadRuleFiles(cwd: string): Promise<string> {
 }
 
 export async function addCustomInstructions(
-	customInstructions: string,
+	modeCustomInstructions: string,
+	globalCustomInstructions: string,
 	cwd: string,
-	preferredLanguage?: string,
+	mode: string,
+	options: { preferredLanguage?: string } = {},
 ): Promise<string> {
-	const ruleFileContent = await loadRuleFiles(cwd)
-	const allInstructions = []
+	const sections = []
 
-	if (preferredLanguage) {
-		allInstructions.push(`You should always speak and think in the ${preferredLanguage} language.`)
+	// Load mode-specific rules if mode is provided
+	let modeRuleContent = ""
+	if (mode) {
+		try {
+			const modeRuleFile = `.clinerules-${mode}`
+			const content = await fs.readFile(path.join(cwd, modeRuleFile), "utf-8")
+			if (content.trim()) {
+				modeRuleContent = content.trim()
+			}
+		} catch (err) {
+			// Silently skip if file doesn't exist
+			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+				throw err
+			}
+		}
 	}
 
-	if (customInstructions.trim()) {
-		allInstructions.push(customInstructions.trim())
+	// Add language preference if provided
+	if (options.preferredLanguage) {
+		sections.push(
+			`Language Preference:\nYou should always speak and think in the ${options.preferredLanguage} language.`,
+		)
 	}
 
-	if (ruleFileContent && ruleFileContent.trim()) {
-		allInstructions.push(ruleFileContent.trim())
+	// Add global instructions first
+	if (typeof globalCustomInstructions === "string" && globalCustomInstructions.trim()) {
+		sections.push(`Global Instructions:\n${globalCustomInstructions.trim()}`)
 	}
 
-	const joinedInstructions = allInstructions.join("\n\n")
+	// Add mode-specific instructions after
+	if (typeof modeCustomInstructions === "string" && modeCustomInstructions.trim()) {
+		sections.push(`Mode-specific Instructions:\n${modeCustomInstructions.trim()}`)
+	}
 
-	return joinedInstructions
+	// Add rules - include both mode-specific and generic rules if they exist
+	const rules = []
+
+	// Add mode-specific rules first if they exist
+	if (modeRuleContent && modeRuleContent.trim()) {
+		const modeRuleFile = `.clinerules-${mode}`
+		rules.push(`# Rules from ${modeRuleFile}:\n${modeRuleContent}`)
+	}
+
+	// Add generic rules
+	const genericRuleContent = await loadRuleFiles(cwd)
+	if (genericRuleContent && genericRuleContent.trim()) {
+		rules.push(genericRuleContent.trim())
+	}
+
+	if (rules.length > 0) {
+		sections.push(`Rules:\n\n${rules.join("\n\n")}`)
+	}
+
+	const joinedSections = sections.join("\n\n")
+
+	return joinedSections
 		? `
 ====
 
@@ -52,6 +94,6 @@ USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 
-${joinedInstructions}`
+${joinedSections}`
 		: ""
 }

@@ -161,17 +161,17 @@ export class DiffViewProvider {
 		Getting diagnostics before and after the file edit is a better approach than
 		automatically tracking problems in real-time. This method ensures we only
 		report new problems that are a direct result of this specific edit.
-		Since these are new problems resulting from Cline's edit, we know they're
-		directly related to the work he's doing. This eliminates the risk of Cline
+		Since these are new problems resulting from Roo's edit, we know they're
+		directly related to the work he's doing. This eliminates the risk of Roo
 		going off-task or getting distracted by unrelated issues, which was a problem
 		with the previous auto-debug approach. Some users' machines may be slow to
 		update diagnostics, so this approach provides a good balance between automation
-		and avoiding potential issues where Cline might get stuck in loops due to
+		and avoiding potential issues where Roo might get stuck in loops due to
 		outdated problem information. If no new problems show up by the time the user
 		accepts the changes, they can always debug later using the '@problems' mention.
-		This way, Cline only becomes aware of new problems resulting from his edits
+		This way, Roo only becomes aware of new problems resulting from his edits
 		and can address them accordingly. If problems don't change immediately after
-		applying a fix, Cline won't be notified, which is generally fine since the
+		applying a fix, won't be notified, which is generally fine since the
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
@@ -297,7 +297,7 @@ export class DiffViewProvider {
 					query: Buffer.from(this.originalContent ?? "").toString("base64"),
 				}),
 				uri,
-				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+				`${fileName}: ${fileExists ? "Original ↔ Roo's Changes" : "New File"} (Editable)`,
 			)
 			// This may happen on very slow machines ie project idx
 			setTimeout(() => {

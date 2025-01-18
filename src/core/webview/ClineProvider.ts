@@ -16,9 +16,9 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { WebviewMessage, PromptMode } from "../../shared/WebviewMessage"
-import { defaultModeSlug, defaultPrompts } from "../../shared/modes"
-import { SYSTEM_PROMPT, addCustomInstructions } from "../prompts/system"
+import { WebviewMessage } from "../../shared/WebviewMessage"
+import { defaultModeSlug } from "../../shared/modes"
+import { SYSTEM_PROMPT } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
@@ -29,7 +29,8 @@ import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
-import { Mode, modes, CustomPrompts, PromptComponent, enhance } from "../../shared/modes"
+import { CustomModesManager } from "../config/CustomModesManager"
+import { Mode, modes, CustomPrompts, PromptComponent, enhance, ModeConfig } from "../../shared/modes"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -100,6 +101,7 @@ type GlobalStateKey =
 	| "enhancementApiConfigId"
 	| "experimentalDiffStrategy"
 	| "autoApprovalEnabled"
+	| "customModes" // Array of custom modes
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -118,8 +120,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
-	private latestAnnouncementId = "jan-13-2025-custom-prompt" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "jan-21-2025-custom-modes" // update to some unique identifier when we add a new announcement
 	configManager: ConfigManager
+	customModesManager: CustomModesManager
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -130,6 +133,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
 		this.configManager = new ConfigManager(this.context)
+		this.customModesManager = new CustomModesManager(this.context, async () => {
+			await this.postStateToWebview()
+		})
 	}
 
 	/*
@@ -155,6 +161,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -258,8 +265,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} = await this.getState()
 
 		const modePrompt = customPrompts?.[mode]
-		const modeInstructions = typeof modePrompt === "object" ? modePrompt.customInstructions : undefined
-		const effectiveInstructions = [globalInstructions, modeInstructions].filter(Boolean).join("\n\n")
+		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
 			this,
@@ -287,8 +293,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} = await this.getState()
 
 		const modePrompt = customPrompts?.[mode]
-		const modeInstructions = typeof modePrompt === "object" ? modePrompt.customInstructions : undefined
-		const effectiveInstructions = [globalInstructions, modeInstructions].filter(Boolean).join("\n\n")
+		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
 			this,
@@ -377,7 +382,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
-            <title>Cline</title>
+            <title>Roo Code</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -399,6 +404,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
+						// Load custom modes first
+						const customModes = await this.customModesManager.getCustomModes()
+						await this.updateGlobalState("customModes", customModes)
+
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
@@ -958,26 +967,35 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
 
 							const mode = message.mode ?? defaultModeSlug
-							const instructions = await addCustomInstructions(
-								{ customInstructions, customPrompts, preferredLanguage },
-								cwd,
-								mode,
-							)
+							const customModes = await this.customModesManager.getCustomModes()
+
+							const modePrompt = customPrompts?.[mode]
+							const effectiveInstructions = [customInstructions, modePrompt?.customInstructions]
+								.filter(Boolean)
+								.join("\n\n")
 
 							const systemPrompt = await SYSTEM_PROMPT(
+								this.context,
 								cwd,
 								apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
 								mcpEnabled ? this.mcpHub : undefined,
 								undefined,
 								browserViewportSize ?? "900x600",
 								mode,
-								customPrompts,
+								{
+									...customPrompts,
+									[mode]: {
+										...(modePrompt ?? {}),
+										customInstructions: undefined, // Prevent double-inclusion
+									},
+								},
+								customModes,
+								effectiveInstructions || undefined,
 							)
-							const fullPrompt = instructions ? `${systemPrompt}${instructions}` : systemPrompt
 
 							await this.postMessageToWebview({
 								type: "systemPrompt",
-								text: fullPrompt,
+								text: systemPrompt,
 								mode: message.mode,
 							})
 						} catch (error) {
@@ -1115,6 +1133,34 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.cline.updateDiffStrategy(message.bool ?? false)
 						}
 						await this.postStateToWebview()
+						break
+					case "updateCustomMode":
+						if (message.modeConfig) {
+							await this.customModesManager.updateCustomMode(message.modeConfig.slug, message.modeConfig)
+							// Update state after saving the mode
+							const customModes = await this.customModesManager.getCustomModes()
+							await this.updateGlobalState("customModes", customModes)
+							await this.updateGlobalState("mode", message.modeConfig.slug)
+							await this.postStateToWebview()
+						}
+						break
+					case "deleteCustomMode":
+						if (message.slug) {
+							const answer = await vscode.window.showInformationMessage(
+								"Are you sure you want to delete this custom mode?",
+								{ modal: true },
+								"Yes",
+							)
+
+							if (answer !== "Yes") {
+								break
+							}
+
+							await this.customModesManager.deleteCustomMode(message.slug)
+							// Switch back to default mode after deletion
+							await this.updateGlobalState("mode", defaultModeSlug)
+							await this.postStateToWebview()
+						}
 				}
 			},
 			null,
@@ -1727,6 +1773,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enhancementApiConfigId,
 			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
+			customModes: await this.customModesManager.getCustomModes(),
 		}
 	}
 
@@ -1844,6 +1891,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enhancementApiConfigId,
 			experimentalDiffStrategy,
 			autoApprovalEnabled,
+			customModes,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1906,6 +1954,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
 			this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
+			this.customModesManager.getCustomModes(),
 		])
 
 		let apiProvider: ApiProvider
@@ -2014,6 +2063,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enhancementApiConfigId,
 			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
+			customModes,
 		}
 	}
 
@@ -2107,6 +2157,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.storeSecret(key, undefined)
 		}
 		await this.configManager.resetAllConfigs()
+		await this.customModesManager.resetCustomModes()
 		if (this.cline) {
 			this.cline.abortTask()
 			this.cline = undefined

@@ -51,8 +51,8 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
-import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
-import { modes, defaultModeSlug } from "../shared/modes"
+import { SYSTEM_PROMPT } from "./prompts/system"
+import { modes, defaultModeSlug, getModeBySlug } from "../shared/modes"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
@@ -264,7 +264,7 @@ export class Cline {
 	): Promise<{ response: ClineAskResponse; text?: string; images?: string[] }> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Roo Code instance aborted")
 		}
 		let askTs: number
 		if (partial !== undefined) {
@@ -360,7 +360,7 @@ export class Cline {
 
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
 		if (this.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Roo Code instance aborted")
 		}
 
 		if (partial !== undefined) {
@@ -419,7 +419,7 @@ export class Cline {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
+			`Roo tried to use ${toolName}${
 				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
@@ -809,10 +809,15 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, preferredLanguage, mode, customPrompts } =
-			(await this.providerRef.deref()?.getState()) ?? {}
-		const systemPrompt =
-			(await SYSTEM_PROMPT(
+		const { browserViewportSize, mode, customPrompts } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+		const systemPrompt = await (async () => {
+			const provider = this.providerRef.deref()
+			if (!provider) {
+				throw new Error("Provider not available")
+			}
+			return SYSTEM_PROMPT(
+				provider.context,
 				cwd,
 				this.api.getModel().info.supportsComputerUse ?? false,
 				mcpHub,
@@ -820,16 +825,9 @@ export class Cline {
 				browserViewportSize,
 				mode,
 				customPrompts,
-			)) +
-			(await addCustomInstructions(
-				{
-					customInstructions: this.customInstructions,
-					customPrompts,
-					preferredLanguage,
-				},
-				cwd,
-				mode,
-			))
+				customModes,
+			)
+		})()
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -923,7 +921,7 @@ export class Cline {
 
 	async presentAssistantMessage() {
 		if (this.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Roo Code instance aborted")
 		}
 
 		if (this.presentAssistantMessageLocked) {
@@ -1142,8 +1140,9 @@ export class Cline {
 
 				// Validate tool use based on current mode
 				const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
+				const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 				try {
-					validateToolUse(block.name, mode ?? defaultModeSlug)
+					validateToolUse(block.name, mode ?? defaultModeSlug, customModes)
 				} catch (error) {
 					this.consecutiveMistakeCount++
 					pushToolResult(formatResponse.toolError(error.message))
@@ -1264,7 +1263,9 @@ export class Cline {
 										await this.diffViewProvider.revertChanges()
 										pushToolResult(
 											formatResponse.toolError(
-												`Content appears to be truncated (file has ${newContent.split("\n").length} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
+												`Content appears to be truncated (file has ${
+													newContent.split("\n").length
+												} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
 											),
 										)
 										break
@@ -1317,7 +1318,9 @@ export class Cline {
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || "")}\n</final_file_content>\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(
+												finalContent || "",
+											)}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1396,7 +1399,9 @@ export class Cline {
 									const errorDetails = diffResult.details
 										? JSON.stringify(diffResult.details, null, 2)
 										: ""
-									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${diffResult.error}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
+									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${
+										diffResult.error
+									}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
 									if (currentCount >= 2) {
 										await this.say("error", formattedError)
 									}
@@ -1438,7 +1443,9 @@ export class Cline {
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || "")}\n</final_file_content>\n\n` +
+											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(
+												finalContent || "",
+											)}\n</final_file_content>\n\n` +
 											`Please note:\n` +
 											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
 											`2. Proceed with the task using this updated file content as the new baseline.\n` +
@@ -1853,7 +1860,7 @@ export class Cline {
 										this.consecutiveMistakeCount++
 										await this.say(
 											"error",
-											`Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`,
+											`Roo tried to use ${tool_name} with an invalid JSON argument. Retrying...`,
 										)
 										pushToolResult(
 											formatResponse.toolError(
@@ -2164,7 +2171,7 @@ export class Cline {
 		includeFileDetails: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Roo Code instance aborted")
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
@@ -2172,7 +2179,7 @@ export class Cline {
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.5 Sonnet for its advanced agentic coding capabilities.",
+					: "Roo Code uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.5 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				userContent.push(
@@ -2366,7 +2373,7 @@ export class Cline {
 
 			// need to call here in case the stream was aborted
 			if (this.abort) {
-				throw new Error("Cline instance aborted")
+				throw new Error("Roo Code instance aborted")
 			}
 
 			this.didCompleteReadingStream = true
@@ -2622,16 +2629,18 @@ export class Cline {
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		// Add current mode and any mode-specific warnings
-		const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { mode, customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
 		details += `\n\n# Current Mode\n${currentMode}`
 
 		// Add warning if not in code mode
 		if (
-			!isToolAllowedForMode("write_to_file", currentMode) ||
-			!isToolAllowedForMode("execute_command", currentMode)
+			!isToolAllowedForMode("write_to_file", currentMode, customModes ?? []) &&
+			!isToolAllowedForMode("apply_diff", currentMode, customModes ?? [])
 		) {
-			details += `\n\nNOTE: You are currently in '${currentMode}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeSlug}' mode. Note that only the user can switch modes.`
+			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
+			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug
+			details += `\n\nNOTE: You are currently in '${currentModeName}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeName}' mode. Note that only the user can switch modes.`
 		}
 
 		if (includeFileDetails) {

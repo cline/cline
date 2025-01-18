@@ -557,7 +557,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
@@ -626,7 +626,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						</VSCodeLink>{" "}
 						feature to use it with this extension.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
@@ -717,7 +717,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								fontWeight: 500,
 							}}>
 							Note: This is a very experimental integration and may not work as expected. Please report
-							any issues to the Roo-Cline GitHub repository.
+							any issues to the Roo-Code GitHub repository.
 						</p>
 					</div>
 				</div>
@@ -780,7 +780,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							quickstart guide.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
