@@ -2741,7 +2741,7 @@ export class Cline {
 								if (!response) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("respond_to_inquiry", "response"))
-									await this.saveCheckpoint()
+									// await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2756,12 +2756,12 @@ export class Cline {
 								const { text, images } = await this.ask("respond_to_inquiry", response, false)
 								await this.say("user_feedback", text ?? "", images)
 								pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
-								await this.saveCheckpoint()
+								// await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("responding to inquiry", error)
-							await this.saveCheckpoint()
+							// await this.saveCheckpoint()
 							break
 						}
 					}

@@ -482,7 +482,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const onModeToggle = useCallback(() => {
 			if (textAreaDisabled) return
-			const newMode = chatSettings.mode === "chat" ? "code" : "chat"
+			const newMode = chatSettings.mode === "chat" ? "task" : "chat"
 			vscode.postMessage({
 				type: "chatSettings",
 				chatSettings: {
@@ -754,7 +754,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
 						<Slider isChat={chatSettings.mode === "chat"} />
-						<SwitchOption isActive={chatSettings.mode === "code"}>Code</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "task"}>Task</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "chat"}>Chat</SwitchOption>
 					</SwitchContainer>
 				</ControlsContainer>
