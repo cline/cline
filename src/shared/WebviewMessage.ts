@@ -1,5 +1,6 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { BrowserSettings } from "./BrowserSettings"
 
 export interface WebviewMessage {
 	type:
@@ -27,9 +28,11 @@ export interface WebviewMessage {
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "autoApprovalSettings"
+		| "browserSettings"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
+	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
@@ -37,6 +40,7 @@ export interface WebviewMessage {
 	bool?: boolean
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
+	browserSettings?: BrowserSettings
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

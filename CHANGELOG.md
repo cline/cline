@@ -1,5 +1,22 @@
 # Change Log
 
+## [3.1.10]
+
+- New icon!
+
+## [3.1.9]
+
+- Add Mistral API provider with codestral-latest model
+
+## [3.1.7]
+
+- Add ability to change viewport size and headless mode when Cline asks to launch the browser
+
+## [3.1.6]
+
+- Fix bug where filepaths with Chinese characters would not show up in context mention menu (thanks @chi-chat!)
+- Update Anthropic model prices (thanks @timoteostewart!)
+
 ## [3.1.5]
 
 - Fix bug where Cline couldn't read "@/" import path aliases from tool results
