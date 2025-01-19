@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+	| "mistral"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -34,6 +35,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	mistralApiKey?: string
 	azureApiVersion?: string
 }
 
@@ -57,7 +59,7 @@ export interface ModelInfo {
 }
 
 // Anthropic
-// https://docs.anthropic.com/en/docs/about-claude/models
+// https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
 export const anthropicModels = {
@@ -77,10 +79,10 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 1.0,
-		outputPrice: 5.0,
-		cacheWritesPrice: 1.25,
-		cacheReadsPrice: 0.1,
+		inputPrice: 0.8,
+		outputPrice: 4.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
@@ -311,6 +313,14 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
 	// don't support tool use yet
+	o1: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15,
+		outputPrice: 60,
+	},
 	"o1-preview": {
 		maxTokens: 32_768,
 		contextWindow: 128_000,
@@ -364,5 +374,20 @@ export const deepSeekModels = {
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.014,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Mistral
+// https://docs.mistral.ai/getting-started/models/models_overview/
+export type MistralModelId = keyof typeof mistralModels
+export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralModels = {
+	"codestral-latest": {
+		maxTokens: 32_768,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
 	},
 } as const satisfies Record<string, ModelInfo>
