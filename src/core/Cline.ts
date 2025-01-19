@@ -61,6 +61,7 @@ import { BrowserSettings } from "../shared/BrowserSettings"
 import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
 import { ChatSettings } from "../shared/ChatSettings"
 import { CHAT_SYSTEM_PROMPT } from "./prompts/chat"
+import { OpenRouterHandler } from "../api/providers/openrouter"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1387,7 +1388,8 @@ export class Cline {
 			yield firstChunk.value
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
-			if (!this.didAutomaticallyRetryFailedApiRequest) {
+			const isOpenRouter = this.api instanceof OpenRouterHandler
+			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
 				console.log("first chunk failed, waiting 1 second before retrying")
 				await delay(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
