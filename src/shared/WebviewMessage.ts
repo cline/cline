@@ -36,8 +36,10 @@ export interface WebviewMessage {
 		| "openAdvisorModelSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAlwaysAllow"
+		| "toggleMcpServer"
 	// | "relaunchChromeDebugMode"
 	text?: string
+	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
