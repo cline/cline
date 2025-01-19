@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react"
 import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
-import { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
+import { cleanPathPrefix } from "../common/CodeAccordian"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -67,7 +67,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{removeLeadingNonAlphanumeric(option.value || "") + "\u200E"}
+								{cleanPathPrefix(option.value || "") + "\u200E"}
 							</span>
 						</>
 					)
