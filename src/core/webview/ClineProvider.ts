@@ -42,7 +42,7 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "mistralApiKey"
-  | "difyApiKey"
+ 	| "difyApiKey"
 
 type GlobalStateKey =
 	| "apiProvider"
