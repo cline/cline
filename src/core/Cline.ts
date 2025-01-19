@@ -1194,11 +1194,15 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
+		const advisorModel = this.api.getAdvisorModel?.()
+		const supportsConsultAdvisor = advisorModel !== undefined
+
 		let systemPrompt = await SYSTEM_PROMPT(
 			cwd,
 			this.api.getModel().info.supportsComputerUse ?? false,
 			mcpHub,
 			this.browserSettings,
+			supportsConsultAdvisor,
 		)
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
@@ -1267,7 +1271,6 @@ export class Cline {
 		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
 
 		// If we're consulting the advisor, override the request
-		const advisorModel = this.api.getAdvisorModel?.()
 		if (this.advisorProblem && advisorModel) {
 			// Generate markdown
 			const markdownContent = truncatedConversationHistory
@@ -1288,7 +1291,15 @@ export class Cline {
 			const charsToKeep = tokensToKeep * 3
 			// Get last n chars of markdown content
 			const isTruncated = markdownContent.length > charsToKeep
-			const recentContext = (isTruncated ? "... (truncated for brevity)\n\n" : "") + markdownContent.slice(-charsToKeep)
+			const firstMessage = truncatedConversationHistory.at(0)
+			const firstMessageContent = firstMessage
+				? Array.isArray(firstMessage.content)
+					? firstMessage.content.map((block) => (block.type === "text" ? block.text : "")).join("\n")
+					: firstMessage.content
+				: ""
+			const recentContext =
+				(isTruncated ? `**User:**:\n\n${firstMessageContent}\n\n... (older messages removed for brevity) ...\n\n` : "") +
+				markdownContent.slice(-charsToKeep)
 			const advisorMessage: Anthropic.Messages.MessageParam[] = [
 				{
 					role: "user",
@@ -1296,9 +1307,9 @@ export class Cline {
 						{
 							type: "text",
 							text:
-								"\n\nThe conversation history leading up to this point: " +
+								"\n\n# The conversation history leading up to this point:\n\n" +
 								recentContext +
-								"\n\nThe problem the coding agent needs advice on: " +
+								"\n\n# The problem the coding agent needs advice on:\n\n" +
 								this.advisorProblem,
 						},
 					],
@@ -2547,6 +2558,7 @@ export class Cline {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									problem: removeClosingTag("problem", problem),
+									advisorModelId: this.api.getAdvisorModel?.().id,
 								} satisfies ClineConsultAdvisor)
 
 								if (this.shouldAutoApproveTool(block.name)) {
@@ -2569,6 +2581,7 @@ export class Cline {
 								this.consecutiveMistakeCount = 0
 								const completeMessage = JSON.stringify({
 									problem: removeClosingTag("problem", problem),
+									advisorModelId: this.api.getAdvisorModel?.().id,
 								} satisfies ClineConsultAdvisor)
 
 								if (this.shouldAutoApproveTool(block.name)) {
@@ -2585,6 +2598,18 @@ export class Cline {
 										await this.saveCheckpoint()
 										break
 									}
+								}
+
+								// Update the last consult_advisor message in case the advisor model changed
+								const lastMessage = findLast(
+									this.clineMessages,
+									(m) => m.ask === "consult_advisor" || m.say === "consult_advisor",
+								)
+								if (lastMessage) {
+									lastMessage.text = JSON.stringify({
+										problem: removeClosingTag("problem", problem),
+										advisorModelId: this.api.getAdvisorModel?.().id,
+									} satisfies ClineConsultAdvisor)
 								}
 
 								// now execute the tool

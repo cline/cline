@@ -31,6 +31,7 @@ export interface WebviewMessage {
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
+		| "openAdvisorModelSettings"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse

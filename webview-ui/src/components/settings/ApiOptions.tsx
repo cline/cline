@@ -48,6 +48,7 @@ interface ApiOptionsProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	advisorModelIdErrorMessage?: string
+	showAdvisorModelSettings?: boolean
 }
 
 const TabPanel = ({ children, isSelected }: { children: React.ReactNode; isSelected: boolean }) => {
@@ -86,14 +87,20 @@ const TabButton = ({
 	)
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, advisorModelIdErrorMessage }: ApiOptionsProps) => {
+const ApiOptions = ({
+	showModelOptions,
+	apiErrorMessage,
+	modelIdErrorMessage,
+	advisorModelIdErrorMessage,
+	showAdvisorModelSettings,
+}: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-	const [selectedTab, setSelectedTab] = useState("base")
+	const [selectedTab, setSelectedTab] = useState(showAdvisorModelSettings ? "advisor" : "base")
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -846,8 +853,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, ad
 								marginBottom: "10px",
 								color: "var(--vscode-foreground)",
 							}}>
-							The Cline model can consult this smarter, more powerful model for help on planning out a task, fixing
-							a hard bug, and other complex problems.
+							The Cline model can consult this more powerful model for advice when running into roadblocks, such as
+							an error it cannot resolve.
 						</p>
 						{selectedProvider === "anthropic" && (
 							<div className="dropdown-container" style={{ marginBottom: 15 }}>

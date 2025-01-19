@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
@@ -25,6 +25,7 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
+import { normalizeApiConfiguration } from "../settings/ApiOptions"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -102,7 +103,7 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, apiConfiguration } = useExtensionState()
 
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -143,6 +144,10 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	}, [])
 
 	useEvent("message", handleMessage)
+
+	const { selectedAdvisorModelId } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration)
+	}, [apiConfiguration])
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -221,19 +226,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				]
 			case "consult_advisor":
 				// const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
+				const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
 				return [
 					<span
-						className="codicon codicon-server"
+						className="codicon codicon-comment-discussion"
 						style={{
 							color: normalColor,
 							marginBottom: "-1.5px",
 						}}></span>,
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{message.type === "ask" ? (
-							<>Cline wants to consult the Advisor model about:</>
-						) : (
-							<>Cline consulted the Advisor model about:</>
-						)}
+						<>
+							Cline wants to consult{" "}
+							{<code>{isLast ? selectedAdvisorModelId : consultAdvisor.advisorModelId}</code> || "Advisor model"}:
+						</>
 					</span>,
 				]
 			case "completion_result":
@@ -327,6 +332,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		isMcpServerResponding,
 		message.text,
 		message.type,
+		selectedAdvisorModelId,
+		isLast,
 	])
 
 	const headerStyle: React.CSSProperties = {
@@ -757,6 +764,20 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					}}>
 					{consultAdvisor.problem}
 				</div>
+
+				<div
+					style={{
+						padding: 8,
+						fontSize: "12px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					You can change the Advisor model Cline consults with{" "}
+					<VSCodeLink
+						style={{ display: "inline", fontSize: "inherit" }}
+						onClick={() => vscode.postMessage({ type: "openAdvisorModelSettings" })}>
+						in Settings.
+					</VSCodeLink>
+				</div>
 			</>
 		)
 	}
@@ -881,22 +902,28 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "advisor_response":
 					return (
-						<div style={{ paddingTop: 0 }}>
+						<div
+							style={{
+								border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent)",
+								borderRadius: "4px",
+								padding: "16px",
+								position: "relative",
+								marginTop: "10px",
+							}}>
 							<div
 								style={{
-									marginBottom: "4px",
-									opacity: 0.8,
+									position: "absolute",
+									top: "-8px",
+									left: "16px",
+									backgroundColor: "var(--vscode-sideBar-background)",
+									padding: "0 8px",
+									color: "var(--vscode-descriptionForeground)",
 									fontSize: "12px",
 									textTransform: "uppercase",
 								}}>
-								Response
+								Advisor Response
 							</div>
-							<CodeAccordian
-								code={message.text}
-								language="json"
-								isExpanded={true}
-								onToggleExpand={onToggleExpand}
-							/>
+							<Markdown markdown={message.text} />
 						</div>
 					)
 				case "user_feedback":

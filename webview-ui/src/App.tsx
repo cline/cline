@@ -15,6 +15,7 @@ const AppContent = () => {
 	const [showHistory, setShowHistory] = useState(false)
 	const [showMcp, setShowMcp] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [showAdvisorModelSettings, setShowAdvisorModelSettings] = useState(false)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
@@ -23,25 +24,35 @@ const AppContent = () => {
 				switch (message.action!) {
 					case "settingsButtonClicked":
 						setShowSettings(true)
+						setShowAdvisorModelSettings(false)
 						setShowHistory(false)
 						setShowMcp(false)
 						break
 					case "historyButtonClicked":
 						setShowSettings(false)
+						setShowAdvisorModelSettings(false)
 						setShowHistory(true)
 						setShowMcp(false)
 						break
 					case "mcpButtonClicked":
 						setShowSettings(false)
+						setShowAdvisorModelSettings(false)
 						setShowHistory(false)
 						setShowMcp(true)
 						break
 					case "chatButtonClicked":
 						setShowSettings(false)
+						setShowAdvisorModelSettings(false)
 						setShowHistory(false)
 						setShowMcp(false)
 						break
 				}
+				break
+			case "openAdvisorModelSettings":
+				setShowSettings(true)
+				setShowAdvisorModelSettings(true)
+				setShowHistory(false)
+				setShowMcp(false)
 				break
 		}
 	}, [])
@@ -65,7 +76,9 @@ const AppContent = () => {
 				<WelcomeView />
 			) : (
 				<>
-					{showSettings && <SettingsView onDone={() => setShowSettings(false)} />}
+					{showSettings && (
+						<SettingsView onDone={() => setShowSettings(false)} showAdvisorModelSettings={showAdvisorModelSettings} />
+					)}
 					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
 					{showMcp && <McpView onDone={() => setShowMcp(false)} />}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}

@@ -21,6 +21,7 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
+		| "openAdvisorModelSettings"
 	text?: string
 	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -144,6 +145,7 @@ export interface ClineAskUseMcpServer {
 
 export interface ClineConsultAdvisor {
 	problem: string
+	advisorModelId?: string
 }
 
 export interface ClineApiReqInfo {

@@ -238,17 +238,31 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest list of models available on{" "}
-					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-						OpenRouter.
-					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
-					<VSCodeLink
-						style={{ display: "inline", fontSize: "inherit" }}
-						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
-						anthropic/claude-3.5-sonnet:beta.
-					</VSCodeLink>
-					You can also try searching "free" for no-cost options currently available.
+					{modelType === "base" ? (
+						<>
+							The extension automatically fetches the latest list of models available on{" "}
+							<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
+								OpenRouter.
+							</VSCodeLink>
+							If you're unsure which model to choose, Cline works best with{" "}
+							<VSCodeLink
+								style={{ display: "inline", fontSize: "inherit" }}
+								onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
+								anthropic/claude-3.5-sonnet:beta.
+							</VSCodeLink>
+							You can also try searching "free" for no-cost options currently available.
+						</>
+					) : (
+						<>
+							It's recommended using a higher-reasoning model such as{" "}
+							<VSCodeLink
+								style={{ display: "inline", fontSize: "inherit" }}
+								onClick={() => handleModelChange("openai/o1-preview")}>
+								openai/o1-preview
+							</VSCodeLink>
+							for the best results.
+						</>
+					)}
 				</p>
 			)}
 		</div>

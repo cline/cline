@@ -565,6 +565,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "cancelTask":
 						this.cancelTask()
 						break
+					case "openAdvisorModelSettings":
+						this.postMessageToWebview({
+							type: "openAdvisorModelSettings",
+						})
+						break
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
