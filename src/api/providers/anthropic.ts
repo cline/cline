@@ -34,6 +34,20 @@ export class AnthropicHandler implements ApiHandler {
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
+				// don't use prompt caching for advisor model requests
+				if (modelType === "advisor") {
+					stream = (await this.client.messages.create({
+						model: modelId,
+						max_tokens: model.info.maxTokens || 8192,
+						temperature: 0,
+						system: [{ text: systemPrompt, type: "text" }],
+						messages,
+						// tools,
+						// tool_choice: { type: "auto" },
+						stream: true,
+					})) as any
+					break
+				}
 				/*
 				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
 				*/

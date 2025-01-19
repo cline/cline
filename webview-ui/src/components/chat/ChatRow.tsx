@@ -762,7 +762,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						padding: "8px 10px",
 						marginTop: "8px",
 					}}>
-					{consultAdvisor.problem}
+					<div>{consultAdvisor.problem}</div>
+					{consultAdvisor.estimatedCost != null && (
+						<div
+							style={{
+								marginTop: 8,
+								fontSize: "12px",
+								color: "var(--vscode-descriptionForeground)",
+								borderTop: "1px solid var(--vscode-textSeparator-foreground)",
+								paddingTop: 8,
+							}}>
+							Estimated cost: ${Number(consultAdvisor.estimatedCost).toFixed(4)}
+						</div>
+					)}
 				</div>
 
 				<div
@@ -1243,6 +1255,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<Markdown markdown={message.text} />
 							</div>
 						</>
+					)
+				case "respond_to_inquiry":
+					return (
+						<div style={{}}>
+							<Markdown markdown={message.text} />
+						</div>
 					)
 				default:
 					return null

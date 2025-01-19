@@ -3,14 +3,12 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "../../services/mcp/McpHub"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-import { ChatSettings } from "../../shared/ChatSettings"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
 	supportsComputerUse: boolean,
 	mcpHub: McpHub,
 	browserSettings: BrowserSettings,
-	chatSettings: ChatSettings,
 	supportsConsultAdvisor: boolean,
 ) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 

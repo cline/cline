@@ -55,6 +55,11 @@ export class OpenRouterHandler implements ApiHandler {
 			case "anthropic/claude-3-haiku:beta":
 			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
+				// don't use prompt caching for advisor model requests
+				if (modelType === "advisor") {
+					break
+				}
+
 				openAiMessages[0] = {
 					role: "system",
 					content: [

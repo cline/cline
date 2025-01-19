@@ -488,6 +488,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.cline.updateChatSettings(message.chatSettings)
 							}
 							await this.postStateToWebview()
+							this.cancelTask()
 						}
 						break
 					// case "relaunchChromeDebugMode":

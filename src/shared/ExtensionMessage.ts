@@ -66,6 +66,7 @@ export interface ClineMessage {
 
 export type ClineAsk =
 	| "followup"
+	| "respond_to_inquiry"
 	| "command"
 	| "command_output"
 	| "completion_result"
@@ -148,6 +149,7 @@ export interface ClineAskUseMcpServer {
 export interface ClineConsultAdvisor {
 	problem: string
 	advisorModelId?: string
+	estimatedCost?: number
 }
 
 export interface ClineApiReqInfo {

@@ -18,7 +18,7 @@ import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
-import { ApiConfiguration } from "../shared/api"
+import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { findLast, findLastIndex } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -60,6 +60,7 @@ import getFolderSize from "get-folder-size"
 import { BrowserSettings } from "../shared/BrowserSettings"
 import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
 import { ChatSettings } from "../shared/ChatSettings"
+import { CHAT_SYSTEM_PROMPT } from "./prompts/chat"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1192,6 +1193,71 @@ export class Cline {
 		return false
 	}
 
+	estimateAdvisorModelCost(problem: string) {
+		const truncatedConversationHistory = getTruncatedMessages(
+			this.apiConversationHistory,
+			this.conversationHistoryDeletedRange,
+		)
+		const advisorModel = this.api.getAdvisorModel?.()
+		if (!advisorModel) {
+			return 0
+		}
+		const advisorMessage = this.createAdvisorMessage(truncatedConversationHistory, advisorModel, problem)
+		const prompt = ADVISOR_SYSTEM_PROMPT() + advisorMessage
+		// Estimate ~3 chars per token as a rough approximation
+		const estimatedInputTokens = Math.ceil(prompt.length / 3)
+		const estimatedOutputTokens = 300 // typical response size
+		// Note: we don't prompt cache since we only send up one request at a time
+		const inputCost = (estimatedInputTokens * (advisorModel.info.inputPrice ?? 0)) / 1_000_000 // Convert from per million tokens
+		const outputCost = (estimatedOutputTokens * (advisorModel.info.outputPrice ?? 0)) / 1_000_000
+		return inputCost + outputCost
+	}
+
+	createAdvisorMessage(
+		truncatedConversationHistory: Anthropic.Messages.MessageParam[],
+		advisorModel: {
+			id: string
+			info: ModelInfo
+		},
+		advisorProblem: string,
+	) {
+		// Generate markdown
+		const markdownContent = truncatedConversationHistory
+			.map((message) => {
+				const role = message.role === "user" ? "**User:**" : "**Coding Agent:**"
+				const content = Array.isArray(message.content)
+					? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
+					: message.content
+				return `${role}\n\n${content}\n\n`
+			})
+			.join("---\n\n")
+
+		// Don't want to send the entire conv history, just the most recent context
+		// Get approximate char count from token limit
+		const advisorContextWindow = advisorModel.info.contextWindow || 128_000
+		const tokensToKeep = Math.floor(advisorContextWindow / 2)
+		// Estimate ~3 chars per token as a rough approximation
+		const charsToKeep = tokensToKeep * 3
+		// Get last n chars of markdown content
+		const isTruncated = markdownContent.length > charsToKeep
+		const firstMessage = truncatedConversationHistory.at(0)
+		const firstMessageContent = firstMessage
+			? Array.isArray(firstMessage.content)
+				? firstMessage.content.map((block) => (block.type === "text" ? block.text : "")).join("\n")
+				: firstMessage.content
+			: ""
+		const recentContext =
+			(isTruncated ? `**User:**:\n\n${firstMessageContent}\n\n... (older messages removed for brevity) ...\n\n` : "") +
+			markdownContent.slice(-charsToKeep)
+		const advisorMessage =
+			"\n\n# The conversation history leading up to this point:\n\n" +
+			recentContext +
+			"\n\n# The problem the coding agent needs advice on:\n\n" +
+			advisorProblem
+
+		return advisorMessage
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1206,14 +1272,26 @@ export class Cline {
 		const advisorModel = this.api.getAdvisorModel?.()
 		const supportsConsultAdvisor = advisorModel !== undefined
 
-		let systemPrompt = await SYSTEM_PROMPT(
-			cwd,
-			this.api.getModel().info.supportsComputerUse ?? false,
-			mcpHub,
-			this.browserSettings,
-			this.chatSettings,
-			supportsConsultAdvisor,
-		)
+		let systemPrompt: string
+
+		if (this.chatSettings.mode === "chat") {
+			systemPrompt = await CHAT_SYSTEM_PROMPT(
+				cwd,
+				this.api.getModel().info.supportsComputerUse ?? false,
+				mcpHub,
+				this.browserSettings,
+				supportsConsultAdvisor,
+			)
+		} else {
+			systemPrompt = await SYSTEM_PROMPT(
+				cwd,
+				this.api.getModel().info.supportsComputerUse ?? false,
+				mcpHub,
+				this.browserSettings,
+				supportsConsultAdvisor,
+			)
+		}
+
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1282,50 +1360,22 @@ export class Cline {
 
 		// If we're consulting the advisor, override the request
 		if (this.advisorProblem && advisorModel) {
-			// Generate markdown
-			const markdownContent = truncatedConversationHistory
-				.map((message) => {
-					const role = message.role === "user" ? "**User:**" : "**Coding Agent:**"
-					const content = Array.isArray(message.content)
-						? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
-						: message.content
-					return `${role}\n\n${content}\n\n`
-				})
-				.join("---\n\n")
-
-			// Don't want to send the entire conv history, just the most recent context
-			// Get approximate char count from token limit
-			const advisorContextWindow = advisorModel.info.contextWindow || 128_000
-			const tokensToKeep = Math.floor(advisorContextWindow / 2)
-			// Estimate ~3 chars per token as a rough approximation
-			const charsToKeep = tokensToKeep * 3
-			// Get last n chars of markdown content
-			const isTruncated = markdownContent.length > charsToKeep
-			const firstMessage = truncatedConversationHistory.at(0)
-			const firstMessageContent = firstMessage
-				? Array.isArray(firstMessage.content)
-					? firstMessage.content.map((block) => (block.type === "text" ? block.text : "")).join("\n")
-					: firstMessage.content
-				: ""
-			const recentContext =
-				(isTruncated ? `**User:**:\n\n${firstMessageContent}\n\n... (older messages removed for brevity) ...\n\n` : "") +
-				markdownContent.slice(-charsToKeep)
-			const advisorMessage: Anthropic.Messages.MessageParam[] = [
-				{
-					role: "user",
-					content: [
-						{
-							type: "text",
-							text:
-								"\n\n# The conversation history leading up to this point:\n\n" +
-								recentContext +
-								"\n\n# The problem the coding agent needs advice on:\n\n" +
-								this.advisorProblem,
-						},
-					],
-				},
-			]
-			stream = this.api.createMessage(ADVISOR_SYSTEM_PROMPT(), advisorMessage, "advisor")
+			const advisorMessage = this.createAdvisorMessage(truncatedConversationHistory, advisorModel, this.advisorProblem)
+			stream = this.api.createMessage(
+				ADVISOR_SYSTEM_PROMPT(),
+				[
+					{
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: advisorMessage,
+							},
+						],
+					},
+				],
+				"advisor",
+			)
 		}
 
 		const iterator = stream[Symbol.asyncIterator]()
@@ -1480,6 +1530,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.problem}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
+						case "respond_to_inquiry":
+							return `[${block.name} for '${block.params.response}']`
 						case "attempt_completion":
 							return `[${block.name}]`
 					}
@@ -2591,9 +2643,12 @@ export class Cline {
 								}
 
 								this.consecutiveMistakeCount = 0
+
+								const estimatedCost = undefined //this.estimateAdvisorModelCost(problem)
 								const completeMessage = JSON.stringify({
 									problem: removeClosingTag("problem", problem),
 									advisorModelId: this.api.getAdvisorModel?.().id,
+									estimatedCost,
 								} satisfies ClineConsultAdvisor)
 
 								if (this.shouldAutoApproveTool(block.name)) {
@@ -2621,6 +2676,7 @@ export class Cline {
 									lastMessage.text = JSON.stringify({
 										problem: removeClosingTag("problem", problem),
 										advisorModelId: this.api.getAdvisorModel?.().id,
+										estimatedCost,
 									} satisfies ClineConsultAdvisor)
 								}
 
@@ -2669,6 +2725,42 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("asking question", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "respond_to_inquiry": {
+						const response: string | undefined = block.params.response
+						try {
+							if (block.partial) {
+								await this.ask("respond_to_inquiry", removeClosingTag("response", response), block.partial).catch(
+									() => {},
+								)
+								break
+							} else {
+								if (!response) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("respond_to_inquiry", "response"))
+									await this.saveCheckpoint()
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								// if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+								// 	showSystemNotification({
+								// 		subtitle: "Cline has a response...",
+								// 		message: response.replace(/\n/g, " "),
+								// 	})
+								// }
+
+								const { text, images } = await this.ask("respond_to_inquiry", response, false)
+								await this.say("user_feedback", text ?? "", images)
+								pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("responding to inquiry", error)
 							await this.saveCheckpoint()
 							break
 						}

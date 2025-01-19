@@ -103,6 +103,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
+						case "respond_to_inquiry":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("respond_to_inquiry")
+							setEnableButtons(isPartial)
+							// setPrimaryButtonText(undefined)
+							// setSecondaryButtonText(undefined)
+							break
 						case "tool":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("tool")
@@ -271,6 +278,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
+						case "respond_to_inquiry":
 						case "tool":
 						case "browser_action_launch":
 						case "command": // user can provide feedback to a tool or command use

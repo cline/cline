@@ -489,6 +489,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					mode: newMode,
 				},
 			})
+			// Focus the textarea after mode toggle with slight delay
+			setTimeout(() => {
+				textAreaRef.current?.focus()
+			}, 100)
 		}, [chatSettings.mode, textAreaDisabled])
 
 		const handleContextButtonClick = useCallback(() => {
