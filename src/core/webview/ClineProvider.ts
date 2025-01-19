@@ -65,7 +65,7 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
-  | "browserSettings"
+  	| "browserSettings"
 	| "difyBaseUrl"
 
 export const GlobalFileNames = {
