@@ -2489,14 +2489,12 @@ export class Cline {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								const isToolAlwaysAllowed = this.providerRef
+								const isToolAutoApproved = this.providerRef
 									.deref()
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
-									?.server.tools?.find((tool) => tool.name === tool_name)?.alwaysAllow
+									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
-								// console.log("isToolAlwaysAllowed", server_name, tool_name, isToolAlwaysAllowed)
-
-								if (this.shouldAutoApproveTool(block.name) && isToolAlwaysAllowed) {
+								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++

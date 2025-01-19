@@ -718,8 +718,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										name: useMcpServer.toolName || "",
 										description:
 											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
-										alwaysAllow:
-											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.alwaysAllow ||
+										autoApprove:
+											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
 											false,
 									}}
 									serverName={useMcpServer.serverName}

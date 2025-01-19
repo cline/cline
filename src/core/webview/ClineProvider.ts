@@ -616,9 +616,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
-					case "toggleToolAlwaysAllow": {
+					case "toggleToolAutoApprove": {
 						try {
-							await this.mcpHub?.toggleToolAlwaysAllow(message.serverName!, message.toolName!, message.alwaysAllow!)
+							await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolName!, message.autoApprove!)
 						} catch (error) {
 							console.error(`Failed to toggle auto-approve for tool ${message.toolName}:`, error)
 						}

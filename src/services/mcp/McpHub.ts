@@ -25,14 +25,14 @@ export type McpConnection = {
 	transport: StdioClientTransport
 }
 
-const AlwaysAllowSchema = z.array(z.string()).default([])
+const AutoApproveSchema = z.array(z.string()).default([])
 
 // StdioServerParameters
 const StdioConfigSchema = z.object({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
-	alwaysAllow: AlwaysAllowSchema.optional(),
+	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
 })
 
@@ -283,16 +283,16 @@ export class McpHub {
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
 
-			// Get always allow settings
+			// Get autoApprove settings
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
-			const alwaysAllowConfig = config.mcpServers[serverName]?.alwaysAllow || []
+			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
 
 			// Mark tools as always allowed based on settings
 			const tools = (response?.tools || []).map((tool) => ({
 				...tool,
-				alwaysAllow: alwaysAllowConfig.includes(tool.name),
+				autoApprove: autoApproveConfig.includes(tool.name),
 			}))
 
 			// console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
@@ -496,8 +496,8 @@ export class McpHub {
 				}
 
 				// Ensure required fields exist
-				if (!serverConfig.alwaysAllow) {
-					serverConfig.alwaysAllow = []
+				if (!serverConfig.autoApprove) {
+					serverConfig.autoApprove = []
 				}
 
 				config.mcpServers[serverName] = serverConfig
@@ -582,26 +582,26 @@ export class McpHub {
 		)
 	}
 
-	async toggleToolAlwaysAllow(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
+	async toggleToolAutoApprove(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
-			// Initialize alwaysAllow if it doesn't exist
-			if (!config.mcpServers[serverName].alwaysAllow) {
-				config.mcpServers[serverName].alwaysAllow = []
+			// Initialize autoApprove if it doesn't exist
+			if (!config.mcpServers[serverName].autoApprove) {
+				config.mcpServers[serverName].autoApprove = []
 			}
 
-			const alwaysAllow = config.mcpServers[serverName].alwaysAllow
-			const toolIndex = alwaysAllow.indexOf(toolName)
+			const autoApprove = config.mcpServers[serverName].autoApprove
+			const toolIndex = autoApprove.indexOf(toolName)
 
 			if (shouldAllow && toolIndex === -1) {
-				// Add tool to always allow list
-				alwaysAllow.push(toolName)
+				// Add tool to autoApprove list
+				autoApprove.push(toolName)
 			} else if (!shouldAllow && toolIndex !== -1) {
-				// Remove tool from always allow list
-				alwaysAllow.splice(toolIndex, 1)
+				// Remove tool from autoApprove list
+				autoApprove.splice(toolIndex, 1)
 			}
 
 			// Write updated config back to file
@@ -614,8 +614,8 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update always allow settings:", error)
-			vscode.window.showErrorMessage("Failed to update always allow settings")
+			console.error("Failed to update autoApprove settings:", error)
+			vscode.window.showErrorMessage("Failed to update autoApprove settings")
 			throw error // Re-throw to ensure the error is properly handled
 		}
 	}

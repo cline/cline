@@ -11,14 +11,14 @@ type McpToolRowProps = {
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
-	const handleAlwaysAllowChange = () => {
+	const handleAutoApproveChange = () => {
 		if (!serverName) return
 
 		vscode.postMessage({
-			type: "toggleToolAlwaysAllow",
+			type: "toggleToolAutoApprove",
 			serverName,
 			toolName: tool.name,
-			alwaysAllow: !tool.alwaysAllow,
+			autoApprove: !tool.autoApprove,
 		})
 	}
 	return (
@@ -36,8 +36,8 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
-					<VSCodeCheckbox checked={tool.alwaysAllow} onChange={handleAlwaysAllowChange} data-tool={tool.name}>
-						Always allow
+					<VSCodeCheckbox checked={tool.autoApprove} onChange={handleAutoApproveChange} data-tool={tool.name}>
+						Auto-approve
 					</VSCodeCheckbox>
 				)}
 			</div>
