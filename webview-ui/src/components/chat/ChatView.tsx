@@ -99,14 +99,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "followup":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("followup")
-							setEnableButtons(isPartial)
+							setEnableButtons(false)
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
 						case "respond_to_inquiry":
 							setTextAreaDisabled(isPartial)
 							setClineAsk("respond_to_inquiry")
-							setEnableButtons(isPartial)
+							setEnableButtons(false)
 							// setPrimaryButtonText(undefined)
 							// setSecondaryButtonText(undefined)
 							break
