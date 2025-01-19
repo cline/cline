@@ -35,6 +35,7 @@ export interface WebviewMessage {
 		| "taskCompletionViewChanges"
 		| "openAdvisorModelSettings"
 		| "requestVsCodeLmModels"
+		| "toggleToolAlwaysAllow"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse
@@ -45,6 +46,11 @@ export interface WebviewMessage {
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
+
+	// For toggleToolAutoApprove
+	serverName?: string
+	toolName?: string
+	alwaysAllow?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
