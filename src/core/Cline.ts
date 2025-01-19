@@ -59,6 +59,7 @@ import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
 import { BrowserSettings } from "../shared/BrowserSettings"
 import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
+import { ChatSettings } from "../shared/ChatSettings"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -77,6 +78,7 @@ export class Cline {
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
+	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -97,6 +99,7 @@ export class Cline {
 	private advisorProblem?: string
 
 	// streaming
+	isWaitingForFirstChunk = false
 	isStreaming = false
 	private currentStreamingContentIndex = 0
 	private assistantMessageContent: AssistantMessageContent[] = []
@@ -114,6 +117,7 @@ export class Cline {
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
+		chatSettings: ChatSettings,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -128,6 +132,7 @@ export class Cline {
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.chatSettings = chatSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -143,6 +148,10 @@ export class Cline {
 	updateBrowserSettings(browserSettings: BrowserSettings) {
 		this.browserSettings = browserSettings
 		this.browserSession.browserSettings = browserSettings
+	}
+
+	updateChatSettings(chatSettings: ChatSettings) {
+		this.chatSettings = chatSettings
 	}
 
 	// Storing task to disk for history
@@ -1202,6 +1211,7 @@ export class Cline {
 			this.api.getModel().info.supportsComputerUse ?? false,
 			mcpHub,
 			this.browserSettings,
+			this.chatSettings,
 			supportsConsultAdvisor,
 		)
 		let settingsCustomInstructions = this.customInstructions?.trim()
@@ -1322,8 +1332,10 @@ export class Cline {
 
 		try {
 			// awaiting first chunk to see if it will throw an error
+			this.isWaitingForFirstChunk = true
 			const firstChunk = await iterator.next()
 			yield firstChunk.value
+			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			if (!this.didAutomaticallyRetryFailedApiRequest) {
 				console.log("first chunk failed, waiting 1 second before retrying")

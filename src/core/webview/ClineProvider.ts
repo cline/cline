@@ -24,6 +24,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -67,6 +68,7 @@ type GlobalStateKey =
 	| "openRouterAdvisorModelInfo"
 	| "autoApprovalSettings"
 	| "browserSettings"
+	| "chatSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -216,18 +218,30 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
-		this.cline = new Cline(this, apiConfiguration, autoApprovalSettings, browserSettings, customInstructions, task, images)
-	}
-
-	async initClineWithHistoryItem(historyItem: HistoryItem) {
-		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+			await this.getState()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
+			chatSettings,
+			customInstructions,
+			task,
+			images,
+		)
+	}
+
+	async initClineWithHistoryItem(historyItem: HistoryItem) {
+		await this.clearTask()
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+			await this.getState()
+		this.cline = new Cline(
+			this,
+			apiConfiguration,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
 			customInstructions,
 			undefined,
 			undefined,
@@ -467,6 +481,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postStateToWebview()
 						}
 						break
+					case "chatSettings":
+						if (message.chatSettings) {
+							await this.updateGlobalState("chatSettings", message.chatSettings)
+							if (this.cline) {
+								this.cline.updateChatSettings(message.chatSettings)
+							}
+							await this.postStateToWebview()
+						}
+						break
 					// case "relaunchChromeDebugMode":
 					// 	if (this.cline) {
 					// 		this.cline.browserSession.relaunchChromeDebugMode()
@@ -603,7 +626,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				console.error("Failed to abort task", error)
 			}
 			await pWaitFor(
-				() => this.cline === undefined || this.cline.isStreaming === false || this.cline.didFinishAbortingStream,
+				() =>
+					this.cline === undefined ||
+					this.cline.isStreaming === false ||
+					this.cline.didFinishAbortingStream ||
+					this.cline.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
 				},
@@ -956,6 +983,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
+			chatSettings,
 		} = await this.getState()
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -969,6 +997,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			autoApprovalSettings,
 			browserSettings,
+			chatSettings,
 		}
 	}
 
@@ -1059,6 +1088,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
+			chatSettings,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1094,6 +1124,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
+			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1147,6 +1178,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
+			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 		}
 	}
 
