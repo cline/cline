@@ -1192,6 +1192,14 @@ export class Cline {
 			mcpHub,
 			this.browserSettings,
 		)
+		this.providerRef
+			.deref()
+			?.log(
+				`System prompt length with MCP ${mcpHub.shouldIncludeInPrompt() ? "enabled" : "disabled"}: ${systemPrompt.length} characters`,
+			)
+		// console.error(
+		// 	`System prompt length with MCP ${mcpHub.shouldIncludeInPrompt() ? "enabled" : "disabled"}: ${systemPrompt.length} characters`,
+		// )
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined

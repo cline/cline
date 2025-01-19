@@ -84,6 +84,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	mcpHub?: McpHub
 	private latestAnnouncementId = "jan-6-2025" // update to some unique identifier when we add a new announcement
 
+	public log(message: string) {
+		this.outputChannel.appendLine(message)
+	}
+
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
