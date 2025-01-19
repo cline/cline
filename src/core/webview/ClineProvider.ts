@@ -69,6 +69,7 @@ type GlobalStateKey =
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
+	| "vsCodeLmModelSelector"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -424,6 +425,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelInfo,
 								openRouterAdvisorModelId,
 								openRouterAdvisorModelInfo,
+								vsCodeLmModelSelector,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -454,6 +456,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("openRouterAdvisorModelId", openRouterAdvisorModelId)
 							await this.updateGlobalState("openRouterAdvisorModelInfo", openRouterAdvisorModelInfo)
+							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -546,6 +549,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							type: "lmStudioModels",
 							lmStudioModels,
 						})
+						break
+					case "requestVsCodeLmModels":
+						const vsCodeLmModels = await this.getVsCodeLmModels()
+						this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
@@ -672,6 +679,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
 		await fs.mkdir(settingsDir, { recursive: true })
 		return settingsDir
+	}
+
+	// VSCode LM API
+
+	private async getVsCodeLmModels() {
+		try {
+			const models = await vscode.lm.selectChatModels({})
+			return models || []
+		} catch (error) {
+			console.error("Error fetching VS Code LM models:", error)
+			return []
+		}
 	}
 
 	// Ollama
@@ -1090,6 +1109,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			vsCodeLmModelSelector,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1126,6 +1146,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
+			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1173,6 +1194,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelInfo,
 				openRouterAdvisorModelId,
 				openRouterAdvisorModelInfo,
+				vsCodeLmModelSelector,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

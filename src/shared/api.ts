@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "openai-native"
 	| "deepseek"
 	| "mistral"
+	| "vscode-lm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -40,6 +41,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
+	vsCodeLmModelSelector?: any
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

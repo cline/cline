@@ -34,6 +34,7 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openAdvisorModelSettings"
+		| "requestVsCodeLmModels"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse

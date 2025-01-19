@@ -124,6 +124,25 @@
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
+		},
+		"configuration": {
+			"title": "Cline",
+			"properties": {
+				"cline.vsCodeLmModelSelector": {
+					"type": "object",
+					"properties": {
+						"vendor": {
+							"type": "string",
+							"description": "The vendor of the language model (e.g. copilot)"
+						},
+						"family": {
+							"type": "string",
+							"description": "The family of the language model (e.g. gpt-4)"
+						}
+					},
+					"description": "Settings for VSCode Language Model API"
+				}
+			}
 		}
 	},
 	"scripts": {
@@ -152,7 +171,7 @@
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/should": "^11.2.0",
-		"@types/vscode": "^1.84.0",
+		"@types/vscode": "^1.96.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
 		"@vscode/test-cli": "^0.0.9",

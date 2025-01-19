@@ -96,6 +96,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const isCostAvailable = useMemo(() => {
 		return (
 			apiConfiguration?.apiProvider !== "openai" &&
+			apiConfiguration?.apiProvider !== "vscode-lm" &&
 			apiConfiguration?.apiProvider !== "ollama" &&
 			apiConfiguration?.apiProvider !== "lmstudio" &&
 			apiConfiguration?.apiProvider !== "gemini"

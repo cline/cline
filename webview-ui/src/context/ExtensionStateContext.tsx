@@ -72,6 +72,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.openAiNativeApiKey,
 							config.deepSeekApiKey,
 							config.mistralApiKey,
+							config.vsCodeLmModelSelector,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
