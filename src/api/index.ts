@@ -44,7 +44,7 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new DeepSeekHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
-    case "dify":
+    		case "dify":
 			return new DifyHandler(options)
 		default:
 			return new AnthropicHandler(options)
