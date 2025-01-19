@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
@@ -146,15 +145,20 @@ export class OpenRouterHandler implements ApiHandler {
 		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 
 		try {
-			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+			const response = await fetch(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
-				timeout: 5_000, // this request hangs sometimes
+				signal: AbortSignal.timeout(5_000), // this request hangs sometimes
 			})
 
-			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+
+			const data = await response.json()
+			const generation = data?.data
+			console.log("OpenRouter generation details:", data)
 			yield {
 				type: "usage",
 				// cacheWriteTokens: 0,

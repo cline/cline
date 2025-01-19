@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
 import fs from "fs/promises"
 import os from "os"
 import pWaitFor from "p-wait-for"
@@ -635,8 +634,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!URL.canParse(baseUrl)) {
 				return []
 			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+			const response = await fetch(`${baseUrl}/api/tags`)
+			if (!response.ok) {
+				return []
+			}
+			const data = await response.json()
+			const modelsArray = data?.models?.map((model: any) => model.name) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
 		} catch (error) {
@@ -654,8 +657,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!URL.canParse(baseUrl)) {
 				return []
 			}
-			const response = await axios.get(`${baseUrl}/v1/models`)
-			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
+			const response = await fetch(`${baseUrl}/v1/models`)
+			if (!response.ok) {
+				return []
+			}
+			const data = await response.json()
+			const modelsArray = data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
 		} catch (error) {
@@ -668,9 +675,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
-			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
-			if (response.data && response.data.key) {
-				apiKey = response.data.key
+			const response = await fetch("https://openrouter.ai/api/v1/auth/keys", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ code }),
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+			const data = await response.json()
+			if (data && data.key) {
+				apiKey = data.key
 			} else {
 				throw new Error("Invalid response from OpenRouter API")
 			}
@@ -713,7 +730,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		let models: Record<string, ModelInfo> = {}
 		try {
-			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			const response = await fetch("https://openrouter.ai/api/v1/models")
 			/*
 			{
 				"id": "anthropic/claude-3.5-sonnet",
@@ -740,8 +757,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				"per_request_limits": null
 			},
 			*/
-			if (response.data?.data) {
-				const rawModels = response.data.data
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+			const data = await response.json()
+			if (data?.data) {
+				const rawModels = data.data
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000
