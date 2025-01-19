@@ -1042,7 +1042,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-      difyApiKey,
+    			difyApiKey,
 			difyBaseUrl,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1075,7 +1075,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
-      this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
+      			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getSecret("difyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("difyBaseUrl") as Promise<string | undefined>,
 		])
