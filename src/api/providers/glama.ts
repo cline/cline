@@ -99,6 +99,14 @@ export class GlamaHandler implements ApiHandler {
 			const response = await axios.get(`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.glamaApiKey}`,
+					"X-Glama-Metadata": JSON.stringify({
+						labels: [
+							{
+								key: "app",
+								value: "vscode.saoudrizwan.claude-dev",
+							},
+						],
+					}),
 				},
 			})
 
