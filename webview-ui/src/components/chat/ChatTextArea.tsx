@@ -14,8 +14,12 @@ import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
-import { useWindowSize } from "react-use"
+import { useEvent, useWindowSize } from "react-use"
 import { vscode } from "../../utils/vscode"
+import ApiOptions from "../settings/ApiOptions"
+import { useClickAway } from "react-use"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -51,13 +55,11 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	border: 1px solid var(--vscode-input-border);
 	border-radius: 12px;
 	overflow: hidden;
-	position: absolute;
-	right: 15px;
 	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
 	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 	transform: scale(0.85);
 	transform-origin: right center;
-	flex-shrink: 0;
+	margin-left: -10px; // compensate for the transform so flex spacing works
 `
 
 const Slider = styled.div<{ isChat: boolean }>`
@@ -69,33 +71,117 @@ const Slider = styled.div<{ isChat: boolean }>`
 	transform: translateX(${(props) => (props.isChat ? "100%" : "0%")});
 `
 
+const ButtonGroup = styled.div`
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+`
+
 const ButtonContainer = styled.div`
 	display: flex;
 	align-items: center;
 	gap: 3px;
 	font-size: 10px;
 	white-space: nowrap;
+	min-width: 0;
+	width: 100%;
 `
-
-const ACTUAL_SWITCH_WIDTH = 90
-const SWITCH_WIDTH = ACTUAL_SWITCH_WIDTH * 0.85 // Account for the 0.85 scale transform
-const CONTEXT_BUTTON_WIDTH = 60
-const IMAGES_BUTTON_WIDTH = 80
-const CONTAINER_PADDING = 30 // 15px left + 15px right
-const TOTAL_WIDTH = SWITCH_WIDTH + 4 + CONTEXT_BUTTON_WIDTH + IMAGES_BUTTON_WIDTH + CONTAINER_PADDING
 
 const ControlsContainer = styled.div`
 	display: flex;
 	align-items: center;
-	margin-top: -3px;
-	position: relative;
+	justify-content: space-between;
+	margin-top: -5px;
 	padding: 0px 15px 5px 15px;
 `
 
-const ButtonGroup = styled.div`
+const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
+	position: fixed;
+	bottom: calc(100% + 9px);
+	left: 15px;
+	right: 15px;
+	background: ${CODE_BLOCK_BG_COLOR};
+	border: 1px solid var(--vscode-editorGroup-border);
+	padding: 12px;
+	border-radius: 3px;
+	z-index: 1000;
+	max-height: calc(100vh - 100px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+
+	// Add invisible padding for hover zone
+	&::before {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
+		left: 0;
+		right: 0;
+		height: 8px;
+	}
+
+	// Arrow pointing down
+	&::after {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
+		right: ${(props) => props.arrowPosition}px;
+		width: 10px;
+		height: 10px;
+		background: ${CODE_BLOCK_BG_COLOR};
+		border-right: 1px solid var(--vscode-editorGroup-border);
+		border-bottom: 1px solid var(--vscode-editorGroup-border);
+		transform: rotate(45deg);
+		z-index: -1;
+	}
+`
+
+const ModelContainer = styled.div`
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-width: 0;
+`
+
+const ModelDisplayButton = styled.a<{ isActive?: boolean }>`
+	padding: 0px 0px;
+	height: 20px;
+	width: 100%;
+	min-width: 0;
+	cursor: pointer;
+	text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	font-size: 10px;
+	outline: none;
+	user-select: none;
+
+	&:hover,
+	&:focus {
+		color: var(--vscode-foreground);
+		text-decoration: underline;
+		outline: none;
+	}
+
+	&:active {
+		color: var(--vscode-foreground);
+		text-decoration: underline;
+		outline: none;
+	}
+
+	&:focus-visible {
+		outline: none;
+	}
+`
+
+const ModelButtonContent = styled.div`
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 `
 
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
@@ -114,7 +200,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -129,8 +215,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
-		const { width: windowWidth } = useWindowSize()
-		const showButtonText = windowWidth - CONTAINER_PADDING > TOTAL_WIDTH - CONTAINER_PADDING
+		const [showModelSelector, setShowModelSelector] = useState(false)
+		const [showModelSelectorWithAdvisor, setShowModelSelectorWithAdvisor] = useState(false)
+		const modelSelectorRef = useRef<HTMLDivElement>(null)
+		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
+		const buttonRef = useRef<HTMLDivElement>(null)
+		const [arrowPosition, setArrowPosition] = useState(0)
+		const [menuPosition, setMenuPosition] = useState(0)
 
 		const queryItems = useMemo(() => {
 			return [
@@ -538,6 +629,83 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
 
+		// Add click away handler
+		useClickAway(modelSelectorRef, () => {
+			setShowModelSelector(false)
+		})
+
+		// Get model display name
+		const modelDisplayName = useMemo(() => {
+			const unknownModel = "unknown"
+			if (!apiConfiguration) return unknownModel
+			switch (apiConfiguration.apiProvider) {
+				case "anthropic":
+					return `anthropic:${apiConfiguration.apiModelId || unknownModel}`
+				case "openai":
+					return `openai:${apiConfiguration.openAiModelId || unknownModel}`
+				case "openrouter":
+					return `openrouter:${apiConfiguration.openRouterModelId || unknownModel}`
+				case "bedrock":
+					return `bedrock:${apiConfiguration.apiModelId || unknownModel}`
+				case "vertex":
+					return `vertex:${apiConfiguration.apiModelId || unknownModel}`
+				case "ollama":
+					return `ollama:${apiConfiguration.ollamaModelId || unknownModel}`
+				case "lmstudio":
+					return `lmstudio:${apiConfiguration.lmStudioModelId || unknownModel}`
+				case "gemini":
+					return `gemini:${apiConfiguration.apiModelId || unknownModel}`
+				case "openai-native":
+					return `openai-native:${apiConfiguration.apiModelId || unknownModel}`
+				case "deepseek":
+					return `deepseek:${apiConfiguration.apiModelId || unknownModel}`
+				case "mistral":
+					return `mistral:${apiConfiguration.apiModelId || unknownModel}`
+				case "vscode-lm":
+					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+				default:
+					return unknownModel
+			}
+		}, [apiConfiguration])
+
+		// Calculate arrow position and menu position based on button location
+		useEffect(() => {
+			if (showModelSelector && buttonRef.current) {
+				const buttonRect = buttonRef.current.getBoundingClientRect()
+				const buttonCenter = buttonRect.left + buttonRect.width / 2
+
+				// Calculate distance from right edge of viewport using viewport coordinates
+				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
+
+				setArrowPosition(rightPosition)
+				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
+			}
+		}, [showModelSelector, viewportWidth, viewportHeight])
+
+		// Reset advisor settings when model selector is closed
+		useEffect(() => {
+			if (!showModelSelector) {
+				setShowModelSelectorWithAdvisor(false)
+				// Reset any active styling by blurring the button
+				const button = buttonRef.current?.querySelector("a")
+				if (button) {
+					button.blur()
+				}
+			}
+		}, [showModelSelector])
+
+		const handleMessage = useCallback((e: MessageEvent) => {
+			const message: ExtensionMessage = e.data
+			switch (message.type) {
+				case "openAdvisorModelSettings":
+					setShowModelSelector(true)
+					setShowModelSelectorWithAdvisor(true)
+					break
+			}
+		}, [])
+
+		useEvent("message", handleMessage)
+
 		return (
 			<div>
 				<div
@@ -723,10 +891,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							aria-label="Add Context"
 							disabled={textAreaDisabled}
 							onClick={handleContextButtonClick}
-							style={{ padding: "0px 0px", height: "20px", marginTop: -1 }}>
+							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span style={{ fontSize: "13px", marginBottom: 2 }}>@</span>
-								{showButtonText && <span style={{ fontSize: "10px" }}>Context</span>}
+								<span style={{ fontSize: "13px", marginBottom: 1 }}>@</span>
+								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
 
@@ -739,17 +907,47 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									onSelectImages()
 								}
 							}}
-							style={{
-								padding: "0px 0px",
-								height: "20px",
-								opacity: shouldDisableImages ? 0.5 : 1,
-								cursor: shouldDisableImages ? "not-allowed" : undefined,
-							}}>
+							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span className="codicon codicon-device-camera" style={{ fontSize: "14px" }} />
-								{showButtonText && <span style={{ fontSize: "10px" }}>Add images</span>}
+								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
+								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
+
+						<ModelContainer ref={modelSelectorRef}>
+							<div ref={buttonRef} style={{ width: "100%" }}>
+								<ModelDisplayButton
+									role="button"
+									isActive={showModelSelector}
+									onClick={() => setShowModelSelector(!showModelSelector)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											setShowModelSelector(!showModelSelector)
+										}
+									}}
+									tabIndex={0}>
+									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+								</ModelDisplayButton>
+							</div>
+							{showModelSelector && (
+								<ModelSelectorTooltip
+									arrowPosition={arrowPosition}
+									menuPosition={menuPosition}
+									style={{
+										bottom: `calc(100vh - ${menuPosition}px + 6px)`,
+									}}>
+									<ApiOptions
+										showModelOptions={true}
+										showAdvisorModelSettings={showModelSelectorWithAdvisor}
+										apiErrorMessage={undefined}
+										modelIdErrorMessage={undefined}
+										advisorModelIdErrorMessage={undefined}
+										isPopup={true}
+									/>
+								</ModelSelectorTooltip>
+							)}
+						</ModelContainer>
 					</ButtonGroup>
 
 					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
@@ -762,5 +960,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 	},
 )
+
+// Update TypeScript interface for styled-component props
+interface ModelSelectorTooltipProps {
+	arrowPosition: number
+	menuPosition: number
+}
 
 export default ChatTextArea

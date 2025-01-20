@@ -14,12 +14,14 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 export interface OpenRouterModelPickerProps {
 	modelType: ModelType
+	isPopup?: boolean
 }
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType }) => {
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType, isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(
 		modelType === "advisor"
@@ -230,6 +232,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 					}
 					isDescriptionExpanded={isDescriptionExpanded}
 					setIsDescriptionExpanded={setIsDescriptionExpanded}
+					isPopup={isPopup}
 				/>
 			) : (
 				<p
@@ -360,11 +363,13 @@ export const ModelDescriptionMarkdown = memo(
 		key,
 		isExpanded,
 		setIsExpanded,
+		isPopup,
 	}: {
 		markdown?: string
 		key: string
 		isExpanded: boolean
 		setIsExpanded: (isExpanded: boolean) => void
+		isPopup?: boolean
 	}) => {
 		const [reactContent, setMarkdown] = useRemark()
 		// const [isExpanded, setIsExpanded] = useState(false)
@@ -434,7 +439,7 @@ export const ModelDescriptionMarkdown = memo(
 									fontSize: "inherit",
 									paddingRight: 0,
 									paddingLeft: 3,
-									backgroundColor: "var(--vscode-sideBar-background)",
+									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
 								See more

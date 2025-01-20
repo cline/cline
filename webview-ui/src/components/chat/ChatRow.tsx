@@ -793,7 +793,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<VSCodeLink
 						style={{ display: "inline", fontSize: "inherit" }}
 						onClick={() => vscode.postMessage({ type: "openAdvisorModelSettings" })}>
-						in Settings.
+						in API Settings.
 					</VSCodeLink>
 				</div>
 			</>

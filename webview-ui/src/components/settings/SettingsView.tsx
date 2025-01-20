@@ -8,11 +8,10 @@ import ApiOptions from "./ApiOptions"
 const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
-	showAdvisorModelSettings: boolean
 	onDone: () => void
 }
 
-const SettingsView = ({ showAdvisorModelSettings, onDone }: SettingsViewProps) => {
+const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -94,7 +93,6 @@ const SettingsView = ({ showAdvisorModelSettings, onDone }: SettingsViewProps) =
 				<div style={{ marginBottom: 5 }}>
 					<ApiOptions
 						showModelOptions={true}
-						showAdvisorModelSettings={showAdvisorModelSettings}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
 						advisorModelIdErrorMessage={advisorModelIdErrorMessage}

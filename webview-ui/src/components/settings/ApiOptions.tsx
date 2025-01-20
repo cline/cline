@@ -50,6 +50,7 @@ interface ApiOptionsProps {
 	modelIdErrorMessage?: string
 	advisorModelIdErrorMessage?: string
 	showAdvisorModelSettings?: boolean
+	isPopup?: boolean
 }
 
 const TabPanel = ({ children, isSelected }: { children: React.ReactNode; isSelected: boolean }) => {
@@ -88,12 +89,28 @@ const TabButton = ({
 	)
 }
 
+// This is necessary to ensure dropdown opens downward, important for when this is used in popup
+const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+
+const DropdownContainer = styled.div`
+	position: relative;
+	z-index: ${DROPDOWN_Z_INDEX};
+
+	// Force dropdowns to open downward
+	& vscode-dropdown::part(listbox) {
+		position: absolute !important;
+		top: 100% !important;
+		bottom: auto !important;
+	}
+`
+
 const ApiOptions = ({
 	showModelOptions,
 	apiErrorMessage,
 	modelIdErrorMessage,
 	advisorModelIdErrorMessage,
 	showAdvisorModelSettings,
+	isPopup,
 }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
@@ -190,8 +207,8 @@ const ApiOptions = ({
 	}
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-			<div className="dropdown-container">
+		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+			<DropdownContainer className="dropdown-container">
 				<label htmlFor="api-provider">
 					<span style={{ fontWeight: 500 }}>API Provider</span>
 				</label>
@@ -202,7 +219,6 @@ const ApiOptions = ({
 					style={{
 						minWidth: 130,
 						position: "relative",
-						zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1,
 					}}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
@@ -217,7 +233,7 @@ const ApiOptions = ({
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
-			</div>
+			</DropdownContainer>
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -865,6 +881,7 @@ const ApiOptions = ({
 							modelInfo={selectedModelInfo}
 							isDescriptionExpanded={isDescriptionExpanded}
 							setIsDescriptionExpanded={setIsDescriptionExpanded}
+							isPopup={isPopup}
 						/>
 					</>
 				)}
@@ -906,7 +923,9 @@ const ApiOptions = ({
 								{createDropdown(anthropicModels, "base")}
 							</div>
 						)}
-						{selectedProvider === "openrouter" && <OpenRouterModelPicker modelType="base" key="base-model-picker" />}
+						{selectedProvider === "openrouter" && (
+							<OpenRouterModelPicker modelType="base" key="base-model-picker" isPopup={isPopup} />
+						)}
 						{modelIdErrorMessage && (
 							<p
 								style={{
@@ -935,7 +954,7 @@ const ApiOptions = ({
 							</div>
 						)}
 						{selectedProvider === "openrouter" && (
-							<OpenRouterModelPicker modelType="advisor" key="advisor-model-picker" />
+							<OpenRouterModelPicker modelType="advisor" key="advisor-model-picker" isPopup={isPopup} />
 						)}
 						{advisorModelIdErrorMessage && (
 							<p
@@ -972,11 +991,13 @@ export const ModelInfoView = ({
 	modelInfo,
 	isDescriptionExpanded,
 	setIsDescriptionExpanded,
+	isPopup,
 }: {
 	selectedModelId: string
 	modelInfo: ModelInfo
 	isDescriptionExpanded: boolean
 	setIsDescriptionExpanded: (isExpanded: boolean) => void
+	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 
@@ -987,6 +1008,7 @@ export const ModelInfoView = ({
 				markdown={modelInfo.description}
 				isExpanded={isDescriptionExpanded}
 				setIsExpanded={setIsDescriptionExpanded}
+				isPopup={isPopup}
 			/>
 		),
 		<ModelInfoSupportsItem
