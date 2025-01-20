@@ -236,7 +236,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								width: "6px",
 								height: "6px",
 								backgroundColor: "white",
-								border: "1px solid #666666",
+								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
 								borderRadius: "50%",
 								position: "absolute",
 								top: "1px",
