@@ -244,6 +244,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
 
+		// Add a ref to track previous menu state
+		const prevShowModelSelector = useRef(showModelSelector)
+
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
@@ -650,10 +653,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
 
-		// Add click away handler
+		// Separate the API config submission logic
+		const submitApiConfig = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+			const advisorModelIdValidationResult = validateAdvisorModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult && !advisorModelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
+
+		// Use an effect to detect menu close
+		useEffect(() => {
+			if (prevShowModelSelector.current && !showModelSelector) {
+				// Menu was just closed
+				submitApiConfig()
+			}
+			prevShowModelSelector.current = showModelSelector
+		}, [showModelSelector, submitApiConfig])
+
+		// Remove the handleApiConfigSubmit callback
+		// Update click handler to just toggle the menu
+		const handleModelButtonClick = () => {
+			setShowModelSelector(!showModelSelector)
+		}
+
+		// Update click away handler to just close menu
 		useClickAway(modelSelectorRef, () => {
 			setShowModelSelector(false)
-			handleApiConfigSubmit()
 		})
 
 		// Get model display name
@@ -703,19 +733,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
 			}
 		}, [showModelSelector, viewportWidth, viewportHeight])
-
-		const handleApiConfigSubmit = useCallback(() => {
-			console.log("handleApiConfigSubmit")
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-			const advisorModelIdValidationResult = validateAdvisorModelId(apiConfiguration, openRouterModels)
-
-			if (!apiValidationResult && !modelIdValidationResult && !advisorModelIdValidationResult) {
-				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			} else {
-				vscode.postMessage({ type: "getLatestState" })
-			}
-		}, [apiConfiguration, openRouterModels])
 
 		// Reset advisor settings when model selector is closed
 		useEffect(() => {
@@ -959,20 +976,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									role="button"
 									isActive={showModelSelector}
 									disabled={textAreaDisabled}
-									onClick={() => {
-										if (showModelSelector) {
-											handleApiConfigSubmit()
-										}
-										setShowModelSelector(!showModelSelector)
-									}}
+									onClick={handleModelButtonClick}
 									onKeyDown={(e) => {
 										if (e.key === "Enter" || e.key === " ") {
 											e.preventDefault()
-
-											if (showModelSelector) {
-												handleApiConfigSubmit()
-											}
-											setShowModelSelector(!showModelSelector)
+											handleModelButtonClick()
 										}
 									}}
 									tabIndex={0}>
