@@ -1,8 +1,6 @@
 # Roo Cline Changelog
 
-## 3.1.7
-
-### Patch Changes
+## [3.1.7]
 
 - Various fixes
 - debug from vscode and changed output channel to Roo-Cline
