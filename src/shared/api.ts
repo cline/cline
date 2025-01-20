@@ -51,7 +51,6 @@ export interface ApiHandlerOptions {
 	setAzureApiVersion?: boolean
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
-	deepSeekModelId?: string
 	includeMaxTokens?: boolean
 }
 

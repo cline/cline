@@ -714,11 +714,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								value={mode}
 								disabled={textAreaDisabled}
 								onChange={(e) => {
-									const newMode = e.target.value as Mode
-									setMode(newMode)
+									const value = e.target.value
+									if (value === "prompts-action") {
+										window.postMessage({ type: "action", action: "promptsButtonClicked" })
+										return
+									}
+									setMode(value as Mode)
 									vscode.postMessage({
 										type: "mode",
-										text: newMode,
+										text: value,
 									})
 								}}
 								style={{
@@ -737,6 +741,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										{mode.name}
 									</option>
 								))}
+								<option disabled style={{ borderTop: "1px solid var(--vscode-dropdown-border)" }}>
+									────
+								</option>
+								<option value="prompts-action">Edit...</option>
 							</select>
 							<div style={caretContainerStyle}>
 								<CaretIcon />
@@ -753,20 +761,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								overflow: "hidden",
 							}}>
 							<select
-								value={currentApiConfigName}
+								value={currentApiConfigName || ""}
 								disabled={textAreaDisabled}
-								onChange={(e) =>
+								onChange={(e) => {
+									const value = e.target.value
+									if (value === "settings-action") {
+										window.postMessage({ type: "action", action: "settingsButtonClicked" })
+										return
+									}
 									vscode.postMessage({
 										type: "loadApiConfiguration",
-										text: e.target.value,
+										text: value,
 									})
-								}
+								}}
 								style={{
 									...selectStyle,
 									width: "100%",
 									textOverflow: "ellipsis",
 								}}>
-								{(listApiConfigMeta || [])?.map((config) => (
+								{(listApiConfigMeta || []).map((config) => (
 									<option
 										key={config.name}
 										value={config.name}
@@ -777,6 +790,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										{config.name}
 									</option>
 								))}
+								<option disabled style={{ borderTop: "1px solid var(--vscode-dropdown-border)" }}>
+									────
+								</option>
+								<option value="settings-action">Edit...</option>
 							</select>
 							<div style={caretContainerStyle}>
 								<CaretIcon />
@@ -806,14 +823,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									role="button"
 									aria-label="enhance prompt"
 									data-testid="enhance-prompt-button"
-									className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-sparkle`}
+									className={`input-icon-button ${
+										textAreaDisabled ? "disabled" : ""
+									} codicon codicon-sparkle`}
 									onClick={() => !textAreaDisabled && handleEnhancePrompt()}
 									style={{ fontSize: 16.5 }}
 								/>
 							)}
 						</div>
 						<span
-							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
+							className={`input-icon-button ${
+								shouldDisableImages ? "disabled" : ""
+							} codicon codicon-device-camera`}
 							onClick={() => !shouldDisableImages && onSelectImages()}
 							style={{ fontSize: 16.5 }}
 						/>

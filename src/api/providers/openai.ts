@@ -36,7 +36,9 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 		const modelInfo = this.getModel().info
 		const modelId = this.options.openAiModelId ?? ""
 
-		if (this.options.openAiStreamingEnabled ?? true) {
+		const deepseekReasoner = modelId.includes("deepseek-reasoner")
+
+		if (!deepseekReasoner && (this.options.openAiStreamingEnabled ?? true)) {
 			const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 				role: "system",
 				content: systemPrompt,
@@ -71,11 +73,20 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 				}
 			}
 		} else {
+			let systemMessage: OpenAI.Chat.ChatCompletionUserMessageParam | OpenAI.Chat.ChatCompletionSystemMessageParam
+
 			// o1 for instance doesnt support streaming, non-1 temp, or system prompt
-			const systemMessage: OpenAI.Chat.ChatCompletionUserMessageParam = {
-				role: "user",
-				content: systemPrompt,
-			}
+			// deepseek reasoner supports system prompt
+			systemMessage = deepseekReasoner
+				? {
+						role: "system",
+						content: systemPrompt,
+					}
+				: {
+						role: "user",
+						content: systemPrompt,
+					}
+
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: modelId,
 				messages: [systemMessage, ...convertToOpenAiMessages(messages)],
@@ -106,7 +117,6 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
-				temperature: 0,
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions)
