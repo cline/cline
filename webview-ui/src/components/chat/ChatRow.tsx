@@ -768,7 +768,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						padding: "8px 10px",
 						marginTop: "8px",
 					}}>
-					<div>{consultAdvisor.problem}</div>
+					<div
+						style={{
+							wordBreak: "break-word",
+							overflowWrap: "anywhere",
+							marginBottom: -10,
+							marginTop: -10,
+						}}>
+						<MarkdownBlock markdown={consultAdvisor.problem} />
+					</div>
 					{consultAdvisor.estimatedCost != null && (
 						<div
 							style={{

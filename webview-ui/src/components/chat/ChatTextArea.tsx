@@ -163,12 +163,12 @@ const ModelButtonWrapper = styled.div`
 	max-width: 100%; // Don't overflow parent
 `
 
-const ModelDisplayButton = styled.a<{ isActive?: boolean }>`
+const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
 	padding: 0px 0px;
 	height: 20px;
 	width: 100%;
 	min-width: 0;
-	cursor: pointer;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
 	text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
 	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	display: flex;
@@ -176,17 +176,19 @@ const ModelDisplayButton = styled.a<{ isActive?: boolean }>`
 	font-size: 10px;
 	outline: none;
 	user-select: none;
+	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
 
 	&:hover,
 	&:focus {
-		color: var(--vscode-foreground);
-		text-decoration: underline;
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
 		outline: none;
 	}
 
 	&:active {
-		color: var(--vscode-foreground);
-		text-decoration: underline;
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
 		outline: none;
 	}
 
@@ -956,6 +958,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
+									disabled={textAreaDisabled}
 									onClick={() => {
 										if (showModelSelector) {
 											handleApiConfigSubmit()
