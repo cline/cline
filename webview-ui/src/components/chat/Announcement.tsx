@@ -35,13 +35,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						New <code>Consult Advisor</code> tool
 					</b>{" "}
 					lets Cline ask a powerful model like o1 for help when stuck. Cline provides the full context of the problem,
-					and the Advisor model responds with a plan to fix it.{" "}
+					and the Advisor model responds with a solution. <i>(Available with OpenRouter and Anthropic.)</i>{" "}
 					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
 						See a demo here!
 					</VSCodeLink>
 				</li>
 				<li>
-					<b>Task/Chat mode toggle</b> to turn Cline into a conversational partner, rather than a task-completing agent
+					<b>Plan/Act mode toggle:</b> Plan mode lets Cline ask clarifying questions, brainstorm ideas, and architect a
+					solution. Switch back to Act mode to let him execute the plan!
 				</li>
 				<li>
 					<b>Quick API/model switching</b> with a new popup menu under the chat field
