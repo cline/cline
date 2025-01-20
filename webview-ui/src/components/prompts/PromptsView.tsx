@@ -22,6 +22,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		mode,
 		customInstructions,
 		setCustomInstructions,
+		preferredLanguage,
+		setPreferredLanguage,
 	} = useExtensionState()
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
@@ -146,6 +148,55 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
 				<div style={{ marginBottom: "20px" }}>
+					<div style={{ marginBottom: "20px" }}>
+						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Preferred Language</div>
+						<select
+							value={preferredLanguage}
+							onChange={(e) => {
+								setPreferredLanguage(e.target.value)
+								vscode.postMessage({
+									type: "preferredLanguage",
+									text: e.target.value,
+								})
+							}}
+							style={{
+								width: "100%",
+								padding: "4px 8px",
+								backgroundColor: "var(--vscode-input-background)",
+								color: "var(--vscode-input-foreground)",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: "2px",
+								height: "28px",
+							}}>
+							<option value="English">English</option>
+							<option value="Arabic">Arabic - العربية</option>
+							<option value="Brazilian Portuguese">Portuguese - Português (Brasil)</option>
+							<option value="Czech">Czech - Čeština</option>
+							<option value="French">French - Français</option>
+							<option value="German">German - Deutsch</option>
+							<option value="Hindi">Hindi - हिन्दी</option>
+							<option value="Hungarian">Hungarian - Magyar</option>
+							<option value="Italian">Italian - Italiano</option>
+							<option value="Japanese">Japanese - 日本語</option>
+							<option value="Korean">Korean - 한국어</option>
+							<option value="Polish">Polish - Polski</option>
+							<option value="Portuguese">Portuguese - Português (Portugal)</option>
+							<option value="Russian">Russian - Русский</option>
+							<option value="Simplified Chinese">Simplified Chinese - 简体中文</option>
+							<option value="Spanish">Spanish - Español</option>
+							<option value="Traditional Chinese">Traditional Chinese - 繁體中文</option>
+							<option value="Turkish">Turkish - Türkçe</option>
+						</select>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							Select the language that Cline should use for communication.
+						</p>
+					</div>
+
 					<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Custom Instructions for All Modes</div>
 					<div
 						style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
