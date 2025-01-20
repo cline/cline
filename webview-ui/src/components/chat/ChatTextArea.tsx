@@ -977,12 +977,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									isActive={showModelSelector}
 									disabled={textAreaDisabled}
 									onClick={handleModelButtonClick}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault()
-											handleModelButtonClick()
-										}
-									}}
+									// onKeyDown={(e) => {
+									// 	if (e.key === "Enter" || e.key === " ") {
+									// 		e.preventDefault()
+									// 		handleModelButtonClick()
+									// 	}
+									// }}
 									tabIndex={0}>
 									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
 								</ModelDisplayButton>
