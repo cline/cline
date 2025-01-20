@@ -106,7 +106,7 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
 
-			const configs = await configManager.ListConfig()
+			const configs = await configManager.listConfig()
 			expect(configs).toEqual([
 				{ name: "default", id: "default", apiProvider: undefined },
 				{ name: "test", id: "test-id", apiProvider: "anthropic" },
@@ -126,14 +126,14 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(emptyConfig))
 
-			const configs = await configManager.ListConfig()
+			const configs = await configManager.listConfig()
 			expect(configs).toEqual([])
 		})
 
 		it("should throw error if reading from secrets fails", async () => {
 			mockSecrets.get.mockRejectedValue(new Error("Read failed"))
 
-			await expect(configManager.ListConfig()).rejects.toThrow(
+			await expect(configManager.listConfig()).rejects.toThrow(
 				"Failed to list configs: Error: Failed to read config from secrets: Error: Read failed",
 			)
 		})
@@ -160,7 +160,7 @@ describe("ConfigManager", () => {
 				apiKey: "test-key",
 			}
 
-			await configManager.SaveConfig("test", newConfig)
+			await configManager.saveConfig("test", newConfig)
 
 			// Get the actual stored config to check the generated ID
 			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
@@ -207,7 +207,7 @@ describe("ConfigManager", () => {
 				apiKey: "new-key",
 			}
 
-			await configManager.SaveConfig("test", updatedConfig)
+			await configManager.saveConfig("test", updatedConfig)
 
 			const expectedConfig = {
 				currentApiConfigName: "default",
@@ -235,7 +235,7 @@ describe("ConfigManager", () => {
 			)
 			mockSecrets.store.mockRejectedValueOnce(new Error("Storage failed"))
 
-			await expect(configManager.SaveConfig("test", {})).rejects.toThrow(
+			await expect(configManager.saveConfig("test", {})).rejects.toThrow(
 				"Failed to save config: Error: Failed to write config to secrets: Error: Storage failed",
 			)
 		})
@@ -258,7 +258,7 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
 
-			await configManager.DeleteConfig("test")
+			await configManager.deleteConfig("test")
 
 			// Get the stored config to check the ID
 			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
@@ -275,7 +275,7 @@ describe("ConfigManager", () => {
 				}),
 			)
 
-			await expect(configManager.DeleteConfig("nonexistent")).rejects.toThrow("Config 'nonexistent' not found")
+			await expect(configManager.deleteConfig("nonexistent")).rejects.toThrow("Config 'nonexistent' not found")
 		})
 
 		it("should throw error when trying to delete last remaining config", async () => {
@@ -290,7 +290,7 @@ describe("ConfigManager", () => {
 				}),
 			)
 
-			await expect(configManager.DeleteConfig("default")).rejects.toThrow(
+			await expect(configManager.deleteConfig("default")).rejects.toThrow(
 				"Cannot delete the last remaining configuration.",
 			)
 		})
@@ -311,7 +311,7 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
 
-			const config = await configManager.LoadConfig("test")
+			const config = await configManager.loadConfig("test")
 
 			expect(config).toEqual({
 				apiProvider: "anthropic",
@@ -342,7 +342,7 @@ describe("ConfigManager", () => {
 				}),
 			)
 
-			await expect(configManager.LoadConfig("nonexistent")).rejects.toThrow("Config 'nonexistent' not found")
+			await expect(configManager.loadConfig("nonexistent")).rejects.toThrow("Config 'nonexistent' not found")
 		})
 
 		it("should throw error if secrets storage fails", async () => {
@@ -361,7 +361,7 @@ describe("ConfigManager", () => {
 			)
 			mockSecrets.store.mockRejectedValueOnce(new Error("Storage failed"))
 
-			await expect(configManager.LoadConfig("test")).rejects.toThrow(
+			await expect(configManager.loadConfig("test")).rejects.toThrow(
 				"Failed to load config: Error: Failed to write config to secrets: Error: Storage failed",
 			)
 		})
@@ -384,7 +384,7 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
 
-			await configManager.SetCurrentConfig("test")
+			await configManager.setCurrentConfig("test")
 
 			// Get the stored config to check the structure
 			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
@@ -404,7 +404,7 @@ describe("ConfigManager", () => {
 				}),
 			)
 
-			await expect(configManager.SetCurrentConfig("nonexistent")).rejects.toThrow(
+			await expect(configManager.setCurrentConfig("nonexistent")).rejects.toThrow(
 				"Config 'nonexistent' not found",
 			)
 		})
@@ -420,9 +420,31 @@ describe("ConfigManager", () => {
 			)
 			mockSecrets.store.mockRejectedValueOnce(new Error("Storage failed"))
 
-			await expect(configManager.SetCurrentConfig("test")).rejects.toThrow(
+			await expect(configManager.setCurrentConfig("test")).rejects.toThrow(
 				"Failed to set current config: Error: Failed to write config to secrets: Error: Storage failed",
 			)
+		})
+	})
+
+	describe("ResetAllConfigs", () => {
+		it("should delete all stored configs", async () => {
+			// Setup initial config
+			mockSecrets.get.mockResolvedValue(
+				JSON.stringify({
+					currentApiConfigName: "test",
+					apiConfigs: {
+						test: {
+							apiProvider: "anthropic",
+							id: "test-id",
+						},
+					},
+				}),
+			)
+
+			await configManager.resetAllConfigs()
+
+			// Should have called delete with the correct config key
+			expect(mockSecrets.delete).toHaveBeenCalledWith("roo_cline_config_api_config")
 		})
 	})
 
@@ -443,7 +465,7 @@ describe("ConfigManager", () => {
 
 			mockSecrets.get.mockResolvedValue(JSON.stringify(existingConfig))
 
-			const hasConfig = await configManager.HasConfig("test")
+			const hasConfig = await configManager.hasConfig("test")
 			expect(hasConfig).toBe(true)
 		})
 
@@ -455,14 +477,14 @@ describe("ConfigManager", () => {
 				}),
 			)
 
-			const hasConfig = await configManager.HasConfig("nonexistent")
+			const hasConfig = await configManager.hasConfig("nonexistent")
 			expect(hasConfig).toBe(false)
 		})
 
 		it("should throw error if secrets storage fails", async () => {
 			mockSecrets.get.mockRejectedValue(new Error("Storage failed"))
 
-			await expect(configManager.HasConfig("test")).rejects.toThrow(
+			await expect(configManager.hasConfig("test")).rejects.toThrow(
 				"Failed to check config existence: Error: Failed to read config from secrets: Error: Storage failed",
 			)
 		})
