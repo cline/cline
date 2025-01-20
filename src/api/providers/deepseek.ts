@@ -10,14 +10,15 @@ export class DeepSeekHandler extends OpenAiHandler {
 		super({
 			...options,
 			openAiApiKey: options.deepSeekApiKey,
-			openAiModelId: options.deepSeekModelId ?? deepSeekDefaultModelId,
+			openAiModelId: options.apiModelId ?? deepSeekDefaultModelId,
 			openAiBaseUrl: options.deepSeekBaseUrl ?? "https://api.deepseek.com/v1",
+			openAiStreamingEnabled: true,
 			includeMaxTokens: true,
 		})
 	}
 
 	override getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.deepSeekModelId ?? deepSeekDefaultModelId
+		const modelId = this.options.apiModelId ?? deepSeekDefaultModelId
 		return {
 			id: modelId,
 			info: deepSeekModels[modelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId],
