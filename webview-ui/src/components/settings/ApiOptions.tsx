@@ -40,7 +40,7 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
 
@@ -103,6 +103,15 @@ const DropdownContainer = styled.div`
 		bottom: auto !important;
 	}
 `
+
+declare module "vscode" {
+	interface LanguageModelChatSelector {
+		vendor?: string
+		family?: string
+		version?: string
+		id?: string
+	}
+}
 
 const ApiOptions = ({
 	showModelOptions,
