@@ -65,6 +65,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setExperimentalDiffStrategy: (value: boolean) => void
 	autoApprovalEnabled?: boolean
 	setAutoApprovalEnabled: (value: boolean) => void
+	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -119,12 +120,26 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setState((currentState) => {
 			vscode.postMessage({
 				type: "upsertApiConfiguration",
-				text: currentState.currentApiConfigName, // Access latest state
+				text: currentState.currentApiConfigName,
 				apiConfiguration: apiConfig,
 			})
 			return currentState // No state update needed
 		})
 	}, [])
+
+	const handleInputChange = useCallback(
+		(field: keyof ApiConfiguration) => (event: any) => {
+			setState((currentState) => {
+				vscode.postMessage({
+					type: "upsertApiConfiguration",
+					text: currentState.currentApiConfigName,
+					apiConfiguration: { ...currentState.apiConfiguration, [field]: event.target.value },
+				})
+				return currentState // No state update needed
+			})
+		},
+		[],
+	)
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
@@ -258,6 +273,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setExperimentalDiffStrategy: (value) =>
 			setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
+		handleInputChange,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
