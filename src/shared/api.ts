@@ -15,13 +15,10 @@ export type ApiProvider =
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
-	anthropicAdvisorModelId?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
-	openRouterAdvisorModelId?: string
 	openRouterModelInfo?: ModelInfo
-	openRouterAdvisorModelInfo?: ModelInfo
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -63,13 +60,10 @@ export interface ModelInfo {
 	description?: string
 }
 
-export type ModelType = "base" | "advisor"
-
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
-export const anthropicDefaultAdvisorModelId: AnthropicModelId = "claude-3-opus-20240229"
 export const anthropicModels = {
 	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
@@ -185,18 +179,6 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description:
 		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/anthropic/claude-3.5-sonnet) variant._",
-}
-export const openRouterDefaultAdvisorModelId = "openai/o1-preview" // will always exist in openRouterModels
-export const openRouterDefaultAdvisorModelInfo: ModelInfo = {
-	maxTokens: 33_000,
-	contextWindow: 128_000,
-	supportsImages: true,
-	supportsComputerUse: false,
-	supportsPromptCache: false,
-	inputPrice: 15,
-	outputPrice: 60,
-	description:
-		"The latest and strongest model family from OpenAI, o1 is designed to spend more time thinking before responding.\n\nThe o1 models are optimized for math, science, programming, and other STEM-related tasks. They consistently exhibit PhD-level accuracy on benchmarks in physics, chemistry, and biology. Learn more in the [launch announcement](https://openai.com/o1).\n\nNote: This model is currently experimental and not suitable for production use-cases, and may be heavily rate-limited.",
 }
 
 // Vertex AI

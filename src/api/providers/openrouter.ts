@@ -2,15 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	ModelType,
-	openRouterDefaultAdvisorModelId,
-	openRouterDefaultAdvisorModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import delay from "delay"
@@ -31,8 +23,8 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], modelType?: ModelType): ApiStream {
-		const model = modelType === "advisor" ? this.getAdvisorModel() : this.getModel()
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
 
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -55,11 +47,6 @@ export class OpenRouterHandler implements ApiHandler {
 			case "anthropic/claude-3-haiku:beta":
 			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
-				// don't use prompt caching for advisor model requests
-				if (modelType === "advisor") {
-					break
-				}
-
 				openAiMessages[0] = {
 					role: "system",
 					content: [
@@ -194,18 +181,6 @@ export class OpenRouterHandler implements ApiHandler {
 		return {
 			id: openRouterDefaultModelId,
 			info: openRouterDefaultModelInfo,
-		}
-	}
-
-	getAdvisorModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterAdvisorModelId
-		const modelInfo = this.options.openRouterAdvisorModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
-		}
-		return {
-			id: openRouterDefaultAdvisorModelId,
-			info: openRouterDefaultAdvisorModelInfo,
 		}
 	}
 }

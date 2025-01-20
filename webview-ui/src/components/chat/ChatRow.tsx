@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
@@ -8,9 +8,8 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSayTool,
-	ExtensionMessage,
 	COMPLETION_RESULT_CHANGES_FLAG,
-	ClineConsultAdvisor,
+	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -25,7 +24,6 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -64,9 +62,7 @@ const ChatRow = memo(
 				message.say === "completion_result" ||
 				message.ask === "completion_result" ||
 				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server" ||
-				message.say === "consult_advisor" ||
-				message.ask === "consult_advisor")
+				message.ask === "use_mcp_server")
 
 		if (shouldShowCheckpoints && isLast) {
 			shouldShowCheckpoints =
@@ -103,7 +99,7 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	const { mcpServers, apiConfiguration } = useExtensionState()
+	const { mcpServers } = useExtensionState()
 
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -144,10 +140,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	}, [])
 
 	useEvent("message", handleMessage)
-
-	const { selectedAdvisorModelId } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration)
-	}, [apiConfiguration])
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -222,23 +214,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
 						)}
-					</span>,
-				]
-			case "consult_advisor":
-				// const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
-				const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
-				return [
-					<span
-						className="codicon codicon-comment-discussion"
-						style={{
-							color: normalColor,
-							marginBottom: "-1.5px",
-						}}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						<>
-							Cline wants to consult{" "}
-							{<code>{isLast ? selectedAdvisorModelId : consultAdvisor.advisorModelId}</code> || "Advisor model"}:
-						</>
 					</span>,
 				]
 			case "completion_result":
@@ -332,8 +307,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		isMcpServerResponding,
 		message.text,
 		message.type,
-		selectedAdvisorModelId,
-		isLast,
 	])
 
 	const headerStyle: React.CSSProperties = {
@@ -751,63 +724,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		)
 	}
 
-	if (message.ask === "consult_advisor" || message.say === "consult_advisor") {
-		const consultAdvisor = JSON.parse(message.text || "{}") as ClineConsultAdvisor
-		// const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
-		return (
-			<>
-				<div style={headerStyle}>
-					{icon}
-					{title}
-				</div>
-
-				<div
-					style={{
-						background: "var(--vscode-textCodeBlock-background)",
-						borderRadius: "3px",
-						padding: "8px 10px",
-						marginTop: "8px",
-					}}>
-					<div
-						style={{
-							wordBreak: "break-word",
-							overflowWrap: "anywhere",
-							marginBottom: -10,
-							marginTop: -10,
-						}}>
-						<MarkdownBlock markdown={consultAdvisor.problem} />
-					</div>
-					{consultAdvisor.estimatedCost != null && (
-						<div
-							style={{
-								marginTop: 8,
-								fontSize: "12px",
-								color: "var(--vscode-descriptionForeground)",
-								borderTop: "1px solid var(--vscode-textSeparator-foreground)",
-								paddingTop: 8,
-							}}>
-							Estimated cost: ${Number(consultAdvisor.estimatedCost).toFixed(4)}
-						</div>
-					)}
-				</div>
-
-				<div
-					style={{
-						padding: 8,
-						fontSize: "12px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					You can change the Advisor model Cline consults with{" "}
-					<VSCodeLink
-						style={{ display: "inline", fontSize: "inherit" }}
-						onClick={() => vscode.postMessage({ type: "openAdvisorModelSettings" })}>
-						in API Settings.
-					</VSCodeLink>
-				</div>
-			</>
-		)
-	}
-
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
@@ -923,32 +839,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "text":
 					return (
 						<div>
-							<Markdown markdown={message.text} />
-						</div>
-					)
-				case "advisor_response":
-					return (
-						<div
-							style={{
-								border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent)",
-								borderRadius: "4px",
-								padding: "16px",
-								position: "relative",
-								marginTop: "10px",
-							}}>
-							<div
-								style={{
-									position: "absolute",
-									top: "-8px",
-									left: "16px",
-									backgroundColor: "var(--vscode-sideBar-background)",
-									padding: "0 8px",
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-									textTransform: "uppercase",
-								}}>
-								Advisor Response
-							</div>
 							<Markdown markdown={message.text} />
 						</div>
 					)

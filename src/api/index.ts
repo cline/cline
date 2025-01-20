@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiConfiguration, ModelInfo, ModelType } from "../shared/api"
+import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { OpenRouterHandler } from "./providers/openrouter"
@@ -15,9 +15,8 @@ import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], modelType?: ModelType): ApiStream
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
-	getAdvisorModel?(): { id: string; info: ModelInfo }
 }
 
 export interface SingleCompletionHandler {

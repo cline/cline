@@ -2,25 +2,29 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import delay from "delay"
 import fs from "fs/promises"
+import getFolderSize from "get-folder-size"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
-import { ApiStream } from "../api/transform/stream"
+import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
+import { showSystemNotification } from "../integrations/notifications"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
-import { ApiConfiguration, ModelInfo } from "../shared/api"
+import { ApiConfiguration } from "../shared/api"
 import { findLast, findLastIndex } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
+import { BrowserSettings } from "../shared/BrowserSettings"
+import { ChatSettings } from "../shared/ChatSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
 import {
@@ -31,7 +35,6 @@ import {
 	ClineApiReqInfo,
 	ClineAsk,
 	ClineAskUseMcpServer,
-	ClineConsultAdvisor,
 	ClineMessage,
 	ClineSay,
 	ClineSayBrowserAction,
@@ -44,23 +47,18 @@ import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessa
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
-import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { showSystemNotification } from "../integrations/notifications"
-import { removeInvalidChars } from "../utils/string"
-import { fixModelHtmlEscaping } from "../utils/string"
-import { OpenAiHandler } from "../api/providers/openai"
-import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
-import getFolderSize from "get-folder-size"
-import { BrowserSettings } from "../shared/BrowserSettings"
-import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
-import { ChatSettings } from "../shared/ChatSettings"
 import { OpenRouterHandler } from "../api/providers/openrouter"
+import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
+import { SYSTEM_PROMPT } from "./prompts/system"
+import { addUserInstructions } from "./prompts/system"
+import { OpenAiHandler } from "../api/providers/openai"
+import { ApiStream } from "../api/transform/stream"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -97,7 +95,6 @@ export class Cline {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
-	private advisorProblem?: string
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
@@ -1082,8 +1079,6 @@ export class Cline {
 					message.ask === "followup" ||
 					message.say === "use_mcp_server" ||
 					message.ask === "use_mcp_server" ||
-					message.say === "consult_advisor" ||
-					message.ask === "consult_advisor" ||
 					message.say === "browser_action" ||
 					message.say === "browser_action_launch" ||
 					message.ask === "browser_action_launch"
@@ -1194,76 +1189,9 @@ export class Cline {
 				case "access_mcp_resource":
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
-				case "consult_advisor":
-					return this.autoApprovalSettings.actions.consultAdvisor ?? false
 			}
 		}
 		return false
-	}
-
-	estimateAdvisorModelCost(problem: string) {
-		const truncatedConversationHistory = getTruncatedMessages(
-			this.apiConversationHistory,
-			this.conversationHistoryDeletedRange,
-		)
-		const advisorModel = this.api.getAdvisorModel?.()
-		if (!advisorModel) {
-			return 0
-		}
-		const advisorMessage = this.createAdvisorMessage(truncatedConversationHistory, advisorModel, problem)
-		const prompt = ADVISOR_SYSTEM_PROMPT() + advisorMessage
-		// Estimate ~3 chars per token as a rough approximation
-		const estimatedInputTokens = Math.ceil(prompt.length / 3)
-		const estimatedOutputTokens = 300 // typical response size
-		// Note: we don't prompt cache since we only send up one request at a time
-		const inputCost = (estimatedInputTokens * (advisorModel.info.inputPrice ?? 0)) / 1_000_000 // Convert from per million tokens
-		const outputCost = (estimatedOutputTokens * (advisorModel.info.outputPrice ?? 0)) / 1_000_000
-		return inputCost + outputCost
-	}
-
-	createAdvisorMessage(
-		truncatedConversationHistory: Anthropic.Messages.MessageParam[],
-		advisorModel: {
-			id: string
-			info: ModelInfo
-		},
-		advisorProblem: string,
-	) {
-		// Generate markdown
-		const markdownContent = truncatedConversationHistory
-			.map((message) => {
-				const role = message.role === "user" ? "**User:**" : "**Coding Agent:**"
-				const content = Array.isArray(message.content)
-					? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
-					: message.content
-				return `${role}\n\n${content}\n\n`
-			})
-			.join("---\n\n")
-
-		// Don't want to send the entire conv history, just the most recent context
-		// Get approximate char count from token limit
-		const advisorContextWindow = advisorModel.info.contextWindow || 128_000
-		const tokensToKeep = Math.floor(advisorContextWindow / 2)
-		// Estimate ~3 chars per token as a rough approximation
-		const charsToKeep = tokensToKeep * 3
-		// Get last n chars of markdown content
-		const isTruncated = markdownContent.length > charsToKeep
-		const firstMessage = truncatedConversationHistory.at(0)
-		const firstMessageContent = firstMessage
-			? Array.isArray(firstMessage.content)
-				? firstMessage.content.map((block) => (block.type === "text" ? block.text : "")).join("\n")
-				: firstMessage.content
-			: ""
-		const recentContext =
-			(isTruncated ? `**User:**:\n\n${firstMessageContent}\n\n... (older messages removed for brevity) ...\n\n` : "") +
-			markdownContent.slice(-charsToKeep)
-		const advisorMessage =
-			"\n\n# The conversation history leading up to this point:\n\n" +
-			recentContext +
-			"\n\n# The problem the coding agent needs advice on:\n\n" +
-			advisorProblem
-
-		return advisorMessage
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
@@ -1277,15 +1205,11 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
-		const advisorModel = this.api.getAdvisorModel?.()
-		const supportsConsultAdvisor = advisorModel !== undefined
-
 		let systemPrompt = await SYSTEM_PROMPT(
 			cwd,
 			this.api.getModel().info.supportsComputerUse ?? false,
 			mcpHub,
 			this.browserSettings,
-			supportsConsultAdvisor,
 		)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
@@ -1354,26 +1278,6 @@ export class Cline {
 
 		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
 
-		// If we're consulting the advisor, override the request
-		if (this.advisorProblem && advisorModel) {
-			const advisorMessage = this.createAdvisorMessage(truncatedConversationHistory, advisorModel, this.advisorProblem)
-			stream = this.api.createMessage(
-				ADVISOR_SYSTEM_PROMPT(),
-				[
-					{
-						role: "user",
-						content: [
-							{
-								type: "text",
-								text: advisorMessage,
-							},
-						],
-					},
-				],
-				"advisor",
-			)
-		}
-
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
@@ -1438,11 +1342,6 @@ export class Cline {
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
-				if (this.advisorProblem) {
-					await this.say("advisor_response", block.content, undefined, block.partial)
-					break
-				}
-
 				if (this.didRejectTool || this.didAlreadyUseTool) {
 					break
 				}
@@ -1523,8 +1422,6 @@ export class Cline {
 							return `[${block.name} for '${block.params.server_name}']`
 						case "access_mcp_resource":
 							return `[${block.name} for '${block.params.server_name}']`
-						case "consult_advisor":
-							return `[${block.name} for '${block.params.problem}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
 						case "plan_mode_response":
@@ -2618,85 +2515,6 @@ export class Cline {
 							break
 						}
 					}
-					case "consult_advisor": {
-						const problem: string | undefined = block.params.problem
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									problem: removeClosingTag("problem", problem),
-									advisorModelId: this.api.getAdvisorModel?.().id,
-								} satisfies ClineConsultAdvisor)
-
-								if (this.shouldAutoApproveTool(block.name)) {
-									this.removeLastPartialMessageIfExistsWithType("ask", "consult_advisor")
-									await this.say("consult_advisor", partialMessage, undefined, block.partial)
-								} else {
-									this.removeLastPartialMessageIfExistsWithType("say", "consult_advisor")
-									await this.ask("consult_advisor", partialMessage, block.partial).catch(() => {})
-								}
-
-								break
-							} else {
-								if (!problem) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("consult_advisor", "problem"))
-									await this.saveCheckpoint()
-									break
-								}
-
-								this.consecutiveMistakeCount = 0
-
-								const estimatedCost = undefined //this.estimateAdvisorModelCost(problem)
-								const completeMessage = JSON.stringify({
-									problem: removeClosingTag("problem", problem),
-									advisorModelId: this.api.getAdvisorModel?.().id,
-									estimatedCost,
-								} satisfies ClineConsultAdvisor)
-
-								if (this.shouldAutoApproveTool(block.name)) {
-									this.removeLastPartialMessageIfExistsWithType("ask", "consult_advisor")
-									await this.say("consult_advisor", completeMessage, undefined, false)
-									this.consecutiveAutoApprovedRequestsCount++
-								} else {
-									showNotificationForApprovalIfAutoApprovalEnabled(
-										`Cline wants to consult the Advisor model about: ${problem}`,
-									)
-									this.removeLastPartialMessageIfExistsWithType("say", "consult_advisor")
-									const didApprove = await askApproval("consult_advisor", completeMessage)
-									if (!didApprove) {
-										await this.saveCheckpoint()
-										break
-									}
-								}
-
-								// Update the last consult_advisor message in case the advisor model changed
-								const lastMessage = findLast(
-									this.clineMessages,
-									(m) => m.ask === "consult_advisor" || m.say === "consult_advisor",
-								)
-								if (lastMessage) {
-									lastMessage.text = JSON.stringify({
-										problem: removeClosingTag("problem", problem),
-										advisorModelId: this.api.getAdvisorModel?.().id,
-										estimatedCost,
-									} satisfies ClineConsultAdvisor)
-								}
-
-								// now execute the tool
-								this.advisorProblem = problem
-								// await this.say("consult_advisor_request_started")
-								// const resourceResult = "Just try again bro." //await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
-								// await this.say("consult_advisor_response", resourceResult)
-								pushToolResult(formatResponse.toolResult("Awaiting response from the Advisor model..."))
-								await this.saveCheckpoint()
-								break
-							}
-						} catch (error) {
-							await handleError("consulting advisor", error)
-							await this.saveCheckpoint()
-							break
-						}
-					}
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
 						try {
@@ -3036,13 +2854,10 @@ export class Cline {
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
-		const advisorRequest = this.advisorProblem ? `(...conversation history)\n\n${this.advisorProblem}` : undefined
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request:
-					advisorRequest ||
-					userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 			}),
 		)
 
@@ -3073,7 +2888,7 @@ export class Cline {
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-			request: advisorRequest || userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessages()
 		await this.providerRef.deref()?.postStateToWebview()
@@ -3155,8 +2970,6 @@ export class Cline {
 			this.presentAssistantMessageHasPendingUpdates = false
 			this.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-
-			const isCallingAdvisor = this.advisorProblem !== undefined
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
@@ -3245,11 +3058,6 @@ export class Cline {
 			await this.saveClineMessages()
 			await this.providerRef.deref()?.postStateToWebview()
 
-			// If this last request was to the advisor model, then reset advisor problem to give control back to base model
-			if (isCallingAdvisor) {
-				this.advisorProblem = undefined
-			}
-
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
@@ -3273,20 +3081,12 @@ export class Cline {
 				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_use")
 
 				if (!didToolUse) {
-					if (isCallingAdvisor) {
-						// if the last request was a request to advisor then it wouldn't have used a tool
-						this.userMessageContent.push({
-							type: "text",
-							text: "Please continue with the task, taking into account the advisor's response provided above.",
-						})
-					} else {
-						// normal request where tool use is required
-						this.userMessageContent.push({
-							type: "text",
-							text: formatResponse.noToolsUsed(),
-						})
-						this.consecutiveMistakeCount++
-					}
+					// normal request where tool use is required
+					this.userMessageContent.push({
+						type: "text",
+						text: formatResponse.noToolsUsed(),
+					})
+					this.consecutiveMistakeCount++
 				}
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)

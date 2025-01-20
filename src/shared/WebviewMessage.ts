@@ -33,7 +33,6 @@ export interface WebviewMessage {
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
-		| "openAdvisorModelSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
 		| "toggleMcpServer"

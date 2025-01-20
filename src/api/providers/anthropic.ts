@@ -1,14 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import {
-	anthropicDefaultAdvisorModelId,
-	anthropicDefaultModelId,
-	AnthropicModelId,
-	anthropicModels,
-	ApiHandlerOptions,
-	ModelInfo,
-	ModelType,
-} from "../../shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -24,8 +16,8 @@ export class AnthropicHandler implements ApiHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], modelType: ModelType): ApiStream {
-		const model = modelType === "advisor" ? this.getAdvisorModel() : this.getModel()
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
@@ -34,20 +26,6 @@ export class AnthropicHandler implements ApiHandler {
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
-				// don't use prompt caching for advisor model requests
-				if (modelType === "advisor") {
-					stream = (await this.client.messages.create({
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
-						system: [{ text: systemPrompt, type: "text" }],
-						messages,
-						// tools,
-						// tool_choice: { type: "auto" },
-						stream: true,
-					})) as any
-					break
-				}
 				/*
 				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
 				*/
@@ -206,18 +184,6 @@ export class AnthropicHandler implements ApiHandler {
 		return {
 			id: anthropicDefaultModelId,
 			info: anthropicModels[anthropicDefaultModelId],
-		}
-	}
-
-	getAdvisorModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.anthropicAdvisorModelId
-		if (modelId && modelId in anthropicModels) {
-			const id = modelId as AnthropicModelId
-			return { id, info: anthropicModels[id] }
-		}
-		return {
-			id: anthropicDefaultAdvisorModelId,
-			info: anthropicModels[anthropicDefaultAdvisorModelId],
 		}
 	}
 }

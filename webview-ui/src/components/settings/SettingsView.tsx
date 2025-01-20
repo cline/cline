@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateAdvisorModelId, validateApiConfiguration, validateModelId } from "../../utils/validate"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 
@@ -15,18 +15,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
-	const [advisorModelIdErrorMessage, setAdvisorModelIdErrorMessage] = useState<string | undefined>(undefined)
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-		const advisorModelIdValidationResult = validateAdvisorModelId(apiConfiguration, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
-		setAdvisorModelIdErrorMessage(advisorModelIdValidationResult)
 
-		if (!apiValidationResult && !modelIdValidationResult && !advisorModelIdValidationResult) {
+		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({
 				type: "customInstructions",
@@ -39,7 +36,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	useEffect(() => {
 		setApiErrorMessage(undefined)
 		setModelIdErrorMessage(undefined)
-		setAdvisorModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
 	// validate as soon as the component is mounted
@@ -95,7 +91,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
-						advisorModelIdErrorMessage={advisorModelIdErrorMessage}
 					/>
 				</div>
 

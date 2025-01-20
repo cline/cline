@@ -2,14 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
-import {
-	ApiConfiguration,
-	ModelInfo,
-	openRouterDefaultAdvisorModelId,
-	openRouterDefaultAdvisorModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-} from "../../../src/shared/api"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -49,7 +42,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-		[openRouterDefaultAdvisorModelId]: openRouterDefaultAdvisorModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
@@ -107,7 +99,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					[openRouterDefaultAdvisorModelId]: openRouterDefaultAdvisorModelInfo,
 					...updatedModels,
 				})
 				break

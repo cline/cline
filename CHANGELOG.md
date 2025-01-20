@@ -2,7 +2,6 @@
 
 ## [3.2.0]
 
-- Add 'Consult Advisor' tool to let Cline ask a powerful model like o1 for help when he hits a roadblock (available with OpenRouter and Anthropic)
 - Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
 - Easily switch between API providers and models using a new popup menu under the chat field
 - Add VS Code LM API provider to run models provided by other VS Code extensions (e.g. GitHub Copilot). Shoutout to @julesmons, @RaySinner, and @MrUbens for putting this together!

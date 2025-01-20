@@ -4,12 +4,7 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import {
-	ModelType,
-	openRouterDefaultAdvisorModelId,
-	openRouterDefaultAdvisorModelInfo,
-	openRouterDefaultModelId,
-} from "../../../../src/shared/api"
+import { openRouterDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
@@ -17,17 +12,12 @@ import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 export interface OpenRouterModelPickerProps {
-	modelType: ModelType
 	isPopup?: boolean
 }
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType, isPopup }) => {
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(
-		modelType === "advisor"
-			? apiConfiguration?.openRouterAdvisorModelId || openRouterDefaultAdvisorModelId
-			: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
-	)
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -39,20 +29,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 		// could be setting invalid model id/undefined info but validation will catch it
 		setApiConfiguration({
 			...apiConfiguration,
-			...(modelType === "advisor"
-				? {
-						openRouterAdvisorModelId: newModelId,
-						openRouterAdvisorModelInfo: openRouterModels[newModelId],
-					}
-				: {
-						openRouterModelId: newModelId,
-						openRouterModelInfo: openRouterModels[newModelId],
-					}),
+			...{
+				openRouterModelId: newModelId,
+				openRouterModelInfo: openRouterModels[newModelId],
+			},
 		})
 		setSearchTerm(newModelId)
 	}
 
-	const { selectedModelId, selectedModelInfo, selectedAdvisorModelId, selectedAdvisorModelInfo } = useMemo(() => {
+	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
@@ -161,9 +146,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 				`}
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
-				{/* <label htmlFor="model-search">
+				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
-				</label> */}
+				</label>
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
@@ -222,14 +207,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 
 			{hasInfo ? (
 				<ModelInfoView
-					selectedModelId={
-						modelType === "advisor" ? selectedAdvisorModelId || openRouterDefaultAdvisorModelId : selectedModelId
-					}
-					modelInfo={
-						modelType === "advisor"
-							? selectedAdvisorModelInfo || openRouterDefaultAdvisorModelInfo
-							: selectedModelInfo
-					}
+					selectedModelId={selectedModelId}
+					modelInfo={selectedModelInfo}
 					isDescriptionExpanded={isDescriptionExpanded}
 					setIsDescriptionExpanded={setIsDescriptionExpanded}
 					isPopup={isPopup}
@@ -241,31 +220,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ modelType
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					{modelType === "base" ? (
-						<>
-							The extension automatically fetches the latest list of models available on{" "}
-							<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-								OpenRouter.
-							</VSCodeLink>
-							If you're unsure which model to choose, Cline works best with{" "}
-							<VSCodeLink
-								style={{ display: "inline", fontSize: "inherit" }}
-								onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
-								anthropic/claude-3.5-sonnet:beta.
-							</VSCodeLink>
-							You can also try searching "free" for no-cost options currently available.
-						</>
-					) : (
-						<>
-							It's recommended using a higher-reasoning model such as{" "}
-							<VSCodeLink
-								style={{ display: "inline", fontSize: "inherit" }}
-								onClick={() => handleModelChange("openai/o1-preview")}>
-								openai/o1-preview
-							</VSCodeLink>
-							for the best results.
-						</>
-					)}
+					<>
+						The extension automatically fetches the latest list of models available on{" "}
+						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
+							OpenRouter.
+						</VSCodeLink>
+						If you're unsure which model to choose, Cline works best with{" "}
+						<VSCodeLink
+							style={{ display: "inline", fontSize: "inherit" }}
+							onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
+							anthropic/claude-3.5-sonnet:beta.
+						</VSCodeLink>
+						You can also try searching "free" for no-cost options currently available.
+					</>
 				</p>
 			)}
 		</div>

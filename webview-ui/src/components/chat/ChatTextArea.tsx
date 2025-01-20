@@ -1,28 +1,8 @@
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import {
-	ContextMenuOptionType,
-	getContextMenuOptions,
-	insertMention,
-	removeMention,
-	shouldShowContextMenu,
-} from "../../utils/context-mentions"
-import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
-import ContextMenu from "./ContextMenu"
-import Thumbnails from "../common/Thumbnails"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { useEvent, useWindowSize } from "react-use"
-import { vscode } from "../../utils/vscode"
-import ApiOptions from "../settings/ApiOptions"
-import { useClickAway } from "react-use"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { validateAdvisorModelId } from "../../utils/validate"
-import { validateModelId } from "../../utils/validate"
-import { validateApiConfiguration } from "../../utils/validate"
 import {
 	anthropicDefaultModelId,
 	bedrockDefaultModelId,
@@ -33,6 +13,22 @@ import {
 	openRouterDefaultModelId,
 	vertexDefaultModelId,
 } from "../../../../src/shared/api"
+import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import {
+	ContextMenuOptionType,
+	getContextMenuOptions,
+	insertMention,
+	removeMention,
+	shouldShowContextMenu,
+} from "../../utils/context-mentions"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
+import { vscode } from "../../utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import Thumbnails from "../common/Thumbnails"
+import ApiOptions from "../settings/ApiOptions"
+import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
+import ContextMenu from "./ContextMenu"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -237,7 +233,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [showModelSelector, setShowModelSelector] = useState(false)
-		const [showModelSelectorWithAdvisor, setShowModelSelectorWithAdvisor] = useState(false)
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
@@ -657,9 +652,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const submitApiConfig = useCallback(() => {
 			const apiValidationResult = validateApiConfiguration(apiConfiguration)
 			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-			const advisorModelIdValidationResult = validateAdvisorModelId(apiConfiguration, openRouterModels)
 
-			if (!apiValidationResult && !modelIdValidationResult && !advisorModelIdValidationResult) {
+			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
 				vscode.postMessage({ type: "getLatestState" })
@@ -734,14 +728,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector, viewportWidth, viewportHeight])
 
-		// Reset advisor settings when model selector is closed
 		useEffect(() => {
 			if (!showModelSelector) {
 				// Attempt to save if possible
 				// NOTE: we cannot call this here since it will create an infinite loop between this effect and the callback since getLatestState will update state. Instead we should submitapiconfig when the menu is explicitly closed, rather than as an effect of showModelSelector changing.
 				// handleApiConfigSubmit()
 
-				setShowModelSelectorWithAdvisor(false)
 				// Reset any active styling by blurring the button
 				const button = buttonRef.current?.querySelector("a")
 				if (button) {
@@ -749,18 +741,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			}
 		}, [showModelSelector])
-
-		const handleMessage = useCallback((e: MessageEvent) => {
-			const message: ExtensionMessage = e.data
-			switch (message.type) {
-				case "openAdvisorModelSettings":
-					setShowModelSelector(true)
-					setShowModelSelectorWithAdvisor(true)
-					break
-			}
-		}, [])
-
-		useEvent("message", handleMessage)
 
 		return (
 			<div>
@@ -996,10 +976,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									}}>
 									<ApiOptions
 										showModelOptions={true}
-										showAdvisorModelSettings={showModelSelectorWithAdvisor}
 										apiErrorMessage={undefined}
 										modelIdErrorMessage={undefined}
-										advisorModelIdErrorMessage={undefined}
 										isPopup={true}
 									/>
 								</ModelSelectorTooltip>

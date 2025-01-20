@@ -22,7 +22,6 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
-		| "openAdvisorModelSettings"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 	text?: string
@@ -81,7 +80,6 @@ export type ClineAsk =
 	| "auto_approval_max_req_reached"
 	| "browser_action_launch"
 	| "use_mcp_server"
-	| "consult_advisor"
 
 export type ClineSay =
 	| "task"
@@ -103,10 +101,8 @@ export type ClineSay =
 	| "mcp_server_request_started"
 	| "mcp_server_response"
 	| "use_mcp_server"
-	| "consult_advisor"
 	| "diff_error"
 	| "deleted_api_reqs"
-	| "advisor_response"
 
 export interface ClineSayTool {
 	tool:
@@ -147,12 +143,6 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
-}
-
-export interface ClineConsultAdvisor {
-	problem: string
-	advisorModelId?: string
-	estimatedCost?: number
 }
 
 export interface ClineApiReqInfo {
