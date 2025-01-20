@@ -222,24 +222,6 @@ describe("addCustomInstructions", () => {
 		expect(instructions).toMatchSnapshot()
 	})
 
-	it("should generate correct prompt for test engineer mode", async () => {
-		const prompt = await SYSTEM_PROMPT("/test/path", false, undefined, undefined, undefined, "test")
-
-		// Verify test engineer role requirements
-		expect(prompt).toContain("must ask the user to confirm before making ANY changes to non-test code")
-		expect(prompt).toContain("ask the user to confirm your test plan")
-		expect(prompt).toMatchSnapshot()
-	})
-
-	it("should generate correct prompt for code reviewer mode", async () => {
-		const prompt = await SYSTEM_PROMPT("/test/path", false, undefined, undefined, undefined, "review")
-
-		// Verify code reviewer role constraints
-		expect(prompt).toContain("providing detailed, actionable feedback")
-		expect(prompt).toContain("maintain a read-only approach")
-		expect(prompt).toMatchSnapshot()
-	})
-
 	it("should fall back to generic rules when mode-specific rules not found", async () => {
 		// Mock readFile to return ENOENT for mode-specific file
 		const mockReadFile = jest.fn().mockImplementation(async (path: string) => {

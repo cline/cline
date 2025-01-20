@@ -71,7 +71,7 @@ describe("DeepSeekHandler", () => {
 	beforeEach(() => {
 		mockOptions = {
 			deepSeekApiKey: "test-api-key",
-			deepSeekModelId: "deepseek-chat",
+			apiModelId: "deepseek-chat",
 			deepSeekBaseUrl: "https://api.deepseek.com/v1",
 		}
 		handler = new DeepSeekHandler(mockOptions)
@@ -81,7 +81,7 @@ describe("DeepSeekHandler", () => {
 	describe("constructor", () => {
 		it("should initialize with provided options", () => {
 			expect(handler).toBeInstanceOf(DeepSeekHandler)
-			expect(handler.getModel().id).toBe(mockOptions.deepSeekModelId)
+			expect(handler.getModel().id).toBe(mockOptions.apiModelId)
 		})
 
 		it("should throw error if API key is missing", () => {
@@ -96,7 +96,7 @@ describe("DeepSeekHandler", () => {
 		it("should use default model ID if not provided", () => {
 			const handlerWithoutModel = new DeepSeekHandler({
 				...mockOptions,
-				deepSeekModelId: undefined,
+				apiModelId: undefined,
 			})
 			expect(handlerWithoutModel.getModel().id).toBe(deepSeekDefaultModelId)
 		})
@@ -144,7 +144,7 @@ describe("DeepSeekHandler", () => {
 	describe("getModel", () => {
 		it("should return model info for valid model ID", () => {
 			const model = handler.getModel()
-			expect(model.id).toBe(mockOptions.deepSeekModelId)
+			expect(model.id).toBe(mockOptions.apiModelId)
 			expect(model.info).toBeDefined()
 			expect(model.info.maxTokens).toBe(8192)
 			expect(model.info.contextWindow).toBe(64_000)
@@ -155,7 +155,7 @@ describe("DeepSeekHandler", () => {
 		it("should return provided model ID with default model info if model does not exist", () => {
 			const handlerWithInvalidModel = new DeepSeekHandler({
 				...mockOptions,
-				deepSeekModelId: "invalid-model",
+				apiModelId: "invalid-model",
 			})
 			const model = handlerWithInvalidModel.getModel()
 			expect(model.id).toBe("invalid-model") // Returns provided ID
@@ -166,7 +166,7 @@ describe("DeepSeekHandler", () => {
 		it("should return default model if no model ID is provided", () => {
 			const handlerWithoutModel = new DeepSeekHandler({
 				...mockOptions,
-				deepSeekModelId: undefined,
+				apiModelId: undefined,
 			})
 			const model = handlerWithoutModel.getModel()
 			expect(model.id).toBe(deepSeekDefaultModelId)

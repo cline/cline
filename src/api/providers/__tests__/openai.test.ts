@@ -193,7 +193,6 @@ describe("OpenAiHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: mockOptions.openAiModelId,
 				messages: [{ role: "user", content: "Test prompt" }],
-				temperature: 0,
 			})
 		})
 

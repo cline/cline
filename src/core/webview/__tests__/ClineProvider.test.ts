@@ -443,18 +443,18 @@ describe("ClineProvider", () => {
 
 		// Mock ConfigManager methods
 		provider.configManager = {
-			GetModeConfigId: jest.fn().mockResolvedValue("test-id"),
-			ListConfig: jest.fn().mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
-			LoadConfig: jest.fn().mockResolvedValue({ apiProvider: "anthropic" }),
-			SetModeConfig: jest.fn(),
+			getModeConfigId: jest.fn().mockResolvedValue("test-id"),
+			listConfig: jest.fn().mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			loadConfig: jest.fn().mockResolvedValue({ apiProvider: "anthropic" }),
+			setModeConfig: jest.fn(),
 		} as any
 
 		// Switch to architect mode
 		await messageHandler({ type: "mode", text: "architect" })
 
 		// Should load the saved config for architect mode
-		expect(provider.configManager.GetModeConfigId).toHaveBeenCalledWith("architect")
-		expect(provider.configManager.LoadConfig).toHaveBeenCalledWith("test-config")
+		expect(provider.configManager.getModeConfigId).toHaveBeenCalledWith("architect")
+		expect(provider.configManager.loadConfig).toHaveBeenCalledWith("test-config")
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 	})
 
@@ -464,11 +464,11 @@ describe("ClineProvider", () => {
 
 		// Mock ConfigManager methods
 		provider.configManager = {
-			GetModeConfigId: jest.fn().mockResolvedValue(undefined),
-			ListConfig: jest
+			getModeConfigId: jest.fn().mockResolvedValue(undefined),
+			listConfig: jest
 				.fn()
 				.mockResolvedValue([{ name: "current-config", id: "current-id", apiProvider: "anthropic" }]),
-			SetModeConfig: jest.fn(),
+			setModeConfig: jest.fn(),
 		} as any
 
 		// Mock current config name
@@ -483,7 +483,7 @@ describe("ClineProvider", () => {
 		await messageHandler({ type: "mode", text: "architect" })
 
 		// Should save current config as default for architect mode
-		expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith("architect", "current-id")
+		expect(provider.configManager.setModeConfig).toHaveBeenCalledWith("architect", "current-id")
 	})
 
 	test("saves config as default for current mode when loading config", async () => {
@@ -491,10 +491,10 @@ describe("ClineProvider", () => {
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		provider.configManager = {
-			LoadConfig: jest.fn().mockResolvedValue({ apiProvider: "anthropic", id: "new-id" }),
-			ListConfig: jest.fn().mockResolvedValue([{ name: "new-config", id: "new-id", apiProvider: "anthropic" }]),
-			SetModeConfig: jest.fn(),
-			GetModeConfigId: jest.fn().mockResolvedValue(undefined),
+			loadConfig: jest.fn().mockResolvedValue({ apiProvider: "anthropic", id: "new-id" }),
+			listConfig: jest.fn().mockResolvedValue([{ name: "new-config", id: "new-id", apiProvider: "anthropic" }]),
+			setModeConfig: jest.fn(),
+			getModeConfigId: jest.fn().mockResolvedValue(undefined),
 		} as any
 
 		// First set the mode
@@ -504,7 +504,7 @@ describe("ClineProvider", () => {
 		await messageHandler({ type: "loadApiConfiguration", text: "new-config" })
 
 		// Should save new config as default for architect mode
-		expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith("architect", "new-id")
+		expect(provider.configManager.setModeConfig).toHaveBeenCalledWith("architect", "new-id")
 	})
 
 	test("handles request delay settings messages", async () => {
@@ -678,8 +678,8 @@ describe("ClineProvider", () => {
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		provider.configManager = {
-			ListConfig: jest.fn().mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
-			SetModeConfig: jest.fn(),
+			listConfig: jest.fn().mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			setModeConfig: jest.fn(),
 		} as any
 
 		// Update API configuration
@@ -689,7 +689,7 @@ describe("ClineProvider", () => {
 		})
 
 		// Should save config as default for current mode
-		expect(provider.configManager.SetModeConfig).toHaveBeenCalledWith("code", "test-id")
+		expect(provider.configManager.setModeConfig).toHaveBeenCalledWith("code", "test-id")
 	})
 
 	test("file content includes line numbers", async () => {

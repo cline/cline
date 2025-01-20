@@ -108,77 +108,68 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 	}
 
 	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
-		return `# apply_diff Tool Rules:
+		return `# apply_diff Tool - Generate Precise Code Changes
 
-Generate a unified diff similar to what "diff -U0" would produce. 
+Generate a unified diff that can be cleanly applied to modify code files.
 
-The first two lines must include the file paths, starting with "---" for the original file and "+++" for the updated file. Do not include timestamps with the file paths.
+## Step-by-Step Instructions:
 
-Each hunk of changes must start with a line containing only "@@ ... @@". Do not include line numbers or ranges in the "@@ ... @@" lines. These are not necessary for the user's patch tool.
+1. Start with file headers:
+   - First line: "--- {original_file_path}"
+   - Second line: "+++ {new_file_path}"
 
-Your output must be a correct, clean patch that applies successfully against the current file contents. Mark all lines that need to be removed or changed with "-". Mark all new or modified lines with "+". Ensure you include all necessary changes; missing or unmarked lines will result in a broken patch.
+2. For each change section:
+   - Begin with "@@ ... @@" separator line without line numbers
+   - Include 2-3 lines of context before and after changes
+   - Mark removed lines with "-"
+   - Mark added lines with "+"
+   - Preserve exact indentation
 
-Indentation matters! Make sure to preserve the exact indentation of both removed and added lines.
+3. Group related changes:
+   - Keep related modifications in the same hunk
+   - Start new hunks for logically separate changes
+   - When modifying functions/methods, include the entire block
 
-Start a new hunk for each section of the file that requires changes. However, include only the hunks that contain actual changes. If a hunk consists entirely of unchanged lines, skip it.
+## Requirements:
 
-Group related changes together in the same hunk whenever possible. Output hunks in whatever logical order makes the most sense.
+1. MUST include exact indentation
+2. MUST include sufficient context for unique matching
+3. MUST group related changes together
+4. MUST use proper unified diff format
+5. MUST NOT include timestamps in file headers
+6. MUST NOT include line numbers in the @@ header
 
-When editing a function, method, loop, or similar code block, replace the *entire* block in one hunk. Use "-" lines to delete the existing block and "+" lines to add the updated block. This ensures accuracy in your diffs.
+## Examples:
 
-If you need to move code within a file, create two hunks: one to delete the code from its original location and another to insert it at the new location.
-
-To create a new file, show a diff from "--- /dev/null" to "+++ path/to/new/file.ext".
-
-Format Requirements:
-
+✅ Good diff (follows all requirements):
 \`\`\`diff
---- mathweb/flask/app.py
-+++ mathweb/flask/app.py
+--- src/utils.ts
++++ src/utils.ts
 @@ ... @@
--class MathWeb:
-+import sympy
-
-+
-+class MathWeb:
-@@ ... @@
--def is_prime(x):
--    if x < 2:
--        return False
--    for i in range(2, int(math.sqrt(x)) + 1):
--        if x % i == 0:
--            return False
--    return True
-@@ ... @@
--@app.route('/prime/<int:n>')
--def nth_prime(n):
--    count = 0
--    num = 1
--    while count < n:
--        num += 1
--        if is_prime(num):
--            count += 1
--    return str(num)
-+@app.route('/prime/<int:n>')
-+def nth_prime(n):
-+    count = 0
-+    num = 1
-+    while count < n:
-+        num += 1
-+        if sympy.isprime(num):
-+            count += 1
-+    return str(num)
+    def calculate_total(items):
+-      total = 0
+-      for item in items:
+-          total += item.price
++      return sum(item.price for item in items)
 \`\`\`
 
-Be precise, consistent, and follow these rules carefully to generate correct diffs!
+❌ Bad diff (violates requirements #1 and #2):
+\`\`\`diff
+--- src/utils.ts
++++ src/utils.ts
+@@ ... @@
+-total = 0
+-for item in items:
++return sum(item.price for item in items)
+\`\`\`
 
 Parameters:
-- path: (required) The path of the file to apply the diff to (relative to the current working directory ${args.cwd})
-- diff: (required) The diff content in unified format to apply to the file.
+- path: (required) File path relative to ${args.cwd}
+- diff: (required) Unified diff content in unified format to apply to the file.
 
 Usage:
 <apply_diff>
-<path>File path here</path>
+<path>path/to/file.ext</path>
 <diff>
 Your diff here
 </diff>
@@ -242,7 +233,7 @@ Your diff here
 		originalContent: string,
 		diffContent: string,
 		startLine?: number,
-		endLine?: number,
+		endLine?: number
 	): Promise<DiffResult> {
 		const parsedDiff = this.parseUnifiedDiff(diffContent)
 		const originalLines = originalContent.split("\n")
@@ -280,7 +271,7 @@ Your diff here
 							subHunkResult,
 							subSearchResult.index,
 							subSearchResult.confidence,
-							this.confidenceThreshold,
+							this.confidenceThreshold
 						)
 						if (subEditResult.confidence >= this.confidenceThreshold) {
 							subHunkResult = subEditResult.result
@@ -302,12 +293,12 @@ Your diff here
 				const contextRatio = contextLines / totalLines
 
 				let errorMsg = `Failed to find a matching location in the file (${Math.floor(
-					confidence * 100,
+					confidence * 100
 				)}% confidence, needs ${Math.floor(this.confidenceThreshold * 100)}%)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += `- Search Strategy Used: ${strategy}\n`
 				errorMsg += `- Context Lines: ${contextLines} out of ${totalLines} total lines (${Math.floor(
-					contextRatio * 100,
+					contextRatio * 100
 				)}%)\n`
 				errorMsg += `- Attempted to split into ${subHunks.length} sub-hunks but still failed\n`
 
@@ -339,7 +330,7 @@ Your diff here
 			} else {
 				// Edit failure - likely due to content mismatch
 				let errorMsg = `Failed to apply the edit using ${editResult.strategy} strategy (${Math.floor(
-					editResult.confidence * 100,
+					editResult.confidence * 100
 				)}% confidence)\n\n`
 				errorMsg += "Debug Info:\n"
 				errorMsg += "- The location was found but the content didn't match exactly\n"
