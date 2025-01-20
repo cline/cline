@@ -174,7 +174,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setTextAreaDisabled(false)
 							setClineAsk("resume_task")
 							setEnableButtons(true)
-							setPrimaryButtonText("Resume Task")
+							setPrimaryButtonText("Resume")
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false) // special case where we reset the cancel button state
 							break
