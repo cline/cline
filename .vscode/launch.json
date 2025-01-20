@@ -13,9 +13,10 @@
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}",
 			"skipFiles": [
+				"<node_internals>/**",
 				"${execInstallFolder}",
-				"${workspaceFolder}${/}webview-ui${/}node_modules",
-				"${workspaceFolder}${/}node_modules",
+				"${workspaceFolder}/webview-ui/node_modules",
+				"${workspaceFolder}/node_modules",
 			],
 		}
 	]
