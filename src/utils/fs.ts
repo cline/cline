@@ -2,6 +2,33 @@ import fs from "fs/promises"
 import * as path from "path"
 
 /**
+ * Recursively calculates the size of a directory in bytes.
+ * Silently ignores errors like permission denied.
+ *
+ * @param dirPath - The path to the directory to calculate size
+ * @returns A promise that resolves to the total size in bytes
+ */
+export async function calculateDirectorySize(dirPath: string): Promise<number> {
+	let size = 0
+	try {
+		const files = await fs.readdir(dirPath)
+		for (const file of files) {
+			const filePath = path.join(dirPath, file)
+			const stats = await fs.stat(filePath)
+			if (stats.isDirectory()) {
+				size += await calculateDirectorySize(filePath)
+			} else {
+				size += stats.size
+			}
+		}
+	} catch (error) {
+		// Silently ignore errors like permission denied
+		console.error("Failed to calculate directory size:", error)
+	}
+	return size
+}
+
+/**
  * Asynchronously creates all non-existing subdirectories for a given file path
  * and collects them in an array for later deletion.
  *

@@ -3,7 +3,7 @@ import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
-import { createDirectoriesForFile, fileExistsAtPath } from "./fs"
+import { calculateDirectorySize, createDirectoriesForFile, fileExistsAtPath } from "./fs"
 
 describe("Filesystem Utilities", () => {
 	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
@@ -66,6 +66,55 @@ describe("Filesystem Utilities", () => {
 			createdDirs.length.should.equal(1)
 			const exists = await fileExistsAtPath(path.join(tmpDir, "b"))
 			exists.should.be.true()
+		})
+	})
+
+	describe("calculateDirectorySize", () => {
+		it("should return 0 for empty directory", async () => {
+			const emptyDir = path.join(tmpDir, "empty")
+			await fs.mkdir(emptyDir, { recursive: true })
+			
+			const size = await calculateDirectorySize(emptyDir)
+			size.should.equal(0)
+		})
+
+		it("should calculate size of directory with files", async () => {
+			const testDir = path.join(tmpDir, "with-files")
+			await fs.mkdir(testDir, { recursive: true })
+			
+			// Create test files with known sizes
+			await fs.writeFile(path.join(testDir, "file1.txt"), "a".repeat(100))
+			await fs.writeFile(path.join(testDir, "file2.txt"), "a".repeat(200))
+			
+			const size = await calculateDirectorySize(testDir)
+			size.should.equal(300)
+		})
+
+		it("should calculate size of nested directories", async () => {
+			const testDir = path.join(tmpDir, "nested")
+			const subDir = path.join(testDir, "sub")
+			await fs.mkdir(subDir, { recursive: true })
+			
+			// Create files in both directories
+			await fs.writeFile(path.join(testDir, "root.txt"), "a".repeat(100))
+			await fs.writeFile(path.join(subDir, "sub.txt"), "a".repeat(200))
+			
+			const size = await calculateDirectorySize(testDir)
+			size.should.equal(300)
+		})
+
+		it("should handle permission errors gracefully", async () => {
+			const testDir = path.join(tmpDir, "no-permission")
+			await fs.mkdir(testDir, { recursive: true })
+			await fs.writeFile(path.join(testDir, "file.txt"), "a".repeat(100))
+			
+			// Create a subdirectory that will throw an error when accessed
+			const noPermissionDir = path.join(testDir, "no-access")
+			await fs.mkdir(noPermissionDir)
+			
+			// The directory exists but will throw when trying to read its contents
+			const size = await calculateDirectorySize(noPermissionDir)
+			size.should.equal(0) // Should return 0 when error occurs
 		})
 	})
 })

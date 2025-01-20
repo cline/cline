@@ -41,7 +41,7 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
-import { fileExistsAtPath } from "../utils/fs"
+import { calculateDirectorySize, fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
@@ -55,7 +55,6 @@ import { removeInvalidChars } from "../utils/string"
 import { fixModelHtmlEscaping } from "../utils/string"
 import { OpenAiHandler } from "../api/providers/openai"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
-import getFolderSize from "get-folder-size"
 import { BrowserSettings } from "../shared/BrowserSettings"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -226,9 +225,7 @@ export class Cline {
 				]
 			let taskDirSize = 0
 			try {
-				// getFolderSize.loose silently ignores errors
-				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
+				taskDirSize = await calculateDirectorySize(taskDir)
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
