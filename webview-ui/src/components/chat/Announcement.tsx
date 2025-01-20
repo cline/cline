@@ -31,10 +31,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>New Consult Advisor tool</b> lets Cline ask a powerful model like o1 or Opus for help when stuck on complex
-					problems. Benchmarks show a 23% improvement in Cline's ability to accomplish tasks!{" "}
+					<b>
+						New <code>Consult Advisor</code> tool
+					</b>{" "}
+					lets Cline ask a powerful model like o1 for help when stuck. Cline provides the full context of the problem,
+					and the Advisor model responds with a plan to fix it.{" "}
 					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-						See a demo here.
+						See a demo here!
 					</VSCodeLink>
 				</li>
 				<li>
@@ -44,12 +47,11 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Quick API/model switching</b> with a new popup menu under the chat field
 				</li>
 				<li>
-					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot{" "}
-					<i>(thanks @julesmons, @RaySinner, and @MrUbens!)</i>
+					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
 				</li>
 				<li>
 					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
-					individual tools <i>(thanks @MrUbens!)</i>
+					individual tools
 				</li>
 				<li>
 					In case you missed it, Cline now supports Checkpoints!{" "}
