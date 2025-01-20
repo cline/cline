@@ -31,39 +31,33 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Checkpoints are here!</b> Cline now saves a snapshot of your workspace at each step of the task. Hover over
-					any message to see two new buttons:
-					<ul style={{ margin: "4px 0", paddingLeft: 22 }}>
-						<li>
-							<span
-								className="codicon codicon-diff-multiple"
-								style={{
-									fontSize: "12px",
-									marginRight: "4px",
-								}}></span>
-							<b>Compare</b> shows you a diff between the snapshot and your current workspace
-						</li>
-						<li>
-							<span
-								className="codicon codicon-discard"
-								style={{
-									fontSize: "12px",
-									marginRight: "4px",
-								}}></span>
-							<b>Restore</b> lets you revert your project's files back to that point in the task
-						</li>
-					</ul>
+					<b>New Consult Advisor tool</b> lets Cline ask a powerful model like o1 or Opus for help when stuck on complex
+					problems. Benchmarks show a 23% improvement in Cline's ability to accomplish tasks!{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
 				</li>
 				<li>
-					<b>'See new changes' button</b> when a task is completed, showing you an overview of all the changes Cline
-					made to your workspace throughout the task
+					<b>Task/Chat mode toggle</b> to turn Cline into a conversational partner, rather than a task-completing agent
+				</li>
+				<li>
+					<b>Quick API/model switching</b> with a new popup menu under the chat field
+				</li>
+				<li>
+					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot{" "}
+					<i>(thanks @julesmons, @RaySinner, and @MrUbens!)</i>
+				</li>
+				<li>
+					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
+					individual tools <i>(thanks @MrUbens!)</i>
+				</li>
+				<li>
+					In case you missed it, Cline now supports Checkpoints!{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
+						See it in action here.
+					</VSCodeLink>
 				</li>
 			</ul>
-			<p style={{ margin: "8px 0" }}>
-				<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-					See a demo of Checkpoints here!
-				</VSCodeLink>
-			</p>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
