@@ -21,7 +21,7 @@ export const toolUseNames = [
 	"access_mcp_resource",
 	"consult_advisor",
 	"ask_followup_question",
-	"respond_to_inquiry",
+	"chat_mode_response",
 	"attempt_completion",
 ] as const
 

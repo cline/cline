@@ -1270,7 +1270,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 						</>
 					)
-				case "respond_to_inquiry":
+				case "chat_mode_response":
 					return (
 						<div style={{}}>
 							<Markdown markdown={message.text} />

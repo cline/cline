@@ -60,7 +60,6 @@ import getFolderSize from "get-folder-size"
 import { BrowserSettings } from "../shared/BrowserSettings"
 import { ADVISOR_SYSTEM_PROMPT } from "./prompts/advisor"
 import { ChatSettings } from "../shared/ChatSettings"
-import { CHAT_SYSTEM_PROMPT } from "./prompts/chat"
 import { OpenRouterHandler } from "../api/providers/openrouter"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -752,6 +751,8 @@ export class Cline {
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
+		await this.providerRef.deref()?.switchToTaskMode()
+
 		await this.say("text", task, images)
 
 		this.isInitialized = true
@@ -992,13 +993,17 @@ export class Cline {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
+				`[TASK RESUMPTION] ${
+					this.chatSettings?.mode === "chat"
+						? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in CHAT MODE, so rather than continuing the task, you must respond to the user's message.`
+						: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
+				}${
 					wasRecent
 						? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 						: ""
 				}` +
 				(responseText
-					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
+					? `\n\n${this.chatSettings?.mode === "chat" ? "New message to respond to with chat_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 					: ""),
 		})
 
@@ -1273,25 +1278,13 @@ export class Cline {
 		const advisorModel = this.api.getAdvisorModel?.()
 		const supportsConsultAdvisor = advisorModel !== undefined
 
-		let systemPrompt: string
-
-		if (this.chatSettings.mode === "chat") {
-			systemPrompt = await CHAT_SYSTEM_PROMPT(
-				cwd,
-				this.api.getModel().info.supportsComputerUse ?? false,
-				mcpHub,
-				this.browserSettings,
-				supportsConsultAdvisor,
-			)
-		} else {
-			systemPrompt = await SYSTEM_PROMPT(
-				cwd,
-				this.api.getModel().info.supportsComputerUse ?? false,
-				mcpHub,
-				this.browserSettings,
-				supportsConsultAdvisor,
-			)
-		}
+		let systemPrompt = await SYSTEM_PROMPT(
+			cwd,
+			this.api.getModel().info.supportsComputerUse ?? false,
+			mcpHub,
+			this.browserSettings,
+			supportsConsultAdvisor,
+		)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
@@ -1532,7 +1525,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.problem}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
-						case "respond_to_inquiry":
+						case "chat_mode_response":
 							return `[${block.name} for '${block.params.response}']`
 						case "attempt_completion":
 							return `[${block.name}]`
@@ -2736,18 +2729,18 @@ export class Cline {
 							break
 						}
 					}
-					case "respond_to_inquiry": {
+					case "chat_mode_response": {
 						const response: string | undefined = block.params.response
 						try {
 							if (block.partial) {
-								await this.ask("respond_to_inquiry", removeClosingTag("response", response), block.partial).catch(
+								await this.ask("chat_mode_response", removeClosingTag("response", response), block.partial).catch(
 									() => {},
 								)
 								break
 							} else {
 								if (!response) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("respond_to_inquiry", "response"))
+									pushToolResult(await this.sayAndCreateMissingParamError("chat_mode_response", "response"))
 									// await this.saveCheckpoint()
 									break
 								}
@@ -2760,7 +2753,7 @@ export class Cline {
 								// 	})
 								// }
 
-								const { text, images } = await this.ask("respond_to_inquiry", response, false)
+								const { text, images } = await this.ask("chat_mode_response", response, false)
 								await this.say("user_feedback", text ?? "", images)
 								pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
 								// await this.saveCheckpoint()
@@ -3449,20 +3442,20 @@ export class Cline {
 		}
 
 		// Add current time information with timezone
-		// const now = new Date()
-		// const formatter = new Intl.DateTimeFormat(undefined, {
-		// 	year: "numeric",
-		// 	month: "numeric",
-		// 	day: "numeric",
-		// 	hour: "numeric",
-		// 	minute: "numeric",
-		// 	second: "numeric",
-		// 	hour12: true,
-		// })
-		// const timeZone = formatter.resolvedOptions().timeZone
-		// const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
-		// const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
-		// details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
+		const now = new Date()
+		const formatter = new Intl.DateTimeFormat(undefined, {
+			year: "numeric",
+			month: "numeric",
+			day: "numeric",
+			hour: "numeric",
+			minute: "numeric",
+			second: "numeric",
+			hour12: true,
+		})
+		const timeZone = formatter.resolvedOptions().timeZone
+		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
+		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
+		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
@@ -3475,6 +3468,16 @@ export class Cline {
 				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
 				details += result
 			}
+		}
+
+		details += "\n\n# Current Mode"
+		if (this.chatSettings.mode === "chat") {
+			details += "\nCHAT MODE"
+			details +=
+				'\n(Remember: You now only have access to the chat_mode_response tool. If it seems the user wants you to use tools only available in TASK MODE, you should ask the user to "toggle to Task mode" - they will have to manually do this themselves with the Task/Chat toggle button below.)'
+		} else {
+			details += "\nTASK MODE"
+			details += "\n(Remember: You cannot use the chat_mode_response tool.)"
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

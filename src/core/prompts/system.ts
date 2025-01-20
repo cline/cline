@@ -243,6 +243,15 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
+## chat_mode_response
+Description: Respond to the user's inquiry with a clear answer. This tool should be used when you need to provide a response to a question or statement. This tool is only available in CHAT MODE. The environment_details will specify the current mode, if it is not chat mode then you should not use this tool.
+Parameters:
+- response: (required) The response to provide to the user. This should be a clear answer that addresses the user's inquiry.
+Usage:
+<chat_mode_response>
+<response>Your response here</response>
+</chat_mode_response>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command
@@ -893,6 +902,19 @@ The error persists despite these attempts. Could this be due to version mismatch
 Remember: While you should attempt to solve problems with your own reasoning first, the advisor is a powerful resource available when you're stuck on a bug. Don't hesitate to consult it when you've hit a persistent roadblock that you cannot resolve.`
 		: ""
 }
+
+====
+ 
+TASK MODE V.S. CHAT MODE 
+
+In each user message, the environment_details will specify the current mode. There are two modes:
+
+- TASK MODE: In this mode, you have access to all tools EXCEPT the chat_mode_response tool.
+ - In task mode, you use tools to accomplish the user's task. Once you've completed the user's task, you use the attempt_completion tool to present the result of the task to the user.
+- CHAT MODE: In this mode, you ONLY have access to the chat_mode_response tool.
+ - In chat mode, you should immediately use the chat_mode_response tool to deliver your response, rather than using <thinking> tags to analyze when to respond. Do not talk about using chat_mode_response - just use it directly to share your thoughts and provide helpful answers.
+
+You should only use tools that are available in the current mode.
 
 ====
  

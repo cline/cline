@@ -157,7 +157,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
 							<span style={{ fontWeight: "bold" }}>
-								{chatSettings.mode === "task" ? "Task" : "Chat"}
+								Task
 								{!isTaskExpanded && ":"}
 							</span>
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}

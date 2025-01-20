@@ -673,6 +673,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	async switchToTaskMode() {
+		const { chatSettings } = await this.getState()
+		chatSettings.mode = "task"
+		await this.updateGlobalState("chatSettings", chatSettings)
+		if (this.cline) {
+			this.cline.updateChatSettings(chatSettings)
+		}
+		await this.postStateToWebview()
+	}
+
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
 		await this.updateGlobalState("customInstructions", instructions || undefined)
