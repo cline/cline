@@ -144,6 +144,12 @@ const ModelContainer = styled.div`
 	min-width: 0;
 `
 
+const ModelButtonWrapper = styled.div`
+	display: inline-flex; // Make it shrink to content
+	min-width: 0; // Allow shrinking
+	max-width: 100%; // Don't overflow parent
+`
+
 const ModelDisplayButton = styled.a<{ isActive?: boolean }>`
 	padding: 0px 0px;
 	height: 20px;
@@ -915,7 +921,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</VSCodeButton>
 
 						<ModelContainer ref={modelSelectorRef}>
-							<div ref={buttonRef} style={{ width: "100%" }}>
+							<ModelButtonWrapper ref={buttonRef}>
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
@@ -929,7 +935,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									tabIndex={0}>
 									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
 								</ModelDisplayButton>
-							</div>
+							</ModelButtonWrapper>
 							{showModelSelector && (
 								<ModelSelectorTooltip
 									arrowPosition={arrowPosition}
