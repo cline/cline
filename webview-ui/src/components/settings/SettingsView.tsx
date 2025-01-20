@@ -12,7 +12,6 @@ import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import McpEnabledToggle from "../mcp/McpEnabledToggle"
 import ApiConfigManager from "./ApiConfigManager"
-import { Mode } from "../../../../src/shared/modes"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -65,8 +64,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setRequestDelaySeconds,
 		currentApiConfigName,
 		listApiConfigMeta,
-		mode,
-		setMode,
 		experimentalDiffStrategy,
 		setExperimentalDiffStrategy,
 	} = useExtensionState()
@@ -110,7 +107,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				text: currentApiConfigName,
 				apiConfiguration,
 			})
-			vscode.postMessage({ type: "mode", text: mode })
 			vscode.postMessage({ type: "experimentalDiffStrategy", bool: experimentalDiffStrategy })
 			onDone()
 		}
@@ -214,40 +210,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<h3 style={{ color: "var(--vscode-foreground)", margin: 0, marginBottom: 15 }}>
 							Agent Settings
 						</h3>
-
-						<div style={{ marginBottom: 15 }}>
-							<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Agent Mode</label>
-							<select
-								value={mode}
-								onChange={(e) => {
-									const value = e.target.value as Mode
-									setMode(value)
-									vscode.postMessage({ type: "mode", text: value })
-								}}
-								style={{
-									width: "100%",
-									padding: "4px 8px",
-									backgroundColor: "var(--vscode-input-background)",
-									color: "var(--vscode-input-foreground)",
-									border: "1px solid var(--vscode-input-border)",
-									borderRadius: "2px",
-									height: "28px",
-								}}>
-								<option value="code">Code</option>
-								<option value="architect">Architect</option>
-								<option value="ask">Ask</option>
-							</select>
-							<p
-								style={{
-									fontSize: "12px",
-									marginTop: "5px",
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								Select the mode that best fits your needs. Code mode focuses on implementation details,
-								Architect mode on high-level design, and Ask mode on asking questions about the
-								codebase.
-							</p>
-						</div>
 
 						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
 							Preferred Language
