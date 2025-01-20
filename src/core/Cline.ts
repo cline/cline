@@ -98,6 +98,8 @@ export class Cline {
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
 	private advisorProblem?: string
+	isAwaitingPlanResponse = false
+	didRespondToPlanAskBySwitchingMode = false
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -751,8 +753,6 @@ export class Cline {
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
 
-		await this.providerRef.deref()?.switchToTaskMode()
-
 		await this.say("text", task, images)
 
 		this.isInitialized = true
@@ -994,8 +994,8 @@ export class Cline {
 			type: "text",
 			text:
 				`[TASK RESUMPTION] ${
-					this.chatSettings?.mode === "chat"
-						? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in CHAT MODE, so rather than continuing the task, you must respond to the user's message.`
+					this.chatSettings?.mode === "plan"
+						? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
 						: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
 				}${
 					wasRecent
@@ -1003,8 +1003,10 @@ export class Cline {
 						: ""
 				}` +
 				(responseText
-					? `\n\n${this.chatSettings?.mode === "chat" ? "New message to respond to with chat_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
-					: ""),
+					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+					: this.chatSettings.mode === "plan"
+						? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
+						: ""),
 		})
 
 		if (responseImages && responseImages.length > 0) {
@@ -1525,8 +1527,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.problem}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
-						case "chat_mode_response":
-							return `[${block.name} for '${block.params.response}']`
+						case "plan_mode_response":
+							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
 					}
@@ -2729,18 +2731,18 @@ export class Cline {
 							break
 						}
 					}
-					case "chat_mode_response": {
+					case "plan_mode_response": {
 						const response: string | undefined = block.params.response
 						try {
 							if (block.partial) {
-								await this.ask("chat_mode_response", removeClosingTag("response", response), block.partial).catch(
+								await this.ask("plan_mode_response", removeClosingTag("response", response), block.partial).catch(
 									() => {},
 								)
 								break
 							} else {
 								if (!response) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("chat_mode_response", "response"))
+									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_response", "response"))
 									// await this.saveCheckpoint()
 									break
 								}
@@ -2753,9 +2755,23 @@ export class Cline {
 								// 	})
 								// }
 
-								const { text, images } = await this.ask("chat_mode_response", response, false)
-								await this.say("user_feedback", text ?? "", images)
-								pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								this.isAwaitingPlanResponse = true
+								const { text, images } = await this.ask("plan_mode_response", response, false)
+								this.isAwaitingPlanResponse = false
+
+								if (this.didRespondToPlanAskBySwitchingMode) {
+									// await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`[The user has switched to ACT MODE, so you may now proceed with the task.]`,
+											images,
+										),
+									)
+								} else {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								}
+
 								// await this.saveCheckpoint()
 								break
 							}
@@ -3471,13 +3487,14 @@ export class Cline {
 		}
 
 		details += "\n\n# Current Mode"
-		if (this.chatSettings.mode === "chat") {
-			details += "\nCHAT MODE"
+		if (this.chatSettings.mode === "plan") {
+			details += "\nPLAN MODE"
+			details += '\nSee "## What is PLAN MODE?" above for more information about what to do in this mode.'
 			details +=
-				'\n(Remember: You now only have access to the chat_mode_response tool. If it seems the user wants you to use tools only available in TASK MODE, you should ask the user to "toggle to Task mode" - they will have to manually do this themselves with the Task/Chat toggle button below.)'
+				'\n(Remember: You now only have access to the plan_mode_response tool. If it seems the user wants you to use tools only available in ACT MODE, you should ask the user to "toggle to Act mode" - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to ACT MODE yourself, and must wait for the user to do it themselves once they are satisfied with the plan.)'
 		} else {
-			details += "\nTASK MODE"
-			details += "\n(Remember: You cannot use the chat_mode_response tool.)"
+			details += "\nACT MODE"
+			details += "\n(Remember: You cannot use the plan_mode_response tool.)"
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

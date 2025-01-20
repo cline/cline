@@ -75,13 +75,13 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	margin-left: -10px; // compensate for the transform so flex spacing works
 `
 
-const Slider = styled.div<{ isChat: boolean }>`
+const Slider = styled.div<{ isAct: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
 	background-color: var(--vscode-badge-background);
 	transition: transform 0.2s ease;
-	transform: translateX(${(props) => (props.isChat ? "100%" : "0%")});
+	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
 
 const ButtonGroup = styled.div`
@@ -597,7 +597,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const onModeToggle = useCallback(() => {
 			if (textAreaDisabled) return
-			const newMode = chatSettings.mode === "chat" ? "task" : "chat"
+			const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 			vscode.postMessage({
 				type: "chatSettings",
 				chatSettings: {
@@ -1008,9 +1008,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</ButtonGroup>
 
 					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
-						<Slider isChat={chatSettings.mode === "chat"} />
-						<SwitchOption isActive={chatSettings.mode === "task"}>Task</SwitchOption>
-						<SwitchOption isActive={chatSettings.mode === "chat"}>Chat</SwitchOption>
+						<Slider isAct={chatSettings.mode === "act"} />
+						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
 					</SwitchContainer>
 				</ControlsContainer>
 			</div>

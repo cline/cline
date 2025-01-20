@@ -69,7 +69,7 @@ export interface ClineMessage {
 
 export type ClineAsk =
 	| "followup"
-	| "chat_mode_response"
+	| "plan_mode_response"
 	| "command"
 	| "command_output"
 	| "completion_result"

@@ -486,12 +486,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "chatSettings":
 						if (message.chatSettings) {
+							const didSwitchToActMode = message.chatSettings.mode === "act"
 							await this.updateGlobalState("chatSettings", message.chatSettings)
+							await this.postStateToWebview()
 							if (this.cline) {
 								this.cline.updateChatSettings(message.chatSettings)
+								if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
+									this.cline.didRespondToPlanAskBySwitchingMode = true
+									// this is necessary for the webview to update accordingly, but Cline instance will not send text back as feedback message
+									await this.postMessageToWebview({
+										type: "invoke",
+										invoke: "sendMessage",
+										text: "[Proceeding with the task...]",
+									})
+								} else {
+									this.cancelTask()
+								}
 							}
-							await this.postStateToWebview()
-							this.cancelTask()
 						}
 						break
 					// case "relaunchChromeDebugMode":
@@ -671,16 +682,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
-	}
-
-	async switchToTaskMode() {
-		const { chatSettings } = await this.getState()
-		chatSettings.mode = "task"
-		await this.updateGlobalState("chatSettings", chatSettings)
-		if (this.cline) {
-			this.cline.updateChatSettings(chatSettings)
-		}
-		await this.postStateToWebview()
 	}
 
 	async updateCustomInstructions(instructions?: string) {
