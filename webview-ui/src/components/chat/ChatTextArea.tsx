@@ -49,7 +49,7 @@ interface ChatTextAreaProps {
 
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
-	color: ${(props) => (props.isActive ? "var(--vscode-badge-foreground)" : "var(--vscode-input-foreground)")};
+	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
 	z-index: 1;
 	transition: color 0.2s ease;
 	font-size: 12px;
@@ -79,7 +79,7 @@ const Slider = styled.div<{ isAct: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: var(--vscode-badge-background);
+	background-color: var(--vscode-focusBorder);
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
