@@ -118,8 +118,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
 		setState((currentState) => {
-			console.log("onUpdateApiConfig", currentState, apiConfig)
-
 			vscode.postMessage({
 				type: "upsertApiConfiguration",
 				text: currentState.currentApiConfigName,
@@ -132,8 +130,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const handleInputChange = useCallback(
 		(field: keyof ApiConfiguration) => (event: any) => {
 			setState((currentState) => {
-				console.log("handleInputChange", currentState, event)
-
 				vscode.postMessage({
 					type: "upsertApiConfiguration",
 					text: currentState.currentApiConfigName,
