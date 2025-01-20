@@ -542,6 +542,15 @@ export const deepSeekModels = {
 		outputPrice: 0.28, // $0.28 per million tokens
 		description: `DeepSeek-V3 achieves a significant breakthrough in inference speed over previous models. It tops the leaderboard among open-source models and rivals the most advanced closed-source models globally.`,
 	},
+	"deepseek-reasoner": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55, // $0.55 per million tokens
+		outputPrice: 2.19, // $2.19 per million tokens
+		description: `DeepSeek-R1 achieves performance comparable to OpenAI-o1 across math, code, and reasoning tasks.`,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
