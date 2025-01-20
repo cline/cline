@@ -32,7 +32,9 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
-	// | "relaunchChromeDebugMode"
+		| "getMcpEnabled"
+		| "toggleMcp"
+		// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
@@ -41,6 +43,7 @@ export interface WebviewMessage {
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
+	enabled?: boolean // For toggleMcp message
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

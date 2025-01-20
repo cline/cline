@@ -49,7 +49,7 @@
 		"configuration": {
 			"title": "Cline",
 			"properties": {
-				"cline.mcp.includeInPrompt": {
+				"cline.mcp.enabled": {
 					"type": "boolean",
 					"default": true,
 					"description": "Include MCP server functionality in AI prompts. When disabled, the AI will not be aware of MCP capabilities. This saves context window tokens."

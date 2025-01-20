@@ -178,7 +178,7 @@ Usage:
 }
 
 ${
-	mcpHub.shouldIncludeInPrompt()
+	mcpHub.isMcpEnabled()
 		? `
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
@@ -301,7 +301,7 @@ return (
 </diff>
 </replace_in_file>
 ${
-	mcpHub.shouldIncludeInPrompt()
+	mcpHub.isMcpEnabled()
 		? `
 
 ## Example 4: Requesting to use an MCP tool
@@ -348,7 +348,7 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.
 
 ${
-	mcpHub.shouldIncludeInPrompt()
+	mcpHub.isMcpEnabled()
 		? `
 ====
 
@@ -849,7 +849,7 @@ CAPABILITIES
 		: ""
 }
 ${
-	mcpHub.shouldIncludeInPrompt()
+	mcpHub.isMcpEnabled()
 		? `
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
 `
@@ -891,7 +891,7 @@ RULES
 		: ""
 }
 ${
-	mcpHub.shouldIncludeInPrompt()
+	mcpHub.isMcpEnabled()
 		? `
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 `

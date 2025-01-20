@@ -54,8 +54,8 @@ export class McpHub {
 		return this.connections.map((conn) => conn.server)
 	}
 
-	shouldIncludeInPrompt(): boolean {
-		return vscode.workspace.getConfiguration("cline.mcp").get("includeInPrompt") ?? true
+	isMcpEnabled(): boolean {
+		return vscode.workspace.getConfiguration("cline.mcp").get("enabled") ?? true
 	}
 
 	async getMcpServersPath(): Promise<string> {

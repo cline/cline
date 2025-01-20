@@ -21,6 +21,9 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
+		| "getMcpEnabled"
+		| "mcpEnabled"
+		| "toggleMcp"
 	text?: string
 	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -32,6 +35,7 @@ export interface ExtensionMessage {
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
+	enabled?: boolean // For mcpEnabled message
 }
 
 export interface ExtensionState {
