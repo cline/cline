@@ -34,7 +34,7 @@ export interface WebviewMessage {
 		| "openExtensionSettings"
 		| "getMcpEnabled"
 		| "toggleMcp"
-		// | "relaunchChromeDebugMode"
+	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

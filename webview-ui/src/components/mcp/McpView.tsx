@@ -194,7 +194,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 									fontSize: "12px",
 									lineHeight: "1.4",
 								}}>
-								MCP is currently disabled. Enable MCP to use MCP servers and tools. Enabling MCP will use additional tokens.
+								MCP is currently disabled. Enable MCP to use MCP servers and tools. Enabling MCP will use
+								additional tokens.
 							</div>
 						)}
 					</div>

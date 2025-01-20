@@ -209,7 +209,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					const enabled = this.mcpHub?.isMcpEnabled() ?? true
 					await this.postMessageToWebview({
 						type: "mcpEnabled",
-						enabled
+						enabled,
 					})
 				}
 			},
@@ -584,7 +584,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const enabled = this.mcpHub?.isMcpEnabled() ?? true
 						await this.postMessageToWebview({
 							type: "mcpEnabled",
-							enabled
+							enabled,
 						})
 						break
 					}
