@@ -28,7 +28,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// cross region inference requires prefixing the model id with the region
 		let modelId: string
 		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			const regionPrefix = (this.options.awsRegion || "").slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
 					modelId = `us.${this.getModel().id}`

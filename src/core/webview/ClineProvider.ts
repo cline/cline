@@ -788,7 +788,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-		let models: Record<string, ModelInfo> = {}
+		const models: Record<string, ModelInfo> = {}
 		try {
 			const response = await axios.get("https://openrouter.ai/api/v1/models")
 			/*

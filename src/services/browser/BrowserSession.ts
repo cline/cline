@@ -208,7 +208,7 @@ export class BrowserSession {
 			interval: 100,
 		}).catch(() => {})
 
-		let options: ScreenshotOptions = {
+		const options: ScreenshotOptions = {
 			encoding: "base64",
 
 			// clip: {
@@ -273,8 +273,8 @@ export class BrowserSession {
 		const minStableSizeIterations = 3
 
 		while (checkCounts++ <= maxChecks) {
-			let html = await page.content()
-			let currentHTMLSize = html.length
+			const html = await page.content()
+			const currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
 			console.log("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)

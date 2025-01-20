@@ -212,7 +212,7 @@ export async function constructNewFileContent(diffContent: string, originalConte
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
 
-	let lines = diffContent.split("\n")
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.

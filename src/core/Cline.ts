@@ -754,7 +754,7 @@ export class Cline {
 
 		this.isInitialized = true
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 		await this.initiateTaskLoop(
 			[
 				{
@@ -963,7 +963,7 @@ export class Cline {
 			// modifiedOldUserContent = []
 		}
 
-		let newUserContent: UserContent = [...modifiedOldUserContent]
+		const newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1211,8 +1211,7 @@ export class Cline {
 			mcpHub,
 			this.browserSettings,
 		)
-
-		let settingsCustomInstructions = this.customInstructions?.trim()
+		const settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
@@ -1563,7 +1562,7 @@ export class Cline {
 					case "write_to_file":
 					case "replace_in_file": {
 						const relPath: string | undefined = block.params.path
-						let content: string | undefined = block.params.content // for write_to_file
+						const content: string | undefined = block.params.content // for write_to_file
 						let diff: string | undefined = block.params.diff // for replace_in_file
 						if (!relPath || (!content && !diff)) {
 							// checking for content/diff ensures relPath is complete
