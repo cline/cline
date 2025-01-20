@@ -112,19 +112,19 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 	const setListApiConfigMeta = useCallback(
 		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
-		[setState],
+		[],
 	)
 
-	const onUpdateApiConfig = useCallback(
-		(apiConfig: ApiConfiguration) => {
+	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
+		setState((currentState) => {
 			vscode.postMessage({
 				type: "upsertApiConfiguration",
-				text: state.currentApiConfigName,
+				text: currentState.currentApiConfigName, // Access latest state
 				apiConfiguration: apiConfig,
 			})
-		},
-		[state],
-	)
+			return currentState // No state update needed
+		})
+	}, [])
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {

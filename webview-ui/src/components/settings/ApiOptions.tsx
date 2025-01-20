@@ -56,7 +56,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const apiConfig = { ...apiConfiguration, [field]: event.target.value }
 		onUpdateApiConfig(apiConfig)
-		setApiConfiguration(apiConfig)
+		// setApiConfiguration(apiConfig)
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
