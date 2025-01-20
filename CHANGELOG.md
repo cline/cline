@@ -2,8 +2,9 @@
 
 ## [3.1.7]
 
-- Various fixes
-- debug from vscode and changed output channel to Roo-Cline
+- DeepSeek-R1 support (thanks @philipnext!)
+- Experimental new unified diff algorithm can be enabled in settings (thanks @daniel-lxs!)
+- More fixes to configuration profiles (thanks @samhvw8!)
 
 ## [3.1.6]
 
