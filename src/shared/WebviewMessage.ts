@@ -37,6 +37,7 @@ export interface WebviewMessage {
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
 		| "toggleMcpServer"
+		| "getLatestState"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

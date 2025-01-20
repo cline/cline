@@ -20,6 +20,19 @@ import ApiOptions from "../settings/ApiOptions"
 import { useClickAway } from "react-use"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { validateAdvisorModelId } from "../../utils/validate"
+import { validateModelId } from "../../utils/validate"
+import { validateApiConfiguration } from "../../utils/validate"
+import {
+	anthropicDefaultModelId,
+	bedrockDefaultModelId,
+	deepSeekDefaultModelId,
+	geminiDefaultModelId,
+	mistralDefaultModelId,
+	openAiNativeDefaultModelId,
+	openRouterDefaultModelId,
+	vertexDefaultModelId,
+} from "../../../../src/shared/api"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -206,7 +219,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -228,6 +241,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
+
+		const handleApiConfigSubmit = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+			const advisorModelIdValidationResult = validateAdvisorModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult && !advisorModelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
 
 		const queryItems = useMemo(() => {
 			return [
@@ -646,27 +671,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiConfiguration) return unknownModel
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
-					return `anthropic:${apiConfiguration.apiModelId || unknownModel}`
+					return `anthropic:${apiConfiguration.apiModelId || anthropicDefaultModelId}`
 				case "openai":
 					return `openai:${apiConfiguration.openAiModelId || unknownModel}`
 				case "openrouter":
-					return `openrouter:${apiConfiguration.openRouterModelId || unknownModel}`
+					return `openrouter:${apiConfiguration.openRouterModelId || openRouterDefaultModelId}`
 				case "bedrock":
-					return `bedrock:${apiConfiguration.apiModelId || unknownModel}`
+					return `bedrock:${apiConfiguration.apiModelId || bedrockDefaultModelId}`
 				case "vertex":
-					return `vertex:${apiConfiguration.apiModelId || unknownModel}`
+					return `vertex:${apiConfiguration.apiModelId || vertexDefaultModelId}`
 				case "ollama":
 					return `ollama:${apiConfiguration.ollamaModelId || unknownModel}`
 				case "lmstudio":
 					return `lmstudio:${apiConfiguration.lmStudioModelId || unknownModel}`
 				case "gemini":
-					return `gemini:${apiConfiguration.apiModelId || unknownModel}`
+					return `gemini:${apiConfiguration.apiModelId || geminiDefaultModelId}`
 				case "openai-native":
-					return `openai-native:${apiConfiguration.apiModelId || unknownModel}`
+					return `openai-native:${apiConfiguration.apiModelId || openAiNativeDefaultModelId}`
 				case "deepseek":
-					return `deepseek:${apiConfiguration.apiModelId || unknownModel}`
+					return `deepseek:${apiConfiguration.apiModelId || deepSeekDefaultModelId}`
 				case "mistral":
-					return `mistral:${apiConfiguration.apiModelId || unknownModel}`
+					return `mistral:${apiConfiguration.apiModelId || mistralDefaultModelId}`
 				case "vscode-lm":
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				default:
@@ -691,6 +716,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Reset advisor settings when model selector is closed
 		useEffect(() => {
 			if (!showModelSelector) {
+				// Attempt to save if possible
+				handleApiConfigSubmit()
+
 				setShowModelSelectorWithAdvisor(false)
 				// Reset any active styling by blurring the button
 				const button = buttonRef.current?.querySelector("a")
@@ -698,7 +726,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					button.blur()
 				}
 			}
-		}, [showModelSelector])
+		}, [showModelSelector, handleApiConfigSubmit])
 
 		const handleMessage = useCallback((e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
