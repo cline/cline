@@ -11,7 +11,12 @@
 			"request": "launch",
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}"
+			"preLaunchTask": "${defaultBuildTask}",
+			"skipFiles": [
+				"${execInstallFolder}",
+				"${workspaceFolder}${/}webview-ui${/}node_modules",
+				"${workspaceFolder}${/}node_modules",
+			],
 		}
 	]
 }
