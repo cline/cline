@@ -23,6 +23,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"fetch_user_stories",
 	"fetch_technical_design",
+	"read_openai_documentation"
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -48,6 +49,7 @@ export const toolParamNames = [
 	"question",
 	"result",
 	"project_name",
+	"language_type"
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -129,4 +131,8 @@ export interface FetchUserStoriesToolUse extends ToolUse {
 export interface FetchTechnicalDesignToolUse extends ToolUse {
 	name: "fetch_technical_design"
 	params: Partial<Pick<Record<ToolParamName, string>, "project_name">>
+}
+
+export interface OpenaiDocumentationToolUse extends ToolUse {
+	name: "read_openai_documentation"
 }
