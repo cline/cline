@@ -69,6 +69,7 @@ type GlobalStateKey =
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
+	| "openAiCustomModelInfo"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
@@ -1208,6 +1209,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			openAiCustomModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -1241,6 +1243,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
 		await this.storeSecret("openAiApiKey", openAiApiKey)
 		await this.updateGlobalState("openAiModelId", openAiModelId)
+		await this.updateGlobalState("openAiCustomModelInfo", openAiCustomModelInfo)
 		await this.updateGlobalState("ollamaModelId", ollamaModelId)
 		await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 		await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
@@ -1857,6 +1860,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			openAiCustomModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -1920,6 +1924,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("openAiCustomModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
@@ -2000,6 +2005,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiBaseUrl,
 				openAiApiKey,
 				openAiModelId,
+				openAiCustomModelInfo,
 				ollamaModelId,
 				ollamaBaseUrl,
 				lmStudioModelId,
