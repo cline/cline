@@ -12,7 +12,7 @@ interface AnnouncementProps {
 You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
-	// const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
+	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div
 			style={{
@@ -29,11 +29,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h2 style={{ margin: "0 0 8px" }}>🎉{"  "}Introducing Roo Code 4.0</h2>
+			<h2 style={{ margin: "0 0 8px" }}>
+				🎉{"  "}Introducing Roo Code {minorVersion}
+			</h2>
 
 			<p style={{ margin: "5px 0px" }}>
-				Our biggest update yet is here - we're officially changing our name from "Roo Cline" to "Roo Code"!
-				After growing beyond 50,000 installations, we're ready to chart our own course. Our heartfelt thanks to
+				Our biggest update yet is here - we're officially changing our name from Roo Cline to Roo Code! After
+				growing beyond 50,000 installations, we're ready to chart our own course. Our heartfelt thanks to
 				everyone in the Cline community who helped us reach this milestone.
 			</p>
 
