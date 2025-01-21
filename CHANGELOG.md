@@ -2,7 +2,7 @@
 
 ## [3.2.0 - 3.2.2]
 
-- **Name Change: From Roo Cline to Roo Code:** We're excited to announce our new name! After growing beyond 50,000 installations, we've rebranded from Roo Cline to Roo Code to better reflect our identity as we chart our own course.
+- **Name Change From Roo Cline to Roo Code:** We're excited to announce our new name! After growing beyond 50,000 installations, we've rebranded from Roo Cline to Roo Code to better reflect our identity as we chart our own course.
 
 - **Custom Modes:** Create your own personas for Roo Code! While our built-in modes (Code, Architect, Ask) are still here, you can now shape entirely new ones:
     - Define custom prompts
