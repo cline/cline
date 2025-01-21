@@ -32,7 +32,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
 					<b>Plan/Act mode toggle:</b> Plan mode lets Cline focus on gathering information, asking clarifying questions,
-					brainstorm ideas, and architect a solution. Switch back to Act mode to let him execute the plan!
+					brainstorm ideas, and architect a solution. Switch back to Act mode to let him execute the plan!{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
 				</li>
 				<li>
 					<b>Quick API/model switching</b> with a new popup menu under the chat field
