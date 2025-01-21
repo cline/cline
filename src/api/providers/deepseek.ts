@@ -19,14 +19,14 @@ export class DeepSeekHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-			const stream = await this.client.chat.completions.create({
+		const stream = await this.client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
 			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 })
+			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
@@ -55,14 +55,14 @@ export class DeepSeekHandler implements ApiHandler {
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (!modelId || !(modelId in deepSeekModels)) {
-			return { 
-				id: deepSeekDefaultModelId, 
-				info: deepSeekModels[deepSeekDefaultModelId]
+			return {
+				id: deepSeekDefaultModelId,
+				info: deepSeekModels[deepSeekDefaultModelId],
 			}
 		}
-		return { 
-			id: modelId as DeepSeekModelId, 
-			info: deepSeekModels[modelId as DeepSeekModelId]
+		return {
+			id: modelId as DeepSeekModelId,
+			info: deepSeekModels[modelId as DeepSeekModelId],
 		}
 	}
 }
