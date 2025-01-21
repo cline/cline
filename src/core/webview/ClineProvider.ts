@@ -592,12 +592,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.cancelTask()
 						break
 					case "confirmClearAllHistory": {
-						const confirm = await vscode.window.showWarningMessage(
-							message.text!,
-							{ modal: true },
-							"Yes",
-							"No",
-						)
+						const confirm = await vscode.window.showWarningMessage(message.text!, { modal: true }, "Yes", "No")
 						if (confirm === "Yes") {
 							// Clear current task if exists
 							if (this.cline) {
@@ -605,8 +600,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 
 							// Get all task IDs from history
-							const taskHistory =
-								((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+							const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 							const taskIds = taskHistory.map((item) => item.id)
 
 							// Delete each task's files
@@ -616,10 +610,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									const taskDir = path.join(tasksDir, id)
 									if (await fileExistsAtPath(taskDir)) {
 										// Delete task files
-										const apiHistoryPath = path.join(
-											taskDir,
-											GlobalFileNames.apiConversationHistory,
-										)
+										const apiHistoryPath = path.join(taskDir, GlobalFileNames.apiConversationHistory)
 										const uiMessagesPath = path.join(taskDir, GlobalFileNames.uiMessages)
 										if (await fileExistsAtPath(apiHistoryPath)) {
 											await fs.unlink(apiHistoryPath)
