@@ -873,8 +873,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						/>
 					</>
 				)}
-      
-      {selectedProvider === "glama" && showModelOptions && <GlamaModelPicker isPopup={isPopup} />}
+
+			{selectedProvider === "glama" && showModelOptions && <GlamaModelPicker isPopup={isPopup} />}
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 
