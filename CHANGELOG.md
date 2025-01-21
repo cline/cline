@@ -1,5 +1,11 @@
 # Change Log
 
+## [3.2.X]
+
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling
+- Fix temperature parameter being sent to unsupported deepseek-reasoner model
+- Update DeepSeek pricing info with new reasoner model rates
+
 ## [3.2.0]
 
 - Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
