@@ -37,6 +37,7 @@ async function generatePrompt(
 	promptComponent?: PromptComponent,
 	customModeConfigs?: ModeConfig[],
 	globalCustomInstructions?: string,
+	preferredLanguage?: string,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -79,7 +80,7 @@ ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, {})}`
+${await addCustomInstructions(modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage })}`
 
 	return basePrompt
 }
@@ -95,6 +96,7 @@ export const SYSTEM_PROMPT = async (
 	customPrompts?: CustomPrompts,
 	customModes?: ModeConfig[],
 	globalCustomInstructions?: string,
+	preferredLanguage?: string,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -123,5 +125,6 @@ export const SYSTEM_PROMPT = async (
 		promptComponent,
 		customModes,
 		globalCustomInstructions,
+		preferredLanguage,
 	)
 }

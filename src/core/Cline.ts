@@ -809,7 +809,8 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, mode, customPrompts } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { browserViewportSize, mode, customPrompts, preferredLanguage } =
+			(await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
 			const provider = this.providerRef.deref()
@@ -826,6 +827,7 @@ export class Cline {
 				mode,
 				customPrompts,
 				customModes,
+				preferredLanguage,
 			)
 		})()
 
