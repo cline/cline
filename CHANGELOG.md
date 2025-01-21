@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.2.4]
+
+- Only allow use of the diff tool if it's enabled in settings
+
 ## [3.2.3]
 
 - Fix bug where language selector wasn't working
