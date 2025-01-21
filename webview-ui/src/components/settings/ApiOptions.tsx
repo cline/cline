@@ -529,6 +529,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.geminiBaseUrl || ""}
+						style={{ width: "100%", marginTop: "10px" }}
+						type="url"
+						onInput={handleInputChange("geminiBaseUrl")}
+						placeholder="Enter base URL (optional)...">
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",
