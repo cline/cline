@@ -15,8 +15,7 @@
 			"skipFiles": [
 				"<node_internals>/**",
 				"${execInstallFolder}/**",
-				"${workspaceFolder}/webview-ui/node_modules/**",
-				"${workspaceFolder}/node_modules/**",
+				"**/node_modules/**",
 			],
 		}
 	]
