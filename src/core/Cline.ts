@@ -3290,12 +3290,11 @@ export class Cline {
 		if (this.chatSettings.mode === "plan") {
 			details += "\nPLAN MODE"
 			details +=
-				"\nIn this mode you should focus on information gathering and architecting a solution. If you haven't done so already, it's a good idea to start by reading files to get context and then asking questions."
+				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user. Do not use the plan_mode_response tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
 			details +=
-				'\n(Remember: You now have access to the plan_mode_response tool, which allows you to engage in a more conversational back and forth with the user rather than jumping into executing the task. If it seems the user wants you to use tools only available in ACT MODE, you should ask the user to "toggle to Act mode" - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to ACT MODE yourself, and must wait for the user to do it themselves once they are satisfied with the plan.)'
+				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan.)'
 		} else {
 			details += "\nACT MODE"
-			details += "\n(Remember: You cannot use the plan_mode_response tool.)"
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
