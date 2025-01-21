@@ -588,7 +588,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 									margin: "0 0 15px 0",
 									lineHeight: "1.4",
 								}}>
-								Configure the capabilities and pricing for your custom OpenAI-compatible model
+								Configure the capabilities and pricing for your custom OpenAI-compatible model. <br />
+								Be careful for the model capabilities, as they can affect how Roo Code can work.
 							</p>
 
 							{/* Capabilities Section */}
@@ -655,8 +656,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 											}}>
 											<i className="codicon codicon-info" style={{ fontSize: "12px" }}></i>
 											<span>
-												Maximum number of tokens the model can generate in a response. Higher
-												values allow longer outputs but may increase costs.
+												Maximum number of tokens the model can generate in a response. <br />
+												(-1 is depend on server)
 											</span>
 										</div>
 									</div>
@@ -711,8 +712,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 											}}>
 											<i className="codicon codicon-info" style={{ fontSize: "12px" }}></i>
 											<span>
-												Total tokens (input + output) the model can process. Larger windows
-												allow processing more content but may increase memory usage.
+												Total tokens (input + output) the model can process. This will help Roo
+												Code run correctly.
 											</span>
 										</div>
 									</div>
@@ -804,7 +805,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 																},
 															})
 														}}>
-														<span style={{ fontWeight: 500 }}>Computer Interaction</span>
+														<span style={{ fontWeight: 500 }}>Computer Use</span>
 													</Checkbox>
 													<i
 														className="codicon codicon-info"
@@ -824,8 +825,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 														marginTop: "4px",
 														lineHeight: "1.4",
 													}}>
-													Enables the model to execute commands and modify files for automated
-													assistance
+													This model feature is for computer use like sonnet 3.5 support
 												</p>
 											</div>
 										</div>
@@ -976,6 +976,11 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							</div>
 						</div>
 					</Pane>
+					<div
+						style={{
+							marginTop: 15,
+						}}
+					/>
 
 					{/* end Model Info Configuration */}
 
