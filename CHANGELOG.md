@@ -1,10 +1,8 @@
 # Change Log
 
-## [3.2.X]
+## [3.2.3]
 
-- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling
-- Fix temperature parameter being sent to unsupported deepseek-reasoner model
-- Update DeepSeek pricing info with new reasoner model rates
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling (thanks @slavakurilyak!)
 
 ## [3.2.0]
 

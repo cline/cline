@@ -54,15 +54,13 @@ export class DeepSeekHandler implements ApiHandler {
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (!modelId || !(modelId in deepSeekModels)) {
-			return {
-				id: deepSeekDefaultModelId,
-				info: deepSeekModels[deepSeekDefaultModelId],
-			}
+		if (modelId && modelId in deepSeekModels) {
+			const id = modelId as DeepSeekModelId
+			return { id, info: deepSeekModels[id] }
 		}
 		return {
-			id: modelId as DeepSeekModelId,
-			info: deepSeekModels[modelId as DeepSeekModelId],
+			id: deepSeekDefaultModelId,
+			info: deepSeekModels[deepSeekDefaultModelId],
 		}
 	}
 }
