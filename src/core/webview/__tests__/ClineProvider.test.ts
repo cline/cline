@@ -70,6 +70,13 @@ jest.mock(
 	{ virtual: true },
 )
 
+// Mock DiffStrategy
+jest.mock("../../diff/DiffStrategy", () => ({
+	getDiffStrategy: jest.fn().mockImplementation(() => ({
+		getToolDescription: jest.fn().mockReturnValue("apply_diff tool description"),
+	})),
+}))
+
 // Mock dependencies
 jest.mock("vscode", () => ({
 	ExtensionContext: jest.fn(),
@@ -961,6 +968,52 @@ describe("ClineProvider", () => {
 				"",
 				expect.any(String),
 			)
+		})
+
+		test("passes diffStrategy to SYSTEM_PROMPT when previewing", async () => {
+			// Mock getState to return experimentalDiffStrategy and fuzzyMatchThreshold
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				apiConfiguration: {
+					apiProvider: "openrouter",
+					apiModelId: "test-model",
+					openRouterModelInfo: { supportsComputerUse: true },
+				},
+				customPrompts: {},
+				mode: "code",
+				mcpEnabled: false,
+				browserViewportSize: "900x600",
+				experimentalDiffStrategy: true,
+				fuzzyMatchThreshold: 0.8,
+			} as any)
+
+			// Mock SYSTEM_PROMPT to verify diffStrategy is passed
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Trigger getSystemPrompt
+			const handler = getMessageHandler()
+			await handler({ type: "getSystemPrompt", mode: "code" })
+
+			// Verify SYSTEM_PROMPT was called with correct arguments
+			expect(systemPromptSpy).toHaveBeenCalledWith(
+				expect.anything(), // context
+				expect.any(String), // cwd
+				true, // supportsComputerUse
+				undefined, // mcpHub (disabled)
+				expect.objectContaining({
+					// diffStrategy
+					getToolDescription: expect.any(Function),
+				}),
+				"900x600", // browserViewportSize
+				"code", // mode
+				expect.any(Object), // customPrompts
+				expect.any(Object), // customModes
+				undefined, // effectiveInstructions
+			)
+
+			// Run the test again to verify it's consistent
+			await handler({ type: "getSystemPrompt", mode: "code" })
+			expect(systemPromptSpy).toHaveBeenCalledTimes(2)
 		})
 
 		test("uses correct mode-specific instructions when mode is specified", async () => {
