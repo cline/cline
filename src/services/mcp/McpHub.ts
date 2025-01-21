@@ -147,9 +147,18 @@ export class McpHub {
 				},
 			)
 
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || "";
+			const workspaceFolderBasename = path.basename(workspaceFolder);
+
+			const replacePathVariables = (str: string) => {
+				return str
+					.replace("\${workspaceFolder}", workspaceFolder)
+					.replace("\${workspaceFolderBasename}", workspaceFolderBasename);
+			};
+
 			const transport = new StdioClientTransport({
-				command: config.command,
-				args: config.args,
+				command: replacePathVariables(config.command),
+				args: config.args?.map(replacePathVariables),
 				env: {
 					...config.env,
 					...(process.env.PATH ? { PATH: process.env.PATH } : {}),
