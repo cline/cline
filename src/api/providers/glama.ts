@@ -73,13 +73,27 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
-			.create({
-				model: this.getModel().id,
-				max_tokens: maxTokens,
-				temperature: 0,
-				messages: openAiMessages,
-				stream: true,
-			})
+			.create(
+				{
+					model: this.getModel().id,
+					max_tokens: maxTokens,
+					temperature: 0,
+					messages: openAiMessages,
+					stream: true,
+				},
+				{
+					headers: {
+						"X-Glama-Metadata": JSON.stringify({
+							labels: [
+								{
+									key: "app",
+									value: "vscode.rooveterinaryinc.roo-cline",
+								},
+							],
+						}),
+					},
+				},
+			)
 			.withResponse()
 
 		const completionRequestId = response.headers.get("x-completion-request-id")
@@ -101,14 +115,6 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 				{
 					headers: {
 						Authorization: `Bearer ${this.options.glamaApiKey}`,
-						"X-Glama-Metadata": JSON.stringify({
-							labels: [
-								{
-									key: "app",
-									value: "vscode.rooveterinaryinc.roo-cline",
-								},
-							],
-						}),
 					},
 				},
 			)
