@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.0
-
-### Minor Changes
+## [3.2.0]
 
 - v3.2
 
