@@ -11,6 +11,11 @@ i18n.use(initReactI18next) // passes i18n down to react-i18next
 	.init({
 		fallbackLng: "en",
 		debug: true,
+		react: {
+			bindI18n: "languageChanged",
+			transSupportBasicHtmlNodes: true,
+			transKeepBasicHtmlNodesFor: ["b", "i", "strong", "em"],
+		},
 	})
 
 i18n.addResourceBundle("de", "translation", translationDE)

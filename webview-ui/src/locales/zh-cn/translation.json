@@ -7,8 +7,7 @@
 		"compareDescription": "比较检查点之间的更改。",
 		"restoreTitle": "恢复",
 		"restoreDescription": "恢复以前的版本。",
-		"seeNewChangesTitle": "查看新更改",
-		"seeNewChangesDescription": "查看最新更改。",
+		"seeNewChanges": "如果您错过了，Cline 现在支持检查点！<NewChangesLink>在这里查看操作。</NewChangesLink>",
 		"seeDemo": "查看演示",
 		"joinOur": "加入我们的",
 		"joinOurCommunities": "加入我们的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 以获取更多更新。"

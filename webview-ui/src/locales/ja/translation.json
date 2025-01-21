@@ -7,8 +7,7 @@
 		"compareDescription": "チェックポイント間の変更を比較します。",
 		"restoreTitle": "復元",
 		"restoreDescription": "以前のバージョンを復元します。",
-		"seeNewChangesTitle": "新しい変更を見る",
-		"seeNewChangesDescription": "最新の変更を表示します。",
+		"seeNewChanges": "見逃した場合、Clineは現在チェックポイントをサポートしています！ <NewChangesLink>ここでアクションを確認してください。</NewChangesLink>",
 		"seeDemo": "デモを見る",
 		"joinOurCommunities": "最新情報を入手するには、私たちの <DiscordLink>Discord</DiscordLink> または <RedditLink>Reddit</RedditLink> に参加してください！"
 	},
