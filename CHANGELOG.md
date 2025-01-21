@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.2.1
+
+### Patch Changes
+
+- Fix announcement
+
 ## [3.2.0]
 
 - **Name Change: From Roo Cline to Roo Code:** We're excited to announce our new name! After growing beyond 50,000 installations, we've rebranded from Roo Cline to Roo Code to better reflect our identity as we chart our own course.
