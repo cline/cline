@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.2
-
-### Patch Changes
+## [3.2.2]
 
 - Fix bug where apply_diff wasn't showing up in system prompt preview
 
