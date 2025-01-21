@@ -1,10 +1,18 @@
 # Change Log
 
-## [3.1.11]
+## [3.2.X]
 
 - Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling
 - Fix temperature parameter being sent to unsupported deepseek-reasoner model
 - Update DeepSeek pricing info with new reasoner model rates
+
+## [3.2.0]
+
+- Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
+- Easily switch between API providers and models using a new popup menu under the chat field
+- Add VS Code LM API provider to run models provided by other VS Code extensions (e.g. GitHub Copilot). Shoutout to @julesmons, @RaySinner, and @MrUbens for putting this together!
+- Add on/off toggle for MCP servers to disable them when not in use. Thanks @MrUbens!
+- Add Auto-approve option for individual tools in MCP servers. Thanks @MrUbens!
 
 ## [3.1.10]
 
