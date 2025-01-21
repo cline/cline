@@ -2,16 +2,18 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import delay from "delay"
 import fs from "fs/promises"
+import getFolderSize from "get-folder-size"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
-import { ApiStream } from "../api/transform/stream"
+import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import { extractTextFromFile } from "../integrations/misc/extract-text"
+import { showSystemNotification } from "../integrations/notifications"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
@@ -21,6 +23,8 @@ import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
 import { findLast, findLastIndex } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
+import { BrowserSettings } from "../shared/BrowserSettings"
+import { ChatSettings } from "../shared/ChatSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
 import {
@@ -43,20 +47,18 @@ import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessa
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
-import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { showSystemNotification } from "../integrations/notifications"
-import { removeInvalidChars } from "../utils/string"
-import { fixModelHtmlEscaping } from "../utils/string"
+import { OpenRouterHandler } from "../api/providers/openrouter"
+import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
+import { SYSTEM_PROMPT } from "./prompts/system"
+import { addUserInstructions } from "./prompts/system"
 import { OpenAiHandler } from "../api/providers/openai"
-import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
-import getFolderSize from "get-folder-size"
-import { BrowserSettings } from "../shared/BrowserSettings"
+import { ApiStream } from "../api/transform/stream"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -75,6 +77,7 @@ export class Cline {
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
+	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -92,8 +95,11 @@ export class Cline {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
+	isAwaitingPlanResponse = false
+	didRespondToPlanAskBySwitchingMode = false
 
 	// streaming
+	isWaitingForFirstChunk = false
 	isStreaming = false
 	private currentStreamingContentIndex = 0
 	private assistantMessageContent: AssistantMessageContent[] = []
@@ -104,12 +110,14 @@ export class Cline {
 	private didRejectTool = false
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
+	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
+		chatSettings: ChatSettings,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -124,6 +132,7 @@ export class Cline {
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.chatSettings = chatSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -139,6 +148,10 @@ export class Cline {
 	updateBrowserSettings(browserSettings: BrowserSettings) {
 		this.browserSettings = browserSettings
 		this.browserSession.browserSettings = browserSettings
+	}
+
+	updateChatSettings(chatSettings: ChatSettings) {
+		this.chatSettings = chatSettings
 	}
 
 	// Storing task to disk for history
@@ -977,14 +990,20 @@ export class Cline {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
+				`[TASK RESUMPTION] ${
+					this.chatSettings?.mode === "plan"
+						? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
+						: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
+				}${
 					wasRecent
 						? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 						: ""
 				}` +
 				(responseText
-					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
-					: ""),
+					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+					: this.chatSettings.mode === "plan"
+						? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
+						: ""),
 		})
 
 		if (responseImages && responseImages.length > 0) {
@@ -1192,6 +1211,7 @@ export class Cline {
 			mcpHub,
 			this.browserSettings,
 		)
+
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1256,21 +1276,35 @@ export class Cline {
 			this.conversationHistoryDeletedRange,
 		)
 
-		const stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
 			// awaiting first chunk to see if it will throw an error
+			this.isWaitingForFirstChunk = true
 			const firstChunk = await iterator.next()
 			yield firstChunk.value
+			this.isWaitingForFirstChunk = false
 		} catch (error) {
-			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-			const { response } = await this.ask("api_req_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
-			if (response !== "yesButtonClicked") {
-				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-				throw new Error("API request failed")
+			const isOpenRouter = this.api instanceof OpenRouterHandler
+			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
+				console.log("first chunk failed, waiting 1 second before retrying")
+				await delay(1000)
+				this.didAutomaticallyRetryFailedApiRequest = true
+			} else {
+				// request failed after retrying automatically once, ask user if they want to retry again
+				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+				const { response } = await this.ask(
+					"api_req_failed",
+					error.message ?? JSON.stringify(serializeError(error), null, 2),
+				)
+				if (response !== "yesButtonClicked") {
+					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
+					throw new Error("API request failed")
+				}
+				await this.say("api_req_retried")
 			}
-			await this.say("api_req_retried")
 			// delegate generator output from the recursive call
 			yield* this.attemptApiRequest(previousApiReqIndex)
 			return
@@ -1390,6 +1424,8 @@ export class Cline {
 							return `[${block.name} for '${block.params.server_name}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
+						case "plan_mode_response":
+							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
 					}
@@ -2345,7 +2381,12 @@ export class Cline {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isToolAutoApproved = this.providerRef
+									.deref()
+									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
+									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
+
+								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2505,6 +2546,56 @@ export class Cline {
 						} catch (error) {
 							await handleError("asking question", error)
 							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "plan_mode_response": {
+						const response: string | undefined = block.params.response
+						try {
+							if (block.partial) {
+								await this.ask("plan_mode_response", removeClosingTag("response", response), block.partial).catch(
+									() => {},
+								)
+								break
+							} else {
+								if (!response) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_response", "response"))
+									// await this.saveCheckpoint()
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								// if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+								// 	showSystemNotification({
+								// 		subtitle: "Cline has a response...",
+								// 		message: response.replace(/\n/g, " "),
+								// 	})
+								// }
+
+								this.isAwaitingPlanResponse = true
+								const { text, images } = await this.ask("plan_mode_response", response, false)
+								this.isAwaitingPlanResponse = false
+
+								if (this.didRespondToPlanAskBySwitchingMode) {
+									// await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`[The user has switched to ACT MODE, so you may now proceed with the task.]`,
+											images,
+										),
+									)
+								} else {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								}
+
+								// await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("responding to inquiry", error)
+							// await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2877,6 +2968,7 @@ export class Cline {
 			this.didAlreadyUseTool = false
 			this.presentAssistantMessageLocked = false
 			this.presentAssistantMessageHasPendingUpdates = false
+			this.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
@@ -2987,7 +3079,9 @@ export class Cline {
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.assistantMessageContent.some((block) => block.type === "tool_use")
+
 				if (!didToolUse) {
+					// normal request where tool use is required
 					this.userMessageContent.push({
 						type: "text",
 						text: formatResponse.noToolsUsed(),
@@ -3164,20 +3258,20 @@ export class Cline {
 		}
 
 		// Add current time information with timezone
-		// const now = new Date()
-		// const formatter = new Intl.DateTimeFormat(undefined, {
-		// 	year: "numeric",
-		// 	month: "numeric",
-		// 	day: "numeric",
-		// 	hour: "numeric",
-		// 	minute: "numeric",
-		// 	second: "numeric",
-		// 	hour12: true,
-		// })
-		// const timeZone = formatter.resolvedOptions().timeZone
-		// const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
-		// const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
-		// details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
+		const now = new Date()
+		const formatter = new Intl.DateTimeFormat(undefined, {
+			year: "numeric",
+			month: "numeric",
+			day: "numeric",
+			hour: "numeric",
+			minute: "numeric",
+			second: "numeric",
+			hour12: true,
+		})
+		const timeZone = formatter.resolvedOptions().timeZone
+		const timeZoneOffset = -now.getTimezoneOffset() / 60 // Convert to hours and invert sign to match conventional notation
+		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
+		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
@@ -3190,6 +3284,18 @@ export class Cline {
 				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
 				details += result
 			}
+		}
+
+		details += "\n\n# Current Mode"
+		if (this.chatSettings.mode === "plan") {
+			details += "\nPLAN MODE"
+			details +=
+				"\nIn this mode you should focus on information gathering and architecting a solution. If you haven't done so already, it's a good idea to start by reading files to get context and then asking questions."
+			details +=
+				'\n(Remember: You now have access to the plan_mode_response tool, which allows you to engage in a more conversational back and forth with the user rather than jumping into executing the task. If it seems the user wants you to use tools only available in ACT MODE, you should ask the user to "toggle to Act mode" - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to ACT MODE yourself, and must wait for the user to do it themselves once they are satisfied with the plan.)'
+		} else {
+			details += "\nACT MODE"
+			details += "\n(Remember: You cannot use the plan_mode_response tool.)"
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

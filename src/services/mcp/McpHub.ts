@@ -25,11 +25,15 @@ export type McpConnection = {
 	transport: StdioClientTransport
 }
 
+const AutoApproveSchema = z.array(z.string()).default([])
+
 // StdioServerParameters
 const StdioConfigSchema = z.object({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
+	autoApprove: AutoApproveSchema.optional(),
+	disabled: z.boolean().optional(),
 })
 
 const McpSettingsSchema = z.object({
@@ -51,7 +55,8 @@ export class McpHub {
 	}
 
 	getServers(): McpServer[] {
-		return this.connections.map((conn) => conn.server)
+		// Only return enabled servers
+		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
 	async getMcpServersPath(): Promise<string> {
@@ -189,11 +194,13 @@ export class McpHub {
 			}
 
 			// valid schema
+			const parsedConfig = StdioConfigSchema.parse(config)
 			const connection: McpConnection = {
 				server: {
 					name,
 					config: JSON.stringify(config),
 					status: "connecting",
+					disabled: parsedConfig.disabled,
 				},
 				client,
 				transport,
@@ -275,7 +282,21 @@ export class McpHub {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
-			return response?.tools || []
+
+			// Get autoApprove settings
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+
+			// Mark tools as always allowed based on settings
+			const tools = (response?.tools || []).map((tool) => ({
+				...tool,
+				autoApprove: autoApproveConfig.includes(tool.name),
+			}))
+
+			// console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
+			return tools
 		} catch (error) {
 			// console.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
@@ -441,10 +462,90 @@ export class McpHub {
 
 	// Using server
 
+	// Public methods for server management
+
+	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
+		let settingsPath: string
+		try {
+			settingsPath = await this.getMcpSettingsFilePath()
+
+			// Ensure the settings file exists and is accessible
+			try {
+				await fs.access(settingsPath)
+			} catch (error) {
+				console.error("Settings file not accessible:", error)
+				throw new Error("Settings file not accessible")
+			}
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Validate the config structure
+			if (!config || typeof config !== "object") {
+				throw new Error("Invalid config structure")
+			}
+
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
+				config.mcpServers = {}
+			}
+
+			if (config.mcpServers[serverName]) {
+				// Create a new server config object to ensure clean structure
+				const serverConfig = {
+					...config.mcpServers[serverName],
+					disabled,
+				}
+
+				// Ensure required fields exist
+				if (!serverConfig.autoApprove) {
+					serverConfig.autoApprove = []
+				}
+
+				config.mcpServers[serverName] = serverConfig
+
+				// Write the entire config back
+				const updatedConfig = {
+					mcpServers: config.mcpServers,
+				}
+
+				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+
+				const connection = this.connections.find((conn) => conn.server.name === serverName)
+				if (connection) {
+					try {
+						connection.server.disabled = disabled
+
+						// Only refresh capabilities if connected
+						if (connection.server.status === "connected") {
+							connection.server.tools = await this.fetchToolsList(serverName)
+							connection.server.resources = await this.fetchResourcesList(serverName)
+							connection.server.resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+						}
+					} catch (error) {
+						console.error(`Failed to refresh capabilities for ${serverName}:`, error)
+					}
+				}
+
+				await this.notifyWebviewOfServerChanges()
+			}
+		} catch (error) {
+			console.error("Failed to update server disabled state:", error)
+			if (error instanceof Error) {
+				console.error("Error details:", error.message, error.stack)
+			}
+			vscode.window.showErrorMessage(
+				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			throw error
+		}
+	}
+
 	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled`)
 		}
 		return await connection.client.request(
 			{
@@ -464,6 +565,11 @@ export class McpHub {
 				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
 			)
 		}
+
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
+		}
+
 		return await connection.client.request(
 			{
 				method: "tools/call",
@@ -474,6 +580,44 @@ export class McpHub {
 			},
 			CallToolResultSchema,
 		)
+	}
+
+	async toggleToolAutoApprove(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Initialize autoApprove if it doesn't exist
+			if (!config.mcpServers[serverName].autoApprove) {
+				config.mcpServers[serverName].autoApprove = []
+			}
+
+			const autoApprove = config.mcpServers[serverName].autoApprove
+			const toolIndex = autoApprove.indexOf(toolName)
+
+			if (shouldAllow && toolIndex === -1) {
+				// Add tool to autoApprove list
+				autoApprove.push(toolName)
+			} else if (!shouldAllow && toolIndex !== -1) {
+				// Remove tool from autoApprove list
+				autoApprove.splice(toolIndex, 1)
+			}
+
+			// Write updated config back to file
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				connection.server.tools = await this.fetchToolsList(serverName)
+				await this.notifyWebviewOfServerChanges()
+			}
+		} catch (error) {
+			console.error("Failed to update autoApprove settings:", error)
+			vscode.window.showErrorMessage("Failed to update autoApprove settings")
+			throw error // Re-throw to ensure the error is properly handled
+		}
 	}
 
 	async dispose(): Promise<void> {
