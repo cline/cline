@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import { DiffStrategy, getDiffStrategy, UnifiedDiffStrategy } from "./diff/DiffStrategy"
-import { validateToolUse, isToolAllowedForMode } from "./mode-validator"
+import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
 import delay from "delay"
 import fs from "fs/promises"
 import os from "os"
@@ -827,7 +827,9 @@ export class Cline {
 				mode,
 				customPrompts,
 				customModes,
+				this.customInstructions,
 				preferredLanguage,
+				this.diffEnabled,
 			)
 		})()
 
@@ -1140,11 +1142,13 @@ export class Cline {
 					await this.browserSession.closeBrowser()
 				}
 
-				// Validate tool use based on current mode
+				// Validate tool use before execution
 				const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
 				const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 				try {
-					validateToolUse(block.name, mode ?? defaultModeSlug, customModes)
+					validateToolUse(block.name as ToolName, mode ?? defaultModeSlug, customModes ?? [], {
+						apply_diff: this.diffEnabled,
+					})
 				} catch (error) {
 					this.consecutiveMistakeCount++
 					pushToolResult(formatResponse.toolError(error.message))
@@ -2637,8 +2641,10 @@ export class Cline {
 
 		// Add warning if not in code mode
 		if (
-			!isToolAllowedForMode("write_to_file", currentMode, customModes ?? []) &&
-			!isToolAllowedForMode("apply_diff", currentMode, customModes ?? [])
+			!isToolAllowedForMode("write_to_file", currentMode, customModes ?? [], {
+				apply_diff: this.diffEnabled,
+			}) &&
+			!isToolAllowedForMode("apply_diff", currentMode, customModes ?? [], { apply_diff: this.diffEnabled })
 		) {
 			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
 			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug

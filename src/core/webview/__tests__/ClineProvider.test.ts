@@ -970,8 +970,8 @@ describe("ClineProvider", () => {
 			)
 		})
 
-		test("passes diffStrategy to SYSTEM_PROMPT when previewing", async () => {
-			// Mock getState to return experimentalDiffStrategy and fuzzyMatchThreshold
+		test("passes diffStrategy and diffEnabled to SYSTEM_PROMPT when previewing", async () => {
+			// Mock getState to return experimentalDiffStrategy, diffEnabled and fuzzyMatchThreshold
 			jest.spyOn(provider, "getState").mockResolvedValue({
 				apiConfiguration: {
 					apiProvider: "openrouter",
@@ -983,10 +983,11 @@ describe("ClineProvider", () => {
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
 				experimentalDiffStrategy: true,
+				diffEnabled: true,
 				fuzzyMatchThreshold: 0.8,
 			} as any)
 
-			// Mock SYSTEM_PROMPT to verify diffStrategy is passed
+			// Mock SYSTEM_PROMPT to verify diffStrategy and diffEnabled are passed
 			const systemPromptModule = require("../../prompts/system")
 			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
 
@@ -1006,14 +1007,61 @@ describe("ClineProvider", () => {
 				}),
 				"900x600", // browserViewportSize
 				"code", // mode
-				expect.any(Object), // customPrompts
-				expect.any(Object), // customModes
+				{}, // customPrompts
+				{}, // customModes
 				undefined, // effectiveInstructions
+				undefined, // preferredLanguage
+				true, // diffEnabled
 			)
 
 			// Run the test again to verify it's consistent
 			await handler({ type: "getSystemPrompt", mode: "code" })
 			expect(systemPromptSpy).toHaveBeenCalledTimes(2)
+		})
+
+		test("passes diffEnabled: false to SYSTEM_PROMPT when diff is disabled", async () => {
+			// Mock getState to return diffEnabled: false
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				apiConfiguration: {
+					apiProvider: "openrouter",
+					apiModelId: "test-model",
+					openRouterModelInfo: { supportsComputerUse: true },
+				},
+				customPrompts: {},
+				mode: "code",
+				mcpEnabled: false,
+				browserViewportSize: "900x600",
+				experimentalDiffStrategy: true,
+				diffEnabled: false,
+				fuzzyMatchThreshold: 0.8,
+			} as any)
+
+			// Mock SYSTEM_PROMPT to verify diffEnabled is passed as false
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Trigger getSystemPrompt
+			const handler = getMessageHandler()
+			await handler({ type: "getSystemPrompt", mode: "code" })
+
+			// Verify SYSTEM_PROMPT was called with diffEnabled: false
+			expect(systemPromptSpy).toHaveBeenCalledWith(
+				expect.anything(), // context
+				expect.any(String), // cwd
+				true, // supportsComputerUse
+				undefined, // mcpHub (disabled)
+				expect.objectContaining({
+					// diffStrategy
+					getToolDescription: expect.any(Function),
+				}),
+				"900x600", // browserViewportSize
+				"code", // mode
+				{}, // customPrompts
+				{}, // customModes
+				undefined, // effectiveInstructions
+				undefined, // preferredLanguage
+				false, // diffEnabled
+			)
 		})
 
 		test("uses correct mode-specific instructions when mode is specified", async () => {

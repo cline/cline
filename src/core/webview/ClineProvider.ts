@@ -18,7 +18,16 @@ import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { WebviewMessage } from "../../shared/WebviewMessage"
-import { defaultModeSlug } from "../../shared/modes"
+import {
+	Mode,
+	modes,
+	CustomPrompts,
+	PromptComponent,
+	enhance,
+	ModeConfig,
+	defaultModeSlug,
+	getModeBySlug,
+} from "../../shared/modes"
 import { SYSTEM_PROMPT } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
 import { Cline } from "../Cline"
@@ -31,7 +40,6 @@ import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import { Mode, modes, CustomPrompts, PromptComponent, enhance, ModeConfig } from "../../shared/modes"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -963,6 +971,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								customInstructions,
 								preferredLanguage,
 								browserViewportSize,
+								diffEnabled,
 								mcpEnabled,
 								fuzzyMatchThreshold,
 								experimentalDiffStrategy,
@@ -980,11 +989,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const mode = message.mode ?? defaultModeSlug
 							const customModes = await this.customModesManager.getCustomModes()
 
-							const modePrompt = customPrompts?.[mode]
-							const effectiveInstructions = [customInstructions, modePrompt?.customInstructions]
-								.filter(Boolean)
-								.join("\n\n")
-
 							const systemPrompt = await SYSTEM_PROMPT(
 								this.context,
 								cwd,
@@ -993,15 +997,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								diffStrategy,
 								browserViewportSize ?? "900x600",
 								mode,
-								{
-									...customPrompts,
-									[mode]: {
-										...(modePrompt ?? {}),
-										customInstructions: undefined, // Prevent double-inclusion
-									},
-								},
+								customPrompts,
 								customModes,
-								effectiveInstructions || undefined,
+								customInstructions,
+								preferredLanguage,
+								diffEnabled,
 							)
 
 							await this.postMessageToWebview({

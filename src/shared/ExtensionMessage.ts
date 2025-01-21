@@ -108,6 +108,7 @@ export interface ExtensionState {
 	experimentalDiffStrategy?: boolean
 	autoApprovalEnabled?: boolean
 	customModes: ModeConfig[]
+	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
 }
 
 export interface ClineMessage {
