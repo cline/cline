@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.4
-
-### Patch Changes
+## [3.2.4]
 
 - Only allow use of the diff tool if it's enabled in settings
 
