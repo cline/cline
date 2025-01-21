@@ -50,21 +50,24 @@ export function getToolDescriptionsForMode(
 		mcpHub,
 	}
 
-	// Get all tools from the mode's groups and always available tools
 	const tools = new Set<string>()
 
 	// Add tools from mode's groups
 	config.groups.forEach((group) => {
-		TOOL_GROUPS[group].forEach((tool) => tools.add(tool))
+		TOOL_GROUPS[group].forEach((tool) => {
+			if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [])) {
+				tools.add(tool)
+			}
+		})
 	})
 
 	// Add always available tools
 	ALWAYS_AVAILABLE_TOOLS.forEach((tool) => tools.add(tool))
 
-	// Map tool descriptions for all allowed tools
+	// Map tool descriptions for allowed tools
 	const descriptions = Array.from(tools).map((toolName) => {
 		const descriptionFn = toolDescriptionMap[toolName]
-		if (!descriptionFn || !isToolAllowedForMode(toolName as ToolName, mode, customModes ?? [])) {
+		if (!descriptionFn) {
 			return undefined
 		}
 

@@ -103,10 +103,22 @@ export function isCustomMode(slug: string, customModes?: ModeConfig[]): boolean 
 	return !!customModes?.some((mode) => mode.slug === slug)
 }
 
-export function isToolAllowedForMode(tool: string, modeSlug: string, customModes: ModeConfig[]): boolean {
+export function isToolAllowedForMode(
+	tool: string,
+	modeSlug: string,
+	customModes: ModeConfig[],
+	toolRequirements?: Record<string, boolean>,
+): boolean {
 	// Always allow these tools
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
+	}
+
+	// Check tool requirements if any exist
+	if (toolRequirements && tool in toolRequirements) {
+		if (!toolRequirements[tool]) {
+			return false
+		}
 	}
 
 	const mode = getModeBySlug(modeSlug, customModes)

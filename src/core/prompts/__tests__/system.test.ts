@@ -235,7 +235,7 @@ describe("SYSTEM_PROMPT", () => {
 		expect(prompt).toMatchSnapshot()
 	})
 
-	it("should include diff strategy tool description", async () => {
+	it("should include diff strategy tool description when diffEnabled is true", async () => {
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
 			"/test/path",
@@ -246,9 +246,72 @@ describe("SYSTEM_PROMPT", () => {
 			defaultModeSlug, // mode
 			undefined, // customPrompts
 			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // preferredLanguage
+			true, // diffEnabled
 		)
 
+		expect(prompt).toContain("apply_diff")
 		expect(prompt).toMatchSnapshot()
+	})
+
+	it("should exclude diff strategy tool description when diffEnabled is false", async () => {
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customPrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // preferredLanguage
+			false, // diffEnabled
+		)
+
+		expect(prompt).not.toContain("apply_diff")
+		expect(prompt).toMatchSnapshot()
+	})
+
+	it("should exclude diff strategy tool description when diffEnabled is undefined", async () => {
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customPrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // preferredLanguage
+			undefined, // diffEnabled
+		)
+
+		expect(prompt).not.toContain("apply_diff")
+		expect(prompt).toMatchSnapshot()
+	})
+
+	it("should include preferred language in custom instructions", async () => {
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customPrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			"Spanish", // preferredLanguage
+		)
+
+		expect(prompt).toContain("Language Preference:")
+		expect(prompt).toContain("You should always speak and think in the Spanish language")
 	})
 
 	it("should include custom mode role definition at top and instructions at bottom", async () => {
