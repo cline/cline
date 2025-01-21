@@ -34,12 +34,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<h3 style={{ margin: "0 0 8px" }}>{t("newInVersion", { version: minorVersion })}</h3>
 				<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 					{newChangesList.map((transcluded, index) => (
-						<Trans
-							components={{
-								Link: <VSCodeLink href="#" />,
-							}}>
-							{transcluded}
-						</Trans>
+						<li>
+							<Trans
+								components={{
+									Link: <VSCodeLink href="#" />,
+								}}>
+								{transcluded}
+							</Trans>
+						</li>
 					))}
 				</ul>
 				<div

@@ -1,14 +1,14 @@
 {
 	"announcement": {
-		"newInVersion": "New in version {{version}}",
+		"newInVersion": "Neu in Version {{version}}",
 		"newChangesList": [
-			"<b>Plan/Act mode toggle:</b> Plan mode lets Cline focus on gathering information, asking clarifying questions, brainstorm ideas, and architect a solution. Switch back to Act mode to let him execute the plan!",
-			"<b>Quick API/model switching</b> with a new popup menu under the chat field",
-			"<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot",
-			"<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for individual tools",
-			"In case you missed it, Cline now supports Checkpoints! <Link href=\"https://x.com/sdrzn/status/1876378124126236949\">See it in action here.</Link>"
+			"<b>Plan/Act-Modus-Umschaltung:</b> Im Plan-Modus konzentriert sich Cline darauf, Informationen zu sammeln, klärende Fragen zu stellen, Ideen zu brainstormen und eine Lösung zu entwerfen. Wechseln Sie zurück in den Act-Modus, um den Plan auszuführen!",
+			"<b>Schnelles API/Modell-Wechseln</b> mit einem neuen Popup-Menü unter dem Chat-Feld",
+			"<b>VS Code LM API</b> ermöglicht die Verwendung von Modellen aus anderen Erweiterungen wie GitHub Copilot",
+			"<b>MCP-Server-Verbesserungen:</b> Ein-/Ausschaltfunktion zum Deaktivieren von Servern, wenn sie nicht verwendet werden, und Auto-Approve-Option für einzelne Tools",
+			"Falls Sie es verpasst haben, Cline unterstützt jetzt Checkpoints! <Link href=\"https://x.com/sdrzn/status/1876378124126236949\">Sehen Sie es hier in Aktion.</Link>"
 		],
-		"joinOurCommunities": "Join our <DiscordLink>Discord</DiscordLink> or <RedditLink>Reddit</RedditLink> for more updates!"
+		"joinOurCommunities": "Treten Sie unserem <DiscordLink>Discord</DiscordLink> oder <RedditLink>Reddit</RedditLink> für weitere Updates bei!"
 	},
 	"settingsView": {
 		"settings": "Einstellungen",

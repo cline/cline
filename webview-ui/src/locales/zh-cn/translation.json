@@ -1,16 +1,14 @@
 {
 	"announcement": {
 		"newInVersion": "版本 {{version}} 中的新功能",
-		"checkpointsTitle": "检查点",
-		"checkpointsDescription": "创建检查点以保存进度。",
-		"compareTitle": "比较",
-		"compareDescription": "比较检查点之间的更改。",
-		"restoreTitle": "恢复",
-		"restoreDescription": "恢复以前的版本。",
-		"seeNewChanges": "如果您错过了，Cline 现在支持检查点！<NewChangesLink>在这里查看操作。</NewChangesLink>",
-		"seeDemo": "查看演示",
-		"joinOur": "加入我们的",
-		"joinOurCommunities": "加入我们的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 以获取更多更新。"
+		"newChangesList": [
+			"<b>计划/执行模式切换：</b> 计划模式让 Cline 专注于收集信息、提出澄清问题、头脑风暴和架构解决方案。切换回执行模式，让他执行计划！",
+			"<b>快速 API/模型切换</b>，在聊天字段下有一个新的弹出菜单",
+			"<b>VS Code LM API</b> 允许您使用其他扩展中的模型，如 GitHub Copilot",
+			"<b>MCP 服务器改进：</b> 开/关切换以在不使用时禁用服务器，并为单个工具提供自动批准选项",
+			"如果您错过了，Cline 现在支持检查点！<Link href=\"https://x.com/sdrzn/status/1876378124126236949\">在这里查看。</Link>"
+		],
+		"joinOurCommunities": "加入我们的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 获取更多更新！"
 	},
 	"settingsView": {
 		"settings": "设置",
