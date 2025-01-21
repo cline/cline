@@ -10,7 +10,11 @@ import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
-const GlamaModelPicker: React.FC = () => {
+export interface GlamaModelPickerProps {
+	isPopup?: boolean
+}
+
+const GlamaModelPicker: React.FC<GlamaModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, glamaModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.glamaModelId || glamaDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -200,6 +204,7 @@ const GlamaModelPicker: React.FC = () => {
 					modelInfo={selectedModelInfo}
 					isDescriptionExpanded={isDescriptionExpanded}
 					setIsDescriptionExpanded={setIsDescriptionExpanded}
+					isPopup={isPopup}
 				/>
 			) : (
 				<p
@@ -315,11 +320,13 @@ export const ModelDescriptionMarkdown = memo(
 		key,
 		isExpanded,
 		setIsExpanded,
+		isPopup,
 	}: {
 		markdown?: string
 		key: string
 		isExpanded: boolean
 		setIsExpanded: (isExpanded: boolean) => void
+		isPopup?: boolean
 	}) => {
 		const [reactContent, setMarkdown] = useRemark()
 		const [showSeeMore, setShowSeeMore] = useState(false)
@@ -380,7 +387,7 @@ export const ModelDescriptionMarkdown = memo(
 									fontSize: "inherit",
 									paddingRight: 0,
 									paddingLeft: 3,
-									backgroundColor: "var(--vscode-sideBar-background)",
+									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
 								See more
