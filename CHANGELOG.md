@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.1
-
-### Patch Changes
+## [3.2.1]
 
 - Fix announcement
 
