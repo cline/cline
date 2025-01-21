@@ -10,6 +10,7 @@ import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
+import { getDiffStrategy } from "../diff/DiffStrategy"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
@@ -962,7 +963,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								preferredLanguage,
 								browserViewportSize,
 								mcpEnabled,
+								fuzzyMatchThreshold,
+								experimentalDiffStrategy,
 							} = await this.getState()
+
+							// Create diffStrategy based on current model and settings
+							const diffStrategy = getDiffStrategy(
+								apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
+								fuzzyMatchThreshold,
+								experimentalDiffStrategy,
+							)
 							const cwd =
 								vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
 
@@ -979,7 +989,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								cwd,
 								apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
 								mcpEnabled ? this.mcpHub : undefined,
-								undefined,
+								diffStrategy,
 								browserViewportSize ?? "900x600",
 								mode,
 								{
