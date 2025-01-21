@@ -572,7 +572,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshGlamaModels":
 						await this.refreshGlamaModels()
-						break;
+						break
 					case "requestVsCodeLmModels":
 						const vsCodeLmModels = await this.getVsCodeLmModels()
 						this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
