@@ -740,9 +740,10 @@ npm run build
 
 ## Editing MCP Servers
 
-The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${
+The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' below: ${
 				mcpHub
 					.getServers()
+					.filter((server) => server.status === "connected")
 					.map((server) => server.name)
 					.join(", ") || "(None running currently)"
 			}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use replace_in_file to make changes to the files.
