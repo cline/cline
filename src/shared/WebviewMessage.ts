@@ -76,7 +76,7 @@ export interface WebviewMessage {
 		| "autoApprovalEnabled"
 		| "updateCustomMode"
 		| "deleteCustomMode"
-		| "setOpenAiCusModelInfo"
+		| "setopenAiCustomModelInfo"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

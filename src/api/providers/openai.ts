@@ -108,7 +108,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.openAiModelId ?? "",
-			info: this.options.openAiCusModelInfo ?? openAiModelInfoSaneDefaults,
+			info: this.options.openAiCustomModelInfo ?? openAiModelInfoSaneDefaults,
 		}
 	}
 
