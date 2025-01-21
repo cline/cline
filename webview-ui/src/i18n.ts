@@ -14,7 +14,7 @@ i18n.use(initReactI18next) // passes i18n down to react-i18next
 		react: {
 			bindI18n: "languageChanged",
 			transSupportBasicHtmlNodes: true,
-			transKeepBasicHtmlNodesFor: ["b", "i", "strong", "em"],
+			transKeepBasicHtmlNodesFor: ["b", "i", "strong", "em", "br"],
 		},
 	})
 
