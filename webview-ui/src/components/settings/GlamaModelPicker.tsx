@@ -8,6 +8,7 @@ import { glamaDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 export interface GlamaModelPickerProps {
