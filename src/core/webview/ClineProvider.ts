@@ -67,6 +67,7 @@ type GlobalStateKey =
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
+	| "localeLanguage"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -1027,6 +1028,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			localeLanguage: vscode.env.language,
 		}
 	}
 
@@ -1116,6 +1118,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			localeLanguage,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1150,6 +1153,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("localeLanguage") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider

@@ -1,0 +1,32 @@
+{
+	"announcement": {
+		"newInVersion": "New in version {{version}}",
+		"checkpointsTitle": "Checkpoints",
+		"checkpointsDescription": "Create checkpoints to save progress.",
+		"compareTitle": "Compare",
+		"compareDescription": "Compare changes between checkpoints.",
+		"restoreTitle": "Restore",
+		"restoreDescription": "Restore previous versions.",
+		"seeNewChangesTitle": "See new changes",
+		"seeNewChangesDescription": "View the latest changes.",
+		"seeDemo": "See demo",
+		"joinOurCommunities": "Join our <DiscordLink>Discord</DiscordLink> or <RedditLink>Reddit</RedditLink> for more updates!"
+	},
+	"settingsView": {
+		"settings": "Settings",
+		"done": "Done",
+		"language": "Language",
+		"english": "English",
+		"german": "German",
+		"chinese": "Chinese",
+		"japanese": "Japanese",
+		"customInstructions": "Custom Instructions",
+		"customInstructionsPlaceholder": "e.g. \"Run unit tests at the end\", \"Use TypeScript with async/await\", \"Speak in Japanese\"",
+		"customInstructionsDescription": "These instructions are added to the end of the system prompt sent with every request.",
+		"debug": "Debug",
+		"resetState": "Reset State",
+		"resetStateDescription": "This will reset all global state and secret storage in the extension.",
+		"feedback": "If you have any questions or feedback, feel free to open an issue at",
+		"version": "v"
+	}
+}

@@ -1,0 +1,33 @@
+{
+	"announcement": {
+		"newInVersion": "版本 {{version}} 中的新功能",
+		"checkpointsTitle": "检查点",
+		"checkpointsDescription": "创建检查点以保存进度。",
+		"compareTitle": "比较",
+		"compareDescription": "比较检查点之间的更改。",
+		"restoreTitle": "恢复",
+		"restoreDescription": "恢复以前的版本。",
+		"seeNewChangesTitle": "查看新更改",
+		"seeNewChangesDescription": "查看最新更改。",
+		"seeDemo": "查看演示",
+		"joinOur": "加入我们的",
+		"joinOurCommunities": "加入我们的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 以获取更多更新。"
+	},
+	"settingsView": {
+		"settings": "设置",
+		"done": "完成",
+		"language": "语言",
+		"english": "英语",
+		"german": "德语",
+		"chinese": "中文",
+		"japanese": "日语",
+		"customInstructions": "自定义指令",
+		"customInstructionsPlaceholder": "例如 \"在结束时运行单元测试\", \"使用 TypeScript 和 async/await\", \"用日语交流\"",
+		"customInstructionsDescription": "这些指令会添加到每个请求发送的系统提示的末尾。",
+		"debug": "调试",
+		"resetState": "重置状态",
+		"resetStateDescription": "这将重置扩展中的所有全局状态和秘密存储。",
+		"feedback": "如果您有任何问题或反馈，请随时在以下网址提交问题",
+		"version": "版本"
+	}
+}

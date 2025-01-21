@@ -8,9 +8,11 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
+import { useTranslation } from "react-i18next"
 
 const AppContent = () => {
-	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, shouldShowAnnouncement, localeLanguage } = useExtensionState()
+	const { i18n } = useTranslation()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showMcp, setShowMcp] = useState(false)
@@ -54,6 +56,12 @@ const AppContent = () => {
 			vscode.postMessage({ type: "didShowAnnouncement" })
 		}
 	}, [shouldShowAnnouncement])
+
+	useEffect(() => {
+		if (localeLanguage) {
+			i18n.changeLanguage(localeLanguage)
+		}
+	}, [i18n, localeLanguage])
 
 	if (!didHydrateState) {
 		return null

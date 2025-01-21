@@ -1,0 +1,33 @@
+{
+	"announcement": {
+		"newInVersion": "版本 {{version}} 中的新功能",
+		"checkpointsTitle": "檢查點",
+		"checkpointsDescription": "創建檢查點以保存進度。",
+		"compareTitle": "比較",
+		"compareDescription": "比較檢查點之間的更改。",
+		"restoreTitle": "恢復",
+		"restoreDescription": "恢復以前的版本。",
+		"seeNewChangesTitle": "查看新更改",
+		"seeNewChangesDescription": "查看最新更改。",
+		"seeDemo": "查看演示",
+		"joinOur": "加入我們的",
+		"joinOurCommunities": "加入我們的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 以獲取更多更新。"
+	},
+	"settingsView": {
+		"settings": "設置",
+		"done": "完成",
+		"language": "語言",
+		"english": "英語",
+		"german": "德語",
+		"chinese": "中文",
+		"japanese": "日語",
+		"customInstructions": "自定義指令",
+		"customInstructionsPlaceholder": "例如 \"在結束時運行單元測試\", \"使用 TypeScript 和 async/await\", \"用日語交流\"",
+		"customInstructionsDescription": "這些指令會添加到每個請求發送的系統提示的末尾。",
+		"debug": "調試",
+		"resetState": "重置狀態",
+		"resetStateDescription": "這將重置擴展中的所有全局狀態和秘密存儲。",
+		"feedback": "如果您有任何問題或反饋，請隨時在以下網址提交問題",
+		"version": "版本"
+	}
+}

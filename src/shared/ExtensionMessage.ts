@@ -51,6 +51,7 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
+	localeLanguage: string
 }
 
 export interface ClineMessage {

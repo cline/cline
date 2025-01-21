@@ -1,0 +1,32 @@
+{
+	"announcement": {
+		"newInVersion": "バージョン{{version}}の新機能",
+		"checkpointsTitle": "チェックポイント",
+		"checkpointsDescription": "進捗を保存するためのチェックポイントを作成します。",
+		"compareTitle": "比較",
+		"compareDescription": "チェックポイント間の変更を比較します。",
+		"restoreTitle": "復元",
+		"restoreDescription": "以前のバージョンを復元します。",
+		"seeNewChangesTitle": "新しい変更を見る",
+		"seeNewChangesDescription": "最新の変更を表示します。",
+		"seeDemo": "デモを見る",
+		"joinOurCommunities": "最新情報を入手するには、私たちの <DiscordLink>Discord</DiscordLink> または <RedditLink>Reddit</RedditLink> に参加してください！"
+	},
+	"settingsView": {
+		"settings": "設定",
+		"done": "完了",
+		"language": "言語",
+		"english": "英語",
+		"german": "ドイツ語",
+		"chinese": "中国語",
+		"japanese": "日本語",
+		"customInstructions": "カスタム指示",
+		"customInstructionsPlaceholder": "例: \"最後に単体テストを実行する\", \"async/awaitを使用してTypeScriptを使用する\", \"日本語で話す\"",
+		"customInstructionsDescription": "これらの指示は、各リクエストと共に送信されるシステムプロンプトの最後に追加されます。",
+		"debug": "デバッグ",
+		"resetState": "状態をリセット",
+		"resetStateDescription": "これにより、拡張機能のすべてのグローバル状態と秘密のストレージがリセットされます。",
+		"feedback": "ご質問やフィードバックがある場合は、気軽に問題を開いてください",
+		"version": "バージョン"
+	}
+}

@@ -11,6 +11,7 @@ import {
 	ClineSayTool,
 	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
+import { useTranslation } from "react-i18next"
 import { findLast } from "../../../../src/shared/array"
 import { combineApiRequests } from "../../../../src/shared/combineApiRequests"
 import { combineCommandSequences } from "../../../../src/shared/combineCommandSequences"
@@ -36,6 +37,7 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const { t, i18n, ready } = useTranslation("translation", { keyPrefix: "announcement", useSuspense: false })
 	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined

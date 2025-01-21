@@ -1,9 +1,11 @@
 import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import LanguageOptions from "./LanguageOptions"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -12,6 +14,7 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
+	const { t } = useTranslation("translation", { keyPrefix: "settingsView", useSuspense: false })
 	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -38,18 +41,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
-	// validate as soon as the component is mounted
-	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
-
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
 	}
@@ -75,8 +66,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					marginBottom: "17px",
 					paddingRight: 17,
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>{t("settings")}</h3>
+				<VSCodeButton onClick={handleSubmit}>{t("done")}</VSCodeButton>
 			</div>
 			<div
 				style={{
@@ -99,9 +90,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
 						rows={4}
-						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
+						placeholder={t("customInstructionsPlaceholder")}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+						<span style={{ fontWeight: "500" }}>{t("customInstructions")}</span>
 					</VSCodeTextArea>
 					<p
 						style={{
@@ -109,15 +100,18 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						These instructions are added to the end of the system prompt sent with every request.
+						{t("customInstructionsDescription")}
 					</p>
+				</div>
+				<div style={{ marginBottom: 5 }}>
+					<LanguageOptions />
 				</div>
 
 				{IS_DEV && (
 					<>
-						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>{t("debug")}</div>
 						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
-							Reset State
+							{t("resetState")}
 						</VSCodeButton>
 						<p
 							style={{
@@ -125,7 +119,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							This will reset all global state and secret storage in the extension.
+							{t("resetStateDescription")}
 						</p>
 					</>
 				)}
@@ -145,7 +139,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: 0,
 							padding: 0,
 						}}>
-						If you have any questions or feedback, feel free to open an issue at{" "}
+						{t("feedback")}{" "}
 						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
 							https://github.com/cline/cline
 						</VSCodeLink>
@@ -156,7 +150,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: "10px 0 0 0",
 							padding: 0,
 						}}>
-						v{version}
+						{t("version")} {version}
 					</p>
 				</div>
 			</div>
