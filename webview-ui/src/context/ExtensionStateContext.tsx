@@ -7,6 +7,8 @@ import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
+import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
+import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -31,6 +33,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
+		browserSettings: DEFAULT_BROWSER_SETTINGS,
+		chatSettings: DEFAULT_CHAT_SETTINGS,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -59,6 +63,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
 							config.deepSeekApiKey,
+							config.mistralApiKey,
+							config.vsCodeLmModelSelector,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)

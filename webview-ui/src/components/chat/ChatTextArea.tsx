@@ -1,5 +1,18 @@
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
+import { useClickAway, useWindowSize } from "react-use"
+import styled from "styled-components"
+import {
+	anthropicDefaultModelId,
+	bedrockDefaultModelId,
+	deepSeekDefaultModelId,
+	geminiDefaultModelId,
+	mistralDefaultModelId,
+	openAiNativeDefaultModelId,
+	openRouterDefaultModelId,
+	vertexDefaultModelId,
+} from "../../../../src/shared/api"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
@@ -9,9 +22,13 @@ import {
 	removeMention,
 	shouldShowContextMenu,
 } from "../../utils/context-mentions"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
+import { vscode } from "../../utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import Thumbnails from "../common/Thumbnails"
+import ApiOptions from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import Thumbnails from "../common/Thumbnails"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -25,6 +42,164 @@ interface ChatTextAreaProps {
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
 }
+
+const SwitchOption = styled.div<{ isActive: boolean }>`
+	padding: 2px 8px;
+	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
+	z-index: 1;
+	transition: color 0.2s ease;
+	font-size: 12px;
+	width: 50%;
+	text-align: center;
+
+	&:hover {
+		background-color: ${(props) => (!props.isActive ? "var(--vscode-toolbar-hoverBackground)" : "transparent")};
+	}
+`
+
+const SwitchContainer = styled.div<{ disabled: boolean }>`
+	display: flex;
+	align-items: center;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 12px;
+	overflow: hidden;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	transform: scale(0.85);
+	transform-origin: right center;
+	margin-left: -10px; // compensate for the transform so flex spacing works
+`
+
+const Slider = styled.div<{ isAct: boolean }>`
+	position: absolute;
+	height: 100%;
+	width: 50%;
+	background-color: var(--vscode-focusBorder);
+	transition: transform 0.2s ease;
+	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
+`
+
+const ButtonGroup = styled.div`
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+`
+
+const ButtonContainer = styled.div`
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 10px;
+	white-space: nowrap;
+	min-width: 0;
+	width: 100%;
+`
+
+const ControlsContainer = styled.div`
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: -5px;
+	padding: 0px 15px 5px 15px;
+`
+
+const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
+	position: fixed;
+	bottom: calc(100% + 9px);
+	left: 15px;
+	right: 15px;
+	background: ${CODE_BLOCK_BG_COLOR};
+	border: 1px solid var(--vscode-editorGroup-border);
+	padding: 12px;
+	border-radius: 3px;
+	z-index: 1000;
+	max-height: calc(100vh - 100px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+
+	// Add invisible padding for hover zone
+	&::before {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
+		left: 0;
+		right: 0;
+		height: 8px;
+	}
+
+	// Arrow pointing down
+	&::after {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
+		right: ${(props) => props.arrowPosition}px;
+		width: 10px;
+		height: 10px;
+		background: ${CODE_BLOCK_BG_COLOR};
+		border-right: 1px solid var(--vscode-editorGroup-border);
+		border-bottom: 1px solid var(--vscode-editorGroup-border);
+		transform: rotate(45deg);
+		z-index: -1;
+	}
+`
+
+const ModelContainer = styled.div`
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-width: 0;
+`
+
+const ModelButtonWrapper = styled.div`
+	display: inline-flex; // Make it shrink to content
+	min-width: 0; // Allow shrinking
+	max-width: 100%; // Don't overflow parent
+`
+
+const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
+	padding: 0px 0px;
+	height: 20px;
+	width: 100%;
+	min-width: 0;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+	text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	display: flex;
+	align-items: center;
+	font-size: 10px;
+	outline: none;
+	user-select: none;
+	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+
+	&:hover,
+	&:focus {
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		outline: none;
+	}
+
+	&:active {
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		outline: none;
+	}
+
+	&:focus-visible {
+		outline: none;
+	}
+`
+
+const ModelButtonContent = styled.div`
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+`
 
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
@@ -42,7 +217,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -57,6 +232,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+		const [showModelSelector, setShowModelSelector] = useState(false)
+		const modelSelectorRef = useRef<HTMLDivElement>(null)
+		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
+		const buttonRef = useRef<HTMLDivElement>(null)
+		const [arrowPosition, setArrowPosition] = useState(0)
+		const [menuPosition, setMenuPosition] = useState(0)
+
+		// Add a ref to track previous menu state
+		const prevShowModelSelector = useRef(showModelSelector)
 
 		const queryItems = useMemo(() => {
 			return [
@@ -406,184 +590,416 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
+		const onModeToggle = useCallback(() => {
+			if (textAreaDisabled) return
+			const newMode = chatSettings.mode === "plan" ? "act" : "plan"
+			vscode.postMessage({
+				type: "chatSettings",
+				chatSettings: {
+					mode: newMode,
+				},
+			})
+			// Focus the textarea after mode toggle with slight delay
+			setTimeout(() => {
+				textAreaRef.current?.focus()
+			}, 100)
+		}, [chatSettings.mode, textAreaDisabled])
+
+		const handleContextButtonClick = useCallback(() => {
+			if (textAreaDisabled) return
+
+			// Focus the textarea first
+			textAreaRef.current?.focus()
+
+			// If input is empty, just insert @
+			if (!inputValue.trim()) {
+				const event = {
+					target: {
+						value: "@",
+						selectionStart: 1,
+					},
+				} as React.ChangeEvent<HTMLTextAreaElement>
+				handleInputChange(event)
+				updateHighlights()
+				return
+			}
+
+			// If input ends with space or is empty, just append @
+			if (inputValue.endsWith(" ")) {
+				const event = {
+					target: {
+						value: inputValue + "@",
+						selectionStart: inputValue.length + 1,
+					},
+				} as React.ChangeEvent<HTMLTextAreaElement>
+				handleInputChange(event)
+				updateHighlights()
+				return
+			}
+
+			// Otherwise add space then @
+			const event = {
+				target: {
+					value: inputValue + " @",
+					selectionStart: inputValue.length + 2,
+				},
+			} as React.ChangeEvent<HTMLTextAreaElement>
+			handleInputChange(event)
+			updateHighlights()
+		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
+
+		// Separate the API config submission logic
+		const submitApiConfig = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
+
+		// Use an effect to detect menu close
+		useEffect(() => {
+			if (prevShowModelSelector.current && !showModelSelector) {
+				// Menu was just closed
+				submitApiConfig()
+			}
+			prevShowModelSelector.current = showModelSelector
+		}, [showModelSelector, submitApiConfig])
+
+		// Remove the handleApiConfigSubmit callback
+		// Update click handler to just toggle the menu
+		const handleModelButtonClick = () => {
+			setShowModelSelector(!showModelSelector)
+		}
+
+		// Update click away handler to just close menu
+		useClickAway(modelSelectorRef, () => {
+			setShowModelSelector(false)
+		})
+
+		// Get model display name
+		const modelDisplayName = useMemo(() => {
+			const unknownModel = "unknown"
+			if (!apiConfiguration) return unknownModel
+			switch (apiConfiguration.apiProvider) {
+				case "anthropic":
+					return `anthropic:${apiConfiguration.apiModelId || anthropicDefaultModelId}`
+				case "openai":
+					return `openai:${apiConfiguration.openAiModelId || unknownModel}`
+				case "openrouter":
+					return `openrouter:${apiConfiguration.openRouterModelId || openRouterDefaultModelId}`
+				case "bedrock":
+					return `bedrock:${apiConfiguration.apiModelId || bedrockDefaultModelId}`
+				case "vertex":
+					return `vertex:${apiConfiguration.apiModelId || vertexDefaultModelId}`
+				case "ollama":
+					return `ollama:${apiConfiguration.ollamaModelId || unknownModel}`
+				case "lmstudio":
+					return `lmstudio:${apiConfiguration.lmStudioModelId || unknownModel}`
+				case "gemini":
+					return `gemini:${apiConfiguration.apiModelId || geminiDefaultModelId}`
+				case "openai-native":
+					return `openai-native:${apiConfiguration.apiModelId || openAiNativeDefaultModelId}`
+				case "deepseek":
+					return `deepseek:${apiConfiguration.apiModelId || deepSeekDefaultModelId}`
+				case "mistral":
+					return `mistral:${apiConfiguration.apiModelId || mistralDefaultModelId}`
+				case "vscode-lm":
+					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+				default:
+					return unknownModel
+			}
+		}, [apiConfiguration])
+
+		// Calculate arrow position and menu position based on button location
+		useEffect(() => {
+			if (showModelSelector && buttonRef.current) {
+				const buttonRect = buttonRef.current.getBoundingClientRect()
+				const buttonCenter = buttonRect.left + buttonRect.width / 2
+
+				// Calculate distance from right edge of viewport using viewport coordinates
+				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
+
+				setArrowPosition(rightPosition)
+				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
+			}
+		}, [showModelSelector, viewportWidth, viewportHeight])
+
+		useEffect(() => {
+			if (!showModelSelector) {
+				// Attempt to save if possible
+				// NOTE: we cannot call this here since it will create an infinite loop between this effect and the callback since getLatestState will update state. Instead we should submitapiconfig when the menu is explicitly closed, rather than as an effect of showModelSelector changing.
+				// handleApiConfigSubmit()
+
+				// Reset any active styling by blurring the button
+				const button = buttonRef.current?.querySelector("a")
+				if (button) {
+					button.blur()
+				}
+			}
+		}, [showModelSelector])
+
 		return (
-			<div
-				style={{
-					padding: "10px 15px",
-					opacity: textAreaDisabled ? 0.5 : 1,
-					position: "relative",
-					display: "flex",
-				}}>
-				{showContextMenu && (
-					<div ref={contextMenuContainerRef}>
-						<ContextMenu
-							onSelect={handleMentionSelect}
-							searchQuery={searchQuery}
-							onMouseDown={handleMenuMouseDown}
-							selectedIndex={selectedMenuIndex}
-							setSelectedIndex={setSelectedMenuIndex}
-							selectedType={selectedType}
-							queryItems={queryItems}
-						/>
-					</div>
-				)}
-				{!isTextAreaFocused && (
-					<div
-						style={{
-							position: "absolute",
-							inset: "10px 15px",
-							border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
-							pointerEvents: "none",
-							zIndex: 5,
-						}}
-					/>
-				)}
-				<div
-					ref={highlightLayerRef}
-					style={{
-						position: "absolute",
-						top: 10,
-						left: 15,
-						right: 15,
-						bottom: 10,
-						pointerEvents: "none",
-						whiteSpace: "pre-wrap",
-						wordWrap: "break-word",
-						color: "transparent",
-						overflow: "hidden",
-						backgroundColor: "var(--vscode-input-background)",
-						fontFamily: "var(--vscode-font-family)",
-						fontSize: "var(--vscode-editor-font-size)",
-						lineHeight: "var(--vscode-editor-line-height)",
-						borderRadius: 2,
-						borderLeft: 0,
-						borderRight: 0,
-						borderTop: 0,
-						borderColor: "transparent",
-						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-						padding: "9px 49px 3px 9px",
-					}}
-				/>
-				<DynamicTextArea
-					ref={(el) => {
-						if (typeof ref === "function") {
-							ref(el)
-						} else if (ref) {
-							ref.current = el
-						}
-						textAreaRef.current = el
-					}}
-					value={inputValue}
-					disabled={textAreaDisabled}
-					onChange={(e) => {
-						handleInputChange(e)
-						updateHighlights()
-					}}
-					onKeyDown={handleKeyDown}
-					onKeyUp={handleKeyUp}
-					onFocus={() => setIsTextAreaFocused(true)}
-					onBlur={handleBlur}
-					onPaste={handlePaste}
-					onSelect={updateCursorPosition}
-					onMouseUp={updateCursorPosition}
-					onHeightChange={(height) => {
-						if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
-							setTextAreaBaseHeight(height)
-						}
-						onHeightChange?.(height)
-					}}
-					placeholder={placeholderText}
-					maxRows={10}
-					autoFocus={true}
-					style={{
-						width: "100%",
-						boxSizing: "border-box",
-						backgroundColor: "transparent",
-						color: "var(--vscode-input-foreground)",
-						//border: "1px solid var(--vscode-input-border)",
-						borderRadius: 2,
-						fontFamily: "var(--vscode-font-family)",
-						fontSize: "var(--vscode-editor-font-size)",
-						lineHeight: "var(--vscode-editor-line-height)",
-						resize: "none",
-						overflowX: "hidden",
-						overflowY: "scroll",
-						scrollbarWidth: "none",
-						// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-						// borderTop: "9px solid transparent",
-						borderLeft: 0,
-						borderRight: 0,
-						borderTop: 0,
-						borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-						borderColor: "transparent",
-						// borderRight: "54px solid transparent",
-						// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-						// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-						// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-						padding: "9px 49px 3px 9px",
-						cursor: textAreaDisabled ? "not-allowed" : undefined,
-						flex: 1,
-						zIndex: 1,
-					}}
-					onScroll={() => updateHighlights()}
-				/>
-				{selectedImages.length > 0 && (
-					<Thumbnails
-						images={selectedImages}
-						setImages={setSelectedImages}
-						onHeightChange={handleThumbnailsHeightChange}
-						style={{
-							position: "absolute",
-							paddingTop: 4,
-							bottom: 14,
-							left: 22,
-							right: 67, // (54 + 9) + 4 extra padding
-							zIndex: 2,
-						}}
-					/>
-				)}
+			<div>
 				<div
 					style={{
-						position: "absolute",
-						right: 23,
+						padding: "10px 15px",
+						opacity: textAreaDisabled ? 0.5 : 1,
+						position: "relative",
 						display: "flex",
-						alignItems: "flex-center",
-						height: textAreaBaseHeight || 31,
-						bottom: 9.5, // should be 10 but doesnt look good on mac
-						zIndex: 2,
 					}}>
+					{showContextMenu && (
+						<div ref={contextMenuContainerRef}>
+							<ContextMenu
+								onSelect={handleMentionSelect}
+								searchQuery={searchQuery}
+								onMouseDown={handleMenuMouseDown}
+								selectedIndex={selectedMenuIndex}
+								setSelectedIndex={setSelectedMenuIndex}
+								selectedType={selectedType}
+								queryItems={queryItems}
+							/>
+						</div>
+					)}
+					{!isTextAreaFocused && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: 2,
+								pointerEvents: "none",
+								zIndex: 5,
+							}}
+						/>
+					)}
+					<div
+						ref={highlightLayerRef}
+						style={{
+							position: "absolute",
+							top: 10,
+							left: 15,
+							right: 15,
+							bottom: 10,
+							pointerEvents: "none",
+							whiteSpace: "pre-wrap",
+							wordWrap: "break-word",
+							color: "transparent",
+							overflow: "hidden",
+							backgroundColor: "var(--vscode-input-background)",
+							fontFamily: "var(--vscode-font-family)",
+							fontSize: "var(--vscode-editor-font-size)",
+							lineHeight: "var(--vscode-editor-line-height)",
+							borderRadius: 2,
+							borderLeft: 0,
+							borderRight: 0,
+							borderTop: 0,
+							borderColor: "transparent",
+							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							padding: "9px 49px 3px 9px",
+						}}
+					/>
+					<DynamicTextArea
+						ref={(el) => {
+							if (typeof ref === "function") {
+								ref(el)
+							} else if (ref) {
+								ref.current = el
+							}
+							textAreaRef.current = el
+						}}
+						value={inputValue}
+						disabled={textAreaDisabled}
+						onChange={(e) => {
+							handleInputChange(e)
+							updateHighlights()
+						}}
+						onKeyDown={handleKeyDown}
+						onKeyUp={handleKeyUp}
+						onFocus={() => setIsTextAreaFocused(true)}
+						onBlur={handleBlur}
+						onPaste={handlePaste}
+						onSelect={updateCursorPosition}
+						onMouseUp={updateCursorPosition}
+						onHeightChange={(height) => {
+							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
+								setTextAreaBaseHeight(height)
+							}
+							onHeightChange?.(height)
+						}}
+						placeholder={placeholderText}
+						maxRows={10}
+						autoFocus={true}
+						style={{
+							width: "100%",
+							boxSizing: "border-box",
+							backgroundColor: "transparent",
+							color: "var(--vscode-input-foreground)",
+							//border: "1px solid var(--vscode-input-border)",
+							borderRadius: 2,
+							fontFamily: "var(--vscode-font-family)",
+							fontSize: "var(--vscode-editor-font-size)",
+							lineHeight: "var(--vscode-editor-line-height)",
+							resize: "none",
+							overflowX: "hidden",
+							overflowY: "scroll",
+							scrollbarWidth: "none",
+							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
+							// borderTop: "9px solid transparent",
+							borderLeft: 0,
+							borderRight: 0,
+							borderTop: 0,
+							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							borderColor: "transparent",
+							// borderRight: "54px solid transparent",
+							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
+							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
+							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
+							padding: "9px 28px 3px 9px",
+							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							flex: 1,
+							zIndex: 1,
+						}}
+						onScroll={() => updateHighlights()}
+					/>
+					{selectedImages.length > 0 && (
+						<Thumbnails
+							images={selectedImages}
+							setImages={setSelectedImages}
+							onHeightChange={handleThumbnailsHeightChange}
+							style={{
+								position: "absolute",
+								paddingTop: 4,
+								bottom: 14,
+								left: 22,
+								right: 47, // (54 + 9) + 4 extra padding
+								zIndex: 2,
+							}}
+						/>
+					)}
 					<div
 						style={{
+							position: "absolute",
+							right: 23,
 							display: "flex",
-							flexDirection: "row",
-							alignItems: "center",
+							alignItems: "flex-center",
+							height: textAreaBaseHeight || 31,
+							bottom: 9.5, // should be 10 but doesnt look good on mac
+							zIndex: 2,
 						}}>
 						<div
-							className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								alignItems: "center",
+							}}>
+							{/* <div
+								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
+								onClick={() => {
+									if (!shouldDisableImages) {
+										onSelectImages()
+									}
+								}}
+								style={{
+									marginRight: 5.5,
+									fontSize: 16.5,
+								}}
+							/> */}
+							<div
+								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+								onClick={() => {
+									if (!textAreaDisabled) {
+										onSend()
+									}
+								}}
+								style={{ fontSize: 15 }}></div>
+						</div>
+					</div>
+				</div>
+
+				<ControlsContainer>
+					<ButtonGroup>
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Add Context"
+							disabled={textAreaDisabled}
+							onClick={handleContextButtonClick}
+							style={{ padding: "0px 0px", height: "20px" }}>
+							<ButtonContainer>
+								<span style={{ fontSize: "13px", marginBottom: 1 }}>@</span>
+								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
+							</ButtonContainer>
+						</VSCodeButton>
+
+						<VSCodeButton
+							appearance="icon"
+							aria-label="Add Images"
+							disabled={shouldDisableImages}
 							onClick={() => {
 								if (!shouldDisableImages) {
 									onSelectImages()
 								}
 							}}
-							style={{
-								marginRight: 5.5,
-								fontSize: 16.5,
-							}}
-						/>
-						<div
-							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
-							onClick={() => {
-								if (!textAreaDisabled) {
-									onSend()
-								}
-							}}
-							style={{ fontSize: 15 }}></div>
-					</div>
-				</div>
+							style={{ padding: "0px 0px", height: "20px" }}>
+							<ButtonContainer>
+								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
+								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
+							</ButtonContainer>
+						</VSCodeButton>
+
+						<ModelContainer ref={modelSelectorRef}>
+							<ModelButtonWrapper ref={buttonRef}>
+								<ModelDisplayButton
+									role="button"
+									isActive={showModelSelector}
+									disabled={textAreaDisabled}
+									onClick={handleModelButtonClick}
+									// onKeyDown={(e) => {
+									// 	if (e.key === "Enter" || e.key === " ") {
+									// 		e.preventDefault()
+									// 		handleModelButtonClick()
+									// 	}
+									// }}
+									tabIndex={0}>
+									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+								</ModelDisplayButton>
+							</ModelButtonWrapper>
+							{showModelSelector && (
+								<ModelSelectorTooltip
+									arrowPosition={arrowPosition}
+									menuPosition={menuPosition}
+									style={{
+										bottom: `calc(100vh - ${menuPosition}px + 6px)`,
+									}}>
+									<ApiOptions
+										showModelOptions={true}
+										apiErrorMessage={undefined}
+										modelIdErrorMessage={undefined}
+										isPopup={true}
+									/>
+								</ModelSelectorTooltip>
+							)}
+						</ModelContainer>
+					</ButtonGroup>
+
+					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
+						<Slider isAct={chatSettings.mode === "act"} />
+						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
+					</SwitchContainer>
+				</ControlsContainer>
 			</div>
 		)
 	},
 )
+
+// Update TypeScript interface for styled-component props
+interface ModelSelectorTooltipProps {
+	arrowPosition: number
+	menuPosition: number
+}
 
 export default ChatTextArea
