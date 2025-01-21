@@ -21,10 +21,10 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Roo-Cline")
+	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 
-	outputChannel.appendLine("Roo-Cline extension activated")
+	outputChannel.appendLine("Roo-Code extension activated")
 
 	// Get default commands from configuration
 	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -64,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	const openClineInNewTab = async () => {
-		outputChannel.appendLine("Opening Cline in new tab")
+		outputChannel.appendLine("Opening Roo Code in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabProvider = new ClineProvider(context, outputChannel)
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Cline", targetCol, {
+		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Roo Code", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -163,5 +163,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	outputChannel.appendLine("Roo-Cline extension deactivated")
+	outputChannel.appendLine("Roo-Code extension deactivated")
 }

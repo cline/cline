@@ -57,8 +57,12 @@ describe("PromptsView", () => {
 		expect(architectTab).toHaveAttribute("data-active", "false")
 	})
 
-	it("switches between tabs correctly", () => {
-		renderPromptsView({ mode: "code" })
+	it("switches between tabs correctly", async () => {
+		const { rerender } = render(
+			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "code" } as any}>
+				<PromptsView onDone={jest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
 
 		const codeTab = screen.getByTestId("code-tab")
 		const askTab = screen.getByTestId("ask-tab")
@@ -68,16 +72,27 @@ describe("PromptsView", () => {
 		expect(codeTab).toHaveAttribute("data-active", "true")
 		expect(askTab).toHaveAttribute("data-active", "false")
 		expect(architectTab).toHaveAttribute("data-active", "false")
-		expect(architectTab).toHaveAttribute("data-active", "false")
 
-		// Click Ask tab
+		// Click Ask tab and update context
 		fireEvent.click(askTab)
+		rerender(
+			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "ask" } as any}>
+				<PromptsView onDone={jest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
+
 		expect(askTab).toHaveAttribute("data-active", "true")
 		expect(codeTab).toHaveAttribute("data-active", "false")
 		expect(architectTab).toHaveAttribute("data-active", "false")
 
-		// Click Architect tab
+		// Click Architect tab and update context
 		fireEvent.click(architectTab)
+		rerender(
+			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "architect" } as any}>
+				<PromptsView onDone={jest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
+
 		expect(architectTab).toHaveAttribute("data-active", "true")
 		expect(askTab).toHaveAttribute("data-active", "false")
 		expect(codeTab).toHaveAttribute("data-active", "false")
@@ -105,17 +120,47 @@ describe("PromptsView", () => {
 		})
 	})
 
-	it("resets prompt to default value", () => {
-		renderPromptsView()
+	it("resets role definition only for built-in modes", async () => {
+		const customMode = {
+			slug: "custom-mode",
+			name: "Custom Mode",
+			roleDefinition: "Custom role",
+			groups: [],
+		}
 
-		const resetButton = screen.getByTestId("reset-prompt-button")
-		fireEvent.click(resetButton)
+		// Test with built-in mode (code)
+		const { unmount } = render(
+			<ExtensionStateContext.Provider
+				value={{ ...mockExtensionState, mode: "code", customModes: [customMode] } as any}>
+				<PromptsView onDone={jest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
 
+		// Find and click the role definition reset button
+		const resetButton = screen.getByTestId("role-definition-reset")
+		expect(resetButton).toBeInTheDocument()
+		await fireEvent.click(resetButton)
+
+		// Verify it only resets role definition
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "updatePrompt",
 			promptMode: "code",
 			customPrompt: { roleDefinition: undefined },
 		})
+
+		// Cleanup before testing custom mode
+		unmount()
+
+		// Test with custom mode
+		render(
+			<ExtensionStateContext.Provider
+				value={{ ...mockExtensionState, mode: "custom-mode", customModes: [customMode] } as any}>
+				<PromptsView onDone={jest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		// Verify reset button is not present for custom mode
+		expect(screen.queryByTestId("role-definition-reset")).not.toBeInTheDocument()
 	})
 
 	it("handles API configuration selection", () => {

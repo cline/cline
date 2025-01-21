@@ -4,7 +4,14 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
-import { Mode, CustomPrompts } from "./modes"
+import { Mode, CustomPrompts, ModeConfig } from "./modes"
+
+export interface LanguageModelChatSelector {
+	vendor?: string
+	family?: string
+	version?: string
+	id?: string
+}
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -31,6 +38,8 @@ export interface ExtensionMessage {
 		| "updatePrompt"
 		| "systemPrompt"
 		| "autoApprovalEnabled"
+		| "updateCustomMode"
+		| "deleteCustomMode"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -54,6 +63,8 @@ export interface ExtensionMessage {
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]
 	mode?: Mode
+	customMode?: ModeConfig
+	slug?: string
 }
 
 export interface ApiConfigMeta {
@@ -96,6 +107,7 @@ export interface ExtensionState {
 	enhancementApiConfigId?: string
 	experimentalDiffStrategy?: boolean
 	autoApprovalEnabled?: boolean
+	customModes: ModeConfig[]
 }
 
 export interface ClineMessage {

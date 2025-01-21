@@ -1,57 +1,69 @@
-# Roo Cline Changelog
+# Roo Code Changelog
+
+## [3.2.0]
+
+- **Name Change: From Roo Cline to Roo Code:** We're excited to announce our new name! After growing beyond 50,000 installations, we've rebranded from "Roo Cline" to "Roo Code" to better reflect our identity as we chart our own course.
+
+- **Custom Modes:** Create your own personas for Roo Code! While our built-in modes (Code, Architect, Ask) are still here, you can now shape entirely new ones:
+  - Define custom prompts
+  - Choose which tools each mode can access
+  - Create specialized assistants for any workflow
+  - Just type "Create a new mode for <X>" or visit the Prompts tab in the top menu to get started
+
+Join us at https://www.reddit.com/r/RooCode to share your custom modes and be part of our next chapter!
 
 ## [3.1.7]
 
-- DeepSeek-R1 support (thanks @philipnext!)
-- Experimental new unified diff algorithm can be enabled in settings (thanks @daniel-lxs!)
-- More fixes to configuration profiles (thanks @samhvw8!)
+-   DeepSeek-R1 support (thanks @philipnext!)
+-   Experimental new unified diff algorithm can be enabled in settings (thanks @daniel-lxs!)
+-   More fixes to configuration profiles (thanks @samhvw8!)
 
 ## [3.1.6]
 
-- Add Mistral (thanks Cline!)
-- Fix bug with VSCode LM configuration profile saving (thanks @samhvw8!)
+-   Add Mistral (thanks Cline!)
+-   Fix bug with VSCode LM configuration profile saving (thanks @samhvw8!)
 
 ## [3.1.4 - 3.1.5]
 
-- Bug fixes to the auto approve menu
+-   Bug fixes to the auto approve menu
 
 ## [3.1.3]
 
-- Add auto-approve chat bar (thanks Cline!)
-- Fix bug with VS Code Language Models integration
+-   Add auto-approve chat bar (thanks Cline!)
+-   Fix bug with VS Code Language Models integration
 
 ## [3.1.2]
 
-- Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
-- Fix bug related to configuration profile switching (thanks @samhvw8!)
-- Improvements to fuzzy search in mentions, history, and model lists (thanks @samhvw8!)
-- PKCE support for Glama (thanks @punkpeye!)
-- Use 'developer' message for o1 system prompt
+-   Experimental support for VS Code Language Models including Copilot (thanks @RaySinner / @julesmons!)
+-   Fix bug related to configuration profile switching (thanks @samhvw8!)
+-   Improvements to fuzzy search in mentions, history, and model lists (thanks @samhvw8!)
+-   PKCE support for Glama (thanks @punkpeye!)
+-   Use 'developer' message for o1 system prompt
 
 ## [3.1.1]
 
-- Visual fixes to chat input and settings for the light+ themes
+-   Visual fixes to chat input and settings for the light+ themes
 
 ## [3.1.0]
 
-- You can now customize the role definition and instructions for each chat mode (Code, Architect, and Ask), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
-- Add a button to copy markdown out of the chat
+-   You can now customize the role definition and instructions for each chat mode (Code, Architect, and Ask), either through the new Prompts tab in the top menu or mode-specific .clinerules-mode files. Prompt Enhancements have also been revamped: the "Enhance Prompt" button now works with any provider and API configuration, giving you the ability to craft messages with fully customizable prompts for even better results.
+-   Add a button to copy markdown out of the chat
 
 ## [3.0.3]
 
-- Update required vscode engine to ^1.84.0 to match cline
+-   Update required vscode engine to ^1.84.0 to match cline
 
 ## [3.0.2]
 
-- A couple more tiny tweaks to the button alignment in the chat input
+-   A couple more tiny tweaks to the button alignment in the chat input
 
 ## [3.0.1]
 
-- Fix the reddit link and a small visual glitch in the chat input
+-   Fix the reddit link and a small visual glitch in the chat input
 
 ## [3.0.0]
 
-- This release adds chat modes! Now you can ask Roo Cline questions about system architecture or the codebase without immediately jumping into writing code. You can even assign different API configuration profiles to each mode if you prefer to use different models for thinking vs coding. Would love feedback in the new Roo Cline Reddit! https://www.reddit.com/r/roocline
+-   This release adds chat modes! Now you can ask Roo Code questions about system architecture or the codebase without immediately jumping into writing code. You can even assign different API configuration profiles to each mode if you prefer to use different models for thinking vs coding. Would love feedback in the new Roo Code Reddit! https://www.reddit.com/r/RooCode
 
 ## [2.2.46]
 

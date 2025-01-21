@@ -1,7 +1,17 @@
-import { Mode, modes, CustomPrompts, PromptComponent, getRoleDefinition, defaultModeSlug } from "../../shared/modes"
+import {
+	Mode,
+	modes,
+	CustomPrompts,
+	PromptComponent,
+	getRoleDefinition,
+	defaultModeSlug,
+	ModeConfig,
+	getModeBySlug,
+} from "../../shared/modes"
 import { DiffStrategy } from "../diff/DiffStrategy"
 import { McpHub } from "../../services/mcp/McpHub"
 import { getToolDescriptionsForMode } from "./tools"
+import * as vscode from "vscode"
 import {
 	getRulesSection,
 	getSystemInfoSection,
@@ -10,88 +20,14 @@ import {
 	getMcpServersSection,
 	getToolUseGuidelinesSection,
 	getCapabilitiesSection,
+	getModesSection,
+	addCustomInstructions,
 } from "./sections"
 import fs from "fs/promises"
 import path from "path"
 
-async function loadRuleFiles(cwd: string, mode: Mode): Promise<string> {
-	let combinedRules = ""
-
-	// First try mode-specific rules
-	const modeSpecificFile = `.clinerules-${mode}`
-	try {
-		const content = await fs.readFile(path.join(cwd, modeSpecificFile), "utf-8")
-		if (content.trim()) {
-			combinedRules += `\n# Rules from ${modeSpecificFile}:\n${content.trim()}\n`
-		}
-	} catch (err) {
-		// Silently skip if file doesn't exist
-		if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-			throw err
-		}
-	}
-
-	// Then try generic rules files
-	const genericRuleFiles = [".clinerules"]
-	for (const file of genericRuleFiles) {
-		try {
-			const content = await fs.readFile(path.join(cwd, file), "utf-8")
-			if (content.trim()) {
-				combinedRules += `\n# Rules from ${file}:\n${content.trim()}\n`
-			}
-		} catch (err) {
-			// Silently skip if file doesn't exist
-			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-				throw err
-			}
-		}
-	}
-
-	return combinedRules
-}
-
-interface State {
-	customInstructions?: string
-	customPrompts?: CustomPrompts
-	preferredLanguage?: string
-}
-
-export async function addCustomInstructions(state: State, cwd: string, mode: Mode = defaultModeSlug): Promise<string> {
-	const ruleFileContent = await loadRuleFiles(cwd, mode)
-	const allInstructions = []
-
-	if (state.preferredLanguage) {
-		allInstructions.push(`You should always speak and think in the ${state.preferredLanguage} language.`)
-	}
-
-	if (state.customInstructions?.trim()) {
-		allInstructions.push(state.customInstructions.trim())
-	}
-
-	const customPrompt = state.customPrompts?.[mode]
-	if (typeof customPrompt === "object" && customPrompt?.customInstructions?.trim()) {
-		allInstructions.push(customPrompt.customInstructions.trim())
-	}
-
-	if (ruleFileContent && ruleFileContent.trim()) {
-		allInstructions.push(ruleFileContent.trim())
-	}
-
-	const joinedInstructions = allInstructions.join("\n\n")
-
-	return joinedInstructions
-		? `
-====
-
-USER'S CUSTOM INSTRUCTIONS
-
-The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
-
-${joinedInstructions}`
-		: ""
-}
-
 async function generatePrompt(
+	context: vscode.ExtensionContext,
 	cwd: string,
 	supportsComputerUse: boolean,
 	mode: Mode,
@@ -99,29 +35,57 @@ async function generatePrompt(
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
 	promptComponent?: PromptComponent,
+	customModeConfigs?: ModeConfig[],
+	globalCustomInstructions?: string,
 ): Promise<string> {
-	const basePrompt = `${promptComponent?.roleDefinition || getRoleDefinition(mode)}
+	if (!context) {
+		throw new Error("Extension context is required for generating system prompt")
+	}
+
+	const [mcpServersSection, modesSection] = await Promise.all([
+		getMcpServersSection(mcpHub, diffStrategy),
+		getModesSection(context),
+	])
+
+	// Get the full mode config to ensure we have the role definition
+	const modeConfig = getModeBySlug(mode, customModeConfigs) || modes.find((m) => m.slug === mode) || modes[0]
+	const roleDefinition = modeConfig.roleDefinition
+
+	const basePrompt = `${roleDefinition}
 
 ${getSharedToolUseSection()}
 
-${getToolDescriptionsForMode(mode, cwd, supportsComputerUse, diffStrategy, browserViewportSize, mcpHub)}
+${getToolDescriptionsForMode(
+	mode,
+	cwd,
+	supportsComputerUse,
+	diffStrategy,
+	browserViewportSize,
+	mcpHub,
+	customModeConfigs,
+)}
 
 ${getToolUseGuidelinesSection()}
 
-${await getMcpServersSection(mcpHub, diffStrategy)}
+${mcpServersSection}
 
 ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, diffStrategy)}
 
-${getRulesSection(cwd, supportsComputerUse, diffStrategy)}
+${modesSection}
 
-${getSystemInfoSection(cwd)}
+${getRulesSection(cwd, supportsComputerUse, diffStrategy, context)}
 
-${getObjectiveSection()}`
+${getSystemInfoSection(cwd, mode, customModeConfigs)}
+
+${getObjectiveSection()}
+
+${await addCustomInstructions(modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, {})}`
 
 	return basePrompt
 }
 
 export const SYSTEM_PROMPT = async (
+	context: vscode.ExtensionContext,
 	cwd: string,
 	supportsComputerUse: boolean,
 	mcpHub?: McpHub,
@@ -129,7 +93,13 @@ export const SYSTEM_PROMPT = async (
 	browserViewportSize?: string,
 	mode: Mode = defaultModeSlug,
 	customPrompts?: CustomPrompts,
-) => {
+	customModes?: ModeConfig[],
+	globalCustomInstructions?: string,
+): Promise<string> => {
+	if (!context) {
+		throw new Error("Extension context is required for generating system prompt")
+	}
+
 	const getPromptComponent = (value: unknown) => {
 		if (typeof value === "object" && value !== null) {
 			return value as PromptComponent
@@ -137,11 +107,13 @@ export const SYSTEM_PROMPT = async (
 		return undefined
 	}
 
-	// Use default mode if not found
-	const currentMode = modes.find((m) => m.slug === mode) || modes[0]
-	const promptComponent = getPromptComponent(customPrompts?.[currentMode.slug])
+	// Check if it's a custom mode
+	const promptComponent = getPromptComponent(customPrompts?.[mode])
+	// Get full mode config from custom modes or fall back to built-in modes
+	const currentMode = getModeBySlug(mode, customModes) || modes.find((m) => m.slug === mode) || modes[0]
 
 	return generatePrompt(
+		context,
 		cwd,
 		supportsComputerUse,
 		currentMode.slug,
@@ -149,5 +121,7 @@ export const SYSTEM_PROMPT = async (
 		diffStrategy,
 		browserViewportSize,
 		promptComponent,
+		customModes,
+		globalCustomInstructions,
 	)
 }

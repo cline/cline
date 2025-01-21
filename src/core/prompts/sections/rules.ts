@@ -1,6 +1,16 @@
 import { DiffStrategy } from "../../diff/DiffStrategy"
+import { modes, ModeConfig } from "../../../shared/modes"
+import * as vscode from "vscode"
+import * as path from "path"
 
-export function getRulesSection(cwd: string, supportsComputerUse: boolean, diffStrategy?: DiffStrategy): string {
+export function getRulesSection(
+	cwd: string,
+	supportsComputerUse: boolean,
+	diffStrategy?: DiffStrategy,
+	context?: vscode.ExtensionContext,
+): string {
+	const settingsDir = context ? path.join(context.globalStorageUri.fsPath, "settings") : "<settings directory>"
+	const customModesPath = path.join(settingsDir, "cline_custom_modes.json")
 	return `====
 
 RULES
@@ -11,7 +21,11 @@ RULES
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '${cwd.toPosix()}', and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${cwd.toPosix()}'). For example, if you needed to run \`npm install\` in a project outside of '${cwd.toPosix()}', you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
 - When using the search_files tool, craft your regex patterns carefully to balance specificity and flexibility. Based on the user's task you may use it to find code patterns, TODO comments, function definitions, or any text-based information across the project. The results include context, so analyze the surrounding code to better understand the matches. Leverage the search_files tool in combination with other tools for more comprehensive analysis. For example, use it to find specific code patterns, then use read_file to examine the full context of interesting matches before using write_to_file to make informed changes.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
-${diffStrategy ? "- You should use apply_diff instead of write_to_file when making changes to existing files since it is much faster and easier to apply a diff than to write the entire file again. Only use write_to_file to edit files when apply_diff has failed repeatedly to apply the diff." : "- When you want to modify a file, use the write_to_file tool directly with the desired content. You do not need to display the content before using the tool."}
+${
+	diffStrategy
+		? "- You should use apply_diff instead of write_to_file when making changes to existing files since it is much faster and easier to apply a diff than to write the entire file again. Only use write_to_file to edit files when apply_diff has failed repeatedly to apply the diff."
+		: "- When you want to modify a file, use the write_to_file tool directly with the desired content. You do not need to display the content before using the tool."
+}
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.

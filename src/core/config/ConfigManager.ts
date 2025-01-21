@@ -1,6 +1,6 @@
 import { ExtensionContext } from "vscode"
 import { ApiConfiguration } from "../../shared/api"
-import { Mode } from "../prompts/types"
+import { Mode } from "../../shared/modes"
 import { ApiConfigMeta } from "../../shared/ExtensionMessage"
 
 export interface ApiConfigData {

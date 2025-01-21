@@ -1,7 +1,7 @@
 {
 	"name": "roo-cline",
-	"displayName": "Roo Cline",
-	"description": "A fork of Cline, an autonomous coding agent, with some added experimental configuration and automation features.",
+	"displayName": "Roo Code (prev. Roo Cline)",
+	"description": "A VS Code plugin that enhances coding with AI-powered automation, multi-model support, and experimental features.",
 	"publisher": "RooVeterinaryInc",
 	"version": "3.1.7",
 	"icon": "assets/icons/rocket.png",
@@ -17,9 +17,9 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/RooVetGit/Roo-Cline"
+		"url": "https://github.com/RooVetGit/Roo-Code"
 	},
-	"homepage": "https://github.com/RooVetGit/Roo-Cline",
+	"homepage": "https://github.com/RooVetGit/Roo-Code",
 	"categories": [
 		"AI",
 		"Chat",
@@ -52,7 +52,7 @@
 			"activitybar": [
 				{
 					"id": "roo-cline-ActivityBar",
-					"title": "Roo Cline",
+					"title": "Roo Code",
 					"icon": "$(rocket)"
 				}
 			]
@@ -100,7 +100,7 @@
 			{
 				"command": "roo-cline.openInNewTab",
 				"title": "Open In New Tab",
-				"category": "Roo Cline"
+				"category": "Roo Code"
 			}
 		],
 		"menus": {
@@ -138,7 +138,7 @@
 			]
 		},
 		"configuration": {
-			"title": "RooCline",
+			"title": "Roo Code",
 			"properties": {
 				"roo-cline.allowedCommands": {
 					"type": "array",

@@ -249,7 +249,7 @@ describe("vscode-lm-format", () => {
 			}
 
 			await expect(convertToAnthropicMessage(vsCodeMessage as any)).rejects.toThrow(
-				"Cline <Language Model API>: Only assistant messages are supported.",
+				"Roo Code <Language Model API>: Only assistant messages are supported.",
 			)
 		})
 	})
