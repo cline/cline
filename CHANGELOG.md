@@ -1,5 +1,46 @@
 # Change Log
 
+## [3.2.5]
+
+- Use yellow textfield outline in Plan mode to better distinguish from Act mode
+
+## [3.2.3]
+
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling (thanks @slavakurilyak!)
+
+## [3.2.0]
+
+- Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
+- Easily switch between API providers and models using a new popup menu under the chat field
+- Add VS Code LM API provider to run models provided by other VS Code extensions (e.g. GitHub Copilot). Shoutout to @julesmons, @RaySinner, and @MrUbens for putting this together!
+- Add on/off toggle for MCP servers to disable them when not in use. Thanks @MrUbens!
+- Add Auto-approve option for individual tools in MCP servers. Thanks @MrUbens!
+
+## [3.1.10]
+
+- New icon!
+
+## [3.1.9]
+
+- Add Mistral API provider with codestral-latest model
+
+## [3.1.7]
+
+- Add ability to change viewport size and headless mode when Cline asks to launch the browser
+
+## [3.1.6]
+
+- Fix bug where filepaths with Chinese characters would not show up in context mention menu (thanks @chi-chat!)
+- Update Anthropic model prices (thanks @timoteostewart!)
+
+## [3.1.5]
+
+- Fix bug where Cline couldn't read "@/" import path aliases from tool results
+
+## [3.1.4]
+
+- Fix issue where checkpoints would not work for users with git commit signing enabled globally
+
 ## [3.1.2]
 
 - Fix issue where LFS files would be not be ignored when creating checkpoints
