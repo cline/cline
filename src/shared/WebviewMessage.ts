@@ -37,6 +37,7 @@ export interface WebviewMessage {
 		| "toggleToolAutoApprove"
 		| "toggleMcpServer"
 		| "getLatestState"
+		| "accountButtonClicked"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

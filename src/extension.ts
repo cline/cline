@@ -110,6 +110,15 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "accountButtonClicked",
+			})
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
@@ -137,6 +146,13 @@ export function activate(context: vscode.ExtensionContext) {
 				const code = query.get("code")
 				if (code) {
 					await visibleProvider.handleOpenRouterCallback(code)
+				}
+				break
+			}
+			case "/auth": {
+				const token = query.get("token")
+				if (token) {
+					await visibleProvider.handleAuthCallback(token)
 				}
 				break
 			}

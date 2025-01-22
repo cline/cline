@@ -43,6 +43,7 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "mistralApiKey"
+	| "authToken"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -594,6 +595,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
+					case "accountButtonClicked":
+						// Open browser for authentication
+						console.log("Account button clicked in top nav bar")
+						console.log("Opening auth page: https://cline.bot/auth")
+						vscode.env.openExternal(vscode.Uri.parse('https://cline.bot/auth'))
+						break
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
@@ -738,6 +745,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			return []
 		}
+	}
+
+	// Auth
+
+	async handleAuthCallback(token: string) {
+		// Store the auth token securely
+		await this.storeSecret("authToken", token)
+		await this.postStateToWebview()
+		vscode.window.showInformationMessage("Successfully logged in to Cline")
 	}
 
 	// OpenRouter
@@ -1014,6 +1030,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 		} = await this.getState()
+		
+		const authToken = await this.getSecret("authToken")
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1027,6 +1045,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			isLoggedIn: !!authToken,
 		}
 	}
 
@@ -1279,6 +1298,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
 			"mistralApiKey",
+			"authToken",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
