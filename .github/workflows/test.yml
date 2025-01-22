@@ -6,6 +6,12 @@ on:
         branches:
             - main
 
+# Set default permissions for all jobs
+permissions:
+    contents: read # Needed to check out code
+    checks: write # Needed to report test results
+    pull-requests: write # Needed to add comments/annotations to PRs
+
 jobs:
     test:
         runs-on: ubuntu-latest
@@ -51,6 +57,5 @@ jobs:
             - name: Prettier / Format Check
               run: npm run format
 
-            - name: Tests
+            - name: Extension Tests
               run: xvfb-run -a npm run test
-              if: runner.os == 'Linux'
