@@ -14,21 +14,21 @@ export class DebugConsoleManager {
 	constructor() {
 		// Listen for debug session start events
 		this.disposables.push(
-			vscode.debug.onDidStartDebugSession(session => {
+			vscode.debug.onDidStartDebugSession((session) => {
 				this.sessions.set(session.id, {
 					id: session.id,
 					name: session.name,
 					output: [],
-					lastRetrievedIndex: -1
+					lastRetrievedIndex: -1,
 				})
-			})
+			}),
 		)
 
 		// Listen for debug session end events
 		this.disposables.push(
-			vscode.debug.onDidTerminateDebugSession(session => {
+			vscode.debug.onDidTerminateDebugSession((session) => {
 				this.sessions.delete(session.id)
-			})
+			}),
 		)
 
 		// Listen for debug console output
@@ -40,7 +40,7 @@ export class DebugConsoleManager {
 						session.output.push(e.body.output)
 					}
 				}
-			})
+			}),
 		)
 	}
 
@@ -67,7 +67,7 @@ export class DebugConsoleManager {
 	 * Clean up resources
 	 */
 	dispose() {
-		this.disposables.forEach(d => d.dispose())
+		this.disposables.forEach((d) => d.dispose())
 		this.sessions.clear()
 	}
 }
