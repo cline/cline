@@ -13,8 +13,7 @@ permissions:
     pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
-    test:
-        name: Quality Checks & Tests
+    test:  # This job name needs to match the branch protection rule
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
