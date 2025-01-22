@@ -168,6 +168,7 @@
 		"prepare": "husky"
 	},
 	"devDependencies": {
+		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
@@ -177,6 +178,7 @@
 		"@typescript-eslint/parser": "^7.11.0",
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
+		"chai": "^4.3.10",
 		"esbuild": "^0.21.5",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
