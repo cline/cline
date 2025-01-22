@@ -6,7 +6,6 @@ import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
-import { explainCodePrompt, fixCodePrompt, improveCodePrompt } from "./core/prompts/code-actions"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
@@ -162,14 +161,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register code actions provider
 	context.subscriptions.push(
-		vscode.languages.registerCodeActionsProvider(
-			{ pattern: "**/*" },
-			new CodeActionProvider(),
-			{
-				providedCodeActionKinds: CodeActionProvider.providedCodeActionKinds
-			}
-		)
-	);
+		vscode.languages.registerCodeActionsProvider({ pattern: "**/*" }, new CodeActionProvider(), {
+			providedCodeActionKinds: CodeActionProvider.providedCodeActionKinds,
+		}),
+	)
 
 	// Helper function to handle code actions
 	const registerCodeAction = (
@@ -177,51 +172,54 @@ export function activate(context: vscode.ExtensionContext) {
 		command: string,
 		promptType: keyof typeof ACTION_NAMES,
 		inputPrompt: string,
-		inputPlaceholder: string
+		inputPlaceholder: string,
 	) => {
 		context.subscriptions.push(
-			vscode.commands.registerCommand(command, async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-				const userInput = await vscode.window.showInputBox({
-					prompt: inputPrompt,
-					placeHolder: inputPlaceholder
-				});
+			vscode.commands.registerCommand(
+				command,
+				async (filePath: string, selectedText: string, diagnostics?: any[]) => {
+					const userInput = await vscode.window.showInputBox({
+						prompt: inputPrompt,
+						placeHolder: inputPlaceholder,
+					})
 
-				const params = {
-					filePath,
-					selectedText,
-					...(diagnostics ? { diagnostics } : {}),
-					...(userInput ? { userInput } : {})
-				};
+					const params = {
+						filePath,
+						selectedText,
+						...(diagnostics ? { diagnostics } : {}),
+						...(userInput ? { userInput } : {}),
+					}
 
-				await ClineProvider.handleCodeAction(promptType, params);
-			})
-		);
-	};
+					await ClineProvider.handleCodeAction(promptType, params)
+				},
+			),
+		)
+	}
 
 	// Register code action commands
 	registerCodeAction(
 		context,
 		"roo-cline.explainCode",
-		'EXPLAIN',
+		"EXPLAIN",
 		"Any specific questions about this code?",
-		"E.g. How does the error handling work?"
-	);
+		"E.g. How does the error handling work?",
+	)
 
 	registerCodeAction(
 		context,
 		"roo-cline.fixCode",
-		'FIX',
+		"FIX",
 		"Any specific concerns about fixing this code?",
-		"E.g. Maintain backward compatibility"
-	);
+		"E.g. Maintain backward compatibility",
+	)
 
 	registerCodeAction(
 		context,
 		"roo-cline.improveCode",
-		'IMPROVE',
+		"IMPROVE",
 		"Any specific aspects you want to improve?",
-		"E.g. Focus on performance optimization"
-	);
+		"E.g. Focus on performance optimization",
+	)
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

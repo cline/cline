@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import delay from "delay"
 import axios from "axios"
 import fs from "fs/promises"
 import os from "os"
@@ -23,7 +24,6 @@ import {
 	modes,
 	CustomPrompts,
 	PromptComponent,
-	enhance,
 	ModeConfig,
 	defaultModeSlug,
 	getModeBySlug,
@@ -40,10 +40,7 @@ import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import {
-	defaultTemplates,
-	createPrompt
-} from "../prompts/code-actions"
+import { enhance, codeActionPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
 
@@ -189,17 +186,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	public static async handleCodeAction(
 		promptType: keyof typeof ACTION_NAMES,
-		params: Record<string, string | any[]>
+		params: Record<string, string | any[]>,
 	): Promise<void> {
-		const visibleProvider = ClineProvider.getVisibleInstance()
+		let visibleProvider = ClineProvider.getVisibleInstance()
+
+		// If no visible provider, try to show the sidebar view
+		if (!visibleProvider) {
+			await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
+			// Wait briefly for the view to become visible
+			await delay(100)
+			visibleProvider = ClineProvider.getVisibleInstance()
+		}
+
+		// If still no visible provider, return
 		if (!visibleProvider) {
 			return
 		}
 
-		const { utilPrompt } = await visibleProvider.getState()
+		const { customPrompts } = await visibleProvider.getState()
 
-		const template = utilPrompt?.[promptType] ?? defaultTemplates[promptType]
-		const prompt = createPrompt(template, params)
+		const prompt = codeActionPrompt.create(promptType, params, customPrompts)
+
 		await visibleProvider.initClineWithTask(prompt)
 	}
 
@@ -297,7 +304,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experimentalDiffStrategy,
 		} = await this.getState()
 
-		const modePrompt = customPrompts?.[mode]
+		const modePrompt = customPrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
@@ -325,7 +332,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experimentalDiffStrategy,
 		} = await this.getState()
 
-		const modePrompt = customPrompts?.[mode]
+		const modePrompt = customPrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
@@ -804,29 +811,49 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						await this.postStateToWebview()
 						break
-					case "updateEnhancedPrompt":
-						const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+					case "updateSupportPrompt":
+						try {
+							if (Object.keys(message?.values ?? {}).length === 0) {
+								return
+							}
 
-						const updatedPrompts = {
-							...existingPrompts,
-							enhance: message.text,
+							const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+
+							const updatedPrompts = {
+								...existingPrompts,
+								...message.values,
+							}
+
+							await this.updateGlobalState("customPrompts", updatedPrompts)
+							await this.postStateToWebview()
+						} catch (error) {
+							console.error("Error update support prompt:", error)
+							vscode.window.showErrorMessage("Failed to update support prompt")
 						}
+						break
+					case "resetSupportPrompt":
+						try {
+							if (!message?.text) {
+								return
+							}
 
-						await this.updateGlobalState("customPrompts", updatedPrompts)
+							const existingPrompts = ((await this.getGlobalState("customPrompts")) || {}) as Record<
+								string,
+								any
+							>
 
-						// Get current state and explicitly include customPrompts
-						const currentState = await this.getState()
+							const updatedPrompts = {
+								...existingPrompts,
+							}
 
-						const stateWithPrompts = {
-							...currentState,
-							customPrompts: updatedPrompts,
+							updatedPrompts[message.text] = undefined
+
+							await this.updateGlobalState("customPrompts", updatedPrompts)
+							await this.postStateToWebview()
+						} catch (error) {
+							console.error("Error reset support prompt:", error)
+							vscode.window.showErrorMessage("Failed to reset support prompt")
 						}
-
-						// Post state with prompts
-						this.view?.webview.postMessage({
-							type: "state",
-							state: stateWithPrompts,
-						})
 						break
 					case "updatePrompt":
 						if (message.promptMode && message.customPrompt !== undefined) {

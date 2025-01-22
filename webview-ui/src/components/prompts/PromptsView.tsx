@@ -8,14 +8,14 @@ import {
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+import { Mode, PromptComponent, getRoleDefinition, getAllModes, ModeConfig } from "../../../../src/shared/modes"
 import {
-	Mode,
-	PromptComponent,
-	getRoleDefinition,
-	getAllModes,
-	ModeConfig,
 	enhancePrompt,
-} from "../../../../src/shared/modes"
+	codeActionPrompt,
+	CodeActionType,
+	codeActionLabels,
+} from "../../../../src/shared/support-prompt"
+
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
 
@@ -50,11 +50,12 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
 	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
+	const [activeCodeActionTab, setActiveCodeActionTab] = useState<CodeActionType>("FIX")
 
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
 		(mode: Mode, promptData: PromptComponent) => {
-			const existingPrompt = customPrompts?.[mode]
+			const existingPrompt = customPrompts?.[mode] as PromptComponent
 			const updatedPrompt = { ...existingPrompt, ...promptData }
 
 			// Only include properties that differ from defaults
@@ -256,8 +257,19 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	const updateEnhancePrompt = (value: string | undefined) => {
 		vscode.postMessage({
-			type: "updateEnhancedPrompt",
-			text: value,
+			type: "updateSupportPrompt",
+			values: {
+				enhance: value,
+			},
+		})
+	}
+
+	const updateCodeActionPrompt = (type: CodeActionType, value: string | undefined) => {
+		vscode.postMessage({
+			type: "updateSupportPrompt",
+			values: {
+				[type]: value,
+			},
 		})
 	}
 
@@ -271,7 +283,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	const handleAgentReset = (modeSlug: string) => {
 		// Only reset role definition for built-in modes
-		const existingPrompt = customPrompts?.[modeSlug]
+		const existingPrompt = customPrompts?.[modeSlug] as PromptComponent
 		updateAgentPrompt(modeSlug, {
 			...existingPrompt,
 			roleDefinition: undefined,
@@ -279,11 +291,25 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	const handleEnhanceReset = () => {
-		updateEnhancePrompt(undefined)
+		vscode.postMessage({
+			type: "resetSupportPrompt",
+			text: "enhance",
+		})
+	}
+
+	const handleCodeActionReset = (type: CodeActionType) => {
+		vscode.postMessage({
+			type: "resetSupportPrompt",
+			text: type,
+		})
 	}
 
 	const getEnhancePromptValue = (): string => {
 		return enhancePrompt.get(customPrompts)
+	}
+
+	const getCodeActionPromptValue = (type: CodeActionType): string => {
+		return codeActionPrompt.get(customPrompts, type)
 	}
 
 	const handleTestEnhancement = () => {
@@ -563,7 +589,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode]
+								const prompt = customPrompts?.[mode] as PromptComponent
 								return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(mode)
 							})()}
 							onChange={(e) => {
@@ -680,7 +706,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode]
+								const prompt = customPrompts?.[mode] as PromptComponent
 								return customMode?.customInstructions ?? prompt?.customInstructions ?? ""
 							})()}
 							onChange={(e) => {
@@ -696,7 +722,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									})
 								} else {
 									// For built-in modes, update the prompts
-									const existingPrompt = customPrompts?.[mode]
+									const existingPrompt = customPrompts?.[mode] as PromptComponent
 									updateAgentPrompt(mode, {
 										...existingPrompt,
 										customInstructions: value.trim() || undefined,
@@ -757,6 +783,77 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						data-testid="preview-prompt-button">
 						Preview System Prompt
 					</VSCodeButton>
+				</div>
+
+				<div style={{ marginBottom: "20px" }}>
+					<div style={{ fontWeight: "bold", marginBottom: "12px" }}>Code Action Prompts</div>
+					<div
+						style={{
+							display: "flex",
+							gap: "16px",
+							alignItems: "center",
+							marginBottom: "12px",
+							overflowX: "auto",
+							flexWrap: "nowrap",
+							paddingBottom: "4px",
+							paddingRight: "20px",
+						}}>
+						{Object.keys(codeActionPrompt.default).map((type) => (
+							<button
+								key={type}
+								data-testid={`${type}-tab`}
+								data-active={activeCodeActionTab === type ? "true" : "false"}
+								onClick={() => setActiveCodeActionTab(type as CodeActionType)}
+								style={{
+									padding: "4px 8px",
+									border: "none",
+									background:
+										activeCodeActionTab === type ? "var(--vscode-button-background)" : "none",
+									color:
+										activeCodeActionTab === type
+											? "var(--vscode-button-foreground)"
+											: "var(--vscode-foreground)",
+									cursor: "pointer",
+									opacity: activeCodeActionTab === type ? 1 : 0.8,
+									borderRadius: "3px",
+									fontWeight: "bold",
+								}}>
+								{codeActionLabels[type as CodeActionType]}
+							</button>
+						))}
+					</div>
+
+					{/* Show active tab content */}
+					<div key={activeCodeActionTab}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "4px",
+							}}>
+							<div style={{ fontWeight: "bold" }}>{activeCodeActionTab} Prompt</div>
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => handleCodeActionReset(activeCodeActionTab)}
+								title={`Reset ${activeCodeActionTab} prompt to default`}>
+								<span className="codicon codicon-discard"></span>
+							</VSCodeButton>
+						</div>
+						<VSCodeTextArea
+							value={getCodeActionPromptValue(activeCodeActionTab)}
+							onChange={(e) => {
+								const value =
+									(e as CustomEvent)?.detail?.target?.value ||
+									((e as any).target as HTMLTextAreaElement).value
+								const trimmedValue = value.trim()
+								updateCodeActionPrompt(activeCodeActionTab, trimmedValue || undefined)
+							}}
+							rows={4}
+							resize="vertical"
+							style={{ width: "100%" }}
+						/>
+					</div>
 				</div>
 
 				<h3 style={{ color: "var(--vscode-foreground)", margin: "40px 0 20px 0" }}>Prompt Enhancement</h3>
