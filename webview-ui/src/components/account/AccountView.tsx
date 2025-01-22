@@ -53,6 +53,18 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 				<div style={{ marginBottom: 5 }}>
 					{isLoggedIn ? (
 						<>
+							{userInfo?.photoURL && (
+								<img 
+									src={userInfo.photoURL}
+									alt="Profile"
+									style={{
+										width: 48,
+										height: 48,
+										borderRadius: "50%",
+										marginBottom: 10
+									}}
+								/>
+							)}
 							<div style={{ fontSize: "14px", marginBottom: 10 }}>
 								{userInfo?.displayName && <div>Name: {userInfo.displayName}</div>}
 								{userInfo?.email && <div>Email: {userInfo.email}</div>}
