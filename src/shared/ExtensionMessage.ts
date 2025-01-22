@@ -25,7 +25,14 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible" | "accountLoginClicked" | "accountLogoutClicked"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]

@@ -54,14 +54,14 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 					{isLoggedIn ? (
 						<>
 							{userInfo?.photoURL && (
-								<img 
+								<img
 									src={userInfo.photoURL}
 									alt="Profile"
 									style={{
 										width: 48,
 										height: 48,
 										borderRadius: "50%",
-										marginBottom: 10
+										marginBottom: 10,
 									}}
 								/>
 							)}

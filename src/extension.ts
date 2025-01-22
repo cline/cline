@@ -138,9 +138,9 @@ export function activate(context: vscode.ExtensionContext) {
 		console.log("URI Handler called with:", {
 			path: uri.path,
 			query: uri.query,
-			scheme: uri.scheme
+			scheme: uri.scheme,
 		})
-		
+
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const visibleProvider = ClineProvider.getVisibleInstance()
@@ -158,18 +158,18 @@ export function activate(context: vscode.ExtensionContext) {
 			case "/auth": {
 				const token = query.get("token")
 				const state = query.get("state")
-				
+
 				console.log("Auth callback received:", {
 					token: token,
 					state: state,
 				})
-				
+
 				// Validate state parameter
-				if (!await visibleProvider.validateAuthState(state)) {
+				if (!(await visibleProvider.validateAuthState(state))) {
 					vscode.window.showErrorMessage("Invalid auth state")
 					return
 				}
-				
+
 				if (token) {
 					await visibleProvider.handleAuthCallback(token)
 				}

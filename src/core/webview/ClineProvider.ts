@@ -28,7 +28,6 @@ import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shar
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 
-
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 
@@ -147,11 +146,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("authToken", token)
 	}
 
-	async setUserInfo(info?: {
-		displayName: string | null
-		email: string | null
-		photoURL: string | null
-	}) {
+	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
 		await this.updateGlobalState("userInfo", info)
 	}
 
@@ -627,17 +622,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "accountLoginClicked": {
 						// Generate nonce for state validation
-						const nonce = crypto.randomBytes(32).toString('hex')
-						await this.storeSecret('authNonce', nonce)
-						
+						const nonce = crypto.randomBytes(32).toString("hex")
+						await this.storeSecret("authNonce", nonce)
+
 						// Open browser for authentication with state param
 						console.log("Login button clicked in account page")
 						console.log("Opening auth page with state param")
 
-						const uriScheme = vscode.env.uriScheme;
+						const uriScheme = vscode.env.uriScheme
 
-						const authUrl = vscode.Uri.parse(`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`);
-						vscode.env.openExternal(authUrl);
+						const authUrl = vscode.Uri.parse(
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
+						)
+						vscode.env.openExternal(authUrl)
 						break
 					}
 					case "accountLogoutClicked": {
@@ -805,7 +802,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		try {
 			// First sign in with Firebase to trigger auth state change
 			await this.authManager.signInWithCustomToken(token)
-			
+
 			// Then store the token securely
 			await this.storeSecret("authToken", token)
 			await this.postStateToWebview()
@@ -1091,7 +1088,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			userInfo,
 		} = await this.getState()
-		
+
 		const authToken = await this.getSecret("authToken")
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
