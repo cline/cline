@@ -27,12 +27,14 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
+		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
-		// Port prompt caching capability to OpenAI provider
 		if (this.options.openAiSupportsPromptCache) {
 			// Add cache_control to system message
 			openAiMessages[0] = {
@@ -46,15 +48,17 @@ export class OpenAiHandler implements ApiHandler {
 					},
 				],
 			}
-
 			// Add cache_control to the last two user messages
+			// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
 			const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
 			lastTwoUserMessages.forEach((msg) => {
 				if (typeof msg.content === "string") {
 					msg.content = [{ type: "text", text: msg.content }]
 				}
 				if (Array.isArray(msg.content)) {
+					// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
 					let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
 					if (!lastTextPart) {
 						lastTextPart = { type: "text", text: "..." }
 						msg.content.push(lastTextPart)
@@ -65,13 +69,32 @@ export class OpenAiHandler implements ApiHandler {
 			})
 		}
 
+		// Not sure how the provider defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
+		// (models usually default to max tokens allowed)
+		let maxTokens: number | undefined
+		const modelId = model.id.toLowerCase()
+		if (
+			modelId.endsWith("claude-3.5-sonnet") ||
+			modelId.endsWith("claude-3.5-sonnet:beta") ||
+			modelId.endsWith("claude-3.5-sonnet-20240620") ||
+			modelId.endsWith("claude-3.5-sonnet-20240620:beta") ||
+			modelId.endsWith("claude-3-5-haiku") ||
+			modelId.endsWith("claude-3-5-haiku:beta") ||
+			modelId.endsWith("claude-3-5-haiku-20241022") ||
+			modelId.endsWith("claude-3-5-haiku-20241022:beta")
+		) {
+			maxTokens = 8_192
+		}
+
 		const stream = await this.client.chat.completions.create({
-			model: this.options.openAiModelId ?? "",
-			messages: openAiMessages,
+			model: model.id,
+			max_tokens: maxTokens,
 			temperature: 0,
+			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
 		})
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
