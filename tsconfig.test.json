@@ -8,7 +8,9 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": ["node", "mocha", "should", "vscode"]
+		"types": ["node", "mocha", "should", "vscode"],
+		"outDir": "out",
+		"rootDir": "src"
 	},
 	"include": ["src/**/*.test.ts"]
 }
