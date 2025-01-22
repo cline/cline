@@ -259,8 +259,8 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.0-flash-thinking-exp-01-21": {
-		maxTokens: 8192,
+	"gemini-2.0-flash-thinking-exp-0121": {
+		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
