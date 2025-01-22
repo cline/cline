@@ -23,4 +23,82 @@ describe("Cline Extension", () => {
 		await new Promise((resolve) => setTimeout(resolve, 400))
 		await vscode.commands.executeCommand("cline.plusButtonClicked")
 	})
+
+	// New test to verify xvfb and webview functionality
+	it("should create and display a webview panel", async () => {
+		// Create a webview panel
+		const panel = vscode.window.createWebviewPanel(
+			'testWebview',
+			'CI/CD Test',
+			vscode.ViewColumn.One,
+			{
+				enableScripts: true
+			}
+		)
+
+		// Set some HTML content
+		panel.webview.html = `
+			<!DOCTYPE html>
+			<html>
+				<head>
+					<meta charset="UTF-8">
+					<title>xvfb Test</title>
+				</head>
+				<body>
+					<div id="test">Testing xvfb display server</div>
+				</body>
+			</html>
+		`
+
+		// Verify panel exists
+		should.exist(panel)
+		panel.visible.should.be.true()
+
+		// Clean up
+		panel.dispose()
+	})
+
+	// Test webview message passing
+	it("should handle webview messages", async () => {
+		const panel = vscode.window.createWebviewPanel(
+			'testWebview',
+			'Message Test',
+			vscode.ViewColumn.One,
+			{
+				enableScripts: true
+			}
+		)
+
+		// Set up message handling
+		const messagePromise = new Promise<string>((resolve) => {
+			panel.webview.onDidReceiveMessage(
+				message => resolve(message.text),
+				undefined
+			)
+		})
+
+		// Add message sending script
+		panel.webview.html = `
+			<!DOCTYPE html>
+			<html>
+				<head>
+					<meta charset="UTF-8">
+					<title>Message Test</title>
+				</head>
+				<body>
+					<script>
+						const vscode = acquireVsCodeApi();
+						vscode.postMessage({ text: 'test-message' });
+					</script>
+				</body>
+			</html>
+		`
+
+		// Wait for message
+		const message = await messagePromise
+		message.should.equal('test-message')
+
+		// Clean up
+		panel.dispose()
+	})
 })
