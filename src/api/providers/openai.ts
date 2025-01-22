@@ -1,6 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	azureOpenAiDefaultApiVersion,
+	ModelInfo,
+	openAiModelInfoSaneDefaults,
+	openAiNativeModels,
+	bedrockModels,
+	vertexModels,
+} from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -149,20 +157,41 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		// Report model capabilities and pricing for OpenAI provider
-		// Includes support for computer use and prompt caching if enabled
+		const modelId = this.options.openAiModelId ?? ""
+
+		// Try to find matching model info from various model collections
+		let matchedInfo: ModelInfo | undefined
+
+		// Check OpenAI native models
+		if (modelId in openAiNativeModels) {
+			matchedInfo = openAiNativeModels[modelId as keyof typeof openAiNativeModels]
+		}
+
+		// Check Bedrock models (which include OpenAI-compatible models)
+		if (!matchedInfo && modelId in bedrockModels) {
+			matchedInfo = bedrockModels[modelId as keyof typeof bedrockModels]
+		}
+
+		// Check Vertex models (which include OpenAI-compatible models)
+		if (!matchedInfo && modelId in vertexModels) {
+			matchedInfo = vertexModels[modelId as keyof typeof vertexModels]
+		}
+
+		// If no match found, use sane defaults
 		const info: ModelInfo = {
-			...openAiModelInfoSaneDefaults,
+			...(matchedInfo || openAiModelInfoSaneDefaults),
+			// Override with instance-specific capabilities
 			supportsComputerUse: this.options.openAiSupportsComputerUse ?? false,
 			supportsPromptCache: this.options.openAiSupportsPromptCache ?? false,
-			// Use standard cache pricing when prompt caching is enabled
+			// Add cache pricing if prompt caching is enabled
 			...(this.options.openAiSupportsPromptCache && {
-				cacheWritesPrice: 3.75, // Using Anthropic's pricing as an example
-				cacheReadsPrice: 0.3,
+				cacheWritesPrice: matchedInfo?.cacheWritesPrice ?? 0,
+				cacheReadsPrice: matchedInfo?.cacheReadsPrice ?? 0,
 			}),
 		}
+
 		return {
-			id: this.options.openAiModelId ?? "",
+			id: modelId,
 			info,
 		}
 	}
