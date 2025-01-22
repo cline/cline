@@ -567,7 +567,7 @@ export const ChatRowContent = ({
 								style={{
 									display: "flex",
 									justifyContent: "space-between",
-									alignItems: "flex-start",
+									alignItems: "center",
 									gap: "10px",
 								}}>
 								<span style={{ display: "block", flexGrow: 1 }}>{highlightMentions(message.text)}</span>
@@ -577,7 +577,8 @@ export const ChatRowContent = ({
 										padding: "3px",
 										flexShrink: 0,
 										height: "24px",
-										marginTop: "-6px",
+										marginTop: "-3px",
+										marginBottom: "-3px",
 										marginRight: "-6px",
 									}}
 									disabled={isStreaming}
