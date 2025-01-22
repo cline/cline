@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.2.7]
+
+- Fix bug creating new configuration profiles
+
 ## [3.2.6]
 
 - Fix bug with role definition overrides for built-in modes
