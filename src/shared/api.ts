@@ -412,7 +412,7 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-01-21"
 export const geminiModels = {
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
