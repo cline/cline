@@ -94,6 +94,10 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.setApiConfiguration",
+				"title": "Cline: Set API Configuration"
 			}
 		],
 		"menus": {
