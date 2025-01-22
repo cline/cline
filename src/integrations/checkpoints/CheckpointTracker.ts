@@ -330,6 +330,7 @@ class CheckpointTracker {
 			let beforeContent = ""
 			try {
 				beforeContent = await git.show([`${baseHash}:${filePath}`])
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 			} catch (_) {
 				// file didn't exist in older commit => remains empty
 			}
@@ -339,6 +340,7 @@ class CheckpointTracker {
 				// if user provided a newer commit, use git.show at that commit
 				try {
 					afterContent = await git.show([`${rhsHash}:${filePath}`])
+				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				} catch (_) {
 					// file didn't exist in newer commit => remains empty
 				}
@@ -346,6 +348,7 @@ class CheckpointTracker {
 				// otherwise, read from disk (includes uncommitted changes)
 				try {
 					afterContent = await fs.readFile(absolutePath, "utf8")
+				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				} catch (_) {
 					// file might be deleted => remains empty
 				}

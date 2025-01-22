@@ -88,6 +88,7 @@ export function convertAnthropicContentToGemini(
 					]
 				}
 			default:
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				throw new Error(`Unsupported content block type: ${(block as any).type}`)
 		}
 	})
@@ -110,7 +111,9 @@ export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): Fun
 				Object.entries(tool.input_schema.properties || {}).map(([key, value]) => [
 					key,
 					{
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						type: (value as any).type.toUpperCase(),
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						description: (value as any).description || "",
 					},
 				]),

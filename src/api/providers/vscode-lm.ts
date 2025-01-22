@@ -32,6 +32,7 @@ declare module "vscode" {
 	}
 	interface LanguageModelChatRequestOptions {
 		justification?: string
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		modelOptions?: { [name: string]: any }
 		tools?: LanguageModelChatTool[]
 		toolMode?: LanguageModelChatToolMode
@@ -94,6 +95,8 @@ declare module "vscode" {
 			name?: string,
 		)
 	}
+	
+	// eslint-disable-next-line @typescript-eslint/no-namespace
 	namespace lm {
 		function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>
 	}
@@ -188,7 +191,8 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				family: "lm",
 				version: "1.0",
 				maxInputTokens: 8192,
-				sendRequest: async (messages, options, token) => {
+				// eslint-disable-next-line @typescript-eslint/no-unused-vars
+				sendRequest: async (_messages, _options, _token) => {
 					// Provide a minimal implementation
 					return {
 						stream: (async function* () {
@@ -386,6 +390,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		)
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private cleanMessageContent(content: any): any {
 		if (!content) {
 			return content
@@ -400,6 +405,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		if (typeof content === "object") {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const cleaned: any = {}
 			for (const [key, value] of Object.entries(content)) {
 				cleaned[key] = this.cleanMessageContent(value)

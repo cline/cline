@@ -678,6 +678,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
 		try {
 			await fs.mkdir(mcpServersDir, { recursive: true })
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
 		}
@@ -713,9 +714,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/api/tags`)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return []
 		}
@@ -732,9 +735,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/v1/models`)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return []
 		}

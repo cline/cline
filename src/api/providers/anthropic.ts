@@ -112,6 +112,7 @@ export class AnthropicHandler implements ApiHandler {
 					// tools,
 					// tool_choice: { type: "auto" },
 					stream: true,
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				})) as any
 				break
 			}

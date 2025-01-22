@@ -1275,7 +1275,7 @@ export class Cline {
 			this.conversationHistoryDeletedRange,
 		)
 
-		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
