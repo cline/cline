@@ -25,6 +25,33 @@ export class FirebaseAuthManager {
     // Auth state listener
     onAuthStateChanged(this.auth, this.handleAuthStateChange.bind(this));
     console.log("Auth state change listener added");
+
+    // Try to restore session
+    this.restoreSession();
+  }
+
+  private async restoreSession() {
+    console.log("Attempting to restore session");
+    const provider = this.providerRef.deref();
+    if (!provider) {
+      console.log("Provider reference lost during session restore");
+      return;
+    }
+    
+    const storedToken = await provider.getSecret("authToken");
+    if (storedToken) {
+      console.log("Found stored auth token, attempting to restore session");
+      try {
+        await this.signInWithCustomToken(storedToken);
+        console.log("Session restored successfully");
+      } catch (error) {
+        console.error("Failed to restore session, clearing token:", error);
+        await provider.setAuthToken(undefined);
+        await provider.setUserInfo(undefined);
+      }
+    } else {
+      console.log("No stored auth token found");
+    }
   }
 
   private async handleAuthStateChange(user: User | null) {
