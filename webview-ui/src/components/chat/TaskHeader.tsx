@@ -96,6 +96,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const isCostAvailable = useMemo(() => {
 		return (
 			apiConfiguration?.apiProvider !== "openai" &&
+			apiConfiguration?.apiProvider !== "vscode-lm" &&
 			apiConfiguration?.apiProvider !== "ollama" &&
 			apiConfiguration?.apiProvider !== "lmstudio" &&
 			apiConfiguration?.apiProvider !== "gemini"
@@ -155,7 +156,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
-							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
+							<span style={{ fontWeight: "bold" }}>
+								Task
+								{!isTaskExpanded && ":"}
+							</span>
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}
 						</div>
 					</div>
@@ -259,6 +263,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
+									height: 17,
 								}}>
 								<div
 									style={{
@@ -355,6 +360,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										display: "flex",
 										justifyContent: "space-between",
 										alignItems: "center",
+										height: 17,
 									}}>
 									<div
 										style={{
