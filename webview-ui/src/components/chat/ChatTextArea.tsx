@@ -803,6 +803,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 					/>
 					<DynamicTextArea
+						data-testid="chat-input"
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -909,6 +910,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}}
 							/> */}
 							<div
+								data-testid="send-button"
 								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
 									if (!textAreaDisabled) {
@@ -923,6 +925,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<ControlsContainer>
 					<ButtonGroup>
 						<VSCodeButton
+							data-testid="context-button"
 							appearance="icon"
 							aria-label="Add Context"
 							disabled={textAreaDisabled}
@@ -935,6 +938,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</VSCodeButton>
 
 						<VSCodeButton
+							data-testid="images-button"
 							appearance="icon"
 							aria-label="Add Images"
 							disabled={shouldDisableImages}
@@ -985,7 +989,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ModelContainer>
 					</ButtonGroup>
 
-					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
+					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
 						<Slider isAct={chatSettings.mode === "act"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
