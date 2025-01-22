@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.7
-
-### Patch Changes
+## [3.2.7]
 
 - Fix bug creating new configuration profiles
 
