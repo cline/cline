@@ -1,0 +1,55 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  basic-checks:
+    name: Basic Checks
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    
+    - name: Install Dependencies
+      run: npm run install:all
+    
+    - name: Run ESLint
+      run: npm run lint || echo "::warning::Linting issues found"
+    
+    - name: Check Formatting
+      run: npm run format || echo "::warning::Formatting issues found"
+    
+    - name: Type Check
+      run: npm run check-types || echo "::warning::Type check issues found"
+    
+    - name: Build
+      run: npm run package
+
+  linux-checks:
+    name: Linux Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    
+    - name: Install Dependencies
+      run: npm run install:all
+    
+    - name: Build
+      run: npm run package
