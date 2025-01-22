@@ -57,6 +57,7 @@ import { OpenAiHandler } from "../api/providers/openai"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
 import { OgTools } from "./tools/og-tools"
+import { DirectoryTreeService } from "../services/directory-structure"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -91,6 +92,7 @@ export class Cline {
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
+	addDirectoryStructureToPrompt = true
 
 	// streaming
 	isStreaming = false
@@ -1199,6 +1201,12 @@ export class Cline {
 		if (settingsCustomInstructions || clineRulesFileInstructions) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions)
+		}
+
+		if (this.addDirectoryStructureToPrompt && !systemPrompt.includes("<directory_structure>")) {
+			const directoryTree = new DirectoryTreeService()
+			const directoryStructure = directoryTree.getDirectoryStructure(cwd)
+			systemPrompt += `\n\n<directory_structure>\n${directoryStructure}\n</directory_structure>`
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
