@@ -27,14 +27,9 @@ describe("Cline Extension", () => {
 	// New test to verify xvfb and webview functionality
 	it("should create and display a webview panel", async () => {
 		// Create a webview panel
-		const panel = vscode.window.createWebviewPanel(
-			'testWebview',
-			'CI/CD Test',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true
-			}
-		)
+		const panel = vscode.window.createWebviewPanel("testWebview", "CI/CD Test", vscode.ViewColumn.One, {
+			enableScripts: true,
+		})
 
 		// Set some HTML content
 		panel.webview.html = `
@@ -60,21 +55,13 @@ describe("Cline Extension", () => {
 
 	// Test webview message passing
 	it("should handle webview messages", async () => {
-		const panel = vscode.window.createWebviewPanel(
-			'testWebview',
-			'Message Test',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true
-			}
-		)
+		const panel = vscode.window.createWebviewPanel("testWebview", "Message Test", vscode.ViewColumn.One, {
+			enableScripts: true,
+		})
 
 		// Set up message handling
 		const messagePromise = new Promise<string>((resolve) => {
-			panel.webview.onDidReceiveMessage(
-				message => resolve(message.text),
-				undefined
-			)
+			panel.webview.onDidReceiveMessage((message) => resolve(message.text), undefined)
 		})
 
 		// Add message sending script
@@ -96,7 +83,7 @@ describe("Cline Extension", () => {
 
 		// Wait for message
 		const message = await messagePromise
-		message.should.equal('test-message')
+		message.should.equal("test-message")
 
 		// Clean up
 		panel.dispose()
