@@ -12,7 +12,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
-import { ApiProvider, ModelInfo } from "../../shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
@@ -92,6 +92,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
+
+		this.context.subscriptions.push(
+			vscode.commands.registerCommand("cline.setApiConfiguration", async (config: ApiConfiguration) => {
+				await this.handleApiConfigurationUpdate(config)
+			})
+		)
 	}
 
 	/*
@@ -370,63 +376,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
-							const {
-								apiProvider,
-								apiModelId,
-								apiKey,
-								openRouterApiKey,
-								awsAccessKey,
-								awsSecretKey,
-								awsSessionToken,
-								awsRegion,
-								awsUseCrossRegionInference,
-								vertexProjectId,
-								vertexRegion,
-								openAiBaseUrl,
-								openAiApiKey,
-								openAiModelId,
-								ollamaModelId,
-								ollamaBaseUrl,
-								lmStudioModelId,
-								lmStudioBaseUrl,
-								anthropicBaseUrl,
-								geminiApiKey,
-								openAiNativeApiKey,
-								deepSeekApiKey,
-								mistralApiKey,
-								azureApiVersion,
-								openRouterModelId,
-								openRouterModelInfo,
-							} = message.apiConfiguration
-							await this.updateGlobalState("apiProvider", apiProvider)
-							await this.updateGlobalState("apiModelId", apiModelId)
-							await this.storeSecret("apiKey", apiKey)
-							await this.storeSecret("openRouterApiKey", openRouterApiKey)
-							await this.storeSecret("awsAccessKey", awsAccessKey)
-							await this.storeSecret("awsSecretKey", awsSecretKey)
-							await this.storeSecret("awsSessionToken", awsSessionToken)
-							await this.updateGlobalState("awsRegion", awsRegion)
-							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
-							await this.updateGlobalState("vertexProjectId", vertexProjectId)
-							await this.updateGlobalState("vertexRegion", vertexRegion)
-							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
-							await this.storeSecret("openAiApiKey", openAiApiKey)
-							await this.updateGlobalState("openAiModelId", openAiModelId)
-							await this.updateGlobalState("ollamaModelId", ollamaModelId)
-							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
-							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
-							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
-							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
-							await this.storeSecret("geminiApiKey", geminiApiKey)
-							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
-							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
-							await this.storeSecret("mistralApiKey", mistralApiKey)
-							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							await this.updateGlobalState("openRouterModelId", openRouterModelId)
-							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
-							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
-							}
+							await this.handleApiConfigurationUpdate(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
 						break
@@ -595,6 +545,69 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 			await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+		}
+	}
+
+	private async handleApiConfigurationUpdate(config: ApiConfiguration) {
+		if (config) {
+			const {
+				apiProvider,
+				apiModelId,
+				apiKey,
+				openRouterApiKey,
+				awsAccessKey,
+				awsSecretKey,
+				awsSessionToken,
+				awsRegion,
+				awsUseCrossRegionInference,
+				vertexProjectId,
+				vertexRegion,
+				openAiBaseUrl,
+				openAiApiKey,
+				openAiModelId,
+				ollamaModelId,
+				ollamaBaseUrl,
+				lmStudioModelId,
+				lmStudioBaseUrl,
+				anthropicBaseUrl,
+				geminiApiKey,
+				openAiNativeApiKey,
+				deepSeekApiKey,
+				mistralApiKey,
+				azureApiVersion,
+				openRouterModelId,
+				openRouterModelInfo,
+			} = config
+			await this.updateGlobalState("apiProvider", apiProvider)
+			await this.updateGlobalState("apiModelId", apiModelId)
+			await this.storeSecret("apiKey", apiKey)
+			await this.storeSecret("openRouterApiKey", openRouterApiKey)
+			await this.storeSecret("awsAccessKey", awsAccessKey)
+			await this.storeSecret("awsSecretKey", awsSecretKey)
+			await this.storeSecret("awsSessionToken", awsSessionToken)
+			await this.updateGlobalState("awsRegion", awsRegion)
+			await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
+			await this.updateGlobalState("vertexProjectId", vertexProjectId)
+			await this.updateGlobalState("vertexRegion", vertexRegion)
+			await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
+			await this.storeSecret("openAiApiKey", openAiApiKey)
+			await this.updateGlobalState("openAiModelId", openAiModelId)
+			await this.updateGlobalState("ollamaModelId", ollamaModelId)
+			await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+			await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
+			await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
+			await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+			await this.storeSecret("geminiApiKey", geminiApiKey)
+			await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
+			await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
+			await this.storeSecret("mistralApiKey", mistralApiKey)
+			await this.updateGlobalState("azureApiVersion", azureApiVersion)
+			await this.updateGlobalState("openRouterModelId", openRouterModelId)
+			await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+
+			if (this.cline) {
+				this.cline.api = buildApiHandler(config)
+			}
 		}
 	}
 
