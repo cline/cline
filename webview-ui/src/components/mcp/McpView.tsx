@@ -1,12 +1,5 @@
-import {
-	VSCodeButton,
-	VSCodeLink,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-	VSCodeCheckbox,
-} from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
@@ -19,31 +12,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
-	const [isMcpEnabled, setIsMcpEnabled] = useState(true)
 
-	useEffect(() => {
-		// Get initial MCP enabled state
-		vscode.postMessage({ type: "getMcpEnabled" })
-	}, [])
-
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "mcpEnabled") {
-				setIsMcpEnabled(message.enabled)
-			}
-		}
-		window.addEventListener("message", handler)
-		return () => window.removeEventListener("message", handler)
-	}, [])
-
-	const toggleMcp = () => {
-		vscode.postMessage({
-			type: "toggleMcp",
-			enabled: !isMcpEnabled,
-		})
-		setIsMcpEnabled(!isMcpEnabled)
-	}
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -150,58 +119,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodeLink>
 				</div>
 
-				{/* MCP Toggle Section */}
-				<div
-					style={{
-						marginBottom: "16px",
-						paddingBottom: "16px",
-						borderBottom: "1px solid var(--vscode-textSeparator-foreground)",
-					}}>
-					<div>
-						<VSCodeCheckbox
-							checked={isMcpEnabled}
-							onChange={toggleMcp}
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "8px",
-								padding: "4px 0",
-								cursor: "pointer",
-								fontSize: "13px",
-							}}>
-							Enable MCP
-						</VSCodeCheckbox>
-						{isMcpEnabled && (
-							<div
-								style={{
-									marginTop: "4px",
-									marginLeft: "24px",
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-								}}>
-								Disabling MCP will save on tokens passed in the context.
-							</div>
-						)}
-						{!isMcpEnabled && (
-							<div
-								style={{
-									padding: "8px 12px",
-									marginTop: "8px",
-									background: "var(--vscode-textBlockQuote-background)",
-									border: "1px solid var(--vscode-textBlockQuote-border)",
-									borderRadius: "4px",
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-									lineHeight: "1.4",
-								}}>
-								MCP is currently disabled. Enable MCP to use MCP servers and tools. Enabling MCP will use
-								additional tokens.
-							</div>
-						)}
-					</div>
-				</div>
-
-				{servers.length > 0 && isMcpEnabled && (
+				{servers.length > 0 && (
 					<div
 						style={{
 							display: "flex",
@@ -215,19 +133,32 @@ const McpView = ({ onDone }: McpViewProps) => {
 				)}
 
 				{/* Server Configuration Button */}
-				{isMcpEnabled && (
-					<div style={{ marginTop: "10px", width: "100%" }}>
-						<VSCodeButton
-							appearance="secondary"
-							style={{ width: "100%" }}
-							onClick={() => {
-								vscode.postMessage({ type: "openMcpSettings" })
-							}}>
-							<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-							Configure MCP Servers
-						</VSCodeButton>
-					</div>
-				)}
+
+				<div style={{ marginTop: "10px", width: "100%" }}>
+					<VSCodeButton
+						appearance="secondary"
+						style={{ width: "100%" }}
+						onClick={() => {
+							vscode.postMessage({ type: "openMcpSettings" })
+						}}>
+						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+						Configure MCP Servers
+					</VSCodeButton>
+				</div>
+
+				{/* Advanced Settings Link */}
+				<div style={{ textAlign: "center", marginTop: "5px" }}>
+					<VSCodeLink
+						onClick={() => {
+							vscode.postMessage({
+								type: "openExtensionSettings",
+								text: "cline.mcp",
+							})
+						}}
+						style={{ fontSize: "12px" }}>
+						Edit Advanced MCP Settings...
+					</VSCodeLink>
+				</div>
 
 				{/* Bottom padding */}
 				<div style={{ height: "20px" }} />
