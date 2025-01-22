@@ -156,7 +156,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							})
 						}}
 						style={{ fontSize: "12px" }}>
-						Edit Advanced MCP Settings...
+						Advanced MCP Settings
 					</VSCodeLink>
 				</div>
 
