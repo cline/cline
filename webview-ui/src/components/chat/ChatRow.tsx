@@ -834,16 +834,11 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											}}>
 											<div>
 												Cache Reads:{" "}
-												{JSON.parse(
-													message.text || "{}",
-												).usage?.cacheReadTokens?.toLocaleString()}{" "}
-												tokens
+												{JSON.parse(message.text || "{}").usage?.cacheReadTokens?.toLocaleString()} tokens
 											</div>
 											<div>
 												Cache Writes:{" "}
-												{JSON.parse(
-													message.text || "{}",
-												).usage?.cacheWriteTokens?.toLocaleString()}{" "}
+												{JSON.parse(message.text || "{}").usage?.cacheWriteTokens?.toLocaleString()}{" "}
 												tokens
 											</div>
 										</div>
