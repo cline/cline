@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.2.5
+
+### Patch Changes
+
+- Added gemini flash thinking 01-21 model and a few visual fixes (thanks @monotykamary!)
+
 ## [3.2.4]
 
 - Only allow use of the diff tool if it's enabled in settings
