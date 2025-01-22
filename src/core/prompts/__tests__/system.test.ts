@@ -350,6 +350,56 @@ describe("SYSTEM_PROMPT", () => {
 		expect(customInstructionsIndex).toBeGreaterThan(userInstructionsHeader)
 	})
 
+	it("should use promptComponent roleDefinition when available", async () => {
+		const customPrompts = {
+			[defaultModeSlug]: {
+				roleDefinition: "Custom prompt role definition",
+				customInstructions: "Custom prompt instructions",
+			},
+		}
+
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false,
+			undefined,
+			undefined,
+			undefined,
+			defaultModeSlug,
+			customPrompts,
+			undefined,
+		)
+
+		// Role definition from promptComponent should be at the top
+		expect(prompt.indexOf("Custom prompt role definition")).toBeLessThan(prompt.indexOf("TOOL USE"))
+		// Should not contain the default mode's role definition
+		expect(prompt).not.toContain(modes[0].roleDefinition)
+	})
+
+	it("should fallback to modeConfig roleDefinition when promptComponent has no roleDefinition", async () => {
+		const customPrompts = {
+			[defaultModeSlug]: {
+				customInstructions: "Custom prompt instructions",
+				// No roleDefinition provided
+			},
+		}
+
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false,
+			undefined,
+			undefined,
+			undefined,
+			defaultModeSlug,
+			customPrompts,
+			undefined,
+		)
+
+		// Should use the default mode's role definition
+		expect(prompt.indexOf(modes[0].roleDefinition)).toBeLessThan(prompt.indexOf("TOOL USE"))
+	})
+
 	afterAll(() => {
 		jest.restoreAllMocks()
 	})
