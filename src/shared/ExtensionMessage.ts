@@ -2,6 +2,8 @@
 
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { BrowserSettings } from "./BrowserSettings"
+import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 
@@ -20,6 +22,8 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
+		| "vsCodeLmModels"
+		| "requestVsCodeLmModels"
 	text?: string
 	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -27,6 +31,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
@@ -44,6 +49,8 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
+	browserSettings: BrowserSettings
+	chatSettings: ChatSettings
 }
 
 export interface ClineMessage {
@@ -61,6 +68,7 @@ export interface ClineMessage {
 
 export type ClineAsk =
 	| "followup"
+	| "plan_mode_response"
 	| "command"
 	| "command_output"
 	| "completion_result"
