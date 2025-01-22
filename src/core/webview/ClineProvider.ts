@@ -598,8 +598,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "accountButtonClicked":
 						// Open browser for authentication
 						console.log("Account button clicked in top nav bar")
-						console.log("Opening auth page: https://cline.bot/auth")
-						vscode.env.openExternal(vscode.Uri.parse('https://cline.bot/auth'))
+						console.log("Opening auth page: https://app.cline.bot/auth")
+						vscode.env.openExternal(vscode.Uri.parse('https://app.cline.bot/auth'))
 						break
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
