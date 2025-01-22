@@ -9,11 +9,11 @@ on:
 # Set default permissions for all jobs
 permissions:
     contents: read # Needed to check out code
-    checks: write # Needed to report test results
+    checks: write  # Needed to report test results
     pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
-    test: # This job name needs to match the branch protection rule
+    test:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -49,16 +49,16 @@ jobs:
               run: cd webview-ui && npm ci
 
             - name: Type Check
-              run: npm run check-types || echo "::warning::Type check issues found"
+              run: npm run check-types
 
             - name: ESLint Check
-              run: npm run lint || echo "::warning::Linting issues found"
+              run: npm run lint
 
             - name: Prettier / Format Check
-              run: npm run format || echo "::warning::Formatting issues found"
+              run: npm run format
 
             - name: Extension Tests
-              run: xvfb-run -a npm run test || echo "::warning::Test failures found"
+              run: xvfb-run -a npm run test
 
             - name: Webview Tests
-              run: npm run test:webview || echo "::warning::Webview test failures found"
+              run: npm run test:webview
