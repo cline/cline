@@ -5,3 +5,5 @@ node_modules
 *.vsix
 
 .DS_Store
+
+pnpm-lock.yaml
