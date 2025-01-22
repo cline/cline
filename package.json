@@ -46,12 +46,6 @@
 	"activationEvents": [],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"authentication": [
-			{
-				"id": "test-auth",
-				"label": "Test Auth Provider"
-			}
-		],
 		"viewsContainers": {
 			"activitybar": [
 				{

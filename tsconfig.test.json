@@ -19,7 +19,6 @@
 		"src/**/*.test.ts",
 		"src/test/**/*.test.ts",
 		"src/test/webview/**/*.test.ts",
-		"src/test/webview/types.d.ts",
 		"src/test/runTest.ts",
 		"src/test/suite/index.ts"
 	]
