@@ -12,7 +12,5 @@
 		"outDir": "out",
 		"rootDir": "src"
 	},
-	"include": [
-		"src/**/*.test.ts"
-	]
+	"include": ["src/**/*.test.ts"]
 }
