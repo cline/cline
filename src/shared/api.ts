@@ -1,5 +1,6 @@
 export type ApiProvider =
 	| "anthropic"
+	| "glama"
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
@@ -16,6 +17,9 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
+	glamaModelId?: string
+	glamaModelInfo?: ModelInfo
+	glamaApiKey?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
@@ -163,6 +167,23 @@ export const bedrockModels = {
 		outputPrice: 1.25,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Glama
+// https://glama.ai/models
+export const glamaDefaultModelId = "anthropic/claude-3-5-sonnet"
+export const glamaDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsComputerUse: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"Claude 3.5 Sonnet is Anthropic’s most advanced large language model, offering top-tier reasoning, coding, and vision capabilities. It can handle up to a 200K token context window, making it ideal for complex queries and multi-step workflows. The model excels in producing natural, high-quality responses for a wide range of use cases.",
+}
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools

@@ -19,6 +19,7 @@ export interface ExtensionMessage {
 		| "workspaceUpdated"
 		| "invoke"
 		| "partialMessage"
+		| "glamaModels"
 		| "openRouterModels"
 		| "mcpServers"
 		| "relinquishControl"
@@ -34,6 +35,7 @@ export interface ExtensionMessage {
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
+	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 }
