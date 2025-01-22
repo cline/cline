@@ -159,11 +159,11 @@
 		"lint": "eslint src --ext ts",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
-		"test": "node ./out/test/runTest.js",
+		"test": "vscode-test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"start:webview": "cd webview-ui && npm run start",
 		"build:webview": "cd webview-ui && npm run build",
-		"test:webview": "cd webview-ui && npm run test --passWithNoTests",
+		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish && ovsx publish"
 	},
 	"devDependencies": {
@@ -184,8 +184,7 @@
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
-		"typescript": "^5.4.5",
-		"glob": "^10.3.10"
+		"typescript": "^5.4.5"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",

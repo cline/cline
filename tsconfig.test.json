@@ -10,16 +10,9 @@
 		"moduleResolution": "node",
 		"types": ["node", "mocha", "should", "vscode"],
 		"outDir": "out",
-		"sourceMap": true,
-		"rootDir": "src",
-		"strict": true,
-		"esModuleInterop": true
+		"rootDir": "src"
 	},
 	"include": [
-		"src/**/*.test.ts",
-		"src/test/**/*.test.ts",
-		"src/test/webview/**/*.test.ts",
-		"src/test/runTest.ts",
-		"src/test/suite/index.ts"
+		"src/**/*.test.ts"
 	]
 }
