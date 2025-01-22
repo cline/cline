@@ -1,3 +1,7 @@
+# GitHub Actions workflow for Cline VSCode extension
+# Runs on pull requests and pushes to main branch
+# Performs checks on both macOS and Linux environments
+
 name: PR Checks
 
 on:
@@ -7,49 +11,70 @@ on:
     branches: [ main ]
 
 jobs:
-  basic-checks:
-    name: Basic Checks
+  # Primary development environment checks on macOS
+  macos-checks:
+    name: macOS Checks
     runs-on: macos-latest
     
     steps:
+    # Fetch repository content
     - uses: actions/checkout@v4
     
+    # Set up Node.js using version from .nvmrc
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 'lts/*'
         cache: 'npm'
     
+    # Install both main project and webview-ui dependencies
     - name: Install Dependencies
       run: npm run install:all
     
+    # Run ESLint checks (warning mode)
     - name: Run ESLint
       run: npm run lint || echo "::warning::Linting issues found"
     
+    # Check code formatting with Prettier (warning mode)
     - name: Check Formatting
       run: npm run format || echo "::warning::Formatting issues found"
     
+    # Run TypeScript type checks (warning mode)
     - name: Type Check
       run: npm run check-types || echo "::warning::Type check issues found"
     
-    - name: Build
+    # Build the extension including webview
+    - name: Build Extension
       run: npm run package
 
+  # Cross-platform verification and test running on Linux
   linux-checks:
     name: Linux Checks
     runs-on: ubuntu-latest
     
     steps:
+    # Fetch repository content
     - uses: actions/checkout@v4
     
+    # Set up Node.js using version from .nvmrc
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 'lts/*'
         cache: 'npm'
     
+    # Install both main project and webview-ui dependencies
     - name: Install Dependencies
       run: npm run install:all
     
-    - name: Build
+    # Build the extension including webview
+    - name: Build Extension
       run: npm run package
+      
+    # Run VSCode extension tests (requires display server)
+    - name: Run Extension Tests
+      run: xvfb-run -a npm test || echo "::warning::Test failures found"
+      
+    # Run React component tests for webview UI
+    - name: Run Webview Tests
+      run: npm run test:webview || echo "::warning::Webview test failures found"
