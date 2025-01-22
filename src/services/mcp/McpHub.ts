@@ -388,7 +388,7 @@ export class McpHub {
 	}
 
 	private setupFileWatcher(name: string, config: any) {
-		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
+		const filePath = config.watch || config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
 			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
 			const watcher = chokidar.watch(filePath, {
