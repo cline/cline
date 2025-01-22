@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
 import os from "os"
+import crypto from "crypto"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -44,6 +45,7 @@ type SecretKey =
 	| "deepSeekApiKey"
 	| "mistralApiKey"
 	| "authToken"
+	| "authNonce"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -595,12 +597,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
-					case "accountButtonClicked":
-						// Open browser for authentication
-						console.log("Account button clicked in top nav bar")
-						console.log("Opening auth page: https://app.cline.bot/auth")
-						vscode.env.openExternal(vscode.Uri.parse('https://app.cline.bot/auth'))
-						break
+	case "accountButtonClicked": {
+		// Generate nonce for state validation
+		const nonce = crypto.randomBytes(32).toString('hex')
+		await this.storeSecret('authNonce', nonce)
+		
+		// Open browser for authentication with state param
+		console.log("Account button clicked in top nav bar")
+		console.log("Opening auth page with state param")
+		vscode.env.openExternal(vscode.Uri.parse(`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}`))
+		break
+	}
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
@@ -748,6 +755,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	// Auth
+
+	public async validateAuthState(state: string | null): Promise<boolean> {
+		const storedNonce = await this.getSecret("authNonce")
+		if (!state || state !== storedNonce) {
+			return false
+		}
+		await this.storeSecret("authNonce", undefined) // Clear after use
+		return true
+	}
 
 	async handleAuthCallback(token: string) {
 		// Store the auth token securely

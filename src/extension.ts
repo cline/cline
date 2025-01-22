@@ -151,6 +151,14 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			case "/auth": {
 				const token = query.get("token")
+				const state = query.get("state")
+				
+				// Validate state parameter
+				if (!await visibleProvider.validateAuthState(state)) {
+					vscode.window.showErrorMessage("Invalid auth state")
+					return
+				}
+				
 				if (token) {
 					await visibleProvider.handleAuthCallback(token)
 				}
