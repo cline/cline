@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.2.6
-
-### Patch Changes
+## [3.2.6]
 
 - Fix bug with role definition overrides for built-in modes
 
