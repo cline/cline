@@ -111,10 +111,10 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
+		vscode.commands.registerCommand("cline.accountLoginClicked", () => {
 			sidebarProvider.postMessageToWebview({
 				type: "action",
-				action: "accountButtonClicked",
+				action: "accountLoginClicked",
 			})
 		}),
 	)
@@ -135,6 +135,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
+		console.log("URI Handler called with:", {
+			path: uri.path,
+			query: uri.query,
+			scheme: uri.scheme
+		})
+		
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const visibleProvider = ClineProvider.getVisibleInstance()
@@ -152,6 +158,11 @@ export function activate(context: vscode.ExtensionContext) {
 			case "/auth": {
 				const token = query.get("token")
 				const state = query.get("state")
+				
+				console.log("Auth callback received:", {
+					token: token,
+					state: state,
+				})
 				
 				// Validate state parameter
 				if (!await visibleProvider.validateAuthState(state)) {

@@ -8,10 +8,14 @@ type AccountViewProps = {
 }
 
 const AccountView = ({ onDone }: AccountViewProps) => {
-	const { isLoggedIn } = useExtensionState()
+	const { isLoggedIn, userInfo } = useExtensionState()
 
 	const handleLogin = () => {
-		vscode.postMessage({ type: "accountButtonClicked" })
+		vscode.postMessage({ type: "accountLoginClicked" })
+	}
+
+	const handleLogout = () => {
+		vscode.postMessage({ type: "accountLogoutClicked" })
 	}
 
 	return (
@@ -48,7 +52,13 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 				}}>
 				<div style={{ marginBottom: 5 }}>
 					{isLoggedIn ? (
-						<div style={{ fontSize: "14px" }}>You're logged in!</div>
+						<>
+							<div style={{ fontSize: "14px", marginBottom: 10 }}>
+								{userInfo?.displayName && <div>Name: {userInfo.displayName}</div>}
+								{userInfo?.email && <div>Email: {userInfo.email}</div>}
+							</div>
+							<VSCodeButton onClick={handleLogout}>Log out</VSCodeButton>
+						</>
 					) : (
 						<VSCodeButton onClick={handleLogin}>Log in to Cline</VSCodeButton>
 					)}

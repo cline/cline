@@ -860,7 +860,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 export function getOpenRouterAuthUrl(uriScheme?: string) {
 	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
 }
-
 export const formatPrice = (price: number) => {
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",

@@ -41,7 +41,7 @@ const AppContent = () => {
 						setShowMcp(true)
 						setShowAccount(false)
 						break
-					case "accountButtonClicked":
+					case "accountLoginClicked":
 						setShowSettings(false)
 						setShowHistory(false)
 						setShowMcp(false)

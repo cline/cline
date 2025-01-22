@@ -25,7 +25,7 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible" | "accountButtonClicked"
+	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible" | "accountLoginClicked" | "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -37,6 +37,32 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 }
+
+export type GlobalStateKey =
+	| "apiProvider"
+	| "apiModelId"
+	| "awsRegion"
+	| "awsUseCrossRegionInference"
+	| "vertexProjectId"
+	| "vertexRegion"
+	| "lastShownAnnouncementId"
+	| "customInstructions"
+	| "taskHistory"
+	| "openAiBaseUrl"
+	| "openAiModelId"
+	| "ollamaModelId"
+	| "ollamaBaseUrl"
+	| "lmStudioModelId"
+	| "lmStudioBaseUrl"
+	| "anthropicBaseUrl"
+	| "azureApiVersion"
+	| "openRouterModelId"
+	| "openRouterModelInfo"
+	| "autoApprovalSettings"
+	| "browserSettings"
+	| "chatSettings"
+	| "vsCodeLmModelSelector"
+	| "userInfo"
 
 export interface ExtensionState {
 	version: string
@@ -52,6 +78,11 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
 }
 
 export interface ClineMessage {
