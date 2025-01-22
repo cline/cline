@@ -67,6 +67,8 @@ type GlobalStateKey =
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
+	| "openAiSupportsComputerUse"
+	| "openAiSupportsPromptCache"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -413,6 +415,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
+								openAiSupportsComputerUse,
+								openAiSupportsPromptCache,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -441,6 +445,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+							await this.updateGlobalState("openAiSupportsComputerUse", openAiSupportsComputerUse)
+							await this.updateGlobalState("openAiSupportsPromptCache", openAiSupportsPromptCache)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1116,6 +1122,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			openAiSupportsComputerUse,
+			openAiSupportsPromptCache,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1150,6 +1158,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("openAiSupportsComputerUse") as Promise<boolean | undefined>,
+			this.getGlobalState("openAiSupportsPromptCache") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1195,6 +1205,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				openAiSupportsComputerUse,
+				openAiSupportsPromptCache,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
