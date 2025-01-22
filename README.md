@@ -1,4 +1,4 @@
-# Roo Code
+# Roo Code (prev. Roo Cline)
 
 **Roo Code** is an AI-powered **autonomous coding agent** that lives in your editor. It can:
 
