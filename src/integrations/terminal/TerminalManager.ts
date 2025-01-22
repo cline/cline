@@ -82,7 +82,9 @@ declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
 	interface Window {
 		onDidStartTerminalShellExecution?: (
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			listener: (e: any) => any,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			thisArgs?: any,
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
@@ -101,6 +103,7 @@ export class TerminalManager {
 				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 				e?.execution?.read()
 			})
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error("Error setting up onDidEndTerminalShellExecution", error)
 		}

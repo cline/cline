@@ -90,6 +90,7 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 	})
 	try {
 		return await Promise.race([globbingProcess(), timeoutPromise])
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	} catch (error) {
 		console.warn("Globbing timed out, returning partial results")
 		return Array.from(results)

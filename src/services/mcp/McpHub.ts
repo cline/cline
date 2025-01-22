@@ -96,9 +96,11 @@ export class McpHub {
 					const content = await fs.readFile(settingsPath, "utf-8")
 					const errorMessage =
 						"Invalid MCP settings format. Please ensure your settings follow the correct JSON format."
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					let config: any
 					try {
 						config = JSON.parse(content)
+					// eslint-disable-next-line @typescript-eslint/no-unused-vars
 					} catch (error) {
 						vscode.window.showErrorMessage(errorMessage)
 						return
@@ -297,6 +299,7 @@ export class McpHub {
 
 			// console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
 			return tools
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
@@ -309,6 +312,7 @@ export class McpHub {
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "resources/list" }, ListResourcesResultSchema)
 			return response?.resources || []
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
@@ -321,6 +325,7 @@ export class McpHub {
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
 			return response?.resourceTemplates || []
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []
@@ -344,6 +349,7 @@ export class McpHub {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async updateServerConnections(newServers: Record<string, any>): Promise<void> {
 		this.isConnecting = true
 		this.removeAllFileWatchers()
@@ -387,6 +393,7 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private setupFileWatcher(name: string, config: any) {
 		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
