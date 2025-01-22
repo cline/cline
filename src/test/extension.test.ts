@@ -12,7 +12,7 @@ describe("Cline Extension", () => {
 	})
 
 	it("should verify extension ID matches package.json", async () => {
-		const packageJSON = JSON.parse(await readFile(path.join(__dirname, '../../package.json'), "utf8"))
+		const packageJSON = JSON.parse(await readFile(path.join(__dirname, "../../package.json"), "utf8"))
 		const id = packageJSON.publisher + "." + packageJSON.name
 		const clineExtensionApi = vscode.extensions.getExtension(id)
 
