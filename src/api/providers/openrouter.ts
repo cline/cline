@@ -30,7 +30,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-				"X-Title": "Roo-Code",
+				"X-Title": "Roo Code",
 			},
 		})
 	}
