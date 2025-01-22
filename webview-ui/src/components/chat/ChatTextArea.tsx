@@ -43,6 +43,8 @@ interface ChatTextAreaProps {
 	onHeightChange?: (height: number) => void
 }
 
+const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
@@ -69,13 +71,14 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	transform: scale(0.85);
 	transform-origin: right center;
 	margin-left: -10px; // compensate for the transform so flex spacing works
+	user-select: none; // Prevent text selection
 `
 
-const Slider = styled.div<{ isAct: boolean }>`
+const Slider = styled.div<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: var(--vscode-focusBorder);
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)")};
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
@@ -372,6 +375,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
+					setIsTextAreaFocused(false)
 					onSend()
 				}
 
@@ -863,6 +867,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
+							outline: isTextAreaFocused
+								? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+								: "none",
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -914,6 +921,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
 									if (!textAreaDisabled) {
+										setIsTextAreaFocused(false)
 										onSend()
 									}
 								}}
@@ -990,7 +998,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</ButtonGroup>
 
 					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
-						<Slider isAct={chatSettings.mode === "act"} />
+						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
 					</SwitchContainer>
