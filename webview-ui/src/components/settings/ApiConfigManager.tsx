@@ -58,7 +58,9 @@ const ApiConfigManager = ({
 		if (editState === "new") {
 			onUpsertConfig(trimmedValue)
 		} else if (editState === "rename" && currentApiConfigName) {
-			onRenameConfig(currentApiConfigName, trimmedValue)
+			if (currentApiConfigName !== trimmedValue) {
+				onRenameConfig(currentApiConfigName, trimmedValue)
+			}
 		}
 
 		setEditState(null)
