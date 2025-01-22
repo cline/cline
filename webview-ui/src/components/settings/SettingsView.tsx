@@ -4,6 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import SettingsButton from "../common/SettingsButton"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -137,16 +138,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						display: "flex",
 						justifyContent: "center",
 					}}>
-					<VSCodeButton
-						appearance="secondary"
+					<SettingsButton
 						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
 						style={{
 							margin: "0 0 16px 0",
-							minWidth: "fit-content",
-							whiteSpace: "nowrap",
 						}}>
+						<i className="codicon codicon-settings-gear" />
 						Advanced Settings
-					</VSCodeButton>
+					</SettingsButton>
 				</div>
 				<div
 					style={{
