@@ -57,8 +57,11 @@ jobs:
             - name: Prettier / Format Check
               run: npm run format
 
+            - name: Build Webview UI
+              run: npm run build:webview
+
             - name: Extension Tests
               run: xvfb-run -a npm run test
 
             - name: Webview Tests
-              run: npm run test:webview
+              run: xvfb-run -a npm run test:webview

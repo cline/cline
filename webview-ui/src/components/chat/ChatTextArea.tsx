@@ -998,7 +998,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</ButtonGroup>
 
 					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
-						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+						<Slider isAct={chatSettings.mode === "act"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
 					</SwitchContainer>
