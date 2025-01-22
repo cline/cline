@@ -12,11 +12,7 @@
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}",
-			"skipFiles": [
-				"<node_internals>/**",
-				"${execInstallFolder}/**",
-				"${workspaceFolder}/**/node_modules/**",
-			],
+			"skipFiles": ["<node_internals>/**", "${execInstallFolder}/**", "${workspaceFolder}/**/node_modules/**"]
 		}
 	]
 }
