@@ -7,7 +7,7 @@ export default defineConfig({
 	],
 	mocha: {
 		ui: "bdd",
-		timeout: 20000, // Increase timeout for webview tests
+		timeout: 20000, // Maximum time (in ms) that a test can run before failing
 		require: ["chai"],
 	},
 	workspaceFolder: "test-workspace",
