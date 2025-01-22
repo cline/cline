@@ -2,6 +2,7 @@ import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
+import { loadIgnorePatterns } from "../../utils/cline-ignore"
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	const absolutePath = path.resolve(dirPath)
@@ -16,6 +17,8 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	if (isHomeDir) {
 		return [[homeDir], false]
 	}
+
+	const { patterns } = await loadIgnorePatterns(absolutePath)
 
 	const dirsToIgnore = [
 		"node_modules",
@@ -34,6 +37,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		"pkg",
 		"Pods",
 		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
+		...patterns,
 	].map((dir) => `**/${dir}/**`)
 
 	const options = {
