@@ -1,8 +1,8 @@
 import { describe, it } from "mocha"
 import "should"
-import { OpenAiHandler } from "./openai"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo } from "../../shared/api"
-import { ApiStreamTextChunk, ApiStreamUsageChunk } from "../transform/stream"
+import { OpenAiHandler } from "../../../api/providers/openai"
+import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo } from "../../../shared/api"
+import { ApiStreamTextChunk, ApiStreamUsageChunk } from "../../../api/transform/stream"
 import OpenAI, { AzureOpenAI } from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 

@@ -375,6 +375,9 @@ class CheckpointTracker {
 
 	// Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's requirement of using submodules for nested repos.
 	private async renameNestedGitRepos(disable: boolean) {
+		// TMP local disable this since it breaks repos with submodules
+		return
+
 		// Find all .git directories that are not at the root level
 		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
 			cwd: this.cwd,
