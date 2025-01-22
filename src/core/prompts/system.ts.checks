@@ -1,0 +1,4 @@
+// Mode checks for MCP content:
+// - mcpHub.getMode() === "disabled" -> exclude all MCP content
+// - mcpHub.getMode() === "server-use-only" -> include server tools/resources but exclude build instructions
+// - mcpHub.getMode() === "enabled" -> include all MCP content (tools, resources, and build instructions)

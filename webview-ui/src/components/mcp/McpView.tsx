@@ -1,15 +1,16 @@
 import {
 	VSCodeButton,
+	VSCodeDropdown,
 	VSCodeLink,
+	VSCodeOption,
 	VSCodePanels,
 	VSCodePanelTab,
 	VSCodePanelView,
-	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { McpServer } from "../../../../src/shared/mcp"
+import { McpMode, McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 
@@ -19,7 +20,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
-	const [isMcpEnabled, setIsMcpEnabled] = useState(true)
+	const [mcpMode, setMcpMode] = useState<McpMode>("enabled")
 
 	useEffect(() => {
 		// Get initial MCP enabled state
@@ -30,19 +31,21 @@ const McpView = ({ onDone }: McpViewProps) => {
 		const handler = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "mcpEnabled") {
-				setIsMcpEnabled(message.enabled)
+				setMcpMode(message.mode)
 			}
 		}
 		window.addEventListener("message", handler)
 		return () => window.removeEventListener("message", handler)
 	}, [])
 
-	const toggleMcp = () => {
+	const handleModeChange = (event: Event | React.FormEvent<HTMLElement>) => {
+		const select = event.target as HTMLSelectElement
+		const newMode = select.value as McpMode
 		vscode.postMessage({
 			type: "toggleMcp",
-			enabled: !isMcpEnabled,
+			mode: newMode,
 		})
-		setIsMcpEnabled(!isMcpEnabled)
+		setMcpMode(newMode)
 	}
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
@@ -150,7 +153,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodeLink>
 				</div>
 
-				{/* MCP Toggle Section */}
+				{/* MCP Mode Section */}
 				<div
 					style={{
 						marginBottom: "16px",
@@ -158,31 +161,32 @@ const McpView = ({ onDone }: McpViewProps) => {
 						borderBottom: "1px solid var(--vscode-textSeparator-foreground)",
 					}}>
 					<div>
-						<VSCodeCheckbox
-							checked={isMcpEnabled}
-							onChange={toggleMcp}
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "8px",
-								padding: "4px 0",
-								cursor: "pointer",
-								fontSize: "13px",
-							}}>
-							Enable MCP
-						</VSCodeCheckbox>
-						{isMcpEnabled && (
+						<VSCodeDropdown value={mcpMode} onChange={handleModeChange}>
+							<VSCodeOption value="enabled">Enabled</VSCodeOption>
+							<VSCodeOption value="server-use-only">Server use only</VSCodeOption>
+							<VSCodeOption value="disabled">Disabled</VSCodeOption>
+						</VSCodeDropdown>
+						{mcpMode === "enabled" && (
 							<div
 								style={{
 									marginTop: "4px",
-									marginLeft: "24px",
 									color: "var(--vscode-descriptionForeground)",
 									fontSize: "12px",
 								}}>
-								Disabling MCP will save on tokens passed in the context.
+								Full MCP functionality including server use and build instructions.
 							</div>
 						)}
-						{!isMcpEnabled && (
+						{mcpMode === "server-use-only" && (
+							<div
+								style={{
+									marginTop: "4px",
+									color: "var(--vscode-descriptionForeground)",
+									fontSize: "12px",
+								}}>
+								MCP server use is enabled, but build instructions are excluded from AI prompts to save tokens.
+							</div>
+						)}
+						{mcpMode === "disabled" && (
 							<div
 								style={{
 									padding: "8px 12px",
@@ -201,7 +205,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</div>
 				</div>
 
-				{servers.length > 0 && isMcpEnabled && (
+				{servers.length > 0 && mcpMode !== "disabled" && (
 					<div
 						style={{
 							display: "flex",
@@ -215,7 +219,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				)}
 
 				{/* Server Configuration Button */}
-				{isMcpEnabled && (
+				{mcpMode !== "disabled" && (
 					<div style={{ marginTop: "10px", width: "100%" }}>
 						<VSCodeButton
 							appearance="secondary"

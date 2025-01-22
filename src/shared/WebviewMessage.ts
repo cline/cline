@@ -1,6 +1,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
+import { McpMode } from "./mcp"
 
 export interface WebviewMessage {
 	type:
@@ -34,7 +35,6 @@ export interface WebviewMessage {
 		| "openExtensionSettings"
 		| "getMcpEnabled"
 		| "toggleMcp"
-	// | "relaunchChromeDebugMode"
 	text?: string
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
@@ -43,7 +43,7 @@ export interface WebviewMessage {
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
-	enabled?: boolean // For toggleMcp message
+	mode?: McpMode // Only used with toggleMcp type
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

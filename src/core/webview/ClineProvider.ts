@@ -205,11 +205,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					})
 				}
 				if (e && e.affectsConfiguration("cline.mcp.enabled")) {
-					// Send updated MCP enabled state
-					const enabled = this.mcpHub?.isMcpEnabled() ?? true
+					// Send updated MCP mode
+					const mode = this.mcpHub?.getMode() ?? "enabled"
 					await this.postMessageToWebview({
 						type: "mcpEnabled",
-						enabled,
+						mode,
 					})
 				}
 			},
@@ -581,15 +581,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "getMcpEnabled": {
-						const enabled = this.mcpHub?.isMcpEnabled() ?? true
+						const mode = this.mcpHub?.getMode() ?? "enabled"
 						await this.postMessageToWebview({
 							type: "mcpEnabled",
-							enabled,
+							mode,
 						})
 						break
 					}
 					case "toggleMcp": {
-						await vscode.workspace.getConfiguration("cline.mcp").update("enabled", message.enabled, true)
+						await vscode.workspace.getConfiguration("cline.mcp").update("enabled", message.mode, true)
 						break
 					}
 					// Add more switch case statements here as more webview message commands

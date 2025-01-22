@@ -4,7 +4,7 @@ import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer } from "./mcp"
+import { McpMode, McpServer } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -35,7 +35,7 @@ export interface ExtensionMessage {
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
-	enabled?: boolean // For mcpEnabled message
+	mode?: McpMode // For mcpEnabled message
 }
 
 export interface ExtensionState {
