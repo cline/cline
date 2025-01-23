@@ -39,6 +39,7 @@ export class LmStudioHandler implements ApiHandler {
 					}
 				}
 			}
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// LM Studio doesn't return an error code/body for now
 			throw new Error(

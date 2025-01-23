@@ -2357,6 +2357,7 @@ export class Cline {
 								if (mcp_arguments) {
 									try {
 										parsedArguments = JSON.parse(mcp_arguments)
+									// eslint-disable-next-line @typescript-eslint/no-unused-vars
 									} catch (error) {
 										this.consecutiveMistakeCount++
 										await this.say(
@@ -2416,7 +2417,7 @@ export class Cline {
 													return item.text
 												}
 												if (item.type === "resource") {
-													const { blob, ...rest } = item.resource
+													const { /** blob ,**/ ...rest } = item.resource
 													return JSON.stringify(rest, null, 2)
 												}
 												return ""
@@ -2797,7 +2798,7 @@ export class Cline {
 	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false,
-		isNewTask: boolean = false,
+		// isNewTask: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
@@ -3108,6 +3109,7 @@ export class Cline {
 			}
 
 			return didEndLoop // will always be false for now
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task

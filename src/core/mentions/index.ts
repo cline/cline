@@ -147,6 +147,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 								}
 								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
+							// eslint-disable-next-line @typescript-eslint/no-unused-vars
 							} catch (error) {
 								return undefined
 							}

@@ -824,6 +824,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			*/
 			if (response.data?.data) {
 				const rawModels = response.data.data
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000
@@ -1224,6 +1225,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// global
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
@@ -1234,6 +1236,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// workspace
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async updateWorkspaceState(key: string, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}

@@ -53,7 +53,7 @@ export class OpenRouterHandler implements ApiHandler {
 						{
 							type: "text",
 							text: systemPrompt,
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							cache_control: { type: "ephemeral" },
 						},
 					],
@@ -73,7 +73,7 @@ export class OpenRouterHandler implements ApiHandler {
 							lastTextPart = { type: "text", text: "..." }
 							msg.content.push(lastTextPart)
 						}
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						lastTextPart["cache_control"] = { type: "ephemeral" }
 					}
 				})
@@ -105,7 +105,7 @@ export class OpenRouterHandler implements ApiHandler {
 			shouldApplyMiddleOutTransform = true
 		}
 
-		// @ts-ignore-next-line
+		// @ts-expect-error-next-line
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
 			max_tokens: maxTokens,
