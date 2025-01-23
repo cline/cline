@@ -152,11 +152,14 @@
 					"default": false,
 					"description": "Enable model rotation between multiple API keys and models with this config file",
 					"link": "https://model-rotation.cline.bot"
-				
 				},
 				"cline.modelRotation.scheme": {
 					"type": "string",
-					"enum": ["round-robin", "weighted", "fallback"],
+					"enum": [
+						"round-robin",
+						"weighted",
+						"fallback"
+					],
 					"default": "round-robin",
 					"description": "The rotation scheme to use for model selection"
 				},

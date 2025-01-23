@@ -99,7 +99,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div style={{ marginBottom: 5 }}>
 					<ModelRotationSettings />
 				</div>
-				
+
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
