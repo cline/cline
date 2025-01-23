@@ -3,6 +3,7 @@ import axios from "axios"
 import fs from "fs/promises"
 import os from "os"
 import crypto from "crypto"
+import { execa } from "execa"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -725,8 +726,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// MCP
 
+	async getDocumentsPath(): Promise<string> {
+		if (process.platform === "win32") {
+			// If the user is running Win 7/Win Server 2008 r2+, we want to get the correct path to their Documents directory.
+			try {
+				const { stdout: docsPath } = await execa("powershell", [
+					"-NoProfile", // Ignore user's PowerShell profile(s)
+					"-Command",
+					"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
+				])
+				return docsPath.trim()
+			} catch (err) {
+				console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
+				return path.join(os.homedir(), "Documents")
+			}
+		} else {
+			return path.join(os.homedir(), "Documents") // On POSIX (macOS, Linux, etc.), assume ~/Documents by default (existing behavior, but may want to implement similar logic here)
+		}
+	}
+
 	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		const userDocumentsPath = await this.getDocumentsPath()
+		const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
 		try {
 			await fs.mkdir(mcpServersDir, { recursive: true })
 		} catch (error) {
