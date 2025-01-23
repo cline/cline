@@ -196,7 +196,6 @@ Usage:
   "param2": "value2"
 }
 </arguments>
-</use_mcp_tool>
 
 ## access_mcp_resource
 Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
@@ -324,7 +323,6 @@ ${
   "days": 5
 }
 </arguments>
-</use_mcp_tool>
 
 ## Example 5: Requesting to access an MCP resource
 
