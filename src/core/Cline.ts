@@ -2798,7 +2798,8 @@ export class Cline {
 	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false,
-		// isNewTask: boolean = false,
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		isNewTask: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
