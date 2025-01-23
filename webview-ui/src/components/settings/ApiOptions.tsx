@@ -537,6 +537,15 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						</Checkbox>
 					</div>
 					<Checkbox
+						checked={apiConfiguration?.openAiUseAzure ?? false}
+						onChange={(checked: boolean) => {
+							handleInputChange("openAiUseAzure")({
+								target: { value: checked },
+							})
+						}}>
+						Use Azure
+					</Checkbox>
+					<Checkbox
 						checked={azureApiVersionSelected}
 						onChange={(checked: boolean) => {
 							setAzureApiVersionSelected(checked)
