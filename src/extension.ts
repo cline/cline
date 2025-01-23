@@ -39,13 +39,19 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine("Plus button Clicked")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+			await sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "mcpButtonClicked",
+			})
 		}),
 	)
 
@@ -88,13 +94,28 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "historyButtonClicked",
+			})
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.accountLoginClicked", () => {
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "accountLoginClicked",
+			})
 		}),
 	)
 
@@ -110,12 +131,16 @@ export function activate(context: vscode.ExtensionContext) {
 			return Buffer.from(uri.query, "base64").toString("utf-8")
 		}
 	})()
-	context.subscriptions.push(
-		vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider),
-	)
+	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
+		console.log("URI Handler called with:", {
+			path: uri.path,
+			query: uri.query,
+			scheme: uri.scheme,
+		})
+
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const visibleProvider = ClineProvider.getVisibleInstance()
@@ -127,6 +152,26 @@ export function activate(context: vscode.ExtensionContext) {
 				const code = query.get("code")
 				if (code) {
 					await visibleProvider.handleOpenRouterCallback(code)
+				}
+				break
+			}
+			case "/auth": {
+				const token = query.get("token")
+				const state = query.get("state")
+
+				console.log("Auth callback received:", {
+					token: token,
+					state: state,
+				})
+
+				// Validate state parameter
+				if (!(await visibleProvider.validateAuthState(state))) {
+					vscode.window.showErrorMessage("Invalid auth state")
+					return
+				}
+
+				if (token) {
+					await visibleProvider.handleAuthCallback(token)
 				}
 				break
 			}

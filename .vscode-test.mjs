@@ -1,13 +1,18 @@
 import { defineConfig } from "@vscode/test-cli"
-import * as path from "path"
+
 import * as os from "os"
+import path from "path"
+
 
 export default defineConfig({
-	files: "out/**/*.test.js",
+	files: "{out/test/**/*.test.js,src/test/suite/**/*.test.js}",
 	mocha: {
+		ui: "bdd",
 		timeout: 20000, // Maximum time (in ms) that a test can run before failing
 	},
-	// Use a shorter path in the temp directory for user data
-	workspaceDir: path.join(os.tmpdir(), "cline-test-workspace"),
-	userData: path.join(os.tmpdir(), "cline-test-data"),
+
+	workspaceFolder: "test-workspace",
+	version: "stable",
+	extensionDevelopmentPath: path.resolve("./"),
+	launchArgs: ["--disable-extensions"],
 })

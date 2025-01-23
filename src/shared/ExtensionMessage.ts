@@ -2,6 +2,8 @@
 
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { BrowserSettings } from "./BrowserSettings"
+import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 
@@ -19,6 +21,9 @@ export interface ExtensionMessage {
 		| "partialMessage"
 		| "openRouterModels"
 		| "mcpServers"
+		| "relinquishControl"
+		| "vsCodeLmModels"
+		| "requestVsCodeLmModels"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -26,11 +31,14 @@ export interface ExtensionMessage {
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
@@ -42,10 +50,20 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
 	uriScheme?: string
+	currentTaskItem?: HistoryItem
+	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
+	browserSettings: BrowserSettings
+	chatSettings: ChatSettings
+	isLoggedIn: boolean
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
 }
 
 export interface ClineMessage {
@@ -56,10 +74,14 @@ export interface ClineMessage {
 	text?: string
 	images?: string[]
 	partial?: boolean
+	lastCheckpointHash?: string
+	conversationHistoryIndex?: number
+	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
 
 export type ClineAsk =
 	| "followup"
+	| "plan_mode_response"
 	| "command"
 	| "command_output"
 	| "completion_result"
@@ -93,6 +115,7 @@ export type ClineSay =
 	| "mcp_server_response"
 	| "use_mcp_server"
 	| "diff_error"
+	| "deleted_api_reqs"
 
 export interface ClineSayTool {
 	tool:
@@ -147,3 +170,5 @@ export interface ClineApiReqInfo {
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+
+export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

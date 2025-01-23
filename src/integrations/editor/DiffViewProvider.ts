@@ -33,9 +33,7 @@ export class DiffViewProvider {
 		this.isEditing = true
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, absolutePath),
-			)
+			const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, absolutePath))
 			if (existingDocument && existingDocument.isDirty) {
 				await existingDocument.save()
 			}
@@ -61,9 +59,7 @@ export class DiffViewProvider {
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
-			.filter(
-				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath),
-			)
+			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath))
 		for (const tab of tabs) {
 			if (!tab.isDirty) {
 				await vscode.window.tabGroups.close(tab)
@@ -166,7 +162,9 @@ export class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = updatedDocument.getText()
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false })
+		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+			preview: false,
+		})
 		await this.closeAllDiffViews()
 
 		/*
@@ -207,11 +205,7 @@ export class DiffViewProvider {
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
 			// user made changes before approving edit. let the model know about user made changes (not including post-save auto-formatting changes)
-			userEdits = formatResponse.createPrettyPatch(
-				this.relPath.toPosix(),
-				normalizedNewContent,
-				normalizedPreSaveContent,
-			)
+			userEdits = formatResponse.createPrettyPatch(this.relPath.toPosix(), normalizedNewContent, normalizedPreSaveContent)
 			// return { newProblemsMessage, userEdits, finalContent: normalizedPostSaveContent }
 		} else {
 			// no changes to cline's edits
@@ -228,7 +222,12 @@ export class DiffViewProvider {
 			)
 		}
 
-		return { newProblemsMessage, userEdits, autoFormattingEdits, finalContent: normalizedPostSaveContent }
+		return {
+			newProblemsMessage,
+			userEdits,
+			autoFormattingEdits,
+			finalContent: normalizedPostSaveContent,
+		}
 	}
 
 	async revertChanges(): Promise<void> {
@@ -277,11 +276,7 @@ export class DiffViewProvider {
 	private async closeAllDiffViews() {
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
-			.filter(
-				(tab) =>
-					tab.input instanceof vscode.TabInputTextDiff &&
-					tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME,
-			)
+			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {

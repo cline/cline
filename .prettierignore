@@ -1,5 +1,5 @@
 dist/
 node_modules
 webview-ui/build/
-CHANGELOG.md
+*.md
 package-lock.json

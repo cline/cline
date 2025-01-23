@@ -14,7 +14,22 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 
 Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
 
-If you're planning to work on a bigger feature, please create an issue first so we can discuss whether it aligns with Cline's vision.
+We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+
+If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
+
+## Development Setup
+
+1. **VS Code Extensions**
+
+    - When opening the project, VS Code will prompt you to install recommended extensions
+    - These extensions are required for development - please accept all installation prompts
+    - If you dismissed the prompts, you can install them manually from the Extensions panel
+
+2. **Local Development**
+    - Run `npm run install:all` to install dependencies
+    - Run `npm run test` to run tests locally
+    - Before submitting PR, run `npm run format:fix` to format your code
 
 ## Writing and Submitting Code
 
@@ -28,8 +43,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to ensure code follows our style guidelines
-    - Run `npm run format` to format your code with Prettier
+    - Run `npm run lint` to check code style
+    - Run `npm run format` to automatically format code
+    - All PRs must pass CI checks which include both linting and formatting
     - Address any ESLint warnings or errors before submitting
     - Follow TypeScript best practices and maintain type safety
 

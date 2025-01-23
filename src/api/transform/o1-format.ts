@@ -244,7 +244,10 @@ const toolNames = [
 	"attempt_completion",
 ]
 
-function parseAIResponse(response: string): { normalText: string; toolCalls: ToolCall[] } {
+function parseAIResponse(response: string): {
+	normalText: string
+	toolCalls: ToolCall[]
+} {
 	// Create a regex pattern to match any tool call opening tag
 	const toolCallPattern = new RegExp(`<(${toolNames.join("|")})`, "i")
 	const match = response.match(toolCallPattern)
