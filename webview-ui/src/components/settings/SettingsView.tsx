@@ -1,4 +1,5 @@
 import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import ModelRotationSettings from "./ModelRotationSettings"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -95,6 +96,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					/>
 				</div>
 
+				<div style={{ marginBottom: 5 }}>
+					<ModelRotationSettings />
+				</div>
+				
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
