@@ -84,11 +84,11 @@ type SupportPromptType = keyof typeof defaultTemplates
 
 export const supportPrompt = {
 	default: defaultTemplates,
-	get: (customPrompts: Record<string, any> | undefined, type: SupportPromptType): string => {
-		return customPrompts?.[type] ?? defaultTemplates[type]
+	get: (customSupportPrompts: Record<string, any> | undefined, type: SupportPromptType): string => {
+		return customSupportPrompts?.[type] ?? defaultTemplates[type]
 	},
-	create: (type: SupportPromptType, params: PromptParams, customPrompts?: Record<string, any>): string => {
-		const template = supportPrompt.get(customPrompts, type)
+	create: (type: SupportPromptType, params: PromptParams, customSupportPrompts?: Record<string, any>): string => {
+		const template = supportPrompt.get(customSupportPrompts, type)
 		return createPrompt(template, params)
 	},
 } as const
@@ -102,3 +102,7 @@ export const supportPromptLabels: Record<SupportPromptType, string> = {
 	IMPROVE: "Improve Code",
 	ENHANCE: "Enhance Prompt",
 } as const
+
+export type CustomSupportPrompts = {
+	[key: string]: string | undefined
+}

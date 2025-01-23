@@ -22,7 +22,7 @@ import { WebviewMessage } from "../../shared/WebviewMessage"
 import {
 	Mode,
 	modes,
-	CustomPrompts,
+	CustomModePrompts,
 	PromptComponent,
 	ModeConfig,
 	defaultModeSlug,
@@ -40,7 +40,7 @@ import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import { supportPrompt } from "../../shared/support-prompt"
+import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
 
@@ -111,7 +111,8 @@ type GlobalStateKey =
 	| "vsCodeLmModelSelector"
 	| "mode"
 	| "modeApiConfigs"
-	| "customPrompts"
+	| "customModePrompts"
+	| "customSupportPrompts"
 	| "enhancementApiConfigId"
 	| "experimentalDiffStrategy"
 	| "autoApprovalEnabled"
@@ -203,9 +204,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
-		const { customPrompts } = await visibleProvider.getState()
+		const { customSupportPrompts } = await visibleProvider.getState()
 
-		const prompt = supportPrompt.create(promptType, params, customPrompts)
+		const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
 
 		await visibleProvider.initClineWithTask(prompt)
 	}
@@ -296,7 +297,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.clearTask()
 		const {
 			apiConfiguration,
-			customPrompts,
+			customModePrompts,
 			diffEnabled,
 			fuzzyMatchThreshold,
 			mode,
@@ -304,7 +305,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experimentalDiffStrategy,
 		} = await this.getState()
 
-		const modePrompt = customPrompts?.[mode] as PromptComponent
+		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
@@ -324,7 +325,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.clearTask()
 		const {
 			apiConfiguration,
-			customPrompts,
+			customModePrompts,
 			diffEnabled,
 			fuzzyMatchThreshold,
 			mode,
@@ -332,7 +333,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experimentalDiffStrategy,
 		} = await this.getState()
 
-		const modePrompt = customPrompts?.[mode] as PromptComponent
+		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
 		this.cline = new Cline(
@@ -817,14 +818,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								return
 							}
 
-							const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+							const existingPrompts = (await this.getGlobalState("customSupportPrompts")) || {}
 
 							const updatedPrompts = {
 								...existingPrompts,
 								...message.values,
 							}
 
-							await this.updateGlobalState("customPrompts", updatedPrompts)
+							await this.updateGlobalState("customSupportPrompts", updatedPrompts)
 							await this.postStateToWebview()
 						} catch (error) {
 							console.error("Error update support prompt:", error)
@@ -837,10 +838,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								return
 							}
 
-							const existingPrompts = ((await this.getGlobalState("customPrompts")) || {}) as Record<
-								string,
-								any
-							>
+							const existingPrompts = ((await this.getGlobalState("customSupportPrompts")) ||
+								{}) as Record<string, any>
 
 							const updatedPrompts = {
 								...existingPrompts,
@@ -848,7 +847,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 							updatedPrompts[message.text] = undefined
 
-							await this.updateGlobalState("customPrompts", updatedPrompts)
+							await this.updateGlobalState("customSupportPrompts", updatedPrompts)
 							await this.postStateToWebview()
 						} catch (error) {
 							console.error("Error reset support prompt:", error)
@@ -857,21 +856,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "updatePrompt":
 						if (message.promptMode && message.customPrompt !== undefined) {
-							const existingPrompts = (await this.getGlobalState("customPrompts")) || {}
+							const existingPrompts = (await this.getGlobalState("customModePrompts")) || {}
 
 							const updatedPrompts = {
 								...existingPrompts,
 								[message.promptMode]: message.customPrompt,
 							}
 
-							await this.updateGlobalState("customPrompts", updatedPrompts)
+							await this.updateGlobalState("customModePrompts", updatedPrompts)
 
-							// Get current state and explicitly include customPrompts
+							// Get current state and explicitly include customModePrompts
 							const currentState = await this.getState()
 
 							const stateWithPrompts = {
 								...currentState,
-								customPrompts: updatedPrompts,
+								customModePrompts: updatedPrompts,
 							}
 
 							// Post state with prompts
@@ -981,8 +980,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "enhancePrompt":
 						if (message.text) {
 							try {
-								const { apiConfiguration, customPrompts, listApiConfigMeta, enhancementApiConfigId } =
-									await this.getState()
+								const {
+									apiConfiguration,
+									customSupportPrompts,
+									listApiConfigMeta,
+									enhancementApiConfigId,
+								} = await this.getState()
 
 								// Try to get enhancement config first, fall back to current config
 								let configToUse: ApiConfiguration = apiConfiguration
@@ -1003,7 +1006,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										{
 											userInput: message.text,
 										},
-										customPrompts,
+										customSupportPrompts,
 									),
 								)
 
@@ -1024,7 +1027,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							const {
 								apiConfiguration,
-								customPrompts,
+								customModePrompts,
 								customInstructions,
 								preferredLanguage,
 								browserViewportSize,
@@ -1054,7 +1057,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								diffStrategy,
 								browserViewportSize ?? "900x600",
 								mode,
-								customPrompts,
+								customModePrompts,
 								customModes,
 								customInstructions,
 								preferredLanguage,
@@ -1802,7 +1805,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			currentApiConfigName,
 			listApiConfigMeta,
 			mode,
-			customPrompts,
+			customModePrompts,
+			customSupportPrompts,
 			enhancementApiConfigId,
 			experimentalDiffStrategy,
 			autoApprovalEnabled,
@@ -1841,7 +1845,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			mode: mode ?? defaultModeSlug,
-			customPrompts: customPrompts ?? {},
+			customModePrompts: customModePrompts ?? {},
+			customSupportPrompts: customSupportPrompts ?? {},
 			enhancementApiConfigId,
 			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
@@ -1961,7 +1966,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vsCodeLmModelSelector,
 			mode,
 			modeApiConfigs,
-			customPrompts,
+			customModePrompts,
+			customSupportPrompts,
 			enhancementApiConfigId,
 			experimentalDiffStrategy,
 			autoApprovalEnabled,
@@ -2026,7 +2032,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("mode") as Promise<Mode | undefined>,
 			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
-			this.getGlobalState("customPrompts") as Promise<CustomPrompts | undefined>,
+			this.getGlobalState("customModePrompts") as Promise<CustomModePrompts | undefined>,
+			this.getGlobalState("customSupportPrompts") as Promise<CustomSupportPrompts | undefined>,
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
 			this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
@@ -2137,7 +2144,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			modeApiConfigs: modeApiConfigs ?? ({} as Record<Mode, string>),
-			customPrompts: customPrompts ?? {},
+			customModePrompts: customModePrompts ?? {},
+			customSupportPrompts: customSupportPrompts ?? {},
 			enhancementApiConfigId,
 			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,

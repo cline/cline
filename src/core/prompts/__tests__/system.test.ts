@@ -162,7 +162,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -178,7 +178,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			"1280x800", // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -196,7 +196,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -212,7 +212,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -228,7 +228,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			"900x600", // different viewport size
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -244,7 +244,7 @@ describe("SYSTEM_PROMPT", () => {
 			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 			undefined, // globalCustomInstructions
 			undefined, // preferredLanguage
@@ -264,7 +264,7 @@ describe("SYSTEM_PROMPT", () => {
 			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 			undefined, // globalCustomInstructions
 			undefined, // preferredLanguage
@@ -284,7 +284,7 @@ describe("SYSTEM_PROMPT", () => {
 			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 			undefined, // globalCustomInstructions
 			undefined, // preferredLanguage
@@ -304,7 +304,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 			undefined, // globalCustomInstructions
 			"Spanish", // preferredLanguage
@@ -334,7 +334,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			"custom-mode", // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			customModes, // customModes
 			"Global instructions", // globalCustomInstructions
 		)
@@ -351,7 +351,7 @@ describe("SYSTEM_PROMPT", () => {
 	})
 
 	it("should use promptComponent roleDefinition when available", async () => {
-		const customPrompts = {
+		const customModePrompts = {
 			[defaultModeSlug]: {
 				roleDefinition: "Custom prompt role definition",
 				customInstructions: "Custom prompt instructions",
@@ -366,7 +366,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined,
 			undefined,
 			defaultModeSlug,
-			customPrompts,
+			customModePrompts,
 			undefined,
 		)
 
@@ -377,7 +377,7 @@ describe("SYSTEM_PROMPT", () => {
 	})
 
 	it("should fallback to modeConfig roleDefinition when promptComponent has no roleDefinition", async () => {
-		const customPrompts = {
+		const customModePrompts = {
 			[defaultModeSlug]: {
 				customInstructions: "Custom prompt instructions",
 				// No roleDefinition provided
@@ -392,7 +392,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined,
 			undefined,
 			defaultModeSlug,
-			customPrompts,
+			customModePrompts,
 			undefined,
 		)
 
@@ -432,7 +432,7 @@ describe("addCustomInstructions", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			"architect", // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 
@@ -448,7 +448,7 @@ describe("addCustomInstructions", () => {
 			undefined, // diffStrategy
 			undefined, // browserViewportSize
 			"ask", // mode
-			undefined, // customPrompts
+			undefined, // customModePrompts
 			undefined, // customModes
 		)
 

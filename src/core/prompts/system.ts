@@ -1,7 +1,7 @@
 import {
 	Mode,
 	modes,
-	CustomPrompts,
+	CustomModePrompts,
 	PromptComponent,
 	getRoleDefinition,
 	defaultModeSlug,
@@ -97,7 +97,7 @@ export const SYSTEM_PROMPT = async (
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
 	mode: Mode = defaultModeSlug,
-	customPrompts?: CustomPrompts,
+	customModePrompts?: CustomModePrompts,
 	customModes?: ModeConfig[],
 	globalCustomInstructions?: string,
 	preferredLanguage?: string,
@@ -115,7 +115,7 @@ export const SYSTEM_PROMPT = async (
 	}
 
 	// Check if it's a custom mode
-	const promptComponent = getPromptComponent(customPrompts?.[mode])
+	const promptComponent = getPromptComponent(customModePrompts?.[mode])
 	// Get full mode config from custom modes or fall back to built-in modes
 	const currentMode = getModeBySlug(mode, customModes) || modes.find((m) => m.slug === mode) || modes[0]
 

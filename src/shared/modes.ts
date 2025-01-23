@@ -18,8 +18,8 @@ export type PromptComponent = {
 	customInstructions?: string
 }
 
-export type CustomPrompts = {
-	[key: string]: PromptComponent | undefined | string
+export type CustomModePrompts = {
+	[key: string]: PromptComponent | undefined
 }
 
 // Helper to get all tools for a mode
@@ -141,7 +141,7 @@ export function isToolAllowedForMode(
 }
 
 // Create the mode-specific default prompts
-export const defaultPrompts: Readonly<CustomPrompts> = Object.freeze(
+export const defaultPrompts: Readonly<CustomModePrompts> = Object.freeze(
 	Object.fromEntries(modes.map((mode) => [mode.slug, { roleDefinition: mode.roleDefinition }])),
 )
 

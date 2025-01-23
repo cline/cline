@@ -4,7 +4,8 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
-import { Mode, CustomPrompts, ModeConfig } from "./modes"
+import { Mode, CustomModePrompts, ModeConfig } from "./modes"
+import { CustomSupportPrompts } from "./support-prompt"
 
 export interface LanguageModelChatSelector {
 	vendor?: string
@@ -82,7 +83,8 @@ export interface ExtensionState {
 	currentApiConfigName?: string
 	listApiConfigMeta?: ApiConfigMeta[]
 	customInstructions?: string
-	customPrompts?: CustomPrompts
+	customModePrompts?: CustomModePrompts
+	customSupportPrompts?: CustomSupportPrompts
 	alwaysAllowReadOnly?: boolean
 	alwaysAllowWrite?: boolean
 	alwaysAllowExecute?: boolean

@@ -97,18 +97,18 @@ describe("Code Action Prompts", () => {
 
 		it("should return custom template when provided", () => {
 			const customTemplate = "Custom template for explaining code"
-			const customPrompts = {
+			const customSupportPrompts = {
 				EXPLAIN: customTemplate,
 			}
-			const template = supportPrompt.get(customPrompts, "EXPLAIN")
+			const template = supportPrompt.get(customSupportPrompts, "EXPLAIN")
 			expect(template).toBe(customTemplate)
 		})
 
 		it("should return default template when custom prompts does not include type", () => {
-			const customPrompts = {
+			const customSupportPrompts = {
 				SOMETHING_ELSE: "Other template",
 			}
-			const template = supportPrompt.get(customPrompts, "EXPLAIN")
+			const template = supportPrompt.get(customSupportPrompts, "EXPLAIN")
 			expect(template).toBe(supportPrompt.default.EXPLAIN)
 		})
 	})
@@ -116,7 +116,7 @@ describe("Code Action Prompts", () => {
 	describe("create with custom prompts", () => {
 		it("should use custom template when provided", () => {
 			const customTemplate = "Custom template for ${filePath}"
-			const customPrompts = {
+			const customSupportPrompts = {
 				EXPLAIN: customTemplate,
 			}
 
@@ -126,7 +126,7 @@ describe("Code Action Prompts", () => {
 					filePath: testFilePath,
 					selectedText: testCode,
 				},
-				customPrompts,
+				customSupportPrompts,
 			)
 
 			expect(prompt).toContain(`Custom template for ${testFilePath}`)
@@ -134,7 +134,7 @@ describe("Code Action Prompts", () => {
 		})
 
 		it("should use default template when custom prompts does not include type", () => {
-			const customPrompts = {
+			const customSupportPrompts = {
 				EXPLAIN: "Other template",
 			}
 
@@ -144,7 +144,7 @@ describe("Code Action Prompts", () => {
 					filePath: testFilePath,
 					selectedText: testCode,
 				},
-				customPrompts,
+				customSupportPrompts,
 			)
 
 			expect(prompt).toContain("Other template")

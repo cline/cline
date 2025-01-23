@@ -809,7 +809,7 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, mode, customPrompts, preferredLanguage } =
+		const { browserViewportSize, mode, customModePrompts, preferredLanguage } =
 			(await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
@@ -825,7 +825,7 @@ export class Cline {
 				this.diffStrategy,
 				browserViewportSize,
 				mode,
-				customPrompts,
+				customModePrompts,
 				customModes,
 				this.customInstructions,
 				preferredLanguage,

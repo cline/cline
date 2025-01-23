@@ -1,7 +1,7 @@
 import { render, fireEvent, screen } from "@testing-library/react"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import AutoApproveMenu from "../AutoApproveMenu"
-import { codeMode, defaultPrompts } from "../../../../../src/shared/modes"
+import { defaultModeSlug, defaultPrompts } from "../../../../../src/shared/modes"
 
 // Mock the ExtensionStateContext hook
 jest.mock("../../../context/ExtensionStateContext")
@@ -29,8 +29,9 @@ describe("AutoApproveMenu", () => {
 		requestDelaySeconds: 5,
 		currentApiConfigName: "default",
 		listApiConfigMeta: [],
-		mode: codeMode,
-		customPrompts: defaultPrompts,
+		mode: defaultModeSlug,
+		customModePrompts: defaultPrompts,
+		customSupportPrompts: {},
 		enhancementApiConfigId: "",
 		didHydrateState: true,
 		showWelcome: false,

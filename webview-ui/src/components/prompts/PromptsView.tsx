@@ -23,7 +23,8 @@ type PromptsViewProps = {
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const {
-		customPrompts,
+		customModePrompts,
+		customSupportPrompts,
 		listApiConfigMeta,
 		enhancementApiConfigId,
 		setEnhancementApiConfigId,
@@ -50,7 +51,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
 		(mode: Mode, promptData: PromptComponent) => {
-			const existingPrompt = customPrompts?.[mode] as PromptComponent
+			const existingPrompt = customModePrompts?.[mode] as PromptComponent
 			const updatedPrompt = { ...existingPrompt, ...promptData }
 
 			// Only include properties that differ from defaults
@@ -64,7 +65,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				customPrompt: updatedPrompt,
 			})
 		},
-		[customPrompts],
+		[customModePrompts],
 	)
 
 	const updateCustomMode = useCallback((slug: string, modeConfig: ModeConfig) => {
@@ -261,7 +262,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	const handleAgentReset = (modeSlug: string) => {
 		// Only reset role definition for built-in modes
-		const existingPrompt = customPrompts?.[modeSlug] as PromptComponent
+		const existingPrompt = customModePrompts?.[modeSlug] as PromptComponent
 		updateAgentPrompt(modeSlug, {
 			...existingPrompt,
 			roleDefinition: undefined,
@@ -276,7 +277,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	const getSupportPromptValue = (type: SupportPromptType): string => {
-		return supportPrompt.get(customPrompts, type)
+		return supportPrompt.get(customSupportPrompts, type)
 	}
 
 	const handleTestEnhancement = () => {
@@ -556,7 +557,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode] as PromptComponent
+								const prompt = customModePrompts?.[mode] as PromptComponent
 								return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(mode)
 							})()}
 							onChange={(e) => {
@@ -673,7 +674,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode] as PromptComponent
+								const prompt = customModePrompts?.[mode] as PromptComponent
 								return customMode?.customInstructions ?? prompt?.customInstructions ?? ""
 							})()}
 							onChange={(e) => {
@@ -689,7 +690,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									})
 								} else {
 									// For built-in modes, update the prompts
-									const existingPrompt = customPrompts?.[mode] as PromptComponent
+									const existingPrompt = customModePrompts?.[mode] as PromptComponent
 									updateAgentPrompt(mode, {
 										...existingPrompt,
 										customInstructions: value.trim() || undefined,

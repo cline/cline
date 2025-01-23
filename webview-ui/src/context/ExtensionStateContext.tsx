@@ -14,7 +14,8 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
-import { Mode, CustomPrompts, defaultModeSlug, defaultPrompts, ModeConfig } from "../../../src/shared/modes"
+import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } from "../../../src/shared/modes"
+import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -57,7 +58,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 	mode: Mode
 	setMode: (value: Mode) => void
-	setCustomPrompts: (value: CustomPrompts) => void
+	setCustomModePrompts: (value: CustomModePrompts) => void
+	setCustomSupportPrompts: (value: CustomSupportPrompts) => void
 	enhancementApiConfigId?: string
 	setEnhancementApiConfigId: (value: string) => void
 	experimentalDiffStrategy: boolean
@@ -93,7 +95,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		currentApiConfigName: "default",
 		listApiConfigMeta: [],
 		mode: defaultModeSlug,
-		customPrompts: defaultPrompts,
+		customModePrompts: defaultPrompts,
+		customSupportPrompts: {},
 		enhancementApiConfigId: "",
 		experimentalDiffStrategy: false,
 		autoApprovalEnabled: false,
@@ -270,7 +273,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setListApiConfigMeta,
 		onUpdateApiConfig,
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
-		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
+		setCustomModePrompts: (value) => setState((prevState) => ({ ...prevState, customModePrompts: value })),
+		setCustomSupportPrompts: (value) => setState((prevState) => ({ ...prevState, customSupportPrompts: value })),
 		setEnhancementApiConfigId: (value) =>
 			setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
 		setExperimentalDiffStrategy: (value) =>

@@ -12,7 +12,7 @@ jest.mock("../../../utils/vscode", () => ({
 }))
 
 const mockExtensionState = {
-	customPrompts: {},
+	customModePrompts: {},
 	listApiConfigMeta: [
 		{ id: "config1", name: "Config 1" },
 		{ id: "config2", name: "Config 2" },
