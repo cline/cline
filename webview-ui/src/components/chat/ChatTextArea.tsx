@@ -43,6 +43,8 @@ interface ChatTextAreaProps {
 	onHeightChange?: (height: number) => void
 }
 
+const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
@@ -69,13 +71,14 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	transform: scale(0.85);
 	transform-origin: right center;
 	margin-left: -10px; // compensate for the transform so flex spacing works
+	user-select: none; // Prevent text selection
 `
 
-const Slider = styled.div<{ isAct: boolean }>`
+const Slider = styled.div<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: var(--vscode-focusBorder);
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)")};
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
@@ -372,6 +375,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
+					setIsTextAreaFocused(false)
 					onSend()
 				}
 
@@ -742,6 +746,93 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
+		/**
+		 * Handles the drag over event to allow dropping.
+		 * Prevents the default behavior to enable drop.
+		 *
+		 * @param {React.DragEvent} e - The drag event.
+		 */
+		const onDragOver = (e: React.DragEvent) => {
+			e.preventDefault()
+		}
+
+		/**
+		 * Handles the drop event for files and text.
+		 * Processes dropped images and text, updating the state accordingly.
+		 *
+		 * @param {React.DragEvent} e - The drop event.
+		 */
+		const onDrop = async (e: React.DragEvent) => {
+			e.preventDefault()
+
+			const files = Array.from(e.dataTransfer.files)
+			const text = e.dataTransfer.getData("text")
+
+			if (text) {
+				handleTextDrop(text)
+				return
+			}
+
+			const acceptedTypes = ["png", "jpeg", "webp"]
+			const imageFiles = files.filter((file) => {
+				const [type, subtype] = file.type.split("/")
+				return type === "image" && acceptedTypes.includes(subtype)
+			})
+
+			if (shouldDisableImages || imageFiles.length === 0) return
+
+			const imageDataArray = await readImageFiles(imageFiles)
+			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+
+			if (dataUrls.length > 0) {
+				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+			} else {
+				console.warn("No valid images were processed")
+			}
+		}
+
+		/**
+		 * Handles the drop event for text.
+		 * Inserts the dropped text at the current cursor position.
+		 *
+		 * @param {string} text - The dropped text.
+		 */
+		const handleTextDrop = (text: string) => {
+			const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+			setInputValue(newValue)
+			const newCursorPosition = cursorPosition + text.length
+			setCursorPosition(newCursorPosition)
+			setIntendedCursorPosition(newCursorPosition)
+		}
+
+		/**
+		 * Reads image files and returns their data URLs.
+		 * Uses FileReader to read the files as data URLs.
+		 *
+		 * @param {File[]} imageFiles - The image files to read.
+		 * @returns {Promise<(string | null)[]>} - A promise that resolves to an array of data URLs or null values.
+		 */
+		const readImageFiles = (imageFiles: File[]): Promise<(string | null)[]> => {
+			return Promise.all(
+				imageFiles.map(
+					(file) =>
+						new Promise<string | null>((resolve) => {
+							const reader = new FileReader()
+							reader.onloadend = () => {
+								if (reader.error) {
+									console.error("Error reading file:", reader.error)
+									resolve(null)
+								} else {
+									const result = reader.result
+									resolve(typeof result === "string" ? result : null)
+								}
+							}
+							reader.readAsDataURL(file)
+						}),
+				),
+			)
+		}
+
 		return (
 			<div>
 				<div
@@ -750,7 +841,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						opacity: textAreaDisabled ? 0.5 : 1,
 						position: "relative",
 						display: "flex",
-					}}>
+					}}
+					onDrop={onDrop}
+					onDragOver={onDragOver}>
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
@@ -803,6 +896,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 					/>
 					<DynamicTextArea
+						data-testid="chat-input"
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -862,6 +956,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
+							outline: isTextAreaFocused
+								? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+								: "none",
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -909,9 +1006,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}}
 							/> */}
 							<div
+								data-testid="send-button"
 								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
 									if (!textAreaDisabled) {
+										setIsTextAreaFocused(false)
 										onSend()
 									}
 								}}
@@ -923,6 +1022,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<ControlsContainer>
 					<ButtonGroup>
 						<VSCodeButton
+							data-testid="context-button"
 							appearance="icon"
 							aria-label="Add Context"
 							disabled={textAreaDisabled}
@@ -935,6 +1035,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</VSCodeButton>
 
 						<VSCodeButton
+							data-testid="images-button"
 							appearance="icon"
 							aria-label="Add Images"
 							disabled={shouldDisableImages}
@@ -985,8 +1086,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ModelContainer>
 					</ButtonGroup>
 
-					<SwitchContainer disabled={textAreaDisabled} onClick={onModeToggle}>
-						<Slider isAct={chatSettings.mode === "act"} />
+					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
+						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
 					</SwitchContainer>

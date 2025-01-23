@@ -1,7 +1,10 @@
 out
 dist
 node_modules
+tmp
 .vscode-test/
 *.vsix
 
 .DS_Store
+
+pnpm-lock.yaml

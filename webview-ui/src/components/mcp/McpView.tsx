@@ -12,6 +12,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
+
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -100,7 +101,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					style={{
 						color: "var(--vscode-foreground)",
 						fontSize: "13px",
-						marginBottom: "20px",
+						marginBottom: "16px",
 						marginTop: "5px",
 					}}>
 					The{" "}
@@ -118,7 +119,6 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodeLink>
 				</div>
 
-				{/* Server List */}
 				{servers.length > 0 && (
 					<div
 						style={{
@@ -132,7 +132,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</div>
 				)}
 
-				{/* Edit Settings Button */}
+				{/* Server Configuration Button */}
+
 				<div style={{ marginTop: "10px", width: "100%" }}>
 					<VSCodeButton
 						appearance="secondary"
@@ -140,9 +141,23 @@ const McpView = ({ onDone }: McpViewProps) => {
 						onClick={() => {
 							vscode.postMessage({ type: "openMcpSettings" })
 						}}>
-						<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-						Edit MCP Settings
+						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+						Configure MCP Servers
 					</VSCodeButton>
+				</div>
+
+				{/* Advanced Settings Link */}
+				<div style={{ textAlign: "center", marginTop: "5px" }}>
+					<VSCodeLink
+						onClick={() => {
+							vscode.postMessage({
+								type: "openExtensionSettings",
+								text: "cline.mcp",
+							})
+						}}
+						style={{ fontSize: "12px" }}>
+						Advanced MCP Settings
+					</VSCodeLink>
 				</div>
 
 				{/* Bottom padding */}

@@ -1,5 +1,13 @@
 # Change Log
 
+## [3.2.5]
+
+- Use yellow textfield outline in Plan mode to better distinguish from Act mode
+
+## [3.2.3]
+
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling (thanks @slavakurilyak!)
+
 ## [3.2.0]
 
 - Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work

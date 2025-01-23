@@ -34,10 +34,13 @@ export interface WebviewMessage {
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
+		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
 		| "toggleMcpServer"
 		| "getLatestState"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
