@@ -1,21 +1,4 @@
-// Separate enhance prompt type and definition
-export type EnhanceConfig = {
-	prompt: string
-}
-
-export const enhance: EnhanceConfig = {
-	prompt: "Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):",
-} as const
-
-// Completely separate enhance prompt handling
-export const enhancePrompt = {
-	default: enhance.prompt,
-	get: (customPrompts: Record<string, any> | undefined): string => {
-		return customPrompts?.enhance ?? enhance.prompt
-	},
-} as const
-
-// Code action prompts
+// Support prompts
 type PromptParams = Record<string, string | any[]>
 
 const generateDiagnosticText = (diagnostics?: any[]) => {
@@ -41,8 +24,7 @@ export const createPrompt = (template: string, params: PromptParams): string => 
 	return result
 }
 
-const EXPLAIN_TEMPLATE = `
-Explain the following code from file path @/\${filePath}:
+const EXPLAIN_TEMPLATE = `Explain the following code from file path @/\${filePath}:
 \${userInput}
 
 \`\`\`
@@ -55,8 +37,7 @@ Please provide a clear and concise explanation of what this code does, including
 3. Important patterns or techniques used
 `
 
-const FIX_TEMPLATE = `
-Fix any issues in the following code from file path @/\${filePath}
+const FIX_TEMPLATE = `Fix any issues in the following code from file path @/\${filePath}
 \${diagnosticText}
 \${userInput}
 
@@ -71,8 +52,7 @@ Please:
 4. Explain what was fixed and why
 `
 
-const IMPROVE_TEMPLATE = `
-Improve the following code from file path @/\${filePath}:
+const IMPROVE_TEMPLATE = `Improve the following code from file path @/\${filePath}:
 \${userInput}
 
 \`\`\`
@@ -88,31 +68,36 @@ Please suggest improvements for:
 Provide the improved code along with explanations for each enhancement.
 `
 
+const ENHANCE_TEMPLATE =
+	"Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):"
+
 // Get template based on prompt type
 const defaultTemplates = {
 	EXPLAIN: EXPLAIN_TEMPLATE,
 	FIX: FIX_TEMPLATE,
 	IMPROVE: IMPROVE_TEMPLATE,
+	ENHANCE: ENHANCE_TEMPLATE,
 } as const
 
-type CodeActionType = keyof typeof defaultTemplates
+type SupportPromptType = keyof typeof defaultTemplates
 
-export const codeActionPrompt = {
+export const supportPrompt = {
 	default: defaultTemplates,
-	get: (customPrompts: Record<string, any> | undefined, type: CodeActionType): string => {
+	get: (customPrompts: Record<string, any> | undefined, type: SupportPromptType): string => {
 		return customPrompts?.[type] ?? defaultTemplates[type]
 	},
-	create: (type: CodeActionType, params: PromptParams, customPrompts?: Record<string, any>): string => {
-		const template = codeActionPrompt.get(customPrompts, type)
+	create: (type: SupportPromptType, params: PromptParams, customPrompts?: Record<string, any>): string => {
+		const template = supportPrompt.get(customPrompts, type)
 		return createPrompt(template, params)
 	},
 } as const
 
-export type { CodeActionType }
+export type { SupportPromptType }
 
-// User-friendly labels for code action types
-export const codeActionLabels: Record<CodeActionType, string> = {
+// User-friendly labels for support prompt types
+export const supportPromptLabels: Record<SupportPromptType, string> = {
 	FIX: "Fix Issues",
 	EXPLAIN: "Explain Code",
 	IMPROVE: "Improve Code",
+	ENHANCE: "Enhance Prompt",
 } as const

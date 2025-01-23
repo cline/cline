@@ -1,4 +1,4 @@
-import { codeActionPrompt, type CodeActionType } from "../support-prompt"
+import { supportPrompt } from "../support-prompt"
 
 describe("Code Action Prompts", () => {
 	const testFilePath = "test/file.ts"
@@ -6,7 +6,7 @@ describe("Code Action Prompts", () => {
 
 	describe("EXPLAIN action", () => {
 		it("should format explain prompt correctly", () => {
-			const prompt = codeActionPrompt.create("EXPLAIN", {
+			const prompt = supportPrompt.create("EXPLAIN", {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
@@ -21,7 +21,7 @@ describe("Code Action Prompts", () => {
 
 	describe("FIX action", () => {
 		it("should format fix prompt without diagnostics", () => {
-			const prompt = codeActionPrompt.create("FIX", {
+			const prompt = supportPrompt.create("FIX", {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
@@ -45,7 +45,7 @@ describe("Code Action Prompts", () => {
 				},
 			]
 
-			const prompt = codeActionPrompt.create("FIX", {
+			const prompt = supportPrompt.create("FIX", {
 				filePath: testFilePath,
 				selectedText: testCode,
 				diagnostics,
@@ -60,7 +60,7 @@ describe("Code Action Prompts", () => {
 
 	describe("IMPROVE action", () => {
 		it("should format improve prompt correctly", () => {
-			const prompt = codeActionPrompt.create("IMPROVE", {
+			const prompt = supportPrompt.create("IMPROVE", {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
@@ -74,10 +74,26 @@ describe("Code Action Prompts", () => {
 		})
 	})
 
+	describe("ENHANCE action", () => {
+		it("should format enhance prompt correctly", () => {
+			const prompt = supportPrompt.create("ENHANCE", {
+				filePath: testFilePath,
+				selectedText: testCode,
+			})
+
+			expect(prompt).toBe(
+				"Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):",
+			)
+			// Verify it ignores parameters since ENHANCE template doesn't use any
+			expect(prompt).not.toContain(testFilePath)
+			expect(prompt).not.toContain(testCode)
+		})
+	})
+
 	describe("get template", () => {
 		it("should return default template when no custom prompts provided", () => {
-			const template = codeActionPrompt.get(undefined, "EXPLAIN")
-			expect(template).toBe(codeActionPrompt.default.EXPLAIN)
+			const template = supportPrompt.get(undefined, "EXPLAIN")
+			expect(template).toBe(supportPrompt.default.EXPLAIN)
 		})
 
 		it("should return custom template when provided", () => {
@@ -85,7 +101,7 @@ describe("Code Action Prompts", () => {
 			const customPrompts = {
 				EXPLAIN: customTemplate,
 			}
-			const template = codeActionPrompt.get(customPrompts, "EXPLAIN")
+			const template = supportPrompt.get(customPrompts, "EXPLAIN")
 			expect(template).toBe(customTemplate)
 		})
 
@@ -93,8 +109,8 @@ describe("Code Action Prompts", () => {
 			const customPrompts = {
 				SOMETHING_ELSE: "Other template",
 			}
-			const template = codeActionPrompt.get(customPrompts, "EXPLAIN")
-			expect(template).toBe(codeActionPrompt.default.EXPLAIN)
+			const template = supportPrompt.get(customPrompts, "EXPLAIN")
+			expect(template).toBe(supportPrompt.default.EXPLAIN)
 		})
 	})
 
@@ -105,7 +121,7 @@ describe("Code Action Prompts", () => {
 				EXPLAIN: customTemplate,
 			}
 
-			const prompt = codeActionPrompt.create(
+			const prompt = supportPrompt.create(
 				"EXPLAIN",
 				{
 					filePath: testFilePath,
@@ -123,7 +139,7 @@ describe("Code Action Prompts", () => {
 				EXPLAIN: "Other template",
 			}
 
-			const prompt = codeActionPrompt.create(
+			const prompt = supportPrompt.create(
 				"EXPLAIN",
 				{
 					filePath: testFilePath,

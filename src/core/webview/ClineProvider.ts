@@ -40,7 +40,7 @@ import { enhancePrompt } from "../../utils/enhance-prompt"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import { enhance, codeActionPrompt } from "../../shared/support-prompt"
+import { supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
 
@@ -205,7 +205,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		const { customPrompts } = await visibleProvider.getState()
 
-		const prompt = codeActionPrompt.create(promptType, params, customPrompts)
+		const prompt = supportPrompt.create(promptType, params, customPrompts)
 
 		await visibleProvider.initClineWithTask(prompt)
 	}
@@ -996,16 +996,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									}
 								}
 
-								const getEnhancePrompt = (value: string | PromptComponent | undefined): string => {
-									if (typeof value === "string") {
-										return value
-									}
-									return enhance.prompt // Use the constant from modes.ts which we know is a string
-								}
 								const enhancedPrompt = await enhancePrompt(
 									configToUse,
 									message.text,
-									getEnhancePrompt(customPrompts?.enhance),
+									supportPrompt.get(customPrompts, "ENHANCE"),
 								)
 								await this.postMessageToWebview({
 									type: "enhancedPrompt",
