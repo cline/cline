@@ -45,32 +45,6 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 }
 
-export type GlobalStateKey =
-	| "apiProvider"
-	| "apiModelId"
-	| "awsRegion"
-	| "awsUseCrossRegionInference"
-	| "vertexProjectId"
-	| "vertexRegion"
-	| "lastShownAnnouncementId"
-	| "customInstructions"
-	| "taskHistory"
-	| "openAiBaseUrl"
-	| "openAiModelId"
-	| "ollamaModelId"
-	| "ollamaBaseUrl"
-	| "lmStudioModelId"
-	| "lmStudioBaseUrl"
-	| "anthropicBaseUrl"
-	| "azureApiVersion"
-	| "openRouterModelId"
-	| "openRouterModelInfo"
-	| "autoApprovalSettings"
-	| "browserSettings"
-	| "chatSettings"
-	| "vsCodeLmModelSelector"
-	| "userInfo"
-
 export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration

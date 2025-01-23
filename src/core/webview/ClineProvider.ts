@@ -47,7 +47,7 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
-type GlobalStateKey =
+export type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
