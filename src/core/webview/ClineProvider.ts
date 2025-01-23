@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
 import os from "os"
+import crypto from "crypto"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -12,6 +13,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
+import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
@@ -43,6 +45,8 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "mistralApiKey"
+	| "authToken"
+	| "authNonce"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -67,6 +71,7 @@ type GlobalStateKey =
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
+	| "userInfo"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -85,6 +90,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
+	private authManager: FirebaseAuthManager
 	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
@@ -95,6 +101,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
+		this.authManager = new FirebaseAuthManager(this)
 	}
 
 	/*
@@ -120,8 +127,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+		this.authManager.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
+	}
+
+	// Auth methods
+	async handleSignOut() {
+		try {
+			await this.authManager.signOut()
+			vscode.window.showInformationMessage("Successfully logged out of Cline")
+		} catch (error) {
+			vscode.window.showErrorMessage("Logout failed")
+		}
+	}
+
+	async setAuthToken(token?: string) {
+		await this.storeSecret("authToken", token)
+	}
+
+	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
+		await this.updateGlobalState("userInfo", info)
 	}
 
 	public static getVisibleInstance(): ClineProvider | undefined {
@@ -313,7 +339,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
             <title>Cline</title>
@@ -594,6 +620,27 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
+					case "accountLoginClicked": {
+						// Generate nonce for state validation
+						const nonce = crypto.randomBytes(32).toString("hex")
+						await this.storeSecret("authNonce", nonce)
+
+						// Open browser for authentication with state param
+						console.log("Login button clicked in account page")
+						console.log("Opening auth page with state param")
+
+						const uriScheme = vscode.env.uriScheme
+
+						const authUrl = vscode.Uri.parse(
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
+						)
+						vscode.env.openExternal(authUrl)
+						break
+					}
+					case "accountLogoutClicked": {
+						await this.handleSignOut()
+						break
+					}
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
@@ -741,6 +788,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return models
 		} catch (error) {
 			return []
+		}
+	}
+
+	// Auth
+
+	public async validateAuthState(state: string | null): Promise<boolean> {
+		const storedNonce = await this.getSecret("authNonce")
+		if (!state || state !== storedNonce) {
+			return false
+		}
+		await this.storeSecret("authNonce", undefined) // Clear after use
+		return true
+	}
+
+	async handleAuthCallback(token: string) {
+		try {
+			// First sign in with Firebase to trigger auth state change
+			await this.authManager.signInWithCustomToken(token)
+
+			// Then store the token securely
+			await this.storeSecret("authToken", token)
+			await this.postStateToWebview()
+			vscode.window.showInformationMessage("Successfully logged in to Cline")
+		} catch (error) {
+			console.error("Failed to handle auth callback:", error)
+			vscode.window.showErrorMessage("Failed to log in to Cline")
 		}
 	}
 
@@ -1017,7 +1090,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			userInfo,
 		} = await this.getState()
+
+		const authToken = await this.getSecret("authToken")
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1031,6 +1107,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			isLoggedIn: !!authToken,
+			userInfo,
 		}
 	}
 
@@ -1120,6 +1198,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			userInfo,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1154,6 +1233,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1206,6 +1286,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
+			userInfo,
 		}
 	}
 
@@ -1261,7 +1342,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async getSecret(key: SecretKey) {
+	async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
 	}
 
@@ -1283,6 +1364,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
 			"mistralApiKey",
+			"authToken",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
