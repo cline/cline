@@ -4,26 +4,22 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../index"
 
 export class UnboundHandler implements ApiHandler {
-	private unboundApiKey: string
-	private unboundModelId: string
 	private unboundBaseUrl: string = "https://ai-gateway-43843357113.us-west1.run.app/v1"
 	private options: ApiHandlerOptions
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.unboundApiKey = options.unboundApiKey || ""
-		this.unboundModelId = options.unboundModelId || ""
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const response = await fetch(`${this.unboundBaseUrl}/chat/completions`, {
 			method: "POST",
 			headers: {
-				Authorization: `Bearer ${this.unboundApiKey}`,
+				Authorization: `Bearer ${this.options.unboundApiKey}`,
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				model: this.unboundModelId,
+				model: this.getModel().id,
 				messages: [{ role: "system", content: systemPrompt }, ...messages],
 			}),
 		})
