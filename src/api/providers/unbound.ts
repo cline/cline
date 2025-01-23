@@ -4,7 +4,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../index"
 
 export class UnboundHandler implements ApiHandler {
-	private unboundBaseUrl: string = "https://ai-gateway-43843357113.us-west1.run.app/v1"
+	private unboundBaseUrl: string = "https://api.getunbound.ai/v1"
 	private options: ApiHandlerOptions
 
 	constructor(options: ApiHandlerOptions) {
