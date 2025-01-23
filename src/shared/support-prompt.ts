@@ -68,8 +68,9 @@ Please suggest improvements for:
 Provide the improved code along with explanations for each enhancement.
 `
 
-const ENHANCE_TEMPLATE =
-	"Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):"
+const ENHANCE_TEMPLATE = `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):
+
+\${userInput}`
 
 // Get template based on prompt type
 const defaultTemplates = {

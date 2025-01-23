@@ -77,12 +77,11 @@ describe("Code Action Prompts", () => {
 	describe("ENHANCE action", () => {
 		it("should format enhance prompt correctly", () => {
 			const prompt = supportPrompt.create("ENHANCE", {
-				filePath: testFilePath,
-				selectedText: testCode,
+				userInput: "test",
 			})
 
 			expect(prompt).toBe(
-				"Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):",
+				"Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):\n\ntest",
 			)
 			// Verify it ignores parameters since ENHANCE template doesn't use any
 			expect(prompt).not.toContain(testFilePath)

@@ -36,7 +36,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
-import { enhancePrompt } from "../../utils/enhance-prompt"
+import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
@@ -996,11 +996,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									}
 								}
 
-								const enhancedPrompt = await enhancePrompt(
+								const enhancedPrompt = await singleCompletionHandler(
 									configToUse,
-									message.text,
-									supportPrompt.get(customPrompts, "ENHANCE"),
+									supportPrompt.create(
+										"ENHANCE",
+										{
+											userInput: message.text,
+										},
+										customPrompts,
+									),
 								)
+
 								await this.postMessageToWebview({
 									type: "enhancedPrompt",
 									text: enhancedPrompt,
