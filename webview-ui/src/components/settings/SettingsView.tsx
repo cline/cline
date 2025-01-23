@@ -6,6 +6,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import LanguageOptions from "./LanguageOptions"
+import SettingsButton from "../common/SettingsButton"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -138,12 +139,27 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				<div
 					style={{
+						marginTop: "auto",
+						paddingRight: 8,
+						display: "flex",
+						justifyContent: "center",
+					}}>
+					<SettingsButton
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						style={{
+							margin: "0 0 16px 0",
+						}}>
+						<i className="codicon codicon-settings-gear" />
+						Advanced Settings
+					</SettingsButton>
+				</div>
+				<div
+					style={{
 						textAlign: "center",
 						color: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 						lineHeight: "1.2",
-						marginTop: "auto",
-						padding: "10px 8px 15px 0px",
+						padding: "0 8px 15px 0",
 					}}>
 					<p
 						style={{

@@ -52,9 +52,9 @@ interface ApiOptionsProps {
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
 const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
-const DropdownContainer = styled.div`
+const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
-	z-index: ${DROPDOWN_Z_INDEX};
+	z-index: ${(props) => props.zIndex || DROPDOWN_Z_INDEX};
 
 	// Force dropdowns to open downward
 	& vscode-dropdown::part(listbox) {
@@ -403,7 +403,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={t("enterAwsSessionToken")}>
 						<span style={{ fontWeight: 500 }}>{t("awsSessionToken")}</span>
 					</VSCodeTextField>
-					<div className="dropdown-container">
+					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>{t("getRegion", { vendor: "AWS" })}</span>
 						</label>
@@ -439,7 +439,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
-					</div>
+					</DropdownContainer>
 					<VSCodeCheckbox
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
@@ -476,7 +476,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={t("enterGcpProjectId")}>
 						<span style={{ fontWeight: 500 }}>{t("gcpProjectId")}</span>
 					</VSCodeTextField>
-					<div className="dropdown-container">
+					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 						<label htmlFor="vertex-region-dropdown">
 							<span style={{ fontWeight: 500 }}>{t("getRegion", { vendor: "Google Cloud" })}</span>
 						</label>
@@ -492,7 +492,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
 							<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
 						</VSCodeDropdown>
-					</div>
+					</DropdownContainer>
 					<p
 						style={{
 							fontSize: "12px",
@@ -606,7 +606,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "vscode-lm" && (
 				<div>
-					<div className="dropdown-container">
+					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 						<label htmlFor="vscode-lm-model">
 							<span style={{ fontWeight: 500 }}>{t("languageModel")}</span>
 						</label>
@@ -660,7 +660,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							}}>
 							{t("experimentalFeature")}
 						</p>
-					</div>
+					</DropdownContainer>
 				</div>
 			)}
 
@@ -798,7 +798,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				selectedProvider !== "vscode-lm" &&
 				showModelOptions && (
 					<>
-						<div className="dropdown-container">
+						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>{t("model")}</span>
 							</label>
@@ -809,7 +809,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
-						</div>
+						</DropdownContainer>
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
@@ -840,7 +840,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 export function getOpenRouterAuthUrl(uriScheme?: string) {
 	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
 }
-
 export const formatPrice = (price: number) => {
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",

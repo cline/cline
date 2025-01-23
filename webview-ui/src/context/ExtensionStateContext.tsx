@@ -36,6 +36,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		localeLanguage: "en",
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		isLoggedIn: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

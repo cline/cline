@@ -59,6 +59,10 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
+	isMcpEnabled(): boolean {
+		return vscode.workspace.getConfiguration("cline.mcp").get("enabled") ?? true
+	}
+
 	async getMcpServersPath(): Promise<string> {
 		const provider = this.providerRef.deref()
 		if (!provider) {

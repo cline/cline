@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.2.0",
+	"version": "3.2.5",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -141,6 +141,11 @@
 						}
 					},
 					"description": "Settings for VSCode Language Model API"
+				},
+				"cline.mcp.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Include MCP server functionality in AI prompts. When disabled, the AI will not be aware of MCP capabilities. This saves context window tokens."
 				}
 			}
 		}
@@ -164,9 +169,11 @@
 		"start:webview": "cd webview-ui && npm run start",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish"
+		"publish:marketplace": "vsce publish && ovsx publish",
+		"prepare": "husky"
 	},
 	"devDependencies": {
+		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
@@ -176,8 +183,10 @@
 		"@typescript-eslint/parser": "^7.11.0",
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
+		"chai": "^4.3.10",
 		"esbuild": "^0.21.5",
 		"eslint": "^8.57.0",
+		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
@@ -204,6 +213,7 @@
 		"diff": "^5.2.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
+		"firebase": "^11.2.0",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
 		"isbinaryfile": "^5.0.2",

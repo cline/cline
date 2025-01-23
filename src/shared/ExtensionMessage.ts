@@ -25,7 +25,14 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -52,6 +59,12 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
 	localeLanguage: string
+	isLoggedIn: boolean
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
 }
 
 export interface ClineMessage {

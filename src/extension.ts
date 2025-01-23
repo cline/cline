@@ -110,6 +110,15 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.accountLoginClicked", () => {
+			sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "accountLoginClicked",
+			})
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
@@ -126,6 +135,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// URI Handler
 	const handleUri = async (uri: vscode.Uri) => {
+		console.log("URI Handler called with:", {
+			path: uri.path,
+			query: uri.query,
+			scheme: uri.scheme,
+		})
+
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
 		const visibleProvider = ClineProvider.getVisibleInstance()
@@ -137,6 +152,26 @@ export function activate(context: vscode.ExtensionContext) {
 				const code = query.get("code")
 				if (code) {
 					await visibleProvider.handleOpenRouterCallback(code)
+				}
+				break
+			}
+			case "/auth": {
+				const token = query.get("token")
+				const state = query.get("state")
+
+				console.log("Auth callback received:", {
+					token: token,
+					state: state,
+				})
+
+				// Validate state parameter
+				if (!(await visibleProvider.validateAuthState(state))) {
+					vscode.window.showErrorMessage("Invalid auth state")
+					return
+				}
+
+				if (token) {
+					await visibleProvider.handleAuthCallback(token)
 				}
 				break
 			}
