@@ -77,6 +77,7 @@ export interface WebviewMessage {
 		| "updateCustomMode"
 		| "deleteCustomMode"
 		| "setopenAiCustomModelInfo"
+		| "openCustomModesSettings"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
