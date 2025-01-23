@@ -100,7 +100,7 @@ export class McpHub {
 					let config: any
 					try {
 						config = JSON.parse(content)
-					// eslint-disable-next-line @typescript-eslint/no-unused-vars
+						// eslint-disable-next-line @typescript-eslint/no-unused-vars
 					} catch (error) {
 						vscode.window.showErrorMessage(errorMessage)
 						return
@@ -299,7 +299,7 @@ export class McpHub {
 
 			// console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
 			return tools
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
@@ -312,7 +312,7 @@ export class McpHub {
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "resources/list" }, ListResourcesResultSchema)
 			return response?.resources || []
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
@@ -325,7 +325,7 @@ export class McpHub {
 				.find((conn) => conn.server.name === serverName)
 				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
 			return response?.resourceTemplates || []
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []

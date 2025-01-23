@@ -74,10 +74,13 @@ export async function getTheme() {
 
 		const converted = convertTheme(parsed)
 
-		converted.base = (
-			["vs", "hc-black"].includes(converted.base) ? converted.base : colorTheme.includes("Light") ? "vs" : "vs-dark"
+		const getBaseTheme = (current: string, theme: string) => {
+			if (["vs", "hc-black"].includes(current)) return current
+			return theme.includes("Light") ? "vs" : "vs-dark"
+		}
+
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		) as any
+		converted.base = getBaseTheme(converted.base, colorTheme) as any
 
 		return converted
 	} catch (e) {
@@ -94,7 +97,7 @@ export function mergeJson(
 	mergeBehavior?: "merge" | "overwrite",
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	mergeKeys?: { [key: string]: (a: any, b: any) => boolean },
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
 	const copyOfFirst = JSON.parse(JSON.stringify(first))
 

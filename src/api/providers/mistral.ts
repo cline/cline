@@ -1,13 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	mistralDefaultModelId,
-	MistralModelId,
-	mistralModels,
-	ModelInfo,
-} from "../../shared/api"
+import { ApiHandlerOptions, mistralDefaultModelId, MistralModelId, mistralModels, ModelInfo } from "../../shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 

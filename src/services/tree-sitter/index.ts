@@ -13,12 +13,12 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	}
 
 	// Get all files at top level (not gitignored)
-	const [allFiles, /* unused */] = await listFiles(dirPath, false, 200)
+	const [allFiles /* unused */] = await listFiles(dirPath, false, 200)
 
 	let result = ""
 
 	// Separate files to parse and remaining files
-	const { filesToParse, /* unused */ } = separateFiles(allFiles)
+	const { filesToParse /* unused */ } = separateFiles(allFiles)
 
 	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 

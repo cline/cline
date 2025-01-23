@@ -20,7 +20,7 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 			})
 		} else {
 			if (anthropicMessage.role === "user") {
-				const { nonToolMessages, /** toolMessages */ } = anthropicMessage.content.reduce<{
+				const { nonToolMessages /** toolMessages */ } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolResultBlockParam[]
 				}>(
@@ -52,7 +52,7 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, /** toolMessages **/ } = anthropicMessage.content.reduce<{
+				const { nonToolMessages /** toolMessages **/ } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolUseBlockParam[]
 				}>(

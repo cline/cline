@@ -21,7 +21,7 @@ class WorkspaceTracker {
 		if (!cwd) {
 			return
 		}
-		const [files, /* unused */] = await listFiles(cwd, true, 1_000);
+		const [files /* unused */] = await listFiles(cwd, true, 1_000)
 		files.forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
 		this.workspaceDidUpdate()
 	}

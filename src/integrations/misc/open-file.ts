@@ -43,7 +43,7 @@ export async function openFile(absolutePath: string) {
 
 		const document = await vscode.workspace.openTextDocument(uri)
 		await vscode.window.showTextDocument(document, { preview: false })
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	} catch (error) {
 		vscode.window.showErrorMessage(`Could not open file!`)
 	}

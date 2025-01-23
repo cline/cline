@@ -103,7 +103,7 @@ export class TerminalManager {
 				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 				e?.execution?.read()
 			})
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// console.error("Error setting up onDidEndTerminalShellExecution", error)
 		}

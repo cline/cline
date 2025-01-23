@@ -95,7 +95,7 @@ declare module "vscode" {
 			name?: string,
 		)
 	}
-	
+
 	// eslint-disable-next-line @typescript-eslint/no-namespace
 	namespace lm {
 		function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>

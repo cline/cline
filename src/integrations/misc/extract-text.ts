@@ -8,7 +8,7 @@ import { isBinaryFile } from "isbinaryfile"
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
 		await fs.access(filePath)
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
