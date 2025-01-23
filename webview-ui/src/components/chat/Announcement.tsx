@@ -11,8 +11,6 @@ interface AnnouncementProps {
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const { t, ready } = useTranslation("translation", { keyPrefix: "announcement", useSuspense: false })
 
-	const newChangesList = t("newChangesList", { returnObjects: true }) as Array<string>
-
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		ready && (
@@ -33,16 +31,29 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				</VSCodeButton>
 				<h3 style={{ margin: "0 0 8px" }}>{t("newInVersion", { version: minorVersion })}</h3>
 				<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-					{newChangesList.map((transcluded, index) => (
-						<li>
-							<Trans
-								components={{
-									Link: <VSCodeLink href="#" />,
-								}}>
-								{transcluded}
-							</Trans>
-						</li>
-					))}
+					<li>
+						<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks
+						clarifying questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
+						<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
+							See a demo here.
+						</VSCodeLink>
+					</li>
+					<li>
+						<b>Quick API/model switching</b> with a new popup menu under the chat field
+					</li>
+					<li>
+						<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
+					</li>
+					<li>
+						<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option
+						for individual tools
+					</li>
+					<li>
+						In case you missed it, Cline now supports Checkpoints!{" "}
+						<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
+							See it in action here.
+						</VSCodeLink>
+					</li>
 				</ul>
 				<div
 					style={{

@@ -1,13 +1,6 @@
 {
 	"announcement": {
 		"newInVersion": "バージョン{{version}}の新機能",
-		"newChangesList": [
-			"<b>プラン/アクトモードの切り替え:</b> プランモードでは、Clineが情報収集、質問の明確化、アイデアのブレインストーミング、ソリューションの設計に集中します。アクトモードに戻すと、計画を実行します！",
-			"<b>新しいポップアップメニュー</b>でチャットフィールドの下にあるAPI/モデルのクイック切り替え",
-			"<b>VS Code LM API</b>は、GitHub Copilotのような他の拡張機能からモデルを使用できます",
-			"<b>MCPサーバーの改善:</b> 使用していないときにサーバーを無効にするオン/オフ切り替え、および個々のツールの自動承認オプション",
-			"見逃した場合のために、Clineは現在チェックポイントをサポートしています！ <Link href=\"https://x.com/sdrzn/status/1876378124126236949\">こちらでアクションを確認してください。</Link>"
-		],
 		"joinOurCommunities": "最新情報を得るために、<DiscordLink>Discord</DiscordLink>または<RedditLink>Reddit</RedditLink>に参加してください！"
 	},
 	"settingsView": {
