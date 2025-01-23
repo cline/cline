@@ -12,32 +12,39 @@ export class UnboundHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const response = await fetch(`${this.unboundBaseUrl}/chat/completions`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.options.unboundApiKey}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				model: this.getModel().id,
-				messages: [{ role: "system", content: systemPrompt }, ...messages],
-			}),
-		})
+		try {
+			const response = await fetch(`${this.unboundBaseUrl}/chat/completions`, {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${this.options.unboundApiKey}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: this.getModel().id,
+					messages: [{ role: "system", content: systemPrompt }, ...messages],
+				}),
+			})
 
-		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`)
-		}
+			const data = await response.json()
 
-		const data = await response.json()
+			if (!response.ok) {
+				throw new Error(data.error)
+			}
 
-		yield {
-			type: "text",
-			text: data.choices[0]?.message?.content || "",
-		}
-		yield {
-			type: "usage",
-			inputTokens: data.usage?.prompt_tokens || 0,
-			outputTokens: data.usage?.completion_tokens || 0,
+			yield {
+				type: "text",
+				text: data.choices[0]?.message?.content || "",
+			}
+			yield {
+				type: "usage",
+				inputTokens: data.usage?.prompt_tokens || 0,
+				outputTokens: data.usage?.completion_tokens || 0,
+			}
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Unbound Gateway completion error: ${error.message}`)
+			}
+			throw error
 		}
 	}
 
