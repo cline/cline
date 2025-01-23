@@ -1,5 +1,14 @@
 import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "."
 
+function isCompleteReplaceInFile(content: string): boolean {
+	const searchMarkers = (content.match(/<<<<<<< SEARCH/g) || []).length
+	const dividerMarkers = (content.match(/=======/g) || []).length
+	const replaceMarkers = (content.match(/>>>>>>> REPLACE/g) || []).length
+
+	// All markers must be present and in equal numbers
+	return searchMarkers > 0 && searchMarkers === dividerMarkers && dividerMarkers === replaceMarkers
+}
+
 export function parseAssistantMessage(assistantMessage: string) {
 	let contentBlocks: AssistantMessageContent[] = []
 	let currentTextContent: TextContent | undefined = undefined
@@ -35,6 +44,15 @@ export function parseAssistantMessage(assistantMessage: string) {
 			const currentToolValue = accumulator.slice(currentToolUseStartIndex)
 			const toolUseClosingTag = `</${currentToolUse.name}>`
 			if (currentToolValue.endsWith(toolUseClosingTag)) {
+				// For replace_in_file, ensure all SEARCH/REPLACE blocks are complete
+				if (currentToolUse.name === "replace_in_file") {
+					const diffParam = currentToolUse.params["diff"]
+					if (!diffParam || !isCompleteReplaceInFile(diffParam)) {
+						// Keep accumulating if blocks are incomplete
+						continue
+					}
+				}
+
 				// end of a tool use
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
