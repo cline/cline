@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context,
 		"roo-cline.explainCode",
 		"EXPLAIN",
-		"Any specific questions about this code?",
+		"What would you like Roo to explain?",
 		"E.g. How does the error handling work?",
 	)
 
@@ -209,7 +209,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context,
 		"roo-cline.fixCode",
 		"FIX",
-		"Any specific concerns about fixing this code?",
+		"What would you like Roo to fix?",
 		"E.g. Maintain backward compatibility",
 	)
 
@@ -217,7 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context,
 		"roo-cline.improveCode",
 		"IMPROVE",
-		"Any specific aspects you want to improve?",
+		"What would you like Roo to improve?",
 		"E.g. Focus on performance optimization",
 	)
 
