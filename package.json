@@ -155,7 +155,7 @@
 						"Disable all MCP functionality"
 					],
 					"default": "enabled",
-					"description": "Control MCP server functionality and its inclusion in AI prompts"
+					"description": "Control MCP server functionality and its inclusion in AI prompts. When disabled, Cline will not be aware of MCP capabilities, saving model context window tokens."
 				}
 			}
 		}

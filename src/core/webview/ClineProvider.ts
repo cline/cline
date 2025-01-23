@@ -229,14 +229,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						text: JSON.stringify(await getTheme()),
 					})
 				}
-				if (e && e.affectsConfiguration("cline.mcp.enabled")) {
-					// Send updated MCP mode
-					const mode = this.mcpHub?.getMode() ?? "enabled"
-					await this.postMessageToWebview({
-						type: "mcpEnabled",
-						mode,
-					})
-				}
 			},
 			null,
 			this.disposables,
