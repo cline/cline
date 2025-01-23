@@ -81,6 +81,12 @@ export const GlobalFileNames = {
 	clineRules: ".clinerules",
 }
 
+const headers = {
+	headers: {
+		"User-Agent": "Cline",
+	},
+}
+
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -763,7 +769,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!URL.canParse(baseUrl)) {
 				return []
 			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
+			const response = await axios.get(`${baseUrl}/api/tags`, headers)
 			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
@@ -782,7 +788,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!URL.canParse(baseUrl)) {
 				return []
 			}
-			const response = await axios.get(`${baseUrl}/v1/models`)
+			const response = await axios.get(`${baseUrl}/v1/models`, headers)
 			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
@@ -867,7 +873,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		let models: Record<string, ModelInfo> = {}
 		try {
-			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			const response = await axios.get("https://openrouter.ai/api/v1/models", headers)
 			/*
 			{
 				"id": "anthropic/claude-3.5-sonnet",
