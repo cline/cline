@@ -236,6 +236,15 @@ export const bedrockModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
+	"meta.llama3-3-70b-instruct-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.72,
+		outputPrice: 0.72,
+	},
 	"meta.llama3-2-90b-instruct-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 128_000,
