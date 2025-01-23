@@ -1,6 +1,9 @@
-import { resolve as _resolve } from "path"
-import Mocha from "mocha"
-import glob from "glob"
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = require("path")
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Mocha = require("mocha")
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const glob = require("glob")
 
 async function run() {
 	// Create the mocha test
@@ -10,14 +13,14 @@ async function run() {
 		timeout: 60000, // Increased timeout for extension operations
 	})
 
-	const testsRoot = _resolve(__dirname, ".")
+	const testsRoot = path.resolve(__dirname, ".")
 
 	try {
 		// Find all test files
 		const files = await glob("*.test.js", { cwd: testsRoot })
 
 		// Add files to the test suite
-		files.forEach((f) => mocha.addFile(_resolve(testsRoot, f)))
+		files.forEach((f) => mocha.addFile(path.resolve(testsRoot, f)))
 
 		// Run the mocha test
 		return new Promise((resolve, reject) => {
@@ -40,4 +43,4 @@ async function run() {
 	}
 }
 
-export default { run }
+module.exports = { run }
