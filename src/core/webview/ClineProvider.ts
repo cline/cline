@@ -656,14 +656,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
-					case "toggleMcpServer": {
-						try {
-							await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
-						} catch (error) {
-							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
-						}
-						break
-					}
 					case "toggleToolAutoApprove": {
 						try {
 							await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolName!, message.autoApprove!)

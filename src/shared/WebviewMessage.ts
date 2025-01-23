@@ -2,7 +2,6 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
-import { McpMode } from "./mcp"
 
 export interface WebviewMessage {
 	type:

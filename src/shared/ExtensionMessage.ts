@@ -5,7 +5,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpMode, McpServer } from "./mcp"
+import { McpServer } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
