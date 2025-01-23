@@ -516,7 +516,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						type="password"
 						onInput={handleInputChange("geminiApiKey")}
-						placeholder="Enter API Key...">
+						placeholder={t("enterApiKey")}>
 						<span style={{ fontWeight: 500 }}>{t("getApiVendorKey", { vendor: "Gemini" })}</span>
 					</VSCodeTextField>
 					<p
@@ -577,14 +577,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								})
 							}
 						}}>
-						Set Azure API version
+						{t("useAzureApiVersion")}
 					</VSCodeCheckbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							onInput={handleInputChange("azureApiVersion")}
-							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
+							placeholder={t("getDefault", azureOpenAiDefaultApiVersion)}
 						/>
 					)}
 					<p
@@ -593,10 +593,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
+						<Trans
+							i18nKey="apiOptions.azureInfo"
+							components={{
+								Link: <VSCodeLink />,
+								ErrSpan: <span style={{ color: "var(--vscode-errorForeground)" }} />,
+							}}
+						/>
 					</p>
 				</div>
 			)}
@@ -668,8 +671,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						type="url"
 						onInput={handleInputChange("lmStudioBaseUrl")}
-						placeholder={"Default: http://localhost:1234"}>
-						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+						placeholder={t("getDefault", { defaultValue: "http://localhost/1234" })}>
+						<span style={{ fontWeight: 500 }}>{t("optionalBaseUrl")}</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.lmStudioModelId || ""}
@@ -707,22 +710,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						LM Studio allows you to run models locally on your computer. For instructions on how to get started, see
-						their
-						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide.
-						</VSCodeLink>
-						You will also need to start LM Studio's{" "}
-						<VSCodeLink
-							href="https://lmstudio.ai/docs/basics/server"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							local server
-						</VSCodeLink>{" "}
-						feature to use it with this extension.{" "}
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
+						<Trans
+							i18nKey="apiOptions.lmStudioInfo"
+							components={{
+								Link: <VSCodeLink style={{ display: "inline", fontSize: "inherit" }} />,
+								ErrSpan: <span style={{ color: "var(--vscode-errorForeground)" }} />,
+							}}
+						/>
 					</p>
 				</div>
 			)}
@@ -734,8 +728,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						type="url"
 						onInput={handleInputChange("ollamaBaseUrl")}
-						placeholder={"Default: http://localhost:11434"}>
-						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+						placeholder={t("getDefault", { defaultValue: "http://localhost:11434" })}>
+						<span style={{ fontWeight: 500 }}>{t("optionalBaseUrl")}</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
@@ -773,17 +767,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Ollama allows you to run models locally on your computer. For instructions on how to get started, see
-						their
-						<VSCodeLink
-							href="https://github.com/ollama/ollama/blob/main/README.md"
-							style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide.
-						</VSCodeLink>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
+						{
+							<Trans
+								i18nKey="apiOptions.ollamaInfo"
+								components={{
+									Link: <VSCodeLink style={{ display: "inline", fontSize: "inherit" }} />,
+									ErrorSpan: <span style={{ color: "var(--vscode-errorForeground)" }} />,
+								}}
+							/>
+						}
 					</p>
 				</div>
 			)}
