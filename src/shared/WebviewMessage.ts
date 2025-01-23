@@ -1,6 +1,7 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
+import { ChatSettings } from "./ChatSettings"
 import { McpMode } from "./mcp"
 
 export interface WebviewMessage {
@@ -29,13 +30,16 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
+		| "chatSettings"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "getMcpEnabled"
 		| "toggleMcp"
+	// | "relaunchChromeDebugMode"
 	text?: string
+	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
@@ -43,7 +47,7 @@ export interface WebviewMessage {
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
-	mode?: McpMode // Only used with toggleMcp type
+	enabled?: boolean // For toggleMcp message
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

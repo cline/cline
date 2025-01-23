@@ -1,13 +1,5 @@
-import {
-	VSCodeButton,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-} from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpMode, McpServer } from "../../../../src/shared/mcp"
@@ -20,7 +12,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
-	const [mcpMode, setMcpMode] = useState<McpMode>("enabled")
+	const [isMcpEnabled, setIsMcpEnabled] = useState(true)
 
 	useEffect(() => {
 		// Get initial MCP enabled state
@@ -31,21 +23,19 @@ const McpView = ({ onDone }: McpViewProps) => {
 		const handler = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "mcpEnabled") {
-				setMcpMode(message.mode)
+				setIsMcpEnabled(message.enabled)
 			}
 		}
 		window.addEventListener("message", handler)
 		return () => window.removeEventListener("message", handler)
 	}, [])
 
-	const handleModeChange = (event: Event | React.FormEvent<HTMLElement>) => {
-		const select = event.target as HTMLSelectElement
-		const newMode = select.value as McpMode
+	const toggleMcp = () => {
 		vscode.postMessage({
 			type: "toggleMcp",
-			mode: newMode,
+			enabled: !isMcpEnabled,
 		})
-		setMcpMode(newMode)
+		setIsMcpEnabled(!isMcpEnabled)
 	}
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
@@ -153,7 +143,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodeLink>
 				</div>
 
-				{/* MCP Mode Section */}
+				{/* MCP Toggle Section */}
 				<div
 					style={{
 						marginBottom: "16px",
@@ -161,32 +151,31 @@ const McpView = ({ onDone }: McpViewProps) => {
 						borderBottom: "1px solid var(--vscode-textSeparator-foreground)",
 					}}>
 					<div>
-						<VSCodeDropdown value={mcpMode} onChange={handleModeChange}>
-							<VSCodeOption value="enabled">Enabled</VSCodeOption>
-							<VSCodeOption value="server-use-only">Server use only</VSCodeOption>
-							<VSCodeOption value="disabled">Disabled</VSCodeOption>
-						</VSCodeDropdown>
-						{mcpMode === "enabled" && (
+						<VSCodeCheckbox
+							checked={isMcpEnabled}
+							onChange={toggleMcp}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "8px",
+								padding: "4px 0",
+								cursor: "pointer",
+								fontSize: "13px",
+							}}>
+							Enable MCP
+						</VSCodeCheckbox>
+						{isMcpEnabled && (
 							<div
 								style={{
 									marginTop: "4px",
+									marginLeft: "24px",
 									color: "var(--vscode-descriptionForeground)",
 									fontSize: "12px",
 								}}>
-								Full MCP functionality including server use and build instructions.
+								Disabling MCP will save on tokens passed in the context.
 							</div>
 						)}
-						{mcpMode === "server-use-only" && (
-							<div
-								style={{
-									marginTop: "4px",
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-								}}>
-								MCP server use is enabled, but build instructions are excluded from AI prompts to save tokens.
-							</div>
-						)}
-						{mcpMode === "disabled" && (
+						{!isMcpEnabled && (
 							<div
 								style={{
 									padding: "8px 12px",
@@ -205,7 +194,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</div>
 				</div>
 
-				{servers.length > 0 && mcpMode !== "disabled" && (
+				{servers.length > 0 && isMcpEnabled && (
 					<div
 						style={{
 							display: "flex",
@@ -219,7 +208,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				)}
 
 				{/* Server Configuration Button */}
-				{mcpMode !== "disabled" && (
+				{isMcpEnabled && (
 					<div style={{ marginTop: "10px", width: "100%" }}>
 						<VSCodeButton
 							appearance="secondary"
@@ -278,12 +267,62 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					background: "var(--vscode-textCodeBlock-background)",
 					cursor: server.error ? "default" : "pointer",
 					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
+					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
 				<span style={{ flex: 1 }}>{server.name}</span>
+				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
+					<div
+						role="switch"
+						aria-checked={!server.disabled}
+						tabIndex={0}
+						style={{
+							width: "20px",
+							height: "10px",
+							backgroundColor: server.disabled
+								? "var(--vscode-titleBar-inactiveForeground)"
+								: "var(--vscode-testing-iconPassed)",
+							borderRadius: "5px",
+							position: "relative",
+							cursor: "pointer",
+							transition: "background-color 0.2s",
+							opacity: server.disabled ? 0.5 : 0.9,
+						}}
+						onClick={() => {
+							vscode.postMessage({
+								type: "toggleMcpServer",
+								serverName: server.name,
+								disabled: !server.disabled,
+							})
+						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault()
+								vscode.postMessage({
+									type: "toggleMcpServer",
+									serverName: server.name,
+									disabled: !server.disabled,
+								})
+							}
+						}}>
+						<div
+							style={{
+								width: "6px",
+								height: "6px",
+								backgroundColor: "white",
+								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
+								borderRadius: "50%",
+								position: "absolute",
+								top: "1px",
+								left: server.disabled ? "2px" : "12px",
+								transition: "left 0.2s",
+							}}
+						/>
+					</div>
+				</div>
 				<div
 					style={{
 						width: "8px",
@@ -349,7 +388,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											width: "100%",
 										}}>
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} />
+											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
 										))}
 									</div>
 								) : (
