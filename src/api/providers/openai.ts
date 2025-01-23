@@ -27,30 +27,52 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
-		const stream = await this.client.chat.completions.create({
-			model: this.options.openAiModelId ?? "",
-			messages: openAiMessages,
-			temperature: 0,
-			stream: true,
-			stream_options: { include_usage: true },
-		})
-		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
-			if (delta?.content) {
+		switch (this.options.openAiModelId) {
+			case "o1-preview":
+			case "o1-mini": {
+				// o1 doesnt support streaming, non-1 temp, or system prompt
+				const response = await this.client.chat.completions.create({
+					model: this.options.openAiModelId,
+					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				})
 				yield {
 					type: "text",
-					text: delta.content,
+					text: response.choices[0]?.message.content || "",
 				}
-			}
-			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: response.usage?.prompt_tokens || 0,
+					outputTokens: response.usage?.completion_tokens || 0,
+				}
+				break
+			}
+			default: {
+				const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+					{ role: "system", content: systemPrompt },
+					...convertToOpenAiMessages(messages),
+				]
+				const stream = await this.client.chat.completions.create({
+					model: this.options.openAiModelId ?? "",
+					messages: openAiMessages,
+					temperature: 0,
+					stream: true,
+					stream_options: { include_usage: true },
+				})
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
 				}
 			}
 		}
