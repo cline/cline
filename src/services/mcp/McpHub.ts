@@ -15,7 +15,15 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
-import { McpMode, McpResource, McpResourceResponse, McpResourceTemplate, McpServer, McpTool, McpToolCallResponse } from "../../shared/mcp"
+import {
+	McpMode,
+	McpResource,
+	McpResourceResponse,
+	McpResourceTemplate,
+	McpServer,
+	McpTool,
+	McpToolCallResponse,
+} from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 

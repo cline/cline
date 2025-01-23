@@ -648,6 +648,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "toggleMcpServer": {
+						try {
+							await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
+						} catch (error) {
+							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
+						}
+						break
+					}
 					case "toggleToolAutoApprove": {
 						try {
 							await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolName!, message.autoApprove!)
@@ -666,18 +674,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "openExtensionSettings": {
 						await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:saoudrizwan.claude-dev")
-						break
-					}
-					case "getMcpEnabled": {
-						const enabled = this.mcpHub?.isMcpEnabled() ?? true
-						await this.postMessageToWebview({
-							type: "mcpEnabled",
-							enabled,
-						})
-						break
-					}
-					case "toggleMcp": {
-						await vscode.workspace.getConfiguration("cline.mcp").update("enabled", message.enabled, true)
 						break
 					}
 					// Add more switch case statements here as more webview message commands

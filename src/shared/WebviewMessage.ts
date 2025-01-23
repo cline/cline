@@ -34,8 +34,12 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
-		| "getMcpEnabled"
-		| "toggleMcp"
+		| "requestVsCodeLmModels"
+		| "toggleToolAutoApprove"
+		| "toggleMcpServer"
+		| "getLatestState"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -46,7 +50,12 @@ export interface WebviewMessage {
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
-	enabled?: boolean // For toggleMcp message
+	chatSettings?: ChatSettings
+
+	// For toggleToolAutoApprove
+	serverName?: string
+	toolName?: string
+	autoApprove?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
