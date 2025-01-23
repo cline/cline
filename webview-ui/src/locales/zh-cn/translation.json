@@ -61,6 +61,7 @@
 		"cacheReadsPrice": "缓存读取价格",
 		"outputPrice": "输出价格",
 		"geminiInfo": "* 每分钟最多 {{selectedModelId}} 次请求免费。之后，费用取决于提示大小。",
-		"pricingDetails": "有关更多信息，请参阅定价详情。"
+		"pricingDetails": "有关更多信息，请参阅定价详情。",
+		"languageModel": "语言模型"
 	}
 }

@@ -61,6 +61,7 @@
 		"cacheReadsPrice": "緩存讀取價格",
 		"outputPrice": "輸出價格",
 		"geminiInfo": "* 每分鐘最多免費 {{selectedModelId}} 次請求。之後，計費取決於提示大小。",
-		"pricingDetails": "更多信息，請參見定價詳情。"
+		"pricingDetails": "更多信息，請參見定價詳情。",
+		"languageModel": "語言模型"
 	}
 }

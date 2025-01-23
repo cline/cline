@@ -61,6 +61,7 @@
 		"cacheReadsPrice": "Preis für Cache-Lesevorgänge",
 		"outputPrice": "Ausgabepreis",
 		"geminiInfo": "* Kostenlos bis zu {{selectedModelId}} Anfragen pro Minute. Danach hängt die Abrechnung von der Promptgröße ab.",
-		"pricingDetails": "Weitere Informationen finden Sie in den Preisdaten."
+		"pricingDetails": "Weitere Informationen finden Sie in den Preisdaten.",
+		"languageModel": "Sprachmodell"
 	}
 }

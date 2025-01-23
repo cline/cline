@@ -61,6 +61,7 @@
 		"cacheReadsPrice": "Cache reads price",
 		"outputPrice": "Output price",
 		"geminiInfo": "* Free up to {{selectedModelId}} requests per minute. After that, billing depends on prompt size.",
-		"pricingDetails": "For more info, see pricing details."
+		"pricingDetails": "For more info, see pricing details.",
+		"languageModel": "言語モデル"
 	}
 }

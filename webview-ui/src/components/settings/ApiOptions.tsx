@@ -605,7 +605,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<div className="dropdown-container">
 						<label htmlFor="vscode-lm-model">
-							<span style={{ fontWeight: 500 }}></span>
+							<span style={{ fontWeight: 500 }}>{t("languageModel")}</span>
 						</label>
 						{vsCodeLmModels.length > 0 ? (
 							<VSCodeDropdown
