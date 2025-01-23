@@ -1579,11 +1579,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			}
 		case "unbound":
 			return getProviderData(unboundModels, unboundDefaultModelId)
-		// return {
-		// 	selectedProvider: provider,
-		// 	selectedModelId: apiConfiguration?.unboundModelId || unboundDefaultModelId,
-		// 	selectedModelInfo: openAiModelInfoSaneDefaults,
-		// }
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
