@@ -6,12 +6,14 @@
 	// compiled to make them compatible with VS Code's test runner.
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"moduleResolution": "node",
+		"module": "Node16",
+		"moduleResolution": "node16",
 		"types": ["node", "mocha", "should", "vscode", "chai"],
 		"typeRoots": ["./node_modules/@types", "./src/test/types"],
 		"outDir": "out",
-		"rootDir": "src"
+		"rootDir": "src",
+		"allowJs": true,
+		"esModuleInterop": true
 	},
 	"include": ["src/**/*.test.ts"],
 	"exclude": ["src/test/**/*.js"]
