@@ -434,8 +434,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								title="Edit modes configuration"
 								onClick={() => {
 									vscode.postMessage({
-										type: "openFile",
-										text: "settings/cline_custom_modes.json",
+										type: "openCustomModesSettings",
 									})
 								}}>
 								<span className="codicon codicon-json"></span>
