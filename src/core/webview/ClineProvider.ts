@@ -137,6 +137,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		try {
 			await this.authManager.signOut()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
 		}
