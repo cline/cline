@@ -104,17 +104,17 @@
 			},
 			{
 				"command": "roo-cline.explainCode",
-				"title": "Explain Code",
+				"title": "Roo Code: Explain Code",
 				"category": "Roo Code"
 			},
 			{
 				"command": "roo-cline.fixCode",
-				"title": "Fix Code",
+				"title": "Roo Code: Fix Code",
 				"category": "Roo Code"
 			},
 			{
 				"command": "roo-cline.improveCode",
-				"title": "Improve Code",
+				"title": "Roo Code: Improve Code",
 				"category": "Roo Code"
 			}
 		],

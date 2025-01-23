@@ -24,7 +24,26 @@ export const createPrompt = (template: string, params: PromptParams): string => 
 	return result
 }
 
-const EXPLAIN_TEMPLATE = `Explain the following code from file path @/\${filePath}:
+interface SupportPromptConfig {
+	label: string
+	description: string
+	template: string
+}
+
+const supportPromptConfigs: Record<string, SupportPromptConfig> = {
+	ENHANCE: {
+		label: "Enhance Prompt",
+		description:
+			"Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat.",
+		template: `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):
+
+\${userInput}`,
+	},
+	EXPLAIN: {
+		label: "Explain Code",
+		description:
+			"Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in the editor context menu (right-click on selected code).",
+		template: `Explain the following code from file path @/\${filePath}:
 \${userInput}
 
 \`\`\`
@@ -34,10 +53,13 @@ const EXPLAIN_TEMPLATE = `Explain the following code from file path @/\${filePat
 Please provide a clear and concise explanation of what this code does, including:
 1. The purpose and functionality
 2. Key components and their interactions
-3. Important patterns or techniques used
-`
-
-const FIX_TEMPLATE = `Fix any issues in the following code from file path @/\${filePath}
+3. Important patterns or techniques used`,
+	},
+	FIX: {
+		label: "Fix Issues",
+		description:
+			"Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in the editor context menu (right-click on selected code).",
+		template: `Fix any issues in the following code from file path @/\${filePath}
 \${diagnosticText}
 \${userInput}
 
@@ -49,10 +71,13 @@ Please:
 1. Address all detected problems listed above (if any)
 2. Identify any other potential bugs or issues
 3. Provide corrected code
-4. Explain what was fixed and why
-`
-
-const IMPROVE_TEMPLATE = `Improve the following code from file path @/\${filePath}:
+4. Explain what was fixed and why`,
+	},
+	IMPROVE: {
+		label: "Improve Code",
+		description:
+			"Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in the editor context menu (right-click on selected code).",
+		template: `Improve the following code from file path @/\${filePath}:
 \${userInput}
 
 \`\`\`
@@ -65,27 +90,16 @@ Please suggest improvements for:
 3. Best practices and patterns
 4. Error handling and edge cases
 
-Provide the improved code along with explanations for each enhancement.
-`
-
-const ENHANCE_TEMPLATE = `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):
-
-\${userInput}`
-
-// Get template based on prompt type
-const defaultTemplates = {
-	EXPLAIN: EXPLAIN_TEMPLATE,
-	FIX: FIX_TEMPLATE,
-	IMPROVE: IMPROVE_TEMPLATE,
-	ENHANCE: ENHANCE_TEMPLATE,
+Provide the improved code along with explanations for each enhancement.`,
+	},
 } as const
 
-type SupportPromptType = keyof typeof defaultTemplates
+type SupportPromptType = keyof typeof supportPromptConfigs
 
 export const supportPrompt = {
-	default: defaultTemplates,
+	default: Object.fromEntries(Object.entries(supportPromptConfigs).map(([key, config]) => [key, config.template])),
 	get: (customSupportPrompts: Record<string, any> | undefined, type: SupportPromptType): string => {
-		return customSupportPrompts?.[type] ?? defaultTemplates[type]
+		return customSupportPrompts?.[type] ?? supportPromptConfigs[type].template
 	},
 	create: (type: SupportPromptType, params: PromptParams, customSupportPrompts?: Record<string, any>): string => {
 		const template = supportPrompt.get(customSupportPrompts, type)
@@ -95,13 +109,14 @@ export const supportPrompt = {
 
 export type { SupportPromptType }
 
-// User-friendly labels for support prompt types
-export const supportPromptLabels: Record<SupportPromptType, string> = {
-	FIX: "Fix Issues",
-	EXPLAIN: "Explain Code",
-	IMPROVE: "Improve Code",
-	ENHANCE: "Enhance Prompt",
-} as const
+// Expose labels and descriptions for UI
+export const supportPromptLabels = Object.fromEntries(
+	Object.entries(supportPromptConfigs).map(([key, config]) => [key, config.label]),
+) as Record<SupportPromptType, string>
+
+export const supportPromptDescriptions = Object.fromEntries(
+	Object.entries(supportPromptConfigs).map(([key, config]) => [key, config.description]),
+) as Record<SupportPromptType, string>
 
 export type CustomSupportPrompts = {
 	[key: string]: string | undefined

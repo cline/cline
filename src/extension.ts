@@ -171,17 +171,21 @@ export function activate(context: vscode.ExtensionContext) {
 		context: vscode.ExtensionContext,
 		command: string,
 		promptType: keyof typeof ACTION_NAMES,
-		inputPrompt: string,
-		inputPlaceholder: string,
+		inputPrompt?: string,
+		inputPlaceholder?: string,
 	) => {
+		let userInput: string | undefined
+
 		context.subscriptions.push(
 			vscode.commands.registerCommand(
 				command,
 				async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-					const userInput = await vscode.window.showInputBox({
-						prompt: inputPrompt,
-						placeHolder: inputPlaceholder,
-					})
+					if (inputPrompt) {
+						userInput = await vscode.window.showInputBox({
+							prompt: inputPrompt,
+							placeHolder: inputPlaceholder,
+						})
+					}
 
 					const params = {
 						filePath,
@@ -197,29 +201,11 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	// Register code action commands
-	registerCodeAction(
-		context,
-		"roo-cline.explainCode",
-		"EXPLAIN",
-		"What would you like Roo to explain?",
-		"E.g. How does the error handling work?",
-	)
+	registerCodeAction(context, "roo-cline.explainCode", "EXPLAIN")
 
-	registerCodeAction(
-		context,
-		"roo-cline.fixCode",
-		"FIX",
-		"What would you like Roo to fix?",
-		"E.g. Maintain backward compatibility",
-	)
+	registerCodeAction(context, "roo-cline.fixCode", "FIX")
 
-	registerCodeAction(
-		context,
-		"roo-cline.improveCode",
-		"IMPROVE",
-		"What would you like Roo to improve?",
-		"E.g. Focus on performance optimization",
-	)
+	registerCodeAction(context, "roo-cline.improveCode", "IMPROVE")
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }
