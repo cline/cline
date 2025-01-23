@@ -42,6 +42,18 @@ export class TerminalRegistry {
 		const terminal = this.getTerminal(id)
 		if (terminal) {
 			Object.assign(terminal, updates)
+			// If terminal is being marked as not busy, ensure it's in a clean state
+			if (updates.busy === false) {
+				terminal.lastCommand = ""
+			}
+		}
+	}
+
+	static resetTerminalState(id: number) {
+		const terminal = this.getTerminal(id)
+		if (terminal) {
+			terminal.busy = false
+			terminal.lastCommand = ""
 		}
 	}
 

@@ -116,7 +116,10 @@ export class TerminalManager {
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
-			terminalInfo.busy = false
+			// Reset terminal state completely
+			TerminalRegistry.resetTerminalState(terminalInfo.id)
+			// Remove the process from tracking to prevent stale state
+			this.processes.delete(terminalInfo.id)
 		})
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
