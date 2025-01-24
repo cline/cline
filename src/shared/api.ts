@@ -601,6 +601,9 @@ export const mistralModels = {
 export type UnboundModelId = keyof typeof unboundModels
 export const unboundDefaultModelId = "gpt-4o"
 export const unboundModels = {
-	"gpt-4o": openAiNativeModels["gpt-4o"],
 	"claude-3-5-sonnet-20241022": anthropicModels["claude-3-5-sonnet-20241022"],
+	"gpt-4o": openAiNativeModels["gpt-4o"],
+	"deepseek-chat": deepSeekModels["deepseek-chat"],
+	"deepseek-reasoner": deepSeekModels["deepseek-reasoner"],
+	"codestral-latest": mistralModels["codestral-latest"],
 } as const satisfies Record<string, ModelInfo>
