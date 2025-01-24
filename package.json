@@ -142,11 +142,11 @@
 					},
 					"description": "Settings for VSCode Language Model API"
 				},
-				"cline.mcp.enabled": {
+				"cline.mcp.mode": {
 					"type": "string",
 					"enum": [
 						"enabled",
-						"server-use-only",
+						"mcp-tools-only",
 						"disabled"
 					],
 					"enumDescriptions": [
