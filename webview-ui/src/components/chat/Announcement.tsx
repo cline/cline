@@ -2,7 +2,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Trans } from "react-i18next"
-import { getAsVSCVar, DESCRIPTION_FOREGROUND, INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
 
 interface AnnouncementProps {
 	version: string
@@ -19,7 +19,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	return (
 		<div
 			style={{
-				backgroundColor: getAsVSCVar(INACTIVE_SELECTION_BACKGROUND),
+				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
 				borderRadius: "3px",
 				padding: "12px 16px",
 				margin: "5px 15px 5px 15px",
@@ -105,7 +105,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<div
 				style={{
 					height: "1px",
-					background: getAsVSCVar(DESCRIPTION_FOREGROUND),
+					background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 					opacity: 0.1,
 					margin: "8px 0",
 				}}
