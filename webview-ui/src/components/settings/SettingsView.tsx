@@ -281,7 +281,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									<input
 										type="range"
-										min="0"
+										min="5"
 										max="100"
 										step="1"
 										value={requestDelaySeconds}
