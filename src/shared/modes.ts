@@ -3,13 +3,22 @@ import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tool-groups"
 // Mode types
 export type Mode = string
 
+// Group options type
+export type GroupOptions = {
+	fileRegex?: string // Regular expression pattern
+	description?: string // Human-readable description of the pattern
+}
+
+// Group entry can be either a string or tuple with options
+export type GroupEntry = ToolGroup | readonly [ToolGroup, GroupOptions]
+
 // Mode configuration type
 export type ModeConfig = {
 	slug: string
 	name: string
 	roleDefinition: string
 	customInstructions?: string
-	groups: readonly ToolGroup[] // Now uses groups instead of tools array
+	groups: readonly GroupEntry[] // Now supports both simple strings and tuples with options
 }
 
 // Mode-specific prompts only
@@ -22,13 +31,35 @@ export type CustomModePrompts = {
 	[key: string]: PromptComponent | undefined
 }
 
+// Helper to extract group name regardless of format
+export function getGroupName(group: GroupEntry): ToolGroup {
+	return Array.isArray(group) ? group[0] : group
+}
+
+// Helper to get group options if they exist
+function getGroupOptions(group: GroupEntry): GroupOptions | undefined {
+	return Array.isArray(group) ? group[1] : undefined
+}
+
+// Helper to check if a file path matches a regex pattern
+export function doesFileMatchRegex(filePath: string, pattern: string): boolean {
+	try {
+		const regex = new RegExp(pattern)
+		return regex.test(filePath)
+	} catch (error) {
+		console.error(`Invalid regex pattern: ${pattern}`, error)
+		return false
+	}
+}
+
 // Helper to get all tools for a mode
-export function getToolsForMode(groups: readonly ToolGroup[]): string[] {
+export function getToolsForMode(groups: readonly GroupEntry[]): string[] {
 	const tools = new Set<string>()
 
 	// Add tools from each group
 	groups.forEach((group) => {
-		TOOL_GROUPS[group].forEach((tool) => tools.add(tool))
+		const groupName = getGroupName(group)
+		TOOL_GROUPS[groupName].forEach((tool) => tools.add(tool))
 	})
 
 	// Always add required tools
@@ -50,8 +81,8 @@ export const modes: readonly ModeConfig[] = [
 		slug: "architect",
 		name: "Architect",
 		roleDefinition:
-			"You are Roo, a software architecture expert specializing in analyzing codebases, identifying patterns, and providing high-level technical guidance. You excel at understanding complex systems, evaluating architectural decisions, and suggesting improvements while maintaining a read-only approach to the codebase. Make sure to help the user come up with a solid implementation plan for their project and don't rush to switch to implementing code.",
-		groups: ["read", "browser", "mcp"],
+			"You are Roo, a software architecture expert specializing in analyzing codebases, identifying patterns, and providing high-level technical guidance. You excel at understanding complex systems, evaluating architectural decisions, and suggesting improvements. You can edit markdown documentation files to help document architectural decisions and patterns.",
+		groups: ["read", ["edit", { fileRegex: "\\.md$", description: "Markdown files only" }], "browser", "mcp"],
 	},
 	{
 		slug: "ask",
@@ -113,12 +144,21 @@ export function isCustomMode(slug: string, customModes?: ModeConfig[]): boolean 
 	return !!customModes?.some((mode) => mode.slug === slug)
 }
 
+// Custom error class for file restrictions
+export class FileRestrictionError extends Error {
+	constructor(mode: string, pattern: string) {
+		super(`This mode (${mode}) can only edit files matching the pattern: ${pattern}`)
+		this.name = "FileRestrictionError"
+	}
+}
+
 export function isToolAllowedForMode(
 	tool: string,
 	modeSlug: string,
 	customModes: ModeConfig[],
 	toolRequirements?: Record<string, boolean>,
-): boolean {
+	filePath?: string, // Optional file path for checking regex patterns
+): boolean | FileRestrictionError {
 	// Always allow these tools
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
@@ -136,8 +176,33 @@ export function isToolAllowedForMode(
 		return false
 	}
 
-	// Check if tool is in any of the mode's groups
-	return mode.groups.some((group) => TOOL_GROUPS[group].includes(tool as string))
+	// Check if tool is in any of the mode's groups and respects any group options
+	for (const group of mode.groups) {
+		const groupName = getGroupName(group)
+		const options = getGroupOptions(group)
+
+		// If the tool isn't in this group, continue to next group
+		if (!TOOL_GROUPS[groupName].includes(tool)) {
+			continue
+		}
+
+		// If there are no options, allow the tool
+		if (!options) {
+			return true
+		}
+
+		// For the edit group, check file regex if specified
+		if (groupName === "edit" && options.fileRegex) {
+			if (!filePath || !doesFileMatchRegex(filePath, options.fileRegex)) {
+				return new FileRestrictionError(mode.name, options.fileRegex)
+			}
+			return true
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // Create the mode-specific default prompts

@@ -5,16 +5,40 @@ import { TOOL_GROUPS, ToolGroup } from "../../shared/tool-groups"
 // Create a schema for valid tool groups using the keys of TOOL_GROUPS
 const ToolGroupSchema = z.enum(Object.keys(TOOL_GROUPS) as [ToolGroup, ...ToolGroup[]])
 
+// Schema for group options with regex validation
+const GroupOptionsSchema = z.object({
+	fileRegex: z
+		.string()
+		.optional()
+		.refine(
+			(pattern) => {
+				if (!pattern) return true // Optional, so empty is valid
+				try {
+					new RegExp(pattern)
+					return true
+				} catch {
+					return false
+				}
+			},
+			{ message: "Invalid regular expression pattern" },
+		),
+})
+
+// Schema for a group entry - either a tool group string or a tuple of [group, options]
+const GroupEntrySchema = z.union([ToolGroupSchema, z.tuple([ToolGroupSchema, GroupOptionsSchema])])
+
 // Schema for array of groups
 const GroupsArraySchema = z
-	.array(ToolGroupSchema)
+	.array(GroupEntrySchema)
 	.min(1, "At least one tool group is required")
 	.refine(
 		(groups) => {
 			const seen = new Set()
 			return groups.every((group) => {
-				if (seen.has(group)) return false
-				seen.add(group)
+				// For tuples, check the group name (first element)
+				const groupName = Array.isArray(group) ? group[0] : group
+				if (seen.has(groupName)) return false
+				seen.add(groupName)
 				return true
 			})
 		},
