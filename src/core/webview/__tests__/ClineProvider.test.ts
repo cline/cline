@@ -449,7 +449,7 @@ describe("ClineProvider", () => {
 		})
 
 		const state = await provider.getState()
-		expect(state.requestDelaySeconds).toBe(5)
+		expect(state.requestDelaySeconds).toBe(10)
 	})
 
 	test("alwaysApproveResubmit defaults to false", async () => {

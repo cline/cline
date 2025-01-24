@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.3.0]
+
+- **Code Actions Integration**: Native VS Code code actions support with quick fixes and refactoring options
+- **Discord Community**: New Discord server at https://roocode.com/discord for community engagement
+- **Direct Mode Switching**: Modes can now request to switch to other modes when needed
+- **Markdown Editing**: Ask and Architect modes can now edit markdown files
+- **Custom File Restrictions**: Custom modes can now be restricted to specific file patterns (for example, a technical writer who can only edit markdown files 👋)
+
 ## [3.2.8]
 
 - Fixed bug opening custom modes settings JSON
