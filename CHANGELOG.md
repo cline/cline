@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.2.8]
+
+- Fixed bug opening custom modes settings JSON
+- Reverts provider key entry back to checking onInput instead of onChange to hopefully address issues entering API keys (thanks @samhvw8!)
+- Added explicit checkbox to use Azure for OpenAI compatible providers (thanks @samhvw8!)
+- Fixed Glama usage reporting (thanks @punkpeye!)
+- Added Llama 3.3 70B Instruct model to the AWS Bedrock provider options (thanks @Premshay!)
+
 ## [3.2.7]
 
 - Fix bug creating new configuration profiles
