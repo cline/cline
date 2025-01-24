@@ -15,7 +15,7 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 
 # Custom
-demo.gif
+**/demo.gif
 .nvmrc
 .gitattributes
 .prettierignore
