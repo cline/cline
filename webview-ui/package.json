@@ -30,7 +30,7 @@
 	},
 	"scripts": {
 		"start": "react-scripts start",
-		"build": "node ./scripts/build-react-no-split.js",
+		"build": "npx esbuild ./src/index.tsx --minify --bundle --outfile=build/static/main.js --loader:.ttf=dataurl",
 		"test": "react-scripts test",
 		"eject": "react-scripts eject"
 	},
@@ -53,6 +53,7 @@
 		]
 	},
 	"devDependencies": {
-		"@types/vscode-webview": "^1.57.5"
+		"@types/vscode-webview": "^1.57.5",
+		"esbuild": "^0.21.5"
 	}
 }
