@@ -178,7 +178,7 @@ Usage:
 }
 
 ${
-	mcpHub.isMcpEnabled()
+	mcpHub.getMode() !== "disabled"
 		? `
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
@@ -310,7 +310,7 @@ return (
 </diff>
 </replace_in_file>
 ${
-	mcpHub.isMcpEnabled()
+	mcpHub.getMode() !== "disabled"
 		? `
 
 ## Example 4: Requesting to use an MCP tool
@@ -357,7 +357,7 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.
 
 ${
-	mcpHub.isMcpEnabled()
+	mcpHub.getMode() !== "disabled"
 		? `
 ====
 
@@ -405,8 +405,13 @@ ${
 				})
 				.join("\n\n")}`
 		: "(No MCP servers currently connected)"
+}`
+		: ""
 }
 
+${
+	mcpHub.getMode() === "enabled"
+		? `
 ## Creating an MCP Server
 
 The user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`use_mcp_tool\` and \`access_mcp_resource\`.
@@ -769,6 +774,7 @@ Remember: The MCP documentation and example provided above are to help you under
 `
 		: ""
 }
+
 ====
 
 EDITING FILES
@@ -881,7 +887,7 @@ CAPABILITIES
 		: ""
 }
 ${
-	mcpHub.isMcpEnabled()
+	mcpHub.getMode() !== "disabled"
 		? `
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
 `
@@ -907,7 +913,7 @@ RULES
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.${
 	supportsComputerUse
-		? `\n- The user may ask generic non-development tasks, such as "what\'s the latest news" or "look up the weather in San Diego", in which case you might use the browser_action tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question.${mcpHub.isMcpEnabled() ? "However, if an available MCP server tool or resource can be used instead, you should prefer to use it over browser_action." : ""}`
+		? `\n- The user may ask generic non-development tasks, such as "what\'s the latest news" or "look up the weather in San Diego", in which case you might use the browser_action tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question.${mcpHub.getMode() !== "disabled" ? "However, if an available MCP server tool or resource can be used instead, you should prefer to use it over browser_action." : ""}`
 		: ""
 }
 - NEVER end attempt_completion result with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user.
@@ -923,7 +929,7 @@ RULES
 		: ""
 }
 ${
-	mcpHub.isMcpEnabled()
+	mcpHub.getMode() !== "disabled"
 		? `
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 `
