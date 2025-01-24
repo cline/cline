@@ -25,6 +25,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "confirmClearAllHistory"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "autoApprovalSettings"
