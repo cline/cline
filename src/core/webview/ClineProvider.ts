@@ -68,6 +68,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "openRouterBaseUrl"
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
@@ -438,6 +439,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								mistralApiKey,
 								azureApiVersion,
 								openRouterModelId,
+								openRouterBaseUrl,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
 							} = message.apiConfiguration
@@ -467,6 +469,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.updateGlobalState("openRouterBaseUrl", openRouterBaseUrl)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
@@ -1212,6 +1215,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterBaseUrl,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
@@ -1247,6 +1251,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
@@ -1299,6 +1304,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterBaseUrl,
 				vsCodeLmModelSelector,
 			},
 			lastShownAnnouncementId,
