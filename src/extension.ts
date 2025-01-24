@@ -5,6 +5,7 @@ import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
+import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
@@ -21,10 +22,10 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Roo-Cline")
+	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 
-	outputChannel.appendLine("Roo-Cline extension activated")
+	outputChannel.appendLine("Roo-Code extension activated")
 
 	// Get default commands from configuration
 	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -64,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	const openClineInNewTab = async () => {
-		outputChannel.appendLine("Opening Cline in new tab")
+		outputChannel.appendLine("Opening Roo Code in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabProvider = new ClineProvider(context, outputChannel)
@@ -78,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Cline", targetCol, {
+		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Roo Code", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -158,10 +159,58 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
+	// Register code actions provider
+	context.subscriptions.push(
+		vscode.languages.registerCodeActionsProvider({ pattern: "**/*" }, new CodeActionProvider(), {
+			providedCodeActionKinds: CodeActionProvider.providedCodeActionKinds,
+		}),
+	)
+
+	// Helper function to handle code actions
+	const registerCodeAction = (
+		context: vscode.ExtensionContext,
+		command: string,
+		promptType: keyof typeof ACTION_NAMES,
+		inputPrompt?: string,
+		inputPlaceholder?: string,
+	) => {
+		let userInput: string | undefined
+
+		context.subscriptions.push(
+			vscode.commands.registerCommand(
+				command,
+				async (filePath: string, selectedText: string, diagnostics?: any[]) => {
+					if (inputPrompt) {
+						userInput = await vscode.window.showInputBox({
+							prompt: inputPrompt,
+							placeHolder: inputPlaceholder,
+						})
+					}
+
+					const params = {
+						filePath,
+						selectedText,
+						...(diagnostics ? { diagnostics } : {}),
+						...(userInput ? { userInput } : {}),
+					}
+
+					await ClineProvider.handleCodeAction(promptType, params)
+				},
+			),
+		)
+	}
+
+	// Register code action commands
+	registerCodeAction(context, "roo-cline.explainCode", "EXPLAIN")
+
+	registerCodeAction(context, "roo-cline.fixCode", "FIX")
+
+	registerCodeAction(context, "roo-cline.improveCode", "IMPROVE")
+
 	return createClineAPI(outputChannel, sidebarProvider)
 }
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	outputChannel.appendLine("Roo-Cline extension deactivated")
+	outputChannel.appendLine("Roo-Code extension deactivated")
 }

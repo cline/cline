@@ -1,4 +1,4 @@
-import { Checkbox, Dropdown } from "vscrui"
+import { Checkbox, Dropdown, Pane } from "vscrui"
 import type { DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
@@ -45,7 +45,7 @@ interface ApiOptionsProps {
 }
 
 const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme, handleInputChange } = useExtensionState()
+	const { apiConfiguration, uriScheme, handleInputChange } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -156,7 +156,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.apiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("apiKey")}
+						onInput={handleInputChange("apiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
@@ -166,7 +166,11 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						onChange={(checked: boolean) => {
 							setAnthropicBaseUrlSelected(checked)
 							if (!checked) {
-								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
+								handleInputChange("anthropicBaseUrl")({
+									target: {
+										value: "",
+									},
+								})
 							}
 						}}>
 						Use custom base URL
@@ -177,7 +181,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							value={apiConfiguration?.anthropicBaseUrl || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							type="url"
-							onChange={handleInputChange("anthropicBaseUrl")}
+							onInput={handleInputChange("anthropicBaseUrl")}
 							placeholder="Default: https://api.anthropic.com"
 						/>
 					)}
@@ -206,7 +210,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.glamaApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("glamaApiKey")}
+						onInput={handleInputChange("glamaApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
@@ -235,7 +239,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.openAiNativeApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("openAiNativeApiKey")}
+						onInput={handleInputChange("openAiNativeApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenAI API Key</span>
 					</VSCodeTextField>
@@ -263,7 +267,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.mistralApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("mistralApiKey")}
+						onInput={handleInputChange("mistralApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Mistral API Key</span>
 					</VSCodeTextField>
@@ -294,7 +298,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.openRouterApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("openRouterApiKey")}
+						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
@@ -448,7 +452,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
-						onChange={handleInputChange("vertexProjectId")}
+						onInput={handleInputChange("vertexProjectId")}
 						placeholder="Enter Project ID...">
 						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 					</VSCodeTextField>
@@ -506,7 +510,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.geminiApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("geminiApiKey")}
+						onInput={handleInputChange("geminiApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
@@ -534,7 +538,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onChange={handleInputChange("openAiBaseUrl")}
+						onInput={handleInputChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
@@ -542,7 +546,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("openAiApiKey")}
+						onInput={handleInputChange("openAiApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
@@ -559,11 +563,24 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						</Checkbox>
 					</div>
 					<Checkbox
+						checked={apiConfiguration?.openAiUseAzure ?? false}
+						onChange={(checked: boolean) => {
+							handleInputChange("openAiUseAzure")({
+								target: { value: checked },
+							})
+						}}>
+						Use Azure
+					</Checkbox>
+					<Checkbox
 						checked={azureApiVersionSelected}
 						onChange={(checked: boolean) => {
 							setAzureApiVersionSelected(checked)
 							if (!checked) {
-								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
+								handleInputChange("azureApiVersion")({
+									target: {
+										value: "",
+									},
+								})
 							}
 						}}>
 						Set Azure API version
@@ -572,10 +589,436 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
 							style={{ width: "100%", marginTop: 3 }}
-							onChange={handleInputChange("azureApiVersion")}
+							onInput={handleInputChange("azureApiVersion")}
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
+
+					<div
+						style={{
+							marginTop: 15,
+						}}
+					/>
+					<Pane
+						title="Model Configuration"
+						open={false}
+						actions={[
+							{
+								iconName: "refresh",
+								onClick: () =>
+									handleInputChange("openAiCustomModelInfo")({
+										target: { value: openAiModelInfoSaneDefaults },
+									}),
+							},
+						]}>
+						<div
+							style={{
+								padding: 15,
+								backgroundColor: "var(--vscode-editor-background)",
+							}}>
+							<p
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									margin: "0 0 15px 0",
+									lineHeight: "1.4",
+								}}>
+								Configure the capabilities and pricing for your custom OpenAI-compatible model. <br />
+								Be careful for the model capabilities, as they can affect how Roo Code can work.
+							</p>
+
+							{/* Capabilities Section */}
+							<div
+								style={{
+									marginBottom: 20,
+									padding: 12,
+									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+									borderRadius: 4,
+								}}>
+								<span
+									style={{
+										fontWeight: 500,
+										fontSize: "12px",
+										display: "block",
+										marginBottom: 12,
+										color: "var(--vscode-editor-foreground)",
+									}}>
+									Model Capabilities
+								</span>
+								<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+									<div className="token-config-field">
+										<VSCodeTextField
+											value={
+												apiConfiguration?.openAiCustomModelInfo?.maxTokens?.toString() ||
+												openAiModelInfoSaneDefaults.maxTokens?.toString() ||
+												""
+											}
+											type="text"
+											style={{
+												width: "100%",
+												borderColor: (() => {
+													const value = apiConfiguration?.openAiCustomModelInfo?.maxTokens
+													if (!value) return "var(--vscode-input-border)"
+													return value > 0
+														? "var(--vscode-charts-green)"
+														: "var(--vscode-errorForeground)"
+												})(),
+											}}
+											title="Maximum number of tokens the model can generate in a single response"
+											onChange={(e: any) => {
+												const value = parseInt(e.target.value)
+												handleInputChange("openAiCustomModelInfo")({
+													target: {
+														value: {
+															...(apiConfiguration?.openAiCustomModelInfo ||
+																openAiModelInfoSaneDefaults),
+															maxTokens: isNaN(value) ? undefined : value,
+														},
+													},
+												})
+											}}
+											placeholder="e.g. 4096">
+											<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
+										</VSCodeTextField>
+										<div
+											style={{
+												fontSize: "11px",
+												color: "var(--vscode-descriptionForeground)",
+												marginTop: 4,
+												display: "flex",
+												alignItems: "center",
+												gap: 4,
+											}}>
+											<i className="codicon codicon-info" style={{ fontSize: "12px" }}></i>
+											<span>
+												Maximum number of tokens the model can generate in a response. <br />
+												(-1 is depend on server)
+											</span>
+										</div>
+									</div>
+
+									<div className="token-config-field">
+										<VSCodeTextField
+											value={
+												apiConfiguration?.openAiCustomModelInfo?.contextWindow?.toString() ||
+												openAiModelInfoSaneDefaults.contextWindow?.toString() ||
+												""
+											}
+											type="text"
+											style={{
+												width: "100%",
+												borderColor: (() => {
+													const value = apiConfiguration?.openAiCustomModelInfo?.contextWindow
+													if (!value) return "var(--vscode-input-border)"
+													return value > 0
+														? "var(--vscode-charts-green)"
+														: "var(--vscode-errorForeground)"
+												})(),
+											}}
+											title="Total number of tokens (input + output) the model can process in a single request"
+											onChange={(e: any) => {
+												const parsed = parseInt(e.target.value)
+												handleInputChange("openAiCustomModelInfo")({
+													target: {
+														value: {
+															...(apiConfiguration?.openAiCustomModelInfo ||
+																openAiModelInfoSaneDefaults),
+															contextWindow:
+																e.target.value === ""
+																	? undefined
+																	: isNaN(parsed)
+																		? openAiModelInfoSaneDefaults.contextWindow
+																		: parsed,
+														},
+													},
+												})
+											}}
+											placeholder="e.g. 128000">
+											<span style={{ fontWeight: 500 }}>Context Window Size</span>
+										</VSCodeTextField>
+										<div
+											style={{
+												fontSize: "11px",
+												color: "var(--vscode-descriptionForeground)",
+												marginTop: 4,
+												display: "flex",
+												alignItems: "center",
+												gap: 4,
+											}}>
+											<i className="codicon codicon-info" style={{ fontSize: "12px" }}></i>
+											<span>
+												Total tokens (input + output) the model can process. This will help Roo
+												Code run correctly.
+											</span>
+										</div>
+									</div>
+
+									<div
+										style={{
+											backgroundColor: "var(--vscode-editor-background)",
+											padding: "12px",
+											borderRadius: "4px",
+											marginTop: "8px",
+											border: "1px solid var(--vscode-input-border)",
+											transition: "background-color 0.2s ease",
+										}}>
+										<span
+											style={{
+												fontSize: "11px",
+												fontWeight: 500,
+												color: "var(--vscode-editor-foreground)",
+												display: "block",
+												marginBottom: "10px",
+											}}>
+											Model Features
+										</span>
+
+										<div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+											<div className="feature-toggle">
+												<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+													<Checkbox
+														checked={
+															apiConfiguration?.openAiCustomModelInfo?.supportsImages ??
+															openAiModelInfoSaneDefaults.supportsImages
+														}
+														onChange={(checked: boolean) => {
+															handleInputChange("openAiCustomModelInfo")({
+																target: {
+																	value: {
+																		...(apiConfiguration?.openAiCustomModelInfo ||
+																			openAiModelInfoSaneDefaults),
+																		supportsImages: checked,
+																	},
+																},
+															})
+														}}>
+														<span style={{ fontWeight: 500 }}>Image Support</span>
+													</Checkbox>
+													<i
+														className="codicon codicon-info"
+														title="Enable if the model can process and understand images in the input. Required for image-based assistance and visual code understanding."
+														style={{
+															fontSize: "12px",
+															color: "var(--vscode-descriptionForeground)",
+															cursor: "help",
+														}}
+													/>
+												</div>
+												<p
+													style={{
+														fontSize: "11px",
+														color: "var(--vscode-descriptionForeground)",
+														marginLeft: "24px",
+														marginTop: "4px",
+														lineHeight: "1.4",
+													}}>
+													Allows the model to analyze and understand images, essential for
+													visual code assistance
+												</p>
+											</div>
+
+											<div
+												className="feature-toggle"
+												style={{
+													borderTop: "1px solid var(--vscode-input-border)",
+													paddingTop: "12px",
+												}}>
+												<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+													<Checkbox
+														checked={
+															apiConfiguration?.openAiCustomModelInfo
+																?.supportsComputerUse ?? false
+														}
+														onChange={(checked: boolean) => {
+															handleInputChange("openAiCustomModelInfo")({
+																target: {
+																	value: {
+																		...(apiConfiguration?.openAiCustomModelInfo ||
+																			openAiModelInfoSaneDefaults),
+																		supportsComputerUse: checked,
+																	},
+																},
+															})
+														}}>
+														<span style={{ fontWeight: 500 }}>Computer Use</span>
+													</Checkbox>
+													<i
+														className="codicon codicon-info"
+														title="Enable if the model can interact with your computer through commands and file operations. Required for automated tasks and file modifications."
+														style={{
+															fontSize: "12px",
+															color: "var(--vscode-descriptionForeground)",
+															cursor: "help",
+														}}
+													/>
+												</div>
+												<p
+													style={{
+														fontSize: "11px",
+														color: "var(--vscode-descriptionForeground)",
+														marginLeft: "24px",
+														marginTop: "4px",
+														lineHeight: "1.4",
+													}}>
+													This model feature is for computer use like sonnet 3.5 support
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							{/* Pricing Section */}
+							<div
+								style={{
+									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+									padding: "12px",
+									borderRadius: "4px",
+									marginTop: "15px",
+								}}>
+								<div style={{ marginBottom: "12px" }}>
+									<span
+										style={{
+											fontWeight: 500,
+											fontSize: "12px",
+											color: "var(--vscode-editor-foreground)",
+											display: "block",
+											marginBottom: "4px",
+										}}>
+										Model Pricing
+									</span>
+									<span
+										style={{
+											fontSize: "11px",
+											color: "var(--vscode-descriptionForeground)",
+											display: "block",
+										}}>
+										Configure token-based pricing in USD per million tokens
+									</span>
+								</div>
+
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "1fr 1fr",
+										gap: "12px",
+										backgroundColor: "var(--vscode-editor-background)",
+										padding: "12px",
+										borderRadius: "4px",
+									}}>
+									<div className="price-input">
+										<VSCodeTextField
+											value={
+												apiConfiguration?.openAiCustomModelInfo?.inputPrice?.toString() ??
+												openAiModelInfoSaneDefaults.inputPrice?.toString() ??
+												""
+											}
+											type="text"
+											style={{
+												width: "100%",
+												borderColor: (() => {
+													const value = apiConfiguration?.openAiCustomModelInfo?.inputPrice
+													if (!value && value !== 0) return "var(--vscode-input-border)"
+													return value >= 0
+														? "var(--vscode-charts-green)"
+														: "var(--vscode-errorForeground)"
+												})(),
+											}}
+											onChange={(e: any) => {
+												const parsed = parseFloat(e.target.value)
+												handleInputChange("openAiCustomModelInfo")({
+													target: {
+														value: {
+															...(apiConfiguration?.openAiCustomModelInfo ??
+																openAiModelInfoSaneDefaults),
+															inputPrice:
+																e.target.value === ""
+																	? undefined
+																	: isNaN(parsed)
+																		? openAiModelInfoSaneDefaults.inputPrice
+																		: parsed,
+														},
+													},
+												})
+											}}
+											placeholder="e.g. 0.0001">
+											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+												<span style={{ fontWeight: 500 }}>Input Price</span>
+												<i
+													className="codicon codicon-info"
+													title="Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
+													style={{
+														fontSize: "12px",
+														color: "var(--vscode-descriptionForeground)",
+														cursor: "help",
+													}}
+												/>
+											</div>
+										</VSCodeTextField>
+									</div>
+
+									<div className="price-input">
+										<VSCodeTextField
+											value={
+												apiConfiguration?.openAiCustomModelInfo?.outputPrice?.toString() ||
+												openAiModelInfoSaneDefaults.outputPrice?.toString() ||
+												""
+											}
+											type="text"
+											style={{
+												width: "100%",
+												borderColor: (() => {
+													const value = apiConfiguration?.openAiCustomModelInfo?.outputPrice
+													if (!value && value !== 0) return "var(--vscode-input-border)"
+													return value >= 0
+														? "var(--vscode-charts-green)"
+														: "var(--vscode-errorForeground)"
+												})(),
+											}}
+											onChange={(e: any) => {
+												const parsed = parseFloat(e.target.value)
+												handleInputChange("openAiCustomModelInfo")({
+													target: {
+														value: {
+															...(apiConfiguration?.openAiCustomModelInfo ||
+																openAiModelInfoSaneDefaults),
+															outputPrice:
+																e.target.value === ""
+																	? undefined
+																	: isNaN(parsed)
+																		? openAiModelInfoSaneDefaults.outputPrice
+																		: parsed,
+														},
+													},
+												})
+											}}
+											placeholder="e.g. 0.0002">
+											<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+												<span style={{ fontWeight: 500 }}>Output Price</span>
+												<i
+													className="codicon codicon-info"
+													title="Cost per million tokens in the model's response. This affects the cost of generated content and completions."
+													style={{
+														fontSize: "12px",
+														color: "var(--vscode-descriptionForeground)",
+														cursor: "help",
+													}}
+												/>
+											</div>
+										</VSCodeTextField>
+									</div>
+								</div>
+							</div>
+						</div>
+					</Pane>
+					<div
+						style={{
+							marginTop: 15,
+						}}
+					/>
+
+					{/* end Model Info Configuration */}
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -583,7 +1026,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
@@ -596,14 +1039,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.lmStudioBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onChange={handleInputChange("lmStudioBaseUrl")}
+						onInput={handleInputChange("lmStudioBaseUrl")}
 						placeholder={"Default: http://localhost:1234"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.lmStudioModelId || ""}
 						style={{ width: "100%" }}
-						onChange={handleInputChange("lmStudioModelId")}
+						onInput={handleInputChange("lmStudioModelId")}
 						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
@@ -652,7 +1095,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						</VSCodeLink>{" "}
 						feature to use it with this extension.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
@@ -665,7 +1108,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.deepSeekApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onChange={handleInputChange("deepSeekApiKey")}
+						onInput={handleInputChange("deepSeekApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
 					</VSCodeTextField>
@@ -743,7 +1186,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 								fontWeight: 500,
 							}}>
 							Note: This is a very experimental integration and may not work as expected. Please report
-							any issues to the Roo-Cline GitHub repository.
+							any issues to the Roo-Code GitHub repository.
 						</p>
 					</div>
 				</div>
@@ -755,14 +1198,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						value={apiConfiguration?.ollamaBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onChange={handleInputChange("ollamaBaseUrl")}
+						onInput={handleInputChange("ollamaBaseUrl")}
 						placeholder={"Default: http://localhost:11434"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
-						onChange={handleInputChange("ollamaModelId")}
+						onInput={handleInputChange("ollamaModelId")}
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
@@ -806,7 +1249,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							quickstart guide.
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best
+							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
 							with Claude models. Less capable models may not work as expected.)
 						</span>
 					</p>
@@ -1057,7 +1500,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openAiModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: apiConfiguration?.openAiCustomModelInfo || openAiModelInfoSaneDefaults,
 			}
 		case "ollama":
 			return {

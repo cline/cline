@@ -167,17 +167,8 @@ const GlamaModelPicker: React.FC = () => {
 						placeholder="Search and select a model..."
 						value={searchTerm}
 						onInput={(e) => {
-							const newModelId = (e.target as HTMLInputElement)?.value?.toLowerCase()
-							const apiConfig = {
-								...apiConfiguration,
-								openAiModelId: newModelId,
-							}
-							setApiConfiguration(apiConfig)
-							setSearchTerm(newModelId)
-							setIsDropdownVisible(true)
-						}}
-						onChange={(e) => {
 							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
+							setIsDropdownVisible(true)
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
@@ -240,7 +231,7 @@ const GlamaModelPicker: React.FC = () => {
 					<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://glama.ai/models">
 						Glama.
 					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
+					If you're unsure which model to choose, Roo Code works best with{" "}
 					<VSCodeLink
 						style={{ display: "inline", fontSize: "inherit" }}
 						onClick={() => handleModelChange("anthropic/claude-3.5-sonnet")}>

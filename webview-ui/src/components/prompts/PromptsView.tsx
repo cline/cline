@@ -1,21 +1,35 @@
-import { VSCodeButton, VSCodeTextArea, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
+import {
+	VSCodeButton,
+	VSCodeTextArea,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeTextField,
+	VSCodeCheckbox,
+} from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { defaultPrompts, modes, Mode, PromptComponent, getRoleDefinition } from "../../../../src/shared/modes"
+import { Mode, PromptComponent, getRoleDefinition, getAllModes, ModeConfig } from "../../../../src/shared/modes"
+import {
+	supportPrompt,
+	SupportPromptType,
+	supportPromptLabels,
+	supportPromptDescriptions,
+} from "../../../../src/shared/support-prompt"
+
+import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
-import React, { useState, useEffect } from "react"
+
+// Get all available groups from GROUP_DISPLAY_NAMES
+const availableGroups = Object.keys(TOOL_GROUPS) as ToolGroup[]
 
 type PromptsViewProps = {
 	onDone: () => void
 }
 
-const AGENT_MODES = modes.map((mode) => ({
-	id: mode.slug,
-	label: mode.name,
-}))
-
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const {
-		customPrompts,
+		customModePrompts,
+		customSupportPrompts,
 		listApiConfigMeta,
 		enhancementApiConfigId,
 		setEnhancementApiConfigId,
@@ -24,13 +38,202 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		setCustomInstructions,
 		preferredLanguage,
 		setPreferredLanguage,
+		customModes,
 	} = useExtensionState()
+
+	// Memoize modes to preserve array order
+	const modes = useMemo(() => getAllModes(customModes), [customModes])
+
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
-	const [activeTab, setActiveTab] = useState<Mode>(mode)
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [selectedPromptContent, setSelectedPromptContent] = useState("")
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
+	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
+	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
+	const [activeSupportTab, setActiveSupportTab] = useState<SupportPromptType>("ENHANCE")
+
+	// Direct update functions
+	const updateAgentPrompt = useCallback(
+		(mode: Mode, promptData: PromptComponent) => {
+			const existingPrompt = customModePrompts?.[mode] as PromptComponent
+			const updatedPrompt = { ...existingPrompt, ...promptData }
+
+			// Only include properties that differ from defaults
+			if (updatedPrompt.roleDefinition === getRoleDefinition(mode)) {
+				delete updatedPrompt.roleDefinition
+			}
+
+			vscode.postMessage({
+				type: "updatePrompt",
+				promptMode: mode,
+				customPrompt: updatedPrompt,
+			})
+		},
+		[customModePrompts],
+	)
+
+	const updateCustomMode = useCallback((slug: string, modeConfig: ModeConfig) => {
+		vscode.postMessage({
+			type: "updateCustomMode",
+			slug,
+			modeConfig,
+		})
+	}, [])
+
+	// Helper function to find a mode by slug
+	const findModeBySlug = useCallback(
+		(searchSlug: string, modes: readonly ModeConfig[] | undefined): ModeConfig | undefined => {
+			if (!modes) return undefined
+			const isModeWithSlug = (mode: ModeConfig): mode is ModeConfig => mode.slug === searchSlug
+			return modes.find(isModeWithSlug)
+		},
+		[],
+	)
+
+	const switchMode = useCallback((slug: string) => {
+		vscode.postMessage({
+			type: "mode",
+			text: slug,
+		})
+	}, [])
+
+	// Handle mode switching with explicit state initialization
+	const handleModeSwitch = useCallback(
+		(modeConfig: ModeConfig) => {
+			if (modeConfig.slug === mode) return // Prevent unnecessary updates
+
+			// First switch the mode
+			switchMode(modeConfig.slug)
+
+			// Exit tools edit mode when switching modes
+			setIsToolsEditMode(false)
+		},
+		[mode, switchMode, setIsToolsEditMode],
+	)
+
+	// Helper function to get current mode's config
+	const getCurrentMode = useCallback((): ModeConfig | undefined => {
+		const findMode = (m: ModeConfig): boolean => m.slug === mode
+		return customModes?.find(findMode) || modes.find(findMode)
+	}, [mode, customModes, modes])
+
+	// Helper function to safely access mode properties
+	const getModeProperty = <T extends keyof ModeConfig>(
+		mode: ModeConfig | undefined,
+		property: T,
+	): ModeConfig[T] | undefined => {
+		return mode?.[property]
+	}
+
+	// State for create mode dialog
+	const [newModeName, setNewModeName] = useState("")
+	const [newModeSlug, setNewModeSlug] = useState("")
+	const [newModeRoleDefinition, setNewModeRoleDefinition] = useState("")
+	const [newModeCustomInstructions, setNewModeCustomInstructions] = useState("")
+	const [newModeGroups, setNewModeGroups] = useState<readonly ToolGroup[]>(availableGroups)
+
+	// Reset form fields when dialog opens
+	useEffect(() => {
+		if (isCreateModeDialogOpen) {
+			setNewModeGroups(availableGroups)
+			setNewModeRoleDefinition("")
+			setNewModeCustomInstructions("")
+		}
+	}, [isCreateModeDialogOpen])
+
+	// Helper function to generate a unique slug from a name
+	const generateSlug = useCallback((name: string, attempt = 0): string => {
+		const baseSlug = name
+			.toLowerCase()
+			.replace(/[^a-z0-9-]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+		return attempt === 0 ? baseSlug : `${baseSlug}-${attempt}`
+	}, [])
+
+	// Handler for name changes
+	const handleNameChange = useCallback(
+		(name: string) => {
+			setNewModeName(name)
+			setNewModeSlug(generateSlug(name))
+		},
+		[generateSlug],
+	)
+
+	const handleCreateMode = useCallback(() => {
+		if (!newModeName.trim() || !newModeSlug.trim()) return
+
+		const newMode: ModeConfig = {
+			slug: newModeSlug,
+			name: newModeName,
+			roleDefinition: newModeRoleDefinition.trim() || "",
+			customInstructions: newModeCustomInstructions.trim() || undefined,
+			groups: newModeGroups,
+		}
+		updateCustomMode(newModeSlug, newMode)
+		switchMode(newModeSlug)
+		setIsCreateModeDialogOpen(false)
+		setNewModeName("")
+		setNewModeSlug("")
+		setNewModeRoleDefinition("")
+		setNewModeCustomInstructions("")
+		setNewModeGroups(availableGroups)
+	}, [
+		newModeName,
+		newModeSlug,
+		newModeRoleDefinition,
+		newModeCustomInstructions,
+		newModeGroups,
+		updateCustomMode,
+		switchMode,
+	])
+
+	const isNameOrSlugTaken = useCallback(
+		(name: string, slug: string) => {
+			return modes.some((m) => m.slug === slug || m.name === name)
+		},
+		[modes],
+	)
+
+	const openCreateModeDialog = useCallback(() => {
+		const baseNamePrefix = "New Custom Mode"
+		// Find unique name and slug
+		let attempt = 0
+		let name = baseNamePrefix
+		let slug = generateSlug(name)
+		while (isNameOrSlugTaken(name, slug)) {
+			attempt++
+			name = `${baseNamePrefix} ${attempt + 1}`
+			slug = generateSlug(name)
+		}
+		setNewModeName(name)
+		setNewModeSlug(slug)
+		setIsCreateModeDialogOpen(true)
+	}, [generateSlug, isNameOrSlugTaken])
+
+	// Handler for group checkbox changes
+	const handleGroupChange = useCallback(
+		(group: ToolGroup, isCustomMode: boolean, customMode: ModeConfig | undefined) =>
+			(e: Event | React.FormEvent<HTMLElement>) => {
+				if (!isCustomMode) return // Prevent changes to built-in modes
+				const target = (e as CustomEvent)?.detail?.target || (e.target as HTMLInputElement)
+				const checked = target.checked
+				const oldGroups = customMode?.groups || []
+				let newGroups: readonly ToolGroup[]
+				if (checked) {
+					newGroups = [...oldGroups, group]
+				} else {
+					newGroups = oldGroups.filter((g) => g !== group)
+				}
+				if (customMode) {
+					updateCustomMode(customMode.slug, {
+						...customMode,
+						groups: newGroups,
+					})
+				}
+			},
+		[updateCustomMode],
+	)
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
@@ -53,65 +256,33 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => window.removeEventListener("message", handler)
 	}, [])
 
-	type AgentMode = string
-
-	const updateAgentPrompt = (mode: Mode, promptData: PromptComponent) => {
-		const existingPrompt = customPrompts?.[mode]
-		const updatedPrompt = typeof existingPrompt === "object" ? { ...existingPrompt, ...promptData } : promptData
-
-		// Only include properties that differ from defaults
-		if (updatedPrompt.roleDefinition === getRoleDefinition(mode)) {
-			delete updatedPrompt.roleDefinition
-		}
-
+	const updateSupportPrompt = (type: SupportPromptType, value: string | undefined) => {
 		vscode.postMessage({
-			type: "updatePrompt",
-			promptMode: mode,
-			customPrompt: updatedPrompt,
+			type: "updateSupportPrompt",
+			values: {
+				[type]: value,
+			},
 		})
 	}
 
-	const updateEnhancePrompt = (value: string | undefined) => {
-		vscode.postMessage({
-			type: "updateEnhancedPrompt",
-			text: value,
-		})
-	}
-
-	const handleAgentPromptChange = (mode: AgentMode, e: Event | React.FormEvent<HTMLElement>) => {
-		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
-		updateAgentPrompt(mode, { roleDefinition: value.trim() || undefined })
-	}
-
-	const handleEnhancePromptChange = (e: Event | React.FormEvent<HTMLElement>) => {
-		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
-		const trimmedValue = value.trim()
-		if (trimmedValue !== defaultPrompts.enhance) {
-			updateEnhancePrompt(trimmedValue || undefined)
-		}
-	}
-
-	const handleAgentReset = (mode: AgentMode) => {
-		const existingPrompt = customPrompts?.[mode]
-		updateAgentPrompt(mode, {
-			...(typeof existingPrompt === "object" ? existingPrompt : {}),
+	const handleAgentReset = (modeSlug: string) => {
+		// Only reset role definition for built-in modes
+		const existingPrompt = customModePrompts?.[modeSlug] as PromptComponent
+		updateAgentPrompt(modeSlug, {
+			...existingPrompt,
 			roleDefinition: undefined,
 		})
 	}
 
-	const handleEnhanceReset = () => {
-		updateEnhancePrompt(undefined)
+	const handleSupportReset = (type: SupportPromptType) => {
+		vscode.postMessage({
+			type: "resetSupportPrompt",
+			text: type,
+		})
 	}
 
-	const getAgentPromptValue = (mode: Mode): string => {
-		const prompt = customPrompts?.[mode]
-		return typeof prompt === "object" ? (prompt.roleDefinition ?? getRoleDefinition(mode)) : getRoleDefinition(mode)
-	}
-
-	const getEnhancePromptValue = (): string => {
-		const enhance = customPrompts?.enhance
-		const defaultEnhance = typeof defaultPrompts.enhance === "string" ? defaultPrompts.enhance : ""
-		return typeof enhance === "string" ? enhance : defaultEnhance
+	const getSupportPromptValue = (type: SupportPromptType): string => {
+		return supportPrompt.get(customSupportPrompts, type)
 	}
 
 	const handleTestEnhancement = () => {
@@ -147,7 +318,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<div style={{ marginBottom: "20px" }}>
+				<div style={{ paddingBottom: "20px", borderBottom: "1px solid var(--vscode-input-border)" }}>
 					<div style={{ marginBottom: "20px" }}>
 						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Preferred Language</div>
 						<select
@@ -220,7 +391,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						style={{ width: "100%" }}
 						data-testid="global-custom-instructions-textarea"
 					/>
-					<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "5px" }}>
+					<div
+						style={{
+							fontSize: "12px",
+							color: "var(--vscode-descriptionForeground)",
+							marginTop: "5px",
+							marginBottom: "40px",
+						}}>
 						Instructions can also be loaded from{" "}
 						<span
 							style={{
@@ -244,42 +421,184 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 
-				<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 20px 0" }}>Mode-Specific Prompts</h3>
+				<div style={{ marginTop: "20px" }}>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+							marginBottom: "12px",
+						}}>
+						<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Mode-Specific Prompts</h3>
+						<div style={{ display: "flex", gap: "8px" }}>
+							<VSCodeButton appearance="icon" onClick={openCreateModeDialog} title="Create new mode">
+								<span className="codicon codicon-add"></span>
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="icon"
+								title="Edit modes configuration"
+								onClick={() => {
+									vscode.postMessage({
+										type: "openCustomModesSettings",
+									})
+								}}>
+								<span className="codicon codicon-json"></span>
+							</VSCodeButton>
+						</div>
+					</div>
 
-				<div
-					style={{
-						display: "flex",
-						gap: "16px",
-						alignItems: "center",
-						marginBottom: "12px",
-					}}>
-					{AGENT_MODES.map((tab) => (
-						<button
-							key={tab.id}
-							data-testid={`${tab.id}-tab`}
-							data-active={activeTab === tab.id ? "true" : "false"}
-							onClick={() => setActiveTab(tab.id)}
-							style={{
-								padding: "4px 8px",
-								border: "none",
-								background: activeTab === tab.id ? "var(--vscode-button-background)" : "none",
-								color:
-									activeTab === tab.id
-										? "var(--vscode-button-foreground)"
-										: "var(--vscode-foreground)",
-								cursor: "pointer",
-								opacity: activeTab === tab.id ? 1 : 0.8,
-								borderRadius: "3px",
-								fontWeight: "bold",
-							}}>
-							{tab.label}
-						</button>
-					))}
+					<div
+						style={{
+							fontSize: "13px",
+							color: "var(--vscode-descriptionForeground)",
+							marginBottom: "12px",
+						}}>
+						Hit the + to create a new custom mode, or just ask Roo in chat to create one for you!
+					</div>
+
+					<div
+						style={{
+							display: "flex",
+							gap: "16px",
+							alignItems: "center",
+							marginBottom: "12px",
+							overflowX: "auto",
+							flexWrap: "nowrap",
+							paddingBottom: "4px",
+							paddingRight: "20px",
+						}}>
+						{modes.map((modeConfig) => {
+							const isActive = mode === modeConfig.slug
+							return (
+								<button
+									key={modeConfig.slug}
+									data-testid={`${modeConfig.slug}-tab`}
+									data-active={isActive ? "true" : "false"}
+									onClick={() => handleModeSwitch(modeConfig)}
+									style={{
+										padding: "4px 8px",
+										border: "none",
+										background: isActive ? "var(--vscode-button-background)" : "none",
+										color: isActive
+											? "var(--vscode-button-foreground)"
+											: "var(--vscode-foreground)",
+										cursor: "pointer",
+										opacity: isActive ? 1 : 0.8,
+										borderRadius: "3px",
+										fontWeight: "bold",
+									}}>
+									{modeConfig.name}
+								</button>
+							)
+						})}
+					</div>
 				</div>
 
 				<div style={{ marginBottom: "20px" }}>
-					<div style={{ marginBottom: "8px" }}>
-						<div>
+					{/* Only show name and delete for custom modes */}
+					{mode && findModeBySlug(mode, customModes) && (
+						<div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+							<div style={{ flex: 1 }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Name</div>
+								<div style={{ display: "flex", gap: "8px" }}>
+									<VSCodeTextField
+										value={getModeProperty(findModeBySlug(mode, customModes), "name") ?? ""}
+										onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+											const target =
+												(e as CustomEvent)?.detail?.target ||
+												((e as any).target as HTMLInputElement)
+											const customMode = findModeBySlug(mode, customModes)
+											if (customMode) {
+												updateCustomMode(mode, {
+													...customMode,
+													name: target.value,
+												})
+											}
+										}}
+										style={{ width: "100%" }}
+									/>
+									<VSCodeButton
+										appearance="icon"
+										title="Delete mode"
+										onClick={() => {
+											vscode.postMessage({
+												type: "deleteCustomMode",
+												slug: mode,
+											})
+										}}>
+										<span className="codicon codicon-trash"></span>
+									</VSCodeButton>
+								</div>
+							</div>
+						</div>
+					)}
+					<div style={{ marginBottom: "16px" }}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "4px",
+							}}>
+							<div style={{ fontWeight: "bold" }}>Role Definition</div>
+							{!findModeBySlug(mode, customModes) && (
+								<VSCodeButton
+									appearance="icon"
+									onClick={() => {
+										const currentMode = getCurrentMode()
+										if (currentMode?.slug) {
+											handleAgentReset(currentMode.slug)
+										}
+									}}
+									title="Reset to default"
+									data-testid="role-definition-reset">
+									<span className="codicon codicon-discard"></span>
+								</VSCodeButton>
+							)}
+						</div>
+						<div
+							style={{
+								fontSize: "13px",
+								color: "var(--vscode-descriptionForeground)",
+								marginBottom: "8px",
+							}}>
+							Define Roo's expertise and personality for this mode. This description shapes how Roo
+							presents itself and approaches tasks.
+						</div>
+						<VSCodeTextArea
+							value={(() => {
+								const customMode = findModeBySlug(mode, customModes)
+								const prompt = customModePrompts?.[mode] as PromptComponent
+								return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(mode)
+							})()}
+							onChange={(e) => {
+								const value =
+									(e as CustomEvent)?.detail?.target?.value ||
+									((e as any).target as HTMLTextAreaElement).value
+								const customMode = findModeBySlug(mode, customModes)
+								if (customMode) {
+									// For custom modes, update the JSON file
+									updateCustomMode(mode, {
+										...customMode,
+										roleDefinition: value.trim() || "",
+									})
+								} else {
+									// For built-in modes, update the prompts
+									updateAgentPrompt(mode, {
+										roleDefinition: value.trim() || undefined,
+									})
+								}
+							}}
+							rows={4}
+							resize="vertical"
+							style={{ width: "100%" }}
+							data-testid={`${getCurrentMode()?.slug || "code"}-prompt-textarea`}
+						/>
+					</div>
+					{/* Mode settings */}
+					<>
+						{/* Show tools for all modes */}
+						<div style={{ marginBottom: "16px" }}>
 							<div
 								style={{
 									display: "flex",
@@ -287,34 +606,72 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									alignItems: "center",
 									marginBottom: "4px",
 								}}>
-								<div style={{ fontWeight: "bold" }}>Role Definition</div>
-								<VSCodeButton
-									appearance="icon"
-									onClick={() => handleAgentReset(activeTab)}
-									data-testid="reset-prompt-button"
-									title="Revert to default">
-									<span className="codicon codicon-discard"></span>
-								</VSCodeButton>
+								<div style={{ fontWeight: "bold" }}>Available Tools</div>
+								{findModeBySlug(mode, customModes) && (
+									<VSCodeButton
+										appearance="icon"
+										onClick={() => setIsToolsEditMode(!isToolsEditMode)}
+										title={isToolsEditMode ? "Done editing" : "Edit tools"}>
+										<span
+											className={`codicon codicon-${isToolsEditMode ? "check" : "edit"}`}></span>
+									</VSCodeButton>
+								)}
 							</div>
-							<div
-								style={{
-									fontSize: "13px",
-									color: "var(--vscode-descriptionForeground)",
-									marginBottom: "8px",
-								}}>
-								Define Cline's expertise and personality for this mode. This description shapes how
-								Cline presents itself and approaches tasks.
-							</div>
+							{!findModeBySlug(mode, customModes) && (
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-descriptionForeground)",
+										marginBottom: "8px",
+									}}>
+									Tools for built-in modes cannot be modified
+								</div>
+							)}
+							{isToolsEditMode && findModeBySlug(mode, customModes) ? (
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+										gap: "8px",
+									}}>
+									{availableGroups.map((group) => {
+										const currentMode = getCurrentMode()
+										const isCustomMode = findModeBySlug(mode, customModes)
+										const customMode = isCustomMode
+										const isGroupEnabled = isCustomMode
+											? customMode?.groups?.includes(group)
+											: currentMode?.groups?.includes(group)
+
+										return (
+											<VSCodeCheckbox
+												key={group}
+												checked={isGroupEnabled}
+												onChange={handleGroupChange(group, Boolean(isCustomMode), customMode)}
+												disabled={!isCustomMode}>
+												{GROUP_DISPLAY_NAMES[group]}
+											</VSCodeCheckbox>
+										)
+									})}
+								</div>
+							) : (
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-foreground)",
+										marginBottom: "8px",
+										lineHeight: "1.4",
+									}}>
+									{(() => {
+										const currentMode = getCurrentMode()
+										const enabledGroups = currentMode?.groups || []
+										return enabledGroups.map((group) => GROUP_DISPLAY_NAMES[group]).join(", ")
+									})()}
+								</div>
+							)}
 						</div>
-						<VSCodeTextArea
-							value={getAgentPromptValue(activeTab)}
-							onChange={(e) => handleAgentPromptChange(activeTab, e)}
-							rows={4}
-							resize="vertical"
-							style={{ width: "100%" }}
-							data-testid={`${activeTab}-prompt-textarea`}
-						/>
-					</div>
+					</>
+
+					{/* Role definition for both built-in and custom modes */}
 					<div style={{ marginBottom: "8px" }}>
 						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Mode-specific Custom Instructions</div>
 						<div
@@ -323,28 +680,38 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								color: "var(--vscode-descriptionForeground)",
 								marginBottom: "8px",
 							}}>
-							Add behavioral guidelines specific to {activeTab} mode. These instructions enhance the base
-							behaviors defined above.
+							Add behavioral guidelines specific to {getCurrentMode()?.name || "Code"} mode.
 						</div>
 						<VSCodeTextArea
 							value={(() => {
-								const prompt = customPrompts?.[activeTab]
-								return typeof prompt === "object" ? (prompt.customInstructions ?? "") : ""
+								const customMode = findModeBySlug(mode, customModes)
+								const prompt = customModePrompts?.[mode] as PromptComponent
+								return customMode?.customInstructions ?? prompt?.customInstructions ?? ""
 							})()}
 							onChange={(e) => {
 								const value =
 									(e as CustomEvent)?.detail?.target?.value ||
 									((e as any).target as HTMLTextAreaElement).value
-								const existingPrompt = customPrompts?.[activeTab]
-								updateAgentPrompt(activeTab, {
-									...(typeof existingPrompt === "object" ? existingPrompt : {}),
-									customInstructions: value.trim() || undefined,
-								})
+								const customMode = findModeBySlug(mode, customModes)
+								if (customMode) {
+									// For custom modes, update the JSON file
+									updateCustomMode(mode, {
+										...customMode,
+										customInstructions: value.trim() || undefined,
+									})
+								} else {
+									// For built-in modes, update the prompts
+									const existingPrompt = customModePrompts?.[mode] as PromptComponent
+									updateAgentPrompt(mode, {
+										...existingPrompt,
+										customInstructions: value.trim() || undefined,
+									})
+								}
 							}}
 							rows={4}
 							resize="vertical"
 							style={{ width: "100%" }}
-							data-testid={`${activeTab}-custom-instructions-textarea`}
+							data-testid={`${getCurrentMode()?.slug || "code"}-custom-instructions-textarea`}
 						/>
 						<div
 							style={{
@@ -352,7 +719,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								color: "var(--vscode-descriptionForeground)",
 								marginTop: "5px",
 							}}>
-							Custom instructions specific to {activeTab} mode can also be loaded from{" "}
+							Custom instructions specific to {getCurrentMode()?.name || "Code"} mode can also be loaded
+							from{" "}
 							<span
 								style={{
 									color: "var(--vscode-textLink-foreground)",
@@ -360,163 +728,388 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									textDecoration: "underline",
 								}}
 								onClick={() => {
-									// First create/update the file with current custom instructions
-									const defaultContent = `# ${activeTab} Mode Rules\n\nAdd mode-specific rules and guidelines here.`
-									const existingPrompt = customPrompts?.[activeTab]
-									const existingInstructions =
-										typeof existingPrompt === "object"
-											? existingPrompt.customInstructions
-											: undefined
-									vscode.postMessage({
-										type: "updatePrompt",
-										promptMode: activeTab,
-										customPrompt: {
-											...(typeof existingPrompt === "object" ? existingPrompt : {}),
-											customInstructions: existingInstructions || defaultContent,
-										},
-									})
-									// Then open the file
+									const currentMode = getCurrentMode()
+									if (!currentMode) return
+
+									// Open or create an empty file
 									vscode.postMessage({
 										type: "openFile",
-										text: `./.clinerules-${activeTab}`,
+										text: `./.clinerules-${currentMode.slug}`,
 										values: {
 											create: true,
 											content: "",
 										},
 									})
 								}}>
-								.clinerules-{activeTab}
+								.clinerules-{getCurrentMode()?.slug || "code"}
 							</span>{" "}
 							in your workspace.
 						</div>
 					</div>
 				</div>
-				<div style={{ marginBottom: "20px", display: "flex", justifyContent: "flex-start" }}>
+				<div
+					style={{
+						paddingBottom: "40px",
+						marginBottom: "20px",
+						borderBottom: "1px solid var(--vscode-input-border)",
+						display: "flex",
+						justifyContent: "flex-start",
+					}}>
 					<VSCodeButton
 						appearance="primary"
 						onClick={() => {
-							vscode.postMessage({
-								type: "getSystemPrompt",
-								mode: activeTab,
-							})
+							const currentMode = getCurrentMode()
+							if (currentMode) {
+								vscode.postMessage({
+									type: "getSystemPrompt",
+									mode: currentMode.slug,
+								})
+							}
 						}}
 						data-testid="preview-prompt-button">
 						Preview System Prompt
 					</VSCodeButton>
 				</div>
 
-				<h3 style={{ color: "var(--vscode-foreground)", margin: "40px 0 20px 0" }}>Prompt Enhancement</h3>
-
 				<div
 					style={{
-						color: "var(--vscode-foreground)",
-						fontSize: "13px",
-						marginBottom: "20px",
-						marginTop: "5px",
+						marginTop: "20px",
+						paddingBottom: "60px",
+						borderBottom: "1px solid var(--vscode-input-border)",
 					}}>
-					Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures
-					Cline understands your intent and provides the best possible responses.
-				</div>
+					<h3 style={{ color: "var(--vscode-foreground)", marginBottom: "12px" }}>Support Prompts</h3>
+					<div
+						style={{
+							display: "flex",
+							gap: "16px",
+							alignItems: "center",
+							marginBottom: "12px",
+							overflowX: "auto",
+							flexWrap: "nowrap",
+							paddingBottom: "4px",
+							paddingRight: "20px",
+						}}>
+						{Object.keys(supportPrompt.default).map((type) => (
+							<button
+								key={type}
+								data-testid={`${type}-tab`}
+								data-active={activeSupportTab === type ? "true" : "false"}
+								onClick={() => setActiveSupportTab(type as SupportPromptType)}
+								style={{
+									padding: "4px 8px",
+									border: "none",
+									background: activeSupportTab === type ? "var(--vscode-button-background)" : "none",
+									color:
+										activeSupportTab === type
+											? "var(--vscode-button-foreground)"
+											: "var(--vscode-foreground)",
+									cursor: "pointer",
+									opacity: activeSupportTab === type ? 1 : 0.8,
+									borderRadius: "3px",
+									fontWeight: "bold",
+								}}>
+								{supportPromptLabels[type as SupportPromptType]}
+							</button>
+						))}
+					</div>
 
-				<div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-					<div>
-						<div style={{ marginBottom: "12px" }}>
-							<div style={{ marginBottom: "8px" }}>
-								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>API Configuration</div>
-								<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)" }}>
-									You can select an API configuration to always use for enhancing prompts, or just use
-									whatever is currently selected
-								</div>
-							</div>
-							<VSCodeDropdown
-								value={enhancementApiConfigId || ""}
-								data-testid="api-config-dropdown"
-								onChange={(e: any) => {
-									const value = e.detail?.target?.value || e.target?.value
-									setEnhancementApiConfigId(value)
-									vscode.postMessage({
-										type: "enhancementApiConfigId",
-										text: value,
-									})
-								}}
-								style={{ width: "300px" }}>
-								<VSCodeOption value="">Use currently selected API configuration</VSCodeOption>
-								{(listApiConfigMeta || []).map((config) => (
-									<VSCodeOption key={config.id} value={config.id}>
-										{config.name}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
+					{/* Support prompt description */}
+					<div
+						style={{
+							fontSize: "13px",
+							color: "var(--vscode-descriptionForeground)",
+							margin: "8px 0 16px",
+						}}>
+						{supportPromptDescriptions[activeSupportTab]}
+					</div>
+
+					{/* Show active tab content */}
+					<div key={activeSupportTab}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "4px",
+							}}>
+							<div style={{ fontWeight: "bold" }}>Prompt</div>
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => handleSupportReset(activeSupportTab)}
+								title={`Reset ${activeSupportTab} prompt to default`}>
+								<span className="codicon codicon-discard"></span>
+							</VSCodeButton>
 						</div>
 
-						<div style={{ marginBottom: "8px" }}>
-							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									marginBottom: "4px",
-								}}>
-								<div style={{ fontWeight: "bold" }}>Enhancement Prompt</div>
-								<div style={{ display: "flex", gap: "8px" }}>
-									<VSCodeButton
-										appearance="icon"
-										onClick={handleEnhanceReset}
-										title="Revert to default">
-										<span className="codicon codicon-discard"></span>
-									</VSCodeButton>
-								</div>
-							</div>
-							<div
-								style={{
-									fontSize: "13px",
-									color: "var(--vscode-descriptionForeground)",
-									marginBottom: "8px",
-								}}>
-								This prompt will be used to refine your input when you hit the sparkle icon in chat.
-							</div>
-						</div>
 						<VSCodeTextArea
-							value={getEnhancePromptValue()}
-							onChange={handleEnhancePromptChange}
-							rows={4}
+							value={getSupportPromptValue(activeSupportTab)}
+							onChange={(e) => {
+								const value =
+									(e as CustomEvent)?.detail?.target?.value ||
+									((e as any).target as HTMLTextAreaElement).value
+								const trimmedValue = value.trim()
+								updateSupportPrompt(activeSupportTab, trimmedValue || undefined)
+							}}
+							rows={6}
 							resize="vertical"
 							style={{ width: "100%" }}
 						/>
 
-						<div style={{ marginTop: "12px" }}>
-							<VSCodeTextArea
-								value={testPrompt}
-								onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
-								placeholder="Enter a prompt to test the enhancement"
-								rows={3}
-								resize="vertical"
-								style={{ width: "100%" }}
-								data-testid="test-prompt-textarea"
-							/>
-							<div
+						{activeSupportTab === "ENHANCE" && (
+							<>
+								<div>
+									<div
+										style={{
+											color: "var(--vscode-foreground)",
+											fontSize: "13px",
+											marginBottom: "20px",
+											marginTop: "5px",
+										}}></div>
+									<div style={{ marginBottom: "12px" }}>
+										<div style={{ marginBottom: "8px" }}>
+											<div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+												API Configuration
+											</div>
+											<div
+												style={{
+													fontSize: "13px",
+													color: "var(--vscode-descriptionForeground)",
+												}}>
+												You can select an API configuration to always use for enhancing prompts,
+												or just use whatever is currently selected
+											</div>
+										</div>
+										<VSCodeDropdown
+											value={enhancementApiConfigId || ""}
+											data-testid="api-config-dropdown"
+											onChange={(e: any) => {
+												const value = e.detail?.target?.value || e.target?.value
+												setEnhancementApiConfigId(value)
+												vscode.postMessage({
+													type: "enhancementApiConfigId",
+													text: value,
+												})
+											}}
+											style={{ width: "300px" }}>
+											<VSCodeOption value="">
+												Use currently selected API configuration
+											</VSCodeOption>
+											{(listApiConfigMeta || []).map((config) => (
+												<VSCodeOption key={config.id} value={config.id}>
+													{config.name}
+												</VSCodeOption>
+											))}
+										</VSCodeDropdown>
+									</div>
+								</div>
+
+								<div style={{ marginTop: "12px" }}>
+									<VSCodeTextArea
+										value={testPrompt}
+										onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
+										placeholder="Enter a prompt to test the enhancement"
+										rows={3}
+										resize="vertical"
+										style={{ width: "100%" }}
+										data-testid="test-prompt-textarea"
+									/>
+									<div
+										style={{
+											marginTop: "8px",
+											display: "flex",
+											justifyContent: "flex-start",
+											alignItems: "center",
+											gap: 8,
+										}}>
+										<VSCodeButton
+											onClick={handleTestEnhancement}
+											disabled={isEnhancing}
+											appearance="primary">
+											Preview Prompt Enhancement
+										</VSCodeButton>
+									</div>
+								</div>
+							</>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{isCreateModeDialogOpen && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						display: "flex",
+						justifyContent: "flex-end",
+						backgroundColor: "rgba(0, 0, 0, 0.5)",
+						zIndex: 1000,
+					}}>
+					<div
+						style={{
+							width: "calc(100vw - 100px)",
+							height: "100%",
+							backgroundColor: "var(--vscode-editor-background)",
+							boxShadow: "-2px 0 5px rgba(0, 0, 0, 0.2)",
+							display: "flex",
+							flexDirection: "column",
+							position: "relative",
+						}}>
+						<div
+							style={{
+								flex: 1,
+								padding: "20px",
+								overflowY: "auto",
+								minHeight: 0,
+							}}>
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => setIsCreateModeDialogOpen(false)}
 								style={{
-									marginTop: "8px",
-									display: "flex",
-									justifyContent: "flex-start",
-									alignItems: "center",
-									gap: 8,
+									position: "absolute",
+									top: "20px",
+									right: "20px",
 								}}>
-								<VSCodeButton
-									onClick={handleTestEnhancement}
-									disabled={isEnhancing}
-									appearance="primary">
-									Preview Prompt Enhancement
-								</VSCodeButton>
+								<span className="codicon codicon-close"></span>
+							</VSCodeButton>
+							<h2 style={{ margin: "0 0 16px" }}>Create New Mode</h2>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Name</div>
+								<VSCodeTextField
+									value={newModeName}
+									onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+										const target =
+											(e as CustomEvent)?.detail?.target ||
+											((e as any).target as HTMLInputElement)
+										handleNameChange(target.value)
+									}}
+									style={{ width: "100%" }}
+								/>
 							</div>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Slug</div>
+								<VSCodeTextField
+									value={newModeSlug}
+									onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+										const target =
+											(e as CustomEvent)?.detail?.target ||
+											((e as any).target as HTMLInputElement)
+										setNewModeSlug(target.value)
+									}}
+									style={{ width: "100%" }}
+								/>
+								<div
+									style={{
+										fontSize: "12px",
+										color: "var(--vscode-descriptionForeground)",
+										marginTop: "4px",
+									}}>
+									The slug is used in URLs and file names. It should be lowercase and contain only
+									letters, numbers, and hyphens.
+								</div>
+							</div>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Role Definition</div>
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-descriptionForeground)",
+										marginBottom: "8px",
+									}}>
+									Define Roo's expertise and personality for this mode.
+								</div>
+								<VSCodeTextArea
+									value={newModeRoleDefinition}
+									onChange={(e) => {
+										const value =
+											(e as CustomEvent)?.detail?.target?.value ||
+											((e as any).target as HTMLTextAreaElement).value
+										setNewModeRoleDefinition(value)
+									}}
+									rows={4}
+									resize="vertical"
+									style={{ width: "100%" }}
+								/>
+							</div>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Available Tools</div>
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-descriptionForeground)",
+										marginBottom: "8px",
+									}}>
+									Select which tools this mode can use.
+								</div>
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+										gap: "8px",
+									}}>
+									{availableGroups.map((group) => (
+										<VSCodeCheckbox
+											key={group}
+											checked={newModeGroups.includes(group)}
+											onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+												const target =
+													(e as CustomEvent)?.detail?.target || (e.target as HTMLInputElement)
+												const checked = target.checked
+												if (checked) {
+													setNewModeGroups([...newModeGroups, group])
+												} else {
+													setNewModeGroups(newModeGroups.filter((g) => g !== group))
+												}
+											}}>
+											{GROUP_DISPLAY_NAMES[group]}
+										</VSCodeCheckbox>
+									))}
+								</div>
+							</div>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Custom Instructions</div>
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-descriptionForeground)",
+										marginBottom: "8px",
+									}}>
+									Add behavioral guidelines specific to this mode.
+								</div>
+								<VSCodeTextArea
+									value={newModeCustomInstructions}
+									onChange={(e) => {
+										const value =
+											(e as CustomEvent)?.detail?.target?.value ||
+											((e as any).target as HTMLTextAreaElement).value
+										setNewModeCustomInstructions(value)
+									}}
+									rows={4}
+									resize="vertical"
+									style={{ width: "100%" }}
+								/>
+							</div>
+						</div>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "flex-end",
+								padding: "12px 20px",
+								gap: "8px",
+								borderTop: "1px solid var(--vscode-editor-lineHighlightBorder)",
+								backgroundColor: "var(--vscode-editor-background)",
+							}}>
+							<VSCodeButton onClick={() => setIsCreateModeDialogOpen(false)}>Cancel</VSCodeButton>
+							<VSCodeButton
+								appearance="primary"
+								onClick={handleCreateMode}
+								disabled={!newModeName.trim() || !newModeSlug.trim()}>
+								Create Mode
+							</VSCodeButton>
 						</div>
 					</div>
 				</div>
-
-				{/* Bottom padding */}
-				<div style={{ height: "20px" }} />
-			</div>
-
+			)}
 			{isDialogOpen && (
 				<div
 					style={{

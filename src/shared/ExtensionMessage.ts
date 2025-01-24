@@ -4,7 +4,15 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
-import { Mode, CustomPrompts } from "./modes"
+import { Mode, CustomModePrompts, ModeConfig } from "./modes"
+import { CustomSupportPrompts } from "./support-prompt"
+
+export interface LanguageModelChatSelector {
+	vendor?: string
+	family?: string
+	version?: string
+	id?: string
+}
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -31,6 +39,8 @@ export interface ExtensionMessage {
 		| "updatePrompt"
 		| "systemPrompt"
 		| "autoApprovalEnabled"
+		| "updateCustomMode"
+		| "deleteCustomMode"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -54,6 +64,8 @@ export interface ExtensionMessage {
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]
 	mode?: Mode
+	customMode?: ModeConfig
+	slug?: string
 }
 
 export interface ApiConfigMeta {
@@ -71,7 +83,8 @@ export interface ExtensionState {
 	currentApiConfigName?: string
 	listApiConfigMeta?: ApiConfigMeta[]
 	customInstructions?: string
-	customPrompts?: CustomPrompts
+	customModePrompts?: CustomModePrompts
+	customSupportPrompts?: CustomSupportPrompts
 	alwaysAllowReadOnly?: boolean
 	alwaysAllowWrite?: boolean
 	alwaysAllowExecute?: boolean
@@ -96,6 +109,8 @@ export interface ExtensionState {
 	enhancementApiConfigId?: string
 	experimentalDiffStrategy?: boolean
 	autoApprovalEnabled?: boolean
+	customModes: ModeConfig[]
+	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
 }
 
 export interface ClineMessage {

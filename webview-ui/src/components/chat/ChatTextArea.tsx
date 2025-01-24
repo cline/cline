@@ -14,7 +14,7 @@ import ContextMenu from "./ContextMenu"
 import Thumbnails from "../common/Thumbnails"
 import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
-import { Mode, modes } from "../../../../src/shared/modes"
+import { Mode, getAllModes } from "../../../../src/shared/modes"
 import { CaretIcon } from "../common/CaretIcon"
 
 interface ChatTextAreaProps {
@@ -50,7 +50,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, currentApiConfigName, listApiConfigMeta } = useExtensionState()
+		const { filePaths, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 
@@ -730,7 +730,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									minWidth: "70px",
 									flex: "0 0 auto",
 								}}>
-								{modes.map((mode) => (
+								{getAllModes(customModes).map((mode) => (
 									<option
 										key={mode.slug}
 										value={mode.slug}

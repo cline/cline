@@ -73,13 +73,27 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
-			.create({
-				model: this.getModel().id,
-				max_tokens: maxTokens,
-				temperature: 0,
-				messages: openAiMessages,
-				stream: true,
-			})
+			.create(
+				{
+					model: this.getModel().id,
+					max_tokens: maxTokens,
+					temperature: 0,
+					messages: openAiMessages,
+					stream: true,
+				},
+				{
+					headers: {
+						"X-Glama-Metadata": JSON.stringify({
+							labels: [
+								{
+									key: "app",
+									value: "vscode.rooveterinaryinc.roo-cline",
+								},
+							],
+						}),
+					},
+				},
+			)
 			.withResponse()
 
 		const completionRequestId = response.headers.get("x-completion-request-id")
@@ -96,34 +110,38 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		try {
-			const response = await axios.get(
-				`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`,
-				{
-					headers: {
-						Authorization: `Bearer ${this.options.glamaApiKey}`,
-						"X-Glama-Metadata": JSON.stringify({
-							labels: [
-								{
-									key: "app",
-									value: "vscode.rooveterinaryinc.roo-cline",
-								},
-							],
-						}),
+			let attempt = 0
+
+			const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+			while (attempt++ < 10) {
+				// In case of an interrupted request, we need to wait for the upstream API to finish processing the request
+				// before we can fetch information about the token usage and cost.
+				const response = await axios.get(
+					`https://glama.ai/api/gateway/v1/completion-requests/${completionRequestId}`,
+					{
+						headers: {
+							Authorization: `Bearer ${this.options.glamaApiKey}`,
+						},
 					},
-				},
-			)
+				)
 
-			const completionRequest = response.data
+				const completionRequest = response.data
 
-			if (completionRequest.tokenUsage) {
-				yield {
-					type: "usage",
-					cacheWriteTokens: completionRequest.tokenUsage.cacheCreationInputTokens,
-					cacheReadTokens: completionRequest.tokenUsage.cacheReadInputTokens,
-					inputTokens: completionRequest.tokenUsage.promptTokens,
-					outputTokens: completionRequest.tokenUsage.completionTokens,
-					totalCost: parseFloat(completionRequest.totalCostUsd),
+				if (completionRequest.tokenUsage && completionRequest.totalCostUsd) {
+					yield {
+						type: "usage",
+						cacheWriteTokens: completionRequest.tokenUsage.cacheCreationInputTokens,
+						cacheReadTokens: completionRequest.tokenUsage.cacheReadInputTokens,
+						inputTokens: completionRequest.tokenUsage.promptTokens,
+						outputTokens: completionRequest.tokenUsage.completionTokens,
+						totalCost: parseFloat(completionRequest.totalCostUsd),
+					}
+
+					break
 				}
+
+				await delay(200)
 			}
 		} catch (error) {
 			console.error("Error fetching Glama completion details", error)

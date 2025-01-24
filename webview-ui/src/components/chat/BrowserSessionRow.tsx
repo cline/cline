@@ -242,7 +242,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
 				)}
 				<span style={{ fontWeight: "bold" }}>
-					<>Cline wants to use the browser:</>
+					<>Roo wants to use the browser:</>
 				</span>
 			</div>
 			<div

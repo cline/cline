@@ -11,7 +11,8 @@ import { getUseMcpToolDescription } from "./use-mcp-tool"
 import { getAccessMcpResourceDescription } from "./access-mcp-resource"
 import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
-import { Mode, ToolName, getModeConfig, isToolAllowedForMode } from "../../../shared/modes"
+import { Mode, ModeConfig, getModeConfig, isToolAllowedForMode } from "../../../shared/modes"
+import { ToolName, getToolName, getToolOptions, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tool-groups"
 import { ToolArgs } from "./types"
 
 // Map of tool names to their description functions
@@ -38,8 +39,9 @@ export function getToolDescriptionsForMode(
 	diffStrategy?: DiffStrategy,
 	browserViewportSize?: string,
 	mcpHub?: McpHub,
+	customModes?: ModeConfig[],
 ): string {
-	const config = getModeConfig(mode)
+	const config = getModeConfig(mode, customModes)
 	const args: ToolArgs = {
 		cwd,
 		supportsComputerUse,
@@ -48,16 +50,30 @@ export function getToolDescriptionsForMode(
 		mcpHub,
 	}
 
-	// Map tool descriptions in the exact order specified in the mode's tools array
-	const descriptions = config.tools.map(([toolName, toolOptions]) => {
+	const tools = new Set<string>()
+
+	// Add tools from mode's groups
+	config.groups.forEach((group) => {
+		TOOL_GROUPS[group].forEach((tool) => {
+			if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [])) {
+				tools.add(tool)
+			}
+		})
+	})
+
+	// Add always available tools
+	ALWAYS_AVAILABLE_TOOLS.forEach((tool) => tools.add(tool))
+
+	// Map tool descriptions for allowed tools
+	const descriptions = Array.from(tools).map((toolName) => {
 		const descriptionFn = toolDescriptionMap[toolName]
-		if (!descriptionFn || !isToolAllowedForMode(toolName as ToolName, mode)) {
+		if (!descriptionFn) {
 			return undefined
 		}
 
 		return descriptionFn({
 			...args,
-			toolOptions,
+			toolOptions: undefined, // No tool options in group-based approach
 		})
 	})
 

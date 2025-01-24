@@ -4,6 +4,8 @@ import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
+import * as os from "os"
+import * as path from "path"
 
 // Mock all MCP-related modules
 jest.mock(
@@ -209,6 +211,9 @@ describe("Cline", () => {
 
 	beforeEach(() => {
 		// Setup mock extension context
+		const storageUri = {
+			fsPath: path.join(os.tmpdir(), "test-storage"),
+		}
 		mockExtensionContext = {
 			globalState: {
 				get: jest.fn().mockImplementation((key) => {
@@ -231,6 +236,7 @@ describe("Cline", () => {
 				update: jest.fn().mockImplementation((key, value) => Promise.resolve()),
 				keys: jest.fn().mockReturnValue([]),
 			},
+			globalStorageUri: storageUri,
 			workspaceState: {
 				get: jest.fn().mockImplementation((key) => undefined),
 				update: jest.fn().mockImplementation((key, value) => Promise.resolve()),
@@ -243,9 +249,6 @@ describe("Cline", () => {
 			},
 			extensionUri: {
 				fsPath: "/mock/extension/path",
-			},
-			globalStorageUri: {
-				fsPath: "/mock/storage/path",
 			},
 			extension: {
 				packageJSON: {
@@ -425,27 +428,34 @@ describe("Cline", () => {
 
 				// Mock the API's createMessage method to capture the conversation history
 				const createMessageSpy = jest.fn()
-				const mockStream = {
-					async *[Symbol.asyncIterator]() {
-						yield { type: "text", text: "" }
-					},
-					async next() {
-						return { done: true, value: undefined }
-					},
-					async return() {
-						return { done: true, value: undefined }
-					},
-					async throw(e: any) {
-						throw e
-					},
-					async [Symbol.asyncDispose]() {
-						// Cleanup
-					},
-				} as AsyncGenerator<ApiStreamChunk>
+				// Set up mock stream
+				const mockStreamForClean = (async function* () {
+					yield { type: "text", text: "test response" }
+				})()
 
-				jest.spyOn(cline.api, "createMessage").mockImplementation((...args) => {
-					createMessageSpy(...args)
-					return mockStream
+				// Set up spy
+				const cleanMessageSpy = jest.fn().mockReturnValue(mockStreamForClean)
+				jest.spyOn(cline.api, "createMessage").mockImplementation(cleanMessageSpy)
+
+				// Mock getEnvironmentDetails to return empty details
+				jest.spyOn(cline as any, "getEnvironmentDetails").mockResolvedValue("")
+
+				// Mock loadContext to return unmodified content
+				jest.spyOn(cline as any, "loadContext").mockImplementation(async (content) => [content, ""])
+
+				// Add test message to conversation history
+				cline.apiConversationHistory = [
+					{
+						role: "user" as const,
+						content: [{ type: "text" as const, text: "test message" }],
+						ts: Date.now(),
+					},
+				]
+
+				// Mock abort state
+				Object.defineProperty(cline, "abort", {
+					get: () => false,
+					configurable: true,
 				})
 
 				// Add a message with extra properties to the conversation history
@@ -458,30 +468,25 @@ describe("Cline", () => {
 				cline.apiConversationHistory = [messageWithExtra]
 
 				// Trigger an API request
-				await cline.recursivelyMakeClineRequests([{ type: "text", text: "test request" }])
+				await cline.recursivelyMakeClineRequests([{ type: "text", text: "test request" }], false)
 
-				// Get all calls to createMessage
-				const calls = createMessageSpy.mock.calls
+				// Get the conversation history from the first API call
+				const history = cleanMessageSpy.mock.calls[0][1]
+				expect(history).toBeDefined()
+				expect(history.length).toBeGreaterThan(0)
 
-				// Find the call that includes our test message
-				const relevantCall = calls.find((call) =>
-					call[1]?.some((msg: any) => msg.content?.[0]?.text === "test message"),
+				// Find our test message
+				const cleanedMessage = history.find((msg: { content?: Array<{ text: string }> }) =>
+					msg.content?.some((content) => content.text === "test message"),
 				)
-
-				// Verify the conversation history was cleaned in the relevant call
-				expect(relevantCall?.[1]).toEqual(
-					expect.arrayContaining([
-						{
-							role: "user",
-							content: [{ type: "text", text: "test message" }],
-						},
-					]),
-				)
+				expect(cleanedMessage).toBeDefined()
+				expect(cleanedMessage).toEqual({
+					role: "user",
+					content: [{ type: "text", text: "test message" }],
+				})
 
 				// Verify extra properties were removed
-				const passedMessage = relevantCall?.[1].find((msg: any) => msg.content?.[0]?.text === "test message")
-				expect(passedMessage).not.toHaveProperty("ts")
-				expect(passedMessage).not.toHaveProperty("extraProp")
+				expect(Object.keys(cleanedMessage!)).toEqual(["role", "content"])
 			})
 
 			it("should handle image blocks based on model capabilities", async () => {
@@ -573,41 +578,68 @@ describe("Cline", () => {
 				})
 				clineWithoutImages.apiConversationHistory = conversationHistory
 
-				// Create message spy for both instances
-				const createMessageSpyWithImages = jest.fn()
-				const createMessageSpyWithoutImages = jest.fn()
-				const mockStream = {
-					async *[Symbol.asyncIterator]() {
-						yield { type: "text", text: "" }
+				// Mock abort state for both instances
+				Object.defineProperty(clineWithImages, "abort", {
+					get: () => false,
+					configurable: true,
+				})
+				Object.defineProperty(clineWithoutImages, "abort", {
+					get: () => false,
+					configurable: true,
+				})
+
+				// Mock environment details and context loading
+				jest.spyOn(clineWithImages as any, "getEnvironmentDetails").mockResolvedValue("")
+				jest.spyOn(clineWithoutImages as any, "getEnvironmentDetails").mockResolvedValue("")
+				jest.spyOn(clineWithImages as any, "loadContext").mockImplementation(async (content) => [content, ""])
+				jest.spyOn(clineWithoutImages as any, "loadContext").mockImplementation(async (content) => [
+					content,
+					"",
+				])
+				// Set up mock streams
+				const mockStreamWithImages = (async function* () {
+					yield { type: "text", text: "test response" }
+				})()
+
+				const mockStreamWithoutImages = (async function* () {
+					yield { type: "text", text: "test response" }
+				})()
+
+				// Set up spies
+				const imagesSpy = jest.fn().mockReturnValue(mockStreamWithImages)
+				const noImagesSpy = jest.fn().mockReturnValue(mockStreamWithoutImages)
+
+				jest.spyOn(clineWithImages.api, "createMessage").mockImplementation(imagesSpy)
+				jest.spyOn(clineWithoutImages.api, "createMessage").mockImplementation(noImagesSpy)
+
+				// Set up conversation history with images
+				clineWithImages.apiConversationHistory = [
+					{
+						role: "user",
+						content: [
+							{ type: "text", text: "Here is an image" },
+							{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: "base64data" } },
+						],
 					},
-				} as AsyncGenerator<ApiStreamChunk>
+				]
 
-				jest.spyOn(clineWithImages.api, "createMessage").mockImplementation((...args) => {
-					createMessageSpyWithImages(...args)
-					return mockStream
-				})
-				jest.spyOn(clineWithoutImages.api, "createMessage").mockImplementation((...args) => {
-					createMessageSpyWithoutImages(...args)
-					return mockStream
-				})
+				// Trigger API requests
+				await clineWithImages.recursivelyMakeClineRequests([{ type: "text", text: "test request" }])
+				await clineWithoutImages.recursivelyMakeClineRequests([{ type: "text", text: "test request" }])
 
-				// Trigger API requests for both instances
-				await clineWithImages.recursivelyMakeClineRequests([{ type: "text", text: "test" }])
-				await clineWithoutImages.recursivelyMakeClineRequests([{ type: "text", text: "test" }])
+				// Get the calls
+				const imagesCalls = imagesSpy.mock.calls
+				const noImagesCalls = noImagesSpy.mock.calls
 
 				// Verify model with image support preserves image blocks
-				const callsWithImages = createMessageSpyWithImages.mock.calls
-				const historyWithImages = callsWithImages[0][1][0]
-				expect(historyWithImages.content).toHaveLength(2)
-				expect(historyWithImages.content[0]).toEqual({ type: "text", text: "Here is an image" })
-				expect(historyWithImages.content[1]).toHaveProperty("type", "image")
+				expect(imagesCalls[0][1][0].content).toHaveLength(2)
+				expect(imagesCalls[0][1][0].content[0]).toEqual({ type: "text", text: "Here is an image" })
+				expect(imagesCalls[0][1][0].content[1]).toHaveProperty("type", "image")
 
 				// Verify model without image support converts image blocks to text
-				const callsWithoutImages = createMessageSpyWithoutImages.mock.calls
-				const historyWithoutImages = callsWithoutImages[0][1][0]
-				expect(historyWithoutImages.content).toHaveLength(2)
-				expect(historyWithoutImages.content[0]).toEqual({ type: "text", text: "Here is an image" })
-				expect(historyWithoutImages.content[1]).toEqual({
+				expect(noImagesCalls[0][1][0].content).toHaveLength(2)
+				expect(noImagesCalls[0][1][0].content[0]).toEqual({ type: "text", text: "Here is an image" })
+				expect(noImagesCalls[0][1][0].content[1]).toEqual({
 					type: "text",
 					text: "[Referenced image in conversation]",
 				})

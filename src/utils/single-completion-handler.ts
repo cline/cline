@@ -1,16 +1,11 @@
 import { ApiConfiguration } from "../shared/api"
 import { buildApiHandler, SingleCompletionHandler } from "../api"
-import { defaultPrompts } from "../shared/modes"
 
 /**
  * Enhances a prompt using the configured API without creating a full Cline instance or task history.
  * This is a lightweight alternative that only uses the API's completion functionality.
  */
-export async function enhancePrompt(
-	apiConfiguration: ApiConfiguration,
-	promptText: string,
-	enhancePrompt?: string,
-): Promise<string> {
+export async function singleCompletionHandler(apiConfiguration: ApiConfiguration, promptText: string): Promise<string> {
 	if (!promptText) {
 		throw new Error("No prompt text provided")
 	}
@@ -25,7 +20,5 @@ export async function enhancePrompt(
 		throw new Error("The selected API provider does not support prompt enhancement")
 	}
 
-	const enhancePromptText = enhancePrompt ?? defaultPrompts.enhance
-	const prompt = `${enhancePromptText}\n\n${promptText}`
-	return (handler as SingleCompletionHandler).completePrompt(prompt)
+	return (handler as SingleCompletionHandler).completePrompt(promptText)
 }

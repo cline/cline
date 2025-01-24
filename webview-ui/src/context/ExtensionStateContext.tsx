@@ -14,8 +14,8 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
-import { Mode } from "../../../src/core/prompts/types"
-import { CustomPrompts, defaultModeSlug, defaultPrompts } from "../../../src/shared/modes"
+import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } from "../../../src/shared/modes"
+import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -58,7 +58,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 	mode: Mode
 	setMode: (value: Mode) => void
-	setCustomPrompts: (value: CustomPrompts) => void
+	setCustomModePrompts: (value: CustomModePrompts) => void
+	setCustomSupportPrompts: (value: CustomSupportPrompts) => void
 	enhancementApiConfigId?: string
 	setEnhancementApiConfigId: (value: string) => void
 	experimentalDiffStrategy: boolean
@@ -66,6 +67,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	autoApprovalEnabled?: boolean
 	setAutoApprovalEnabled: (value: boolean) => void
 	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
+	customModes: ModeConfig[]
+	setCustomModes: (value: ModeConfig[]) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -92,11 +95,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		currentApiConfigName: "default",
 		listApiConfigMeta: [],
 		mode: defaultModeSlug,
-		customPrompts: defaultPrompts,
+		customModePrompts: defaultPrompts,
+		customSupportPrompts: {},
 		enhancementApiConfigId: "",
 		experimentalDiffStrategy: false,
 		autoApprovalEnabled: false,
+		customModes: [],
 	})
+
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
@@ -267,13 +273,15 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setListApiConfigMeta,
 		onUpdateApiConfig,
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
-		setCustomPrompts: (value) => setState((prevState) => ({ ...prevState, customPrompts: value })),
+		setCustomModePrompts: (value) => setState((prevState) => ({ ...prevState, customModePrompts: value })),
+		setCustomSupportPrompts: (value) => setState((prevState) => ({ ...prevState, customSupportPrompts: value })),
 		setEnhancementApiConfigId: (value) =>
 			setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
 		setExperimentalDiffStrategy: (value) =>
 			setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 		handleInputChange,
+		setCustomModes: (value) => setState((prevState) => ({ ...prevState, customModes: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

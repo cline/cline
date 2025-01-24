@@ -30,41 +30,37 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h2 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}Introducing Roo Cline v{minorVersion}
+				🎉{"  "}Introducing Roo Code {minorVersion}
 			</h2>
 
-			<h3 style={{ margin: "0 0 8px" }}>Agent Modes Customization</h3>
 			<p style={{ margin: "5px 0px" }}>
-				Click the new <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon in
-				the menu bar to open the Prompts Settings and customize Agent Modes for new levels of productivity.
-				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>Tailor how Roo Cline behaves in different modes: Code, Architect, and Ask.</li>
-					<li>Preview and verify your changes using the Preview System Prompt button.</li>
-				</ul>
+				Our biggest update yet is here - we're officially changing our name from Roo Cline to Roo Code! After
+				growing beyond 50,000 installations, we're ready to chart our own course. Our heartfelt thanks to
+				everyone in the Cline community who helped us reach this milestone.
 			</p>
 
-			<h3 style={{ margin: "0 0 8px" }}>Prompt Enhancement Configuration</h3>
+			<h3 style={{ margin: "12px 0 8px" }}>Custom Modes: Celebrating Our New Identity</h3>
 			<p style={{ margin: "5px 0px" }}>
-				Now available for all providers! Access it directly in the chat box by clicking the{" "}
-				<span className="codicon codicon-sparkle" style={{ fontSize: "10px" }}></span> sparkle icon next to the
-				input field. From there, you can customize the enhancement logic and provider to best suit your
-				workflow.
+				To mark this new chapter, we're introducing the power to shape Roo Code into any role you need! Create
+				specialized personas and create an entire team of agents with deeply customized prompts:
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>Customize how prompts are enhanced for better results in your workflow.</li>
-					<li>
-						Use the sparkle icon in the chat box to select a API configuration and provider (e.g., GPT-4)
-						and configure your own enhancement logic.
-					</li>
-					<li>Test your changes instantly with the Preview Prompt Enhancement tool.</li>
+					<li>QA Engineers who write thorough test cases and catch edge cases</li>
+					<li>Product Managers who excel at user stories and feature prioritization</li>
+					<li>UI/UX Designers who craft beautiful, accessible interfaces</li>
+					<li>Code Reviewers who ensure quality and maintainability</li>
 				</ul>
+				Just click the <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon to
+				get started with Custom Modes!
 			</p>
 
+			<h3 style={{ margin: "12px 0 8px" }}>Join Us for the Next Chapter</h3>
 			<p style={{ margin: "5px 0px" }}>
-				We're very excited to see what you build with this new feature! Join us at
-				<VSCodeLink href="https://www.reddit.com/r/roocline" style={{ display: "inline" }}>
-					reddit.com/r/roocline
+				We can't wait to see how you'll push Roo Code's potential even further! Share your custom modes and join
+				the discussion at{" "}
+				<VSCodeLink href="https://www.reddit.com/r/RooCode" style={{ display: "inline" }}>
+					reddit.com/r/RooCode
 				</VSCodeLink>
-				to discuss and share feedback.
+				.
 			</p>
 		</div>
 	)

@@ -119,6 +119,11 @@ https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#wi
 	margin-bottom: 2px;
 }
 
+/* Fix dropdown double scrollbar overflow */
+#api-provider > div > ul {
+	overflow: unset;
+}
+
 /* Fix scrollbar in dropdown */
 
 vscode-dropdown::part(listbox) {

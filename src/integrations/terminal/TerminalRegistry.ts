@@ -16,7 +16,7 @@ export class TerminalRegistry {
 	static createTerminal(cwd?: string | vscode.Uri | undefined): TerminalInfo {
 		const terminal = vscode.window.createTerminal({
 			cwd,
-			name: "Roo Cline",
+			name: "Roo Code",
 			iconPath: new vscode.ThemeIcon("rocket"),
 			env: {
 				PAGER: "cat",

@@ -1,8 +1,38 @@
-# Roo Cline
+# Roo Code (prev. Roo Cline)
 
-A fork of Cline, an autonomous coding agent, with some additional experimental features. It’s been mainly writing itself recently, with a light touch of human guidance here and there.
+**Roo Code** is an AI-powered **autonomous coding agent** that lives in your editor. It can:
 
-You can track what's new at our [CHANGELOG](CHANGELOG.md), with some highlights below.
+- Communicate in natural language
+- Read and write files directly in your workspace
+- Run terminal commands
+- Automate browser actions
+- Integrate with any OpenAI-compatible or custom API/model
+- Adapt its “personality” and capabilities through **Custom Modes**
+
+Whether you’re seeking a flexible coding partner, a system architect, or specialized roles like a QA engineer or product manager, Roo Code can help you build software more efficiently.
+
+Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
+
+---
+
+## New in 3.2: Introducing Custom Modes, plus rebranding from Roo Cline → Roo Code! 🚀
+
+### Introducing Roo Code
+
+Our biggest update yet is here - we're officially changing our name from Roo Cline to Roo Code! After growing beyond 50,000 installations across VS Marketplace and Open VSX, we're ready to chart our own course. Our heartfelt thanks to everyone in the Cline community who helped us reach this milestone.
+
+### Custom Modes
+
+To mark this new chapter, we're introducing the power to shape Roo Code into any role you need. You can now create an entire team of agents with deeply customized prompts:
+
+- QA Engineers who write thorough test cases and catch edge cases
+- Product Managers who excel at user stories and feature prioritization
+- UI/UX Designers who craft beautiful, accessible interfaces
+- Code Reviewers who ensure quality and maintainability
+
+The best part is that Roo can help you create these new modes! Just type "Create a new mode for <X>" in the chat to get started, and go into the Prompts tab or (carefully) edit the JSON representation to customize the prompt and allowed tools to your liking.
+
+We can't wait to hear more about what you build and how we can continue to evolve the Roo Code platform to support you. Please join us in our new https://www.reddit.com/r/RooCode subreddit to share your custom modes and be part of our next chapter. 🚀
 
 ## New in 3.1: Chat Mode Prompt Customization & Prompt Enhancements
 
@@ -41,206 +71,168 @@ It’s super simple! There’s a dropdown in the bottom left of the chat input t
 
 Right now, switching modes is a manual process. In the future, we’d love to give Cline the ability to suggest mode switches based on context. For now, we’d really appreciate your feedback on this feature.
 
-## Disclaimer
+---
 
-**Please note** that Roo Veterinary, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo-Cline, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
+## Key Features
 
-## Demo
+### Adaptive Autonomy
 
-Here's an example of Roo-Cline autonomously creating a snake game with "Always approve write operations" and "Always approve browser actions" turned on:
+Roo Code communicates in **natural language** and proposes actions—file edits, terminal commands, browser tests, etc. You choose how it behaves:
 
-https://github.com/user-attachments/assets/c2bb31dc-e9b2-4d73-885d-17f1471a4987
+- **Manual Approval**: Review and approve every step to keep total control.
+- **Autonomous/Auto-Approve**: Grant Roo Code the ability to run tasks without interruption, speeding up routine workflows.
+- **Hybrid**: Auto-approve specific actions (e.g., file writes) but require confirmation for riskier tasks (like deploying code).
 
-## Contributing
+No matter your preference, you always have the final say on what Roo Code does.
 
-To contribute to the project, start by exploring [open issues](https://github.com/RooVetGit/Roo-Cline/issues) or checking our [feature request board](https://github.com/RooVetGit/Roo-Cline/discussions/categories/feature-requests). We'd also love to have you join the [Roo Cline Reddit](https://www.reddit.com/r/roocline/) to share ideas and connect with other contributors.
+---
 
-### Local Setup
+### Supports Any API or Model
 
-1. Install dependencies:
+Use Roo Code with:
 
+- **OpenRouter**, Anthropic, Glama, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP Vertex, or local models (LM Studio/Ollama)—anything **OpenAI-compatible**.
+- Different models per mode. For instance, an advanced model for architecture vs. a cheaper model for daily coding tasks.
+- **Usage Tracking**: Roo Code monitors token and cost usage for each session.
+
+---
+
+### Custom Modes
+
+**Custom Modes** let you shape Roo Code’s persona, instructions, and permissions:
+
+- **Built-in**:
+    - **Code** – Default, multi-purpose coding assistant
+    - **Architect** – High-level system and design insights
+    - **Ask** – Research and Q&A for deeper exploration
+- **User-Created**: Type `Create a new mode for <X>` and Roo Code generates a brand-new persona for that role—complete with tailored prompts and optional tool restrictions.
+
+Modes can each have unique instructions and skill sets. Manage them in the **Prompts** tab.
+
+---
+
+### File & Editor Operations
+
+Roo Code can:
+
+- **Create and edit** files in your project (showing you diffs).
+- **React** to linting or compile-time errors automatically (missing imports, syntax errors, etc.).
+- **Track changes** via your editor’s timeline so you can review or revert if needed.
+
+---
+
+### Command Line Integration
+
+Easily run commands in your terminal—Roo Code:
+
+- Installs packages, runs builds, or executes tests.
+- Monitors output and adapts if it detects errors.
+- Lets you keep dev servers running in the background while continuing to work.
+
+You approve or decline each command, or set auto-approval for routine operations.
+
+---
+
+### Browser Automation
+
+Roo Code can also open a **browser** session to:
+
+- Launch your local or remote web app.
+- Click, type, scroll, and capture screenshots.
+- Collect console logs to debug runtime or UI/UX issues.
+
+Ideal for **end-to-end testing** or visually verifying changes without constant copy-pasting.
+
+---
+
+### Adding Tools with MCP
+
+Extend Roo Code with the **Model Context Protocol (MCP)**:
+
+- “Add a tool that manages AWS EC2 resources.”
+- “Add a tool that queries the company Jira.”
+- “Add a tool that pulls the latest PagerDuty incidents.”
+
+Roo Code can build and configure new tools autonomously (with your approval) to expand its capabilities instantly.
+
+---
+
+### Context Mentions
+
+When you need to provide extra context:
+
+- **@file** – Embed a file’s contents in the conversation.
+- **@folder** – Include entire folder structures.
+- **@problems** – Pull in workspace errors/warnings for Roo Code to fix.
+- **@url** – Fetch docs from a URL, converting them to markdown.
+- **@git** – Supply a list of Git commits or diffs for Roo Code to analyze code history.
+
+Help Roo Code focus on the most relevant details without blowing the token budget.
+
+---
+
+## Installation
+
+Roo Code is available on:
+
+- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline)**
+- **[Open-VSX](https://open-vsx.org/extension/RooVeterinaryInc/roo-cline)**
+
+1. **Search “Roo Code”** in your editor’s Extensions panel to install directly.
+2. Or grab the `.vsix` file from Marketplace / Open-VSX and **drag-and-drop** into your editor.
+3. **Open** Roo Code from the Activity Bar or Command Palette to start chatting.
+
+> **Tip**: Use `Cmd/Ctrl + Shift + P` → “Roo Code: Open in New Tab” to dock the AI assistant alongside your file explorer.
+
+---
+
+## Local Setup & Development
+
+1. **Clone** the repo:
+    ```bash
+    git clone https://github.com/RooVetGit/Roo-Code.git
+    ```
+2. **Install dependencies**:
     ```bash
     npm run install:all
     ```
-
-2. Build the VSIX file:
+3. **Build** the extension:
     ```bash
     npm run build
     ```
-3. The new VSIX file will be created in the `bin/` directory
-4. Install the extension from the VSIX file as described below:
-
-    - **Option 1:** Drag and drop the `.vsix` file into your VSCode-compatible editor's Extensions panel (Cmd/Ctrl+Shift+X).
-
-    - **Option 2:** Install the plugin using the CLI, make sure you have your VSCode-compatible CLI installed and in your `PATH` variable. Cursor example: `export PATH="$PATH:/Applications/Cursor.app/Contents/MacOS"`
-
+    - A `.vsix` file will appear in the `bin/` directory.
+4. **Install** the `.vsix` manually if desired:
     ```bash
-    # Ex: cursor --install-extension bin/roo-cline-2.0.1.vsix
-    # Ex: code --install-extension bin/roo-cline-2.0.1.vsix
+    code --install-extension bin/roo-code-4.0.0.vsix
     ```
+5. **Debug**:
+    - Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
 
-5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
-
-### Publishing
-
-We use [changesets](https://github.com/changesets/changesets) for versioning and publishing this package. To make changes:
-
-1. Create a PR with your changes
-2. Create a new changeset by running `npm run changeset`
-    - Select the appropriate kind of change - `patch` for bug fixes, `minor` for new features, or `major` for breaking changes
-    - Write a clear description of your changes that will be included in the changelog
-3. Get the PR approved and pass all checks
-4. Merge it
-
-Once your merge is successful:
-
-- The release workflow will automatically create a new "Changeset version bump" PR
-- This PR will:
-    - Update the version based on your changeset
-    - Update the `CHANGELOG.md` file
-- Once the PR is approved and merged, a new version will be published
+We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check our `CHANGELOG.md` for release notes.
 
 ---
 
-# Cline (prev. Claude Dev) – [#1 on OpenRouter](https://openrouter.ai/)
+## Disclaimer
 
-<p align="center">
-  <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
-</p>
-
-<div align="center">
-<table>
-<tbody>
-<td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" target="_blank"><strong>Download on VS Marketplace</strong></a>
-</td>
-<td align="center">
-<a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-<td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>We're Hiring!</strong></a>
-</td>
-</tbody>
-</table>
-</div>
-
-Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
-
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. Cline can even use the Model Context Protocol (MCP) to create new tools and extend his own capabilities. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
-
-1. Enter your task and add images to convert mockups into functional apps or fix bugs with screenshots.
-2. Cline starts by analyzing your file structure & source code ASTs, running regex searches, and reading relevant files to get up to speed in existing projects. By carefully managing what information is added to context, Cline can provide valuable assistance even for large, complex projects without overwhelming the context window.
-3. Once Cline has the information he needs, he can:
-    - Create and edit files + monitor linter/compiler errors along the way, letting him proactively fix issues like missing imports and syntax errors on his own.
-    - Execute commands directly in your terminal and monitor their output as he works, letting him e.g., react to dev server issues after editing a file.
-    - For web development tasks, Cline can launch the site in a headless browser, click, type, scroll, and capture screenshots + console logs, allowing him to fix runtime errors and visual bugs.
-4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
-
-> [!TIP]
-> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
+**Please note** that Roo Veterinary, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo Code, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
 
 ---
-
-<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
-
-### Use any API and Model
-
-Cline supports API providers like OpenRouter, Anthropic, Glama, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
-
-The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
-
-### Run Commands in Terminal
-
-Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive the output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
-
-For long running processes like dev servers, use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
-
-### Create and Edit Files
-
-Cline can create and edit files directly in your editor, presenting you a diff view of the changes. You can edit or revert Cline's changes directly in the diff view editor, or provide feedback in chat until you're satisfied with the result. Cline also monitors linter/compiler errors (missing imports, syntax errors, etc.) so he can fix issues that come up along the way on his own.
-
-All changes made by Cline are recorded in your file's Timeline, providing an easy way to track and revert modifications if needed.
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5">
-
-### Use the Browser
-
-With Claude 3.5 Sonnet's new [Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use) capability, Cline can launch a browser, click elements, type text, and scroll, capturing screenshots and console logs at each step. This allows for interactive debugging, end-to-end testing, and even general web use! This gives him autonomy to fixing visual bugs and runtime issues without you needing to handhold and copy-pasting error logs yourself.
-
-Try asking Cline to "test the app", and watch as he runs a command like `npm run dev`, launches your locally running dev server in a browser, and performs a series of tests to confirm that everything works. [See a demo here.](https://x.com/sdrzn/status/1850880547825823989)
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
-
-### "add a tool that..."
-
-Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol), Cline can extend his capabilities through custom tools. While you can use [community-made servers](https://github.com/modelcontextprotocol/servers), Cline can instead create and install tools tailored to your specific workflow. Just ask Cline to "add a tool" and he will handle everything, from creating a new MCP server to installing it into the extension. These custom tools then become part of Cline's toolkit, ready to use in future tasks.
-
-- "add a tool that fetches Jira tickets": Retrieve ticket ACs and put Cline to work
-- "add a tool that manages AWS EC2s": Check server metrics and scale instances up or down
-- "add a tool that pulls the latest PagerDuty incidents": Fetch details and ask Cline to fix bugs
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
-
-### Add Context
-
-**`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
-
-**`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
-
-**`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
-
-**`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
 ## Contributing
 
-To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors. If you're interested in joining the team, check out our [careers page](https://cline.bot/join-us)!
+We love community contributions! Here’s how to get involved:
 
-<details>
-<summary>Local Development Instructions</summary>
+1. **Check Issues & Requests**: See [open issues](https://github.com/RooVetGit/Roo-Code/issues) or [feature requests](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests).
+2. **Fork & branch** off `main`.
+3. **Submit a Pull Request** once your feature or fix is ready.
+4. **Join** our [Reddit community](https://www.reddit.com/r/RooCode/) for feedback, tips, and announcements.
 
-1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
-    ```bash
-    git clone https://github.com/cline/cline.git
-    ```
-2. Open the project in VSCode:
-    ```bash
-    code cline
-    ```
-3. Install the necessary dependencies for the extension and webview-gui:
-    ```bash
-    npm run install:all
-    ```
-4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
-
-</details>
+---
 
 ## License
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Roo Veterinary, Inc.](./LICENSE)
+
+---
+
+**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/). Happy coding!

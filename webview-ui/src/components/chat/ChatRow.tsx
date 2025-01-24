@@ -117,7 +117,7 @@ export const ChatRowContent = ({
 					<span
 						className="codicon codicon-error"
 						style={{ color: errorColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Roo is having trouble...</span>,
 				]
 			case "command":
 				return [
@@ -128,9 +128,7 @@ export const ChatRowContent = ({
 							className="codicon codicon-terminal"
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Cline wants to execute this command:
-					</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Roo wants to execute this command:</span>,
 				]
 			case "use_mcp_server":
 				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -143,8 +141,8 @@ export const ChatRowContent = ({
 							style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on
-						the <code>{mcpServerUse.serverName}</code> MCP server:
+						Roo wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+						<code>{mcpServerUse.serverName}</code> MCP server:
 					</span>,
 				]
 			case "completion_result":
@@ -208,7 +206,7 @@ export const ChatRowContent = ({
 					<span
 						className="codicon codicon-question"
 						style={{ color: normalColor, marginBottom: "-1.5px" }}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Roo has a question:</span>,
 				]
 			default:
 				return [null, null]
@@ -250,7 +248,7 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon(tool.tool === "appliedDiff" ? "diff" : "edit")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							<span style={{ fontWeight: "bold" }}>Roo wants to edit this file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -266,7 +264,7 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+							<span style={{ fontWeight: "bold" }}>Roo wants to create a new file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -283,7 +281,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
+								{message.type === "ask" ? "Roo wants to read this file:" : "Roo read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -341,8 +339,8 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to view the top level files in this directory:"
-									: "Cline viewed the top level files in this directory:"}
+									? "Roo wants to view the top level files in this directory:"
+									: "Roo viewed the top level files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -361,8 +359,8 @@ export const ChatRowContent = ({
 							{toolIcon("folder-opened")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to recursively view all files in this directory:"
-									: "Cline recursively viewed all files in this directory:"}
+									? "Roo wants to recursively view all files in this directory:"
+									: "Roo recursively viewed all files in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -381,8 +379,8 @@ export const ChatRowContent = ({
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
-									? "Cline wants to view source code definition names used in this directory:"
-									: "Cline viewed source code definition names used in this directory:"}
+									? "Roo wants to view source code definition names used in this directory:"
+									: "Roo viewed source code definition names used in this directory:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -401,11 +399,11 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask" ? (
 									<>
-										Cline wants to search this directory for <code>{tool.regex}</code>:
+										Roo wants to search this directory for <code>{tool.regex}</code>:
 									</>
 								) : (
 									<>
-										Cline searched this directory for <code>{tool.regex}</code>:
+										Roo searched this directory for <code>{tool.regex}</code>:
 									</>
 								)}
 							</span>
@@ -428,9 +426,9 @@ export const ChatRowContent = ({
 			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
 			// 				<span style={{ fontWeight: "bold" }}>
 			// 					{message.type === "ask" ? (
-			// 						<>Cline wants to inspect this website:</>
+			// 						<>Roo wants to inspect this website:</>
 			// 					) : (
-			// 						<>Cline is inspecting this website:</>
+			// 						<>Roo is inspecting this website:</>
 			// 					)}
 			// 				</span>
 			// 			</div>
@@ -572,14 +570,17 @@ export const ChatRowContent = ({
 									alignItems: "flex-start",
 									gap: "10px",
 								}}>
-								<span style={{ display: "block", flexGrow: 1 }}>{highlightMentions(message.text)}</span>
+								<span style={{ display: "block", flexGrow: 1, padding: "4px" }}>
+									{highlightMentions(message.text)}
+								</span>
 								<VSCodeButton
 									appearance="icon"
 									style={{
 										padding: "3px",
 										flexShrink: 0,
 										height: "24px",
-										marginTop: "-6px",
+										marginTop: "-3px",
+										marginBottom: "-3px",
 										marginRight: "-6px",
 									}}
 									disabled={isStreaming}
@@ -663,7 +664,7 @@ export const ChatRowContent = ({
 									</span>
 								</div>
 								<div>
-									Cline won't be able to view the command's output. Please update VSCode (
+									Roo won't be able to view the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
 									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
 									"Terminal: Select Default Profile").{" "}
