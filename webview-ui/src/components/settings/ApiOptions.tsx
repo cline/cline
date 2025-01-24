@@ -38,9 +38,10 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import OpenAiModelPicker from "./OpenAiModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -84,10 +85,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-		setApiConfiguration({
-			...apiConfiguration,
-			[field]: event.target.value,
-		})
+		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -97,10 +95,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
-			vscode.postMessage({
-				type: "requestOllamaModels",
-				text: apiConfiguration?.ollamaBaseUrl,
-			})
+			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
 		} else if (selectedProvider === "lmstudio") {
 			vscode.postMessage({
 				type: "requestLmStudioModels",
@@ -174,10 +169,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{
-						minWidth: 130,
-						position: "relative",
-					}}>
+					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -210,10 +202,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							const isChecked = e.target.checked === true
 							setAnthropicBaseUrlSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									anthropicBaseUrl: "",
-								})
+								setApiConfiguration({ ...apiConfiguration, anthropicBaseUrl: "" })
 							}
 						}}>
 						{t("useCustomBaseUrl")}
@@ -373,12 +362,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider === "bedrock" && (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 5,
-					}}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
 						value={apiConfiguration?.awsAccessKey || ""}
 						style={{ width: "100%" }}
@@ -444,10 +428,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							setApiConfiguration({
-								...apiConfiguration,
-								awsUseCrossRegionInference: isChecked,
-							})
+							setApiConfiguration({ ...apiConfiguration, awsUseCrossRegionInference: isChecked })
 						}}>
 						{t("useCrossRegionInference")}
 					</VSCodeCheckbox>
@@ -463,12 +444,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration?.apiProvider === "vertex" && (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: 5,
-					}}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
@@ -558,26 +534,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={t("enterApiKey")}>
 						<span style={{ fontWeight: 500 }}>{t("apiKey")}</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
-						placeholder={t("enterModelId")}>
-						<span style={{ fontWeight: 500 }}>{t("modelId")}</span>
-					</VSCodeTextField>
+					<span style={{ fontWeight: 500 }}>{t("model")}</span>
+					<OpenAiModelPicker />
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
 							setAzureApiVersionSelected(isChecked)
 							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									azureApiVersion: "",
-								})
+								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
 							}
 						}}>
-						{t("useAzureApiVersion")}
+						{t("setAzureApiVersion")}
 					</VSCodeCheckbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
@@ -935,12 +903,7 @@ export const ModelInfoView = ({
 	].filter(Boolean)
 
 	return (
-		<p
-			style={{
-				fontSize: "12px",
-				marginTop: "2px",
-				color: "var(--vscode-descriptionForeground)",
-			}}>
+		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
 			{infoItems.map((item, index) => (
 				<Fragment key={index}>
 					{item}
@@ -997,11 +960,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			selectedModelId = defaultId
 			selectedModelInfo = models[defaultId]
 		}
-		return {
-			selectedProvider: provider,
-			selectedModelId,
-			selectedModelInfo,
-		}
+		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
 	}
 	switch (provider) {
 		case "anthropic":
