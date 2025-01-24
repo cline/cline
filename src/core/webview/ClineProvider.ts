@@ -72,6 +72,7 @@ type GlobalStateKey =
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
+	| "localeLanguage"
 	| "userInfo"
 
 export const GlobalFileNames = {
@@ -1128,6 +1129,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			localeLanguage: vscode.env.language,
 			isLoggedIn: !!authToken,
 			userInfo,
 		}
@@ -1219,6 +1221,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			localeLanguage,
 			userInfo,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1254,6 +1257,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("localeLanguage") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 		])
 
