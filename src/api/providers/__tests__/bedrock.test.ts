@@ -1,7 +1,16 @@
+// Mock AWS SDK credential providers
+jest.mock("@aws-sdk/credential-providers", () => ({
+	fromIni: jest.fn().mockReturnValue({
+		accessKeyId: "profile-access-key",
+		secretAccessKey: "profile-secret-key",
+	}),
+}))
+
 import { AwsBedrockHandler } from "../bedrock"
 import { MessageContent } from "../../../shared/api"
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { fromIni } from "@aws-sdk/credential-providers"
 
 describe("AwsBedrockHandler", () => {
 	let handler: AwsBedrockHandler
@@ -29,6 +38,57 @@ describe("AwsBedrockHandler", () => {
 				awsRegion: "us-east-1",
 			})
 			expect(handlerWithoutCreds).toBeInstanceOf(AwsBedrockHandler)
+		})
+
+		it("should initialize with AWS profile credentials", () => {
+			const handlerWithProfile = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsRegion: "us-east-1",
+				awsUseProfile: true,
+				awsProfile: "test-profile",
+			})
+			expect(handlerWithProfile).toBeInstanceOf(AwsBedrockHandler)
+			expect(handlerWithProfile["options"].awsUseProfile).toBe(true)
+			expect(handlerWithProfile["options"].awsProfile).toBe("test-profile")
+		})
+
+		it("should initialize with AWS profile enabled but no profile set", () => {
+			const handlerWithoutProfile = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsRegion: "us-east-1",
+				awsUseProfile: true,
+			})
+			expect(handlerWithoutProfile).toBeInstanceOf(AwsBedrockHandler)
+			expect(handlerWithoutProfile["options"].awsUseProfile).toBe(true)
+			expect(handlerWithoutProfile["options"].awsProfile).toBeUndefined()
+		})
+	})
+
+	describe("AWS SDK client configuration", () => {
+		it("should configure client with profile credentials when profile mode is enabled", async () => {
+			const handlerWithProfile = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsRegion: "us-east-1",
+				awsUseProfile: true,
+				awsProfile: "test-profile",
+			})
+
+			// Mock a simple API call to verify credentials are used
+			const mockResponse = {
+				output: new TextEncoder().encode(JSON.stringify({ content: "test" })),
+			}
+			const mockSend = jest.fn().mockResolvedValue(mockResponse)
+			handlerWithProfile["client"] = {
+				send: mockSend,
+			} as unknown as BedrockRuntimeClient
+
+			await handlerWithProfile.completePrompt("test")
+
+			// Verify the client was configured with profile credentials
+			expect(mockSend).toHaveBeenCalled()
+			expect(fromIni).toHaveBeenCalledWith({
+				profile: "test-profile",
+			})
 		})
 	})
 

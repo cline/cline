@@ -340,30 +340,56 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 
 			{selectedProvider === "bedrock" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-					<VSCodeTextField
-						value={apiConfiguration?.awsAccessKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsAccessKey")}
-						placeholder="Enter Access Key...">
-						<span style={{ fontWeight: 500 }}>AWS Access Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSecretKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSecretKey")}
-						placeholder="Enter Secret Key...">
-						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSessionToken || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSessionToken")}
-						placeholder="Enter Session Token...">
-						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
-					</VSCodeTextField>
+					<VSCodeRadioGroup
+						value={apiConfiguration?.awsUseProfile ? "profile" : "credentials"}
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement)?.value
+							const useProfile = value === "profile"
+							handleInputChange("awsUseProfile")({
+								target: { value: useProfile },
+							})
+						}}>
+						<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
+						<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
+					</VSCodeRadioGroup>
+					{/* AWS Profile Config Block */}
+					{apiConfiguration?.awsUseProfile ? (
+						<VSCodeTextField
+							value={apiConfiguration?.awsProfile || ""}
+							style={{ width: "100%" }}
+							onInput={handleInputChange("awsProfile")}
+							placeholder="Enter profile name">
+							<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
+						</VSCodeTextField>
+					) : (
+						<>
+							{/* AWS Credentials Config Block */}
+							<VSCodeTextField
+								value={apiConfiguration?.awsAccessKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsAccessKey")}
+								placeholder="Enter Access Key...">
+								<span style={{ fontWeight: 500 }}>AWS Access Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSecretKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSecretKey")}
+								placeholder="Enter Secret Key...">
+								<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSessionToken || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSessionToken")}
+								placeholder="Enter Session Token...">
+								<span style={{ fontWeight: 500 }}>AWS Session Token</span>
+							</VSCodeTextField>
+						</>
+					)}
 					<div className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
