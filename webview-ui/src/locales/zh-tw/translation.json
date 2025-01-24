@@ -20,7 +20,7 @@
 		"selectModel": "選擇模型...",
 		"model": "模型",
 		"apiProvider": "API 提供者",
-		"enterApiKey": "輸入 API 金鑰...",
+		"enterApiKey": "請輸入 API 密鑰...",
 		"apiKey": "API 密鑰"
 		"enterBaseUrl": "輸入基本 URL...",
 		"baseUrl": "基本 URL",
