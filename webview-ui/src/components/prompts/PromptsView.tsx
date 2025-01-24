@@ -8,7 +8,14 @@ import {
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { Mode, PromptComponent, getRoleDefinition, getAllModes, ModeConfig } from "../../../../src/shared/modes"
+import {
+	Mode,
+	PromptComponent,
+	getRoleDefinition,
+	getAllModes,
+	ModeConfig,
+	GroupEntry,
+} from "../../../../src/shared/modes"
 import {
 	supportPrompt,
 	SupportPromptType,
@@ -24,6 +31,11 @@ const availableGroups = Object.keys(TOOL_GROUPS) as ToolGroup[]
 
 type PromptsViewProps = {
 	onDone: () => void
+}
+
+// Helper to get group name regardless of format
+function getGroupName(group: GroupEntry): ToolGroup {
+	return Array.isArray(group) ? group[0] : group
 }
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
@@ -131,7 +143,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [newModeSlug, setNewModeSlug] = useState("")
 	const [newModeRoleDefinition, setNewModeRoleDefinition] = useState("")
 	const [newModeCustomInstructions, setNewModeCustomInstructions] = useState("")
-	const [newModeGroups, setNewModeGroups] = useState<readonly ToolGroup[]>(availableGroups)
+	const [newModeGroups, setNewModeGroups] = useState<GroupEntry[]>(availableGroups)
 
 	// Reset form fields when dialog opens
 	useEffect(() => {
@@ -219,11 +231,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				const target = (e as CustomEvent)?.detail?.target || (e.target as HTMLInputElement)
 				const checked = target.checked
 				const oldGroups = customMode?.groups || []
-				let newGroups: readonly ToolGroup[]
+				let newGroups: GroupEntry[]
 				if (checked) {
 					newGroups = [...oldGroups, group]
 				} else {
-					newGroups = oldGroups.filter((g) => g !== group)
+					newGroups = oldGroups.filter((g) => getGroupName(g) !== group)
 				}
 				if (customMode) {
 					updateCustomMode(customMode.slug, {
@@ -639,8 +651,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 										const isCustomMode = findModeBySlug(mode, customModes)
 										const customMode = isCustomMode
 										const isGroupEnabled = isCustomMode
-											? customMode?.groups?.includes(group)
-											: currentMode?.groups?.includes(group)
+											? customMode?.groups?.some((g) => getGroupName(g) === group)
+											: currentMode?.groups?.some((g) => getGroupName(g) === group)
 
 										return (
 											<VSCodeCheckbox
@@ -649,6 +661,30 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												onChange={handleGroupChange(group, Boolean(isCustomMode), customMode)}
 												disabled={!isCustomMode}>
 												{GROUP_DISPLAY_NAMES[group]}
+												{group === "edit" && (
+													<div
+														style={{
+															fontSize: "12px",
+															color: "var(--vscode-descriptionForeground)",
+															marginTop: "2px",
+														}}>
+														Allowed files:{" "}
+														{(() => {
+															const currentMode = getCurrentMode()
+															const editGroup = currentMode?.groups?.find(
+																(g) =>
+																	Array.isArray(g) &&
+																	g[0] === "edit" &&
+																	g[1]?.fileRegex,
+															)
+															if (!Array.isArray(editGroup)) return "all files"
+															return (
+																editGroup[1].description ||
+																`/${editGroup[1].fileRegex}/`
+															)
+														})()}
+													</div>
+												)}
 											</VSCodeCheckbox>
 										)
 									})}
@@ -664,7 +700,18 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									{(() => {
 										const currentMode = getCurrentMode()
 										const enabledGroups = currentMode?.groups || []
-										return enabledGroups.map((group) => GROUP_DISPLAY_NAMES[group]).join(", ")
+										return enabledGroups
+											.map((group) => {
+												const groupName = getGroupName(group)
+												const displayName = GROUP_DISPLAY_NAMES[groupName]
+												if (Array.isArray(group) && group[1]?.fileRegex) {
+													const description =
+														group[1].description || `/${group[1].fileRegex}/`
+													return `${displayName} (${description})`
+												}
+												return displayName
+											})
+											.join(", ")
 									})()}
 								</div>
 							)}
@@ -1050,7 +1097,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									{availableGroups.map((group) => (
 										<VSCodeCheckbox
 											key={group}
-											checked={newModeGroups.includes(group)}
+											checked={newModeGroups.some((g) => getGroupName(g) === group)}
 											onChange={(e: Event | React.FormEvent<HTMLElement>) => {
 												const target =
 													(e as CustomEvent)?.detail?.target || (e.target as HTMLInputElement)
@@ -1058,7 +1105,9 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												if (checked) {
 													setNewModeGroups([...newModeGroups, group])
 												} else {
-													setNewModeGroups(newModeGroups.filter((g) => g !== group))
+													setNewModeGroups(
+														newModeGroups.filter((g) => getGroupName(g) !== group),
+													)
 												}
 											}}>
 											{GROUP_DISPLAY_NAMES[group]}

@@ -1,12 +1,12 @@
-import { validateCustomMode } from "../CustomModesSchema"
-import { ModeConfig } from "../../../shared/modes"
 import { ZodError } from "zod"
+import { CustomModeSchema, validateCustomMode } from "../CustomModesSchema"
+import { ModeConfig } from "../../../shared/modes"
 
-describe("CustomModesSchema", () => {
+describe("CustomModeSchema", () => {
 	describe("validateCustomMode", () => {
 		test("accepts valid mode configuration", () => {
 			const validMode = {
-				slug: "123e4567-e89b-12d3-a456-426614174000",
+				slug: "test",
 				name: "Test Mode",
 				roleDefinition: "Test role definition",
 				groups: ["read"] as const,
@@ -17,7 +17,7 @@ describe("CustomModesSchema", () => {
 
 		test("accepts mode with multiple groups", () => {
 			const validMode = {
-				slug: "123e4567-e89b-12d3-a456-426614174000",
+				slug: "test",
 				name: "Test Mode",
 				roleDefinition: "Test role definition",
 				groups: ["read", "edit", "browser"] as const,
@@ -28,7 +28,7 @@ describe("CustomModesSchema", () => {
 
 		test("accepts mode with optional customInstructions", () => {
 			const validMode = {
-				slug: "123e4567-e89b-12d3-a456-426614174000",
+				slug: "test",
 				name: "Test Mode",
 				roleDefinition: "Test role definition",
 				customInstructions: "Custom instructions",
@@ -117,6 +117,78 @@ describe("CustomModesSchema", () => {
 			invalidInputs.forEach((input) => {
 				expect(() => validateCustomMode(input)).toThrow(ZodError)
 			})
+		})
+	})
+
+	describe("fileRegex", () => {
+		it("validates a mode with file restrictions and descriptions", () => {
+			const modeWithJustRegex = {
+				slug: "markdown-editor",
+				name: "Markdown Editor",
+				roleDefinition: "Markdown editing mode",
+				groups: ["read", ["edit", { fileRegex: "\\.md$" }], "browser"],
+			}
+
+			const modeWithDescription = {
+				slug: "docs-editor",
+				name: "Documentation Editor",
+				roleDefinition: "Documentation editing mode",
+				groups: [
+					"read",
+					["edit", { fileRegex: "\\.(md|txt)$", description: "Documentation files only" }],
+					"browser",
+				],
+			}
+
+			expect(() => CustomModeSchema.parse(modeWithJustRegex)).not.toThrow()
+			expect(() => CustomModeSchema.parse(modeWithDescription)).not.toThrow()
+		})
+
+		it("validates file regex patterns", () => {
+			const validPatterns = ["\\.md$", ".*\\.txt$", "[a-z]+\\.js$"]
+			const invalidPatterns = ["[", "(unclosed", "\\"]
+
+			validPatterns.forEach((pattern) => {
+				const mode = {
+					slug: "test",
+					name: "Test",
+					roleDefinition: "Test",
+					groups: ["read", ["edit", { fileRegex: pattern }]],
+				}
+				expect(() => CustomModeSchema.parse(mode)).not.toThrow()
+			})
+
+			invalidPatterns.forEach((pattern) => {
+				const mode = {
+					slug: "test",
+					name: "Test",
+					roleDefinition: "Test",
+					groups: ["read", ["edit", { fileRegex: pattern }]],
+				}
+				expect(() => CustomModeSchema.parse(mode)).toThrow()
+			})
+		})
+
+		it("prevents duplicate groups", () => {
+			const modeWithDuplicates = {
+				slug: "test",
+				name: "Test",
+				roleDefinition: "Test",
+				groups: ["read", "read", ["edit", { fileRegex: "\\.md$" }], ["edit", { fileRegex: "\\.txt$" }]],
+			}
+
+			expect(() => CustomModeSchema.parse(modeWithDuplicates)).toThrow(/Duplicate groups/)
+		})
+
+		it("requires at least one group", () => {
+			const modeWithNoGroups = {
+				slug: "test",
+				name: "Test",
+				roleDefinition: "Test",
+				groups: [],
+			}
+
+			expect(() => CustomModeSchema.parse(modeWithNoGroups)).toThrow(/At least one tool group is required/)
 		})
 	})
 })
