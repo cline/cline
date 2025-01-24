@@ -545,7 +545,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								setApiConfiguration({ ...apiConfiguration, azureApiVersion: "" })
 							}
 						}}>
-						{t("useAzureApiVersion")}
+						{t("setAzureApiVersion")}
 					</VSCodeCheckbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
