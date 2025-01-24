@@ -15,6 +15,29 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
+## New in 3.3: Code Actions, More Powerful Modes, and a new Discord! 🚀
+
+This release brings significant improvements to how you interact with Roo Code:
+
+### Code Actions
+
+Roo Code now integrates directly with VS Code's native code actions system, providing quick fixes and refactoring options right in your editor. Look for the lightbulb 💡 to access Roo Code's capabilities without switching context.
+
+### Enhanced Mode Capabilities
+
+- **Markdown Editing**: Addressing one of the most requested features, Ask and Architect modes can now create and edit markdown files!
+- **Custom File Restrictions**: In general, custom modes can now be restricted to specific file patterns (for example, a technical writer who can only edit markdown files 👋). There's no UI for this yet, but who needs that when you can just ask Roo to set it up for you?
+- **Self-Initiated Mode Switching**: Modes can intelligently request to switch between each other based on the task at hand. For instance, Code mode might request to switch to Test Engineer mode once it's ready to write tests.
+
+### Join Our Discord!
+
+We've launched a new Discord community! Join us at [https://roocode.com/discord](https://roocode.com/discord) to:
+
+- Share your custom modes
+- Get help and support
+- Connect with other Roo Code users
+- Stay updated on the latest features
+
 ## New in 3.2: Introducing Custom Modes, plus rebranding from Roo Cline → Roo Code! 🚀
 
 ### Introducing Roo Code
@@ -108,6 +131,13 @@ Use Roo Code with:
 - **User-Created**: Type `Create a new mode for <X>` and Roo Code generates a brand-new persona for that role—complete with tailored prompts and optional tool restrictions.
 
 Modes can each have unique instructions and skill sets. Manage them in the **Prompts** tab.
+
+**Advanced Mode Features:**
+
+- **File Restrictions**: Modes can be restricted to specific file types (e.g., Ask and Architect modes can edit markdown files)
+- **Custom File Rules**: Define your own file access patterns (e.g., `.test.ts` for test files only)
+- **Direct Mode Switching**: Modes can request to switch to other modes when needed (e.g., switching to Code mode for implementation)
+- **Self-Creation**: Roo Code can help create new modes, complete with role definitions and file restrictions
 
 ---
 
@@ -225,7 +255,7 @@ We love community contributions! Here’s how to get involved:
 1. **Check Issues & Requests**: See [open issues](https://github.com/RooVetGit/Roo-Code/issues) or [feature requests](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests).
 2. **Fork & branch** off `main`.
 3. **Submit a Pull Request** once your feature or fix is ready.
-4. **Join** our [Reddit community](https://www.reddit.com/r/RooCode/) for feedback, tips, and announcements.
+4. **Join** our [Reddit community](https://www.reddit.com/r/RooCode/) and [Discord](https://roocode.com/discord) for feedback, tips, and announcements.
 
 ---
 
@@ -235,4 +265,4 @@ We love community contributions! Here’s how to get involved:
 
 ---
 
-**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/). Happy coding!
+**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/) or [Discord](https://roocode.com/discord). Happy coding!
