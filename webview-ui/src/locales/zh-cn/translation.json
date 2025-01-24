@@ -37,7 +37,7 @@
 		"enterAwsAccessKey": "输入访问密钥...",
 		"awsAccessKey": "AWS 访问密钥",
 		"enterAwsSecretKey": "输入秘密密钥...",
-		"awsSecretKey": "AWS 秘密密钥",
+		"awsSecretKey": "AWS 密钥",
 		"enterAwsSessionToken": "输入会话令牌...",
 		"awsSessionToken": "AWS 会话令牌",
 		"awsRegion": "AWS 区域",
