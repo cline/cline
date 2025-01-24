@@ -47,7 +47,7 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
- 	| "difyApiKey"
+	| "difyApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -73,7 +73,7 @@ type GlobalStateKey =
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
-  | "browserSettings"
+	| "browserSettings"
 	| "difyBaseUrl"
 
 export const GlobalFileNames = {
@@ -442,7 +442,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
-                difyApiKey,
+								difyApiKey,
 								difyBaseUrl,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
@@ -1206,7 +1206,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			vsCodeLmModelSelector,
 			userInfo,
-      difyApiKey,
+			difyApiKey,
 			difyBaseUrl,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1378,7 +1378,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"deepSeekApiKey",
 			"mistralApiKey",
 			"authToken",
- 			"difyApiKey",
+			"difyApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

@@ -51,7 +51,7 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new MistralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
-   case "dify":
+		case "dify":
 			return new DifyHandler(options)
 		default:
 			return new AnthropicHandler(options)

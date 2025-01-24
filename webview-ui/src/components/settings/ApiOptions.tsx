@@ -1102,6 +1102,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 					...openAiModelInfoSaneDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images
 				},
+			}
 		case "dify":
 			return {
 				selectedProvider: provider,

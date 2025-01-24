@@ -61,6 +61,8 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 			case "vscode-lm":
 				if (!apiConfiguration.vsCodeLmModelSelector) {
 					return "You must provide a valid model selector."
+				}
+				break
 			case "dify":
 				if (!apiConfiguration.difyApiKey || !apiConfiguration.difyBaseUrl) {
 					return "You must provide both a valid API key and base URL."
