@@ -22,6 +22,7 @@ const GroupOptionsSchema = z.object({
 			},
 			{ message: "Invalid regular expression pattern" },
 		),
+	fileRegexDescription: z.string().optional(),
 })
 
 // Schema for a group entry - either a tool group string or a tuple of [group, options]

@@ -84,6 +84,62 @@ describe("isToolAllowedForMode", () => {
 			expect(diffError).toBeInstanceOf(FileRestrictionError)
 		})
 
+		it("uses description in file restriction error for custom modes", () => {
+			const customModesWithDescription: ModeConfig[] = [
+				{
+					slug: "docs-editor",
+					name: "Documentation Editor",
+					roleDefinition: "You are a documentation editor",
+					groups: [
+						"read",
+						["edit", { fileRegex: "\\.(md|txt)$", description: "Documentation files only" }],
+						"browser",
+					],
+				},
+			]
+
+			// Test write_to_file with non-matching file
+			const writeError = isToolAllowedForMode(
+				"write_to_file",
+				"docs-editor",
+				customModesWithDescription,
+				undefined,
+				"test.js",
+			)
+			expect(writeError).toBeInstanceOf(FileRestrictionError)
+			expect((writeError as FileRestrictionError).message).toContain("Documentation files only")
+
+			// Test apply_diff with non-matching file
+			const diffError = isToolAllowedForMode(
+				"apply_diff",
+				"docs-editor",
+				customModesWithDescription,
+				undefined,
+				"test.js",
+			)
+			expect(diffError).toBeInstanceOf(FileRestrictionError)
+			expect((diffError as FileRestrictionError).message).toContain("Documentation files only")
+
+			// Test that matching files are allowed
+			const mdResult = isToolAllowedForMode(
+				"write_to_file",
+				"docs-editor",
+				customModesWithDescription,
+				undefined,
+				"test.md",
+			)
+			expect(mdResult).toBe(true)
+
+			const txtResult = isToolAllowedForMode(
+				"write_to_file",
+				"docs-editor",
+				customModesWithDescription,
+				undefined,
+				"test.txt",
+			)
+			expect(txtResult).toBe(true)
+		})
+
 		it("allows ask mode to edit markdown files only", () => {
 			// Should allow editing markdown files
 			const mdResult = isToolAllowedForMode("write_to_file", "ask", [], undefined, "test.md")

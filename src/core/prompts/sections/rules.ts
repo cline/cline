@@ -8,7 +8,6 @@ export function getRulesSection(
 	supportsComputerUse: boolean,
 	diffStrategy?: DiffStrategy,
 	context?: vscode.ExtensionContext,
-	diffEnabled?: boolean,
 ): string {
 	const settingsDir = context ? path.join(context.globalStorageUri.fsPath, "settings") : "<settings directory>"
 	const customModesPath = path.join(settingsDir, "cline_custom_modes.json")
