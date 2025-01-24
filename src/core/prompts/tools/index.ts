@@ -65,21 +65,11 @@ export function getToolDescriptionsForMode(
 		}
 	})
 
-	// Filter out apply_diff if diffStrategy is not provided
-	if (!diffStrategy) {
-		tools.delete("apply_diff")
-	}
-
 	// Add always available tools
 	ALWAYS_AVAILABLE_TOOLS.forEach((tool) => tools.add(tool))
 
 	// Map tool descriptions for allowed tools
 	const descriptions = Array.from(tools).map((toolName) => {
-		// Skip apply_diff tool description if diffStrategy is not provided
-		if (toolName === "apply_diff" && !diffStrategy) {
-			return undefined
-		}
-
 		const descriptionFn = toolDescriptionMap[toolName]
 		if (!descriptionFn) {
 			return undefined
