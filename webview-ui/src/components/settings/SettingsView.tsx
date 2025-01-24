@@ -225,7 +225,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							Automatically create and edit files without requiring approval
 						</p>
 						{alwaysAllowWrite && (
-							<div style={{ marginTop: 10 }}>
+							<div
+								style={{
+									marginTop: 10,
+									paddingLeft: 10,
+									borderLeft: "2px solid var(--vscode-button-background)",
+								}}>
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									<input
 										type="range"
@@ -277,7 +282,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							Automatically retry failed API requests when server returns an error response
 						</p>
 						{alwaysApproveResubmit && (
-							<div style={{ marginTop: 10 }}>
+							<div
+								style={{
+									marginTop: 10,
+									paddingLeft: 10,
+									borderLeft: "2px solid var(--vscode-button-background)",
+								}}>
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									<input
 										type="range"
@@ -329,7 +339,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 
 						{alwaysAllowExecute && (
-							<div style={{ marginTop: 10 }}>
+							<div
+								style={{
+									marginTop: 10,
+									paddingLeft: 10,
+									borderLeft: "2px solid var(--vscode-button-background)",
+								}}>
 								<span style={{ fontWeight: "500" }}>Allowed Auto-Execute Commands</span>
 								<p
 									style={{
@@ -489,7 +504,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 					</div>
 					{soundEnabled && (
-						<div style={{ marginLeft: 0 }}>
+						<div
+							style={{
+								marginLeft: 0,
+								paddingLeft: 10,
+								borderLeft: "2px solid var(--vscode-button-background)",
+							}}>
 							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
 								<span style={{ fontWeight: "500", minWidth: "100px" }}>Volume</span>
 								<input
@@ -565,7 +585,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 
 						{diffEnabled && (
-							<div style={{ marginTop: 10 }}>
+							<div
+								style={{
+									marginTop: 10,
+									paddingLeft: 10,
+									borderLeft: "2px solid var(--vscode-button-background)",
+								}}>
 								<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
 									<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
 									<VSCodeCheckbox
