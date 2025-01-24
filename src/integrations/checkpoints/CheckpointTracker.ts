@@ -28,8 +28,8 @@ class CheckpointTracker {
 			}
 
 			// Check if checkpoints are disabled in VS Code settings
-			const disableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("disableCheckpoints") ?? false
-			if (disableCheckpoints) {
+			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
+			if (!enableCheckpoints) {
 				return undefined // Don't create tracker when disabled
 			}
 

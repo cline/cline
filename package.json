@@ -147,10 +147,10 @@
 					"default": true,
 					"description": "Include MCP server functionality in AI prompts. When disabled, the AI will not be aware of MCP capabilities. This saves context window tokens."
 				},
-				"cline.disableCheckpoints": {
+				"cline.enableCheckpoints": {
 					"type": "boolean",
-					"default": false,
-					"description": "Disable checkpoint creation during task execution"
+					"default": true,
+					"description": "Enable checkpoint creation during task execution"
 				}
 			}
 		}
