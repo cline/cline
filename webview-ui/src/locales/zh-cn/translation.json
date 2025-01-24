@@ -46,7 +46,7 @@
 		"useCrossRegionInference": "使用跨区域推理",
 		"awsInfo": "通过提供上述密钥或使用默认的 AWS 凭证提供程序进行身份验证，即 ~/.aws/credentials 或环境变量。这些凭证仅在本地用于从此扩展进行 API 请求。",
 		"vscodeLanguageModelsInfo": "VS Code 语言模型 API 允许您运行其他 VS Code 扩展提供的模型（包括但不限于 GitHub Copilot）。最简单的方法是从 VS Marketplace 安装 Copilot 扩展并启用 Claude 3.5 Sonnet。",
-		"experimentalFeature": "注意：这是一个非常实验性的集成，可能无法按预期工作。",
+		"experimentalFeature": "注意：这是一个非常实验性功能，可能无法按预期工作。",
 		"supportsImages": "支持图像",
 		"doesNotSupportImages": "不支持图像",
 		"supportsComputerUse": "支持计算机使用",
