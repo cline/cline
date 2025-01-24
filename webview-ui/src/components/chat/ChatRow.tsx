@@ -443,6 +443,27 @@ export const ChatRowContent = ({
 			// 			</div>
 			// 		</>
 			// 	)
+			case "switchMode":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("symbol-enum")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask" ? (
+									<>
+										Roo wants to switch to <code>{tool.mode}</code> mode
+										{tool.reason ? ` because: ${tool.reason}` : ""}
+									</>
+								) : (
+									<>
+										Roo switched to <code>{tool.mode}</code> mode
+										{tool.reason ? ` because: ${tool.reason}` : ""}
+									</>
+								)}
+							</span>
+						</div>
+					</>
+				)
 			default:
 				return null
 		}
