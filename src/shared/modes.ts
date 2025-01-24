@@ -146,9 +146,9 @@ export function isCustomMode(slug: string, customModes?: ModeConfig[]): boolean 
 
 // Custom error class for file restrictions
 export class FileRestrictionError extends Error {
-	constructor(mode: string, pattern: string, description?: string) {
+	constructor(mode: string, pattern: string, description: string | undefined, filePath: string) {
 		super(
-			`This mode (${mode}) can only edit files matching ${description ? description : `the pattern: ${pattern}`}`,
+			`This mode (${mode}) can only edit files matching pattern: ${pattern}${description ? ` (${description})` : ""}. Got: ${filePath}`,
 		)
 		this.name = "FileRestrictionError"
 	}
@@ -159,8 +159,8 @@ export function isToolAllowedForMode(
 	modeSlug: string,
 	customModes: ModeConfig[],
 	toolRequirements?: Record<string, boolean>,
-	filePath?: string, // Optional file path for checking regex patterns
-): boolean | FileRestrictionError {
+	toolParams?: Record<string, any>, // All tool parameters
+): boolean {
 	// Always allow these tools
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
@@ -195,8 +195,10 @@ export function isToolAllowedForMode(
 
 		// For the edit group, check file regex if specified
 		if (groupName === "edit" && options.fileRegex) {
-			if (!filePath || !doesFileMatchRegex(filePath, options.fileRegex)) {
-				return new FileRestrictionError(mode.name, options.fileRegex, options.description)
+			const filePath = toolParams?.path
+			// Only validate regex if a path is provided
+			if (filePath && !doesFileMatchRegex(filePath, options.fileRegex)) {
+				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath)
 			}
 			return true
 		}

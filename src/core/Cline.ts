@@ -1142,17 +1142,25 @@ export class Cline {
 					await this.browserSession.closeBrowser()
 				}
 
-				// Validate tool use before execution
-				const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
-				const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
-				try {
-					validateToolUse(block.name as ToolName, mode ?? defaultModeSlug, customModes ?? [], {
-						apply_diff: this.diffEnabled,
-					})
-				} catch (error) {
-					this.consecutiveMistakeCount++
-					pushToolResult(formatResponse.toolError(error.message))
-					break
+				// Only validate complete tool uses
+				if (!block.partial) {
+					const { mode } = (await this.providerRef.deref()?.getState()) ?? {}
+					const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+					try {
+						validateToolUse(
+							block.name as ToolName,
+							mode ?? defaultModeSlug,
+							customModes ?? [],
+							{
+								apply_diff: this.diffEnabled,
+							},
+							block.params,
+						)
+					} catch (error) {
+						this.consecutiveMistakeCount++
+						pushToolResult(formatResponse.toolError(error.message))
+						break
+					}
 				}
 
 				switch (block.name) {
