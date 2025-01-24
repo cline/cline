@@ -1,3 +1,6 @@
+import sourceMapSupport from "source-map-support"
+sourceMapSupport.install()
+
 import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"

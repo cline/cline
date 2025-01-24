@@ -1,5 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import sourceMapSupport from "source-map-support"
+sourceMapSupport.install()
+
 import delay from "delay"
 import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
