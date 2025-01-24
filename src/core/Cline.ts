@@ -754,7 +754,7 @@ export class Cline {
 
 		this.isInitialized = true
 
-		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 		await this.initiateTaskLoop(
 			[
 				{
@@ -963,7 +963,7 @@ export class Cline {
 			// modifiedOldUserContent = []
 		}
 
-		let newUserContent: UserContent = [...modifiedOldUserContent]
+		const newUserContent: UserContent = [...modifiedOldUserContent]
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1211,8 +1211,7 @@ export class Cline {
 			mcpHub,
 			this.browserSettings,
 		)
-
-		let settingsCustomInstructions = this.customInstructions?.trim()
+		const settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
@@ -1276,7 +1275,7 @@ export class Cline {
 			this.conversationHistoryDeletedRange,
 		)
 
-		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1563,7 +1562,7 @@ export class Cline {
 					case "write_to_file":
 					case "replace_in_file": {
 						const relPath: string | undefined = block.params.path
-						let content: string | undefined = block.params.content // for write_to_file
+						const content: string | undefined = block.params.content // for write_to_file
 						let diff: string | undefined = block.params.diff // for replace_in_file
 						if (!relPath || (!content && !diff)) {
 							// checking for content/diff ensures relPath is complete
@@ -2358,6 +2357,7 @@ export class Cline {
 								if (mcp_arguments) {
 									try {
 										parsedArguments = JSON.parse(mcp_arguments)
+										// eslint-disable-next-line @typescript-eslint/no-unused-vars
 									} catch (error) {
 										this.consecutiveMistakeCount++
 										await this.say(
@@ -2417,7 +2417,7 @@ export class Cline {
 													return item.text
 												}
 												if (item.type === "resource") {
-													const { blob, ...rest } = item.resource
+													const { /** blob ,**/ ...rest } = item.resource
 													return JSON.stringify(rest, null, 2)
 												}
 												return ""
@@ -2798,6 +2798,7 @@ export class Cline {
 	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false,
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		isNewTask: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
@@ -3109,6 +3110,7 @@ export class Cline {
 			}
 
 			return didEndLoop // will always be false for now
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task

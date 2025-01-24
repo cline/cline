@@ -23,13 +23,13 @@ export function combineApiRequests(messages: ClineMessage[]): ClineMessage[] {
 
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "say" && messages[i].say === "api_req_started") {
-			let startedRequest = JSON.parse(messages[i].text || "{}")
+			const startedRequest = JSON.parse(messages[i].text || "{}")
 			let j = i + 1
 
 			while (j < messages.length) {
 				if (messages[j].type === "say" && messages[j].say === "api_req_finished") {
-					let finishedRequest = JSON.parse(messages[j].text || "{}")
-					let combinedRequest = {
+					const finishedRequest = JSON.parse(messages[j].text || "{}")
+					const combinedRequest = {
 						...startedRequest,
 						...finishedRequest,
 					}

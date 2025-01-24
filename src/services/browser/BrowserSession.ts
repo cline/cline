@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
-// @ts-ignore
+// @ts-expect-error TBD
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
@@ -176,6 +176,7 @@ export class BrowserSession {
 		const logs: string[] = []
 		let lastLogTs = Date.now()
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const consoleListener = (msg: any) => {
 			if (msg.type() === "log") {
 				logs.push(msg.text())
@@ -208,7 +209,7 @@ export class BrowserSession {
 			interval: 100,
 		}).catch(() => {})
 
-		let options: ScreenshotOptions = {
+		const options: ScreenshotOptions = {
 			encoding: "base64",
 
 			// clip: {
@@ -273,8 +274,8 @@ export class BrowserSession {
 		const minStableSizeIterations = 3
 
 		while (checkCounts++ <= maxChecks) {
-			let html = await page.content()
-			let currentHTMLSize = html.length
+			const html = await page.content()
+			const currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
 			console.log("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)

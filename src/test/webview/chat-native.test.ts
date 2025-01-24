@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
-import { join } from "path"
+
 describe("Chat Integration Tests", () => {
 	let panel: vscode.WebviewPanel
 	let disposables: vscode.Disposable[] = []
@@ -54,6 +54,7 @@ describe("Chat Integration Tests", () => {
 
 	it("should send chat messages", async () => {
 		// Set up message listener
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const messagePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
 				if (message.type === "newTask") {
@@ -76,6 +77,7 @@ describe("Chat Integration Tests", () => {
 
 	it("should toggle between plan and act modes", async () => {
 		// Set up state change listener
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
 				if (message.type === "chatSettings") {
@@ -94,6 +96,7 @@ describe("Chat Integration Tests", () => {
 
 	it("should handle tool approval flow", async () => {
 		// Set up approval listener
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const approvalPromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
 				if (message.type === "askResponse") {

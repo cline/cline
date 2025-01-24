@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Mistral } from "@mistralai/mistralai"
 import { AssistantMessage } from "@mistralai/mistralai/models/components/assistantmessage"
 import { SystemMessage } from "@mistralai/mistralai/models/components/systemmessage"
 import { ToolMessage } from "@mistralai/mistralai/models/components/toolmessage"
@@ -21,7 +20,7 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 			})
 		} else {
 			if (anthropicMessage.role === "user") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+				const { nonToolMessages /** toolMessages */ } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolResultBlockParam[]
 				}>(
@@ -53,7 +52,7 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+				const { nonToolMessages /** toolMessages **/ } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolUseBlockParam[]
 				}>(

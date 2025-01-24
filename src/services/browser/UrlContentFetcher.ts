@@ -4,7 +4,7 @@ import * as path from "path"
 import { Browser, Page, launch } from "puppeteer-core"
 import * as cheerio from "cheerio"
 import TurndownService from "turndown"
-// @ts-ignore
+// @ts-expect-error TBD
 import PCR from "puppeteer-chromium-resolver"
 import { fileExistsAtPath } from "../../utils/fs"
 

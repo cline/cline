@@ -138,6 +138,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		try {
 			await this.authManager.signOut()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
 		}
@@ -750,6 +751,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
 		try {
 			await fs.mkdir(mcpServersDir, { recursive: true })
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
 		}
@@ -785,9 +787,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/api/tags`)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return []
 		}
@@ -804,9 +808,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/v1/models`)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (error) {
 			return []
 		}
@@ -886,7 +892,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async refreshOpenRouterModels() {
 		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-		let models: Record<string, ModelInfo> = {}
+		const models: Record<string, ModelInfo> = {}
 		try {
 			const response = await axios.get("https://openrouter.ai/api/v1/models")
 			/*
@@ -917,6 +923,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			*/
 			if (response.data?.data) {
 				const rawModels = response.data.data
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000
@@ -1325,6 +1332,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// global
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.context.globalState.update(key, value)
 	}
@@ -1335,6 +1343,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// workspace
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async updateWorkspaceState(key: string, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}

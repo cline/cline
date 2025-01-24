@@ -20,6 +20,7 @@ const defaultThemes: Record<string, string> = {
 	"Visual Studio Light": "light_vs",
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseThemeString(themeString: string | undefined): any {
 	themeString = themeString
 		?.split("\n")
@@ -73,9 +74,13 @@ export async function getTheme() {
 
 		const converted = convertTheme(parsed)
 
-		converted.base = (
-			["vs", "hc-black"].includes(converted.base) ? converted.base : colorTheme.includes("Light") ? "vs" : "vs-dark"
-		) as any
+		const getBaseTheme = (current: string, theme: string) => {
+			if (["vs", "hc-black"].includes(current)) return current
+			return theme.includes("Light") ? "vs" : "vs-dark"
+		}
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		converted.base = getBaseTheme(converted.base, colorTheme) as any
 
 		return converted
 	} catch (e) {
@@ -84,12 +89,15 @@ export async function getTheme() {
 	return undefined
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JsonObject = { [key: string]: any }
 export function mergeJson(
 	first: JsonObject,
 	second: JsonObject,
 	mergeBehavior?: "merge" | "overwrite",
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	mergeKeys?: { [key: string]: (a: any, b: any) => boolean },
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
 	const copyOfFirst = JSON.parse(JSON.stringify(first))
 
@@ -108,8 +116,11 @@ export function mergeJson(
 				// Array
 				if (mergeKeys?.[key]) {
 					// Merge keys are used to determine whether an item form the second object should override one from the first
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const keptFromFirst: any[] = []
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					firstValue.forEach((item: any) => {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						if (!secondValue.some((item2: any) => mergeKeys[key](item, item2))) {
 							keptFromFirst.push(item)
 						}

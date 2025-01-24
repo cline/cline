@@ -1,4 +1,6 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { expect } = require("chai")
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const vscode = require("vscode")
 
 describe("Extension Tests", function () {
@@ -7,12 +9,14 @@ describe("Extension Tests", function () {
 	it("should activate extension successfully", async () => {
 		// Get the extension
 		const extension = vscode.extensions.getExtension("saoudrizwan.claude-dev")
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		expect(extension).to.not.be.undefined
 
 		// Activate the extension if not already activated
 		if (!extension.isActive) {
 			await extension.activate()
 		}
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		expect(extension.isActive).to.be.true
 	})
 
@@ -24,6 +28,7 @@ describe("Extension Tests", function () {
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 
 		// Get all views
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const views = vscode.window.visibleTextEditors
 		// Just verify the command executed without error
 		// The actual view verification is handled in the TypeScript tests

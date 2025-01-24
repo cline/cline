@@ -212,7 +212,7 @@ export async function constructNewFileContent(diffContent: string, originalConte
 	let searchMatchIndex = -1
 	let searchEndIndex = -1
 
-	let lines = diffContent.split("\n")
+	const lines = diffContent.split("\n")
 
 	// If the last line looks like a partial marker but isn't recognized,
 	// remove it because it might be incomplete.
@@ -326,6 +326,7 @@ export async function constructNewFileContent(diffContent: string, originalConte
 		if (inSearch) {
 			currentSearchContent += line + "\n"
 		} else if (inReplace) {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 			currentReplaceContent += line + "\n"
 			// Output replacement lines immediately if we know the insertion point
 			if (searchMatchIndex !== -1) {

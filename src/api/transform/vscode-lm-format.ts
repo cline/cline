@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 /**
  * Safely converts a value into a plain object.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function asObjectSafe(value: any): object {
 	// Handle null/undefined
 	if (!value) {
