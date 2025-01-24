@@ -27,7 +27,7 @@
 		"enterModelId": "輸入模型 ID...",
 		"modelId": "模型 ID",
 		"useCustomBaseUrl": "使用自定義基本 URL",
-		"apiKeyInfo": "此金鑰僅存儲在本地，僅用於從此擴展進行 API 請求。",
+		"apiKeyInfo": "此密鑰僅存儲在本地，僅用於從此擴展進行 API 請求。",
 		"getApiKeyMessage": "您可以通過在此處註冊來獲取 {{vendor}} API 金鑰。",
 		"getApiVendorKey": "{{vendor}} API 金鑰",
 		"getCompatibleVendor": "{{vendor}} 兼容",
