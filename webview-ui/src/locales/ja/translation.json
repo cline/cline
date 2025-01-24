@@ -1,18 +1,18 @@
 {
 	"announcement": {
 		"newInVersion": "バージョン{{version}}の新機能",
-		"joinOurCommunities": "最新情報については、<DiscordLink>Discord</DiscordLink> または <RedditLink>Reddit</RedditLink> にぜひご参加ください。"
+		"joinOurCommunities": "最新情報については、<DiscordLink>Discord</DiscordLink> または <RedditLink>Reddit</RedditLink> にぜひご参加ください！"
 	},
 	"settingsView": {
 		"settings": "設定",
 		"done": "完了",
 		"language": "言語",
-		"customInstructions": "カスタム設定",
-		"customInstructionsPlaceholder": "例: 「最後にユニットテストを実行する」、「async/awaitを使用してTypeScriptを使用する」、「英語で話す」",
-		"customInstructionsDescription": "これらの設定は、各リクエストで送信されるシステムプロンプトの末尾に追加されます。",
+		"customInstructions": "カスタム指示",
+		"customInstructionsPlaceholder": "例: 「最後にユニットテストを実行する」、「async/awaitでTypeScriptを使用する」、「英語で話す」",
+		"customInstructionsDescription": "これらの指示は、各リクエストで送信されるシステムプロンプトの末尾に追加されます。",
 		"debug": "デバッグ",
 		"resetState": "状態をリセット",
-		"resetStateDescription": "拡張機能のすべての設定とデータをリセットします。",
+		"resetStateDescription": "拡張機能のすべてのグローバル状態とシークレットストレージがリセットされます。",
 		"feedback": "ご質問やフィードバックがある場合は、ご自由にイシューを作成してください。",
 		"version": "バージョン"
 	},
