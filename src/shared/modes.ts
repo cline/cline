@@ -12,6 +12,16 @@ export type ModeConfig = {
 	groups: readonly ToolGroup[] // Now uses groups instead of tools array
 }
 
+// Mode-specific prompts only
+export type PromptComponent = {
+	roleDefinition?: string
+	customInstructions?: string
+}
+
+export type CustomModePrompts = {
+	[key: string]: PromptComponent | undefined
+}
+
 // Helper to get all tools for a mode
 export function getToolsForMode(groups: readonly ToolGroup[]): string[] {
 	const tools = new Set<string>()
@@ -130,35 +140,8 @@ export function isToolAllowedForMode(
 	return mode.groups.some((group) => TOOL_GROUPS[group].includes(tool as string))
 }
 
-export type PromptComponent = {
-	roleDefinition?: string
-	customInstructions?: string
-}
-
-// Mode-specific prompts only
-export type CustomPrompts = {
-	[key: string]: PromptComponent | undefined
-}
-
-// Separate enhance prompt type and definition
-export type EnhanceConfig = {
-	prompt: string
-}
-
-export const enhance: EnhanceConfig = {
-	prompt: "Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):",
-} as const
-
-// Completely separate enhance prompt handling
-export const enhancePrompt = {
-	default: enhance.prompt,
-	get: (customPrompts: Record<string, any> | undefined): string => {
-		return customPrompts?.enhance ?? enhance.prompt
-	},
-} as const
-
 // Create the mode-specific default prompts
-export const defaultPrompts: Readonly<CustomPrompts> = Object.freeze(
+export const defaultPrompts: Readonly<CustomModePrompts> = Object.freeze(
 	Object.fromEntries(modes.map((mode) => [mode.slug, { roleDefinition: mode.roleDefinition }])),
 )
 

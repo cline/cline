@@ -12,7 +12,7 @@ jest.mock("../../../utils/vscode", () => ({
 }))
 
 const mockExtensionState = {
-	customPrompts: {},
+	customModePrompts: {},
 	listApiConfigMeta: [
 		{ id: "config1", name: "Config 1" },
 		{ id: "config2", name: "Config 2" },
@@ -165,6 +165,10 @@ describe("PromptsView", () => {
 
 	it("handles API configuration selection", () => {
 		renderPromptsView()
+
+		// Click the ENHANCE tab first to show the API config dropdown
+		const enhanceTab = screen.getByTestId("ENHANCE-tab")
+		fireEvent.click(enhanceTab)
 
 		const dropdown = screen.getByTestId("api-config-dropdown")
 		fireEvent(

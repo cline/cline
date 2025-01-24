@@ -8,14 +8,14 @@ import {
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+import { Mode, PromptComponent, getRoleDefinition, getAllModes, ModeConfig } from "../../../../src/shared/modes"
 import {
-	Mode,
-	PromptComponent,
-	getRoleDefinition,
-	getAllModes,
-	ModeConfig,
-	enhancePrompt,
-} from "../../../../src/shared/modes"
+	supportPrompt,
+	SupportPromptType,
+	supportPromptLabels,
+	supportPromptDescriptions,
+} from "../../../../src/shared/support-prompt"
+
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
 
@@ -28,7 +28,8 @@ type PromptsViewProps = {
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const {
-		customPrompts,
+		customModePrompts,
+		customSupportPrompts,
 		listApiConfigMeta,
 		enhancementApiConfigId,
 		setEnhancementApiConfigId,
@@ -50,11 +51,12 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
 	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
+	const [activeSupportTab, setActiveSupportTab] = useState<SupportPromptType>("ENHANCE")
 
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
 		(mode: Mode, promptData: PromptComponent) => {
-			const existingPrompt = customPrompts?.[mode]
+			const existingPrompt = customModePrompts?.[mode] as PromptComponent
 			const updatedPrompt = { ...existingPrompt, ...promptData }
 
 			// Only include properties that differ from defaults
@@ -68,7 +70,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				customPrompt: updatedPrompt,
 			})
 		},
-		[customPrompts],
+		[customModePrompts],
 	)
 
 	const updateCustomMode = useCallback((slug: string, modeConfig: ModeConfig) => {
@@ -254,36 +256,33 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => window.removeEventListener("message", handler)
 	}, [])
 
-	const updateEnhancePrompt = (value: string | undefined) => {
+	const updateSupportPrompt = (type: SupportPromptType, value: string | undefined) => {
 		vscode.postMessage({
-			type: "updateEnhancedPrompt",
-			text: value,
+			type: "updateSupportPrompt",
+			values: {
+				[type]: value,
+			},
 		})
-	}
-
-	const handleEnhancePromptChange = (e: Event | React.FormEvent<HTMLElement>): void => {
-		const value = (e as CustomEvent)?.detail?.target?.value || ((e as any).target as HTMLTextAreaElement).value
-		const trimmedValue = value.trim()
-		if (trimmedValue !== enhancePrompt.default) {
-			updateEnhancePrompt(trimmedValue || enhancePrompt.default)
-		}
 	}
 
 	const handleAgentReset = (modeSlug: string) => {
 		// Only reset role definition for built-in modes
-		const existingPrompt = customPrompts?.[modeSlug]
+		const existingPrompt = customModePrompts?.[modeSlug] as PromptComponent
 		updateAgentPrompt(modeSlug, {
 			...existingPrompt,
 			roleDefinition: undefined,
 		})
 	}
 
-	const handleEnhanceReset = () => {
-		updateEnhancePrompt(undefined)
+	const handleSupportReset = (type: SupportPromptType) => {
+		vscode.postMessage({
+			type: "resetSupportPrompt",
+			text: type,
+		})
 	}
 
-	const getEnhancePromptValue = (): string => {
-		return enhancePrompt.get(customPrompts)
+	const getSupportPromptValue = (type: SupportPromptType): string => {
+		return supportPrompt.get(customSupportPrompts, type)
 	}
 
 	const handleTestEnhancement = () => {
@@ -319,7 +318,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<div style={{ marginBottom: "20px" }}>
+				<div style={{ paddingBottom: "20px", borderBottom: "1px solid var(--vscode-input-border)" }}>
 					<div style={{ marginBottom: "20px" }}>
 						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Preferred Language</div>
 						<select
@@ -392,7 +391,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						style={{ width: "100%" }}
 						data-testid="global-custom-instructions-textarea"
 					/>
-					<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "5px" }}>
+					<div
+						style={{
+							fontSize: "12px",
+							color: "var(--vscode-descriptionForeground)",
+							marginTop: "5px",
+							marginBottom: "40px",
+						}}>
 						Instructions can also be loaded from{" "}
 						<span
 							style={{
@@ -416,7 +421,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 
-				<div style={{ marginBottom: "20px" }}>
+				<div style={{ marginTop: "20px" }}>
 					<div
 						style={{
 							display: "flex",
@@ -563,7 +568,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode]
+								const prompt = customModePrompts?.[mode] as PromptComponent
 								return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(mode)
 							})()}
 							onChange={(e) => {
@@ -680,7 +685,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						<VSCodeTextArea
 							value={(() => {
 								const customMode = findModeBySlug(mode, customModes)
-								const prompt = customPrompts?.[mode]
+								const prompt = customModePrompts?.[mode] as PromptComponent
 								return customMode?.customInstructions ?? prompt?.customInstructions ?? ""
 							})()}
 							onChange={(e) => {
@@ -696,7 +701,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									})
 								} else {
 									// For built-in modes, update the prompts
-									const existingPrompt = customPrompts?.[mode]
+									const existingPrompt = customModePrompts?.[mode] as PromptComponent
 									updateAgentPrompt(mode, {
 										...existingPrompt,
 										customInstructions: value.trim() || undefined,
@@ -742,7 +747,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 					</div>
 				</div>
-				<div style={{ marginBottom: "20px", display: "flex", justifyContent: "flex-start" }}>
+				<div
+					style={{
+						paddingBottom: "40px",
+						marginBottom: "20px",
+						borderBottom: "1px solid var(--vscode-input-border)",
+						display: "flex",
+						justifyContent: "flex-start",
+					}}>
 					<VSCodeButton
 						appearance="primary"
 						onClick={() => {
@@ -759,116 +771,168 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</VSCodeButton>
 				</div>
 
-				<h3 style={{ color: "var(--vscode-foreground)", margin: "40px 0 20px 0" }}>Prompt Enhancement</h3>
-
 				<div
 					style={{
-						color: "var(--vscode-foreground)",
-						fontSize: "13px",
-						marginBottom: "20px",
-						marginTop: "5px",
+						marginTop: "20px",
+						paddingBottom: "60px",
+						borderBottom: "1px solid var(--vscode-input-border)",
 					}}>
-					Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo
-					understands your intent and provides the best possible responses.
-				</div>
+					<h3 style={{ color: "var(--vscode-foreground)", marginBottom: "12px" }}>Support Prompts</h3>
+					<div
+						style={{
+							display: "flex",
+							gap: "16px",
+							alignItems: "center",
+							marginBottom: "12px",
+							overflowX: "auto",
+							flexWrap: "nowrap",
+							paddingBottom: "4px",
+							paddingRight: "20px",
+						}}>
+						{Object.keys(supportPrompt.default).map((type) => (
+							<button
+								key={type}
+								data-testid={`${type}-tab`}
+								data-active={activeSupportTab === type ? "true" : "false"}
+								onClick={() => setActiveSupportTab(type as SupportPromptType)}
+								style={{
+									padding: "4px 8px",
+									border: "none",
+									background: activeSupportTab === type ? "var(--vscode-button-background)" : "none",
+									color:
+										activeSupportTab === type
+											? "var(--vscode-button-foreground)"
+											: "var(--vscode-foreground)",
+									cursor: "pointer",
+									opacity: activeSupportTab === type ? 1 : 0.8,
+									borderRadius: "3px",
+									fontWeight: "bold",
+								}}>
+								{supportPromptLabels[type as SupportPromptType]}
+							</button>
+						))}
+					</div>
 
-				<div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-					<div>
-						<div style={{ marginBottom: "12px" }}>
-							<div style={{ marginBottom: "8px" }}>
-								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>API Configuration</div>
-								<div style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)" }}>
-									You can select an API configuration to always use for enhancing prompts, or just use
-									whatever is currently selected
-								</div>
-							</div>
-							<VSCodeDropdown
-								value={enhancementApiConfigId || ""}
-								data-testid="api-config-dropdown"
-								onChange={(e: any) => {
-									const value = e.detail?.target?.value || e.target?.value
-									setEnhancementApiConfigId(value)
-									vscode.postMessage({
-										type: "enhancementApiConfigId",
-										text: value,
-									})
-								}}
-								style={{ width: "300px" }}>
-								<VSCodeOption value="">Use currently selected API configuration</VSCodeOption>
-								{(listApiConfigMeta || []).map((config) => (
-									<VSCodeOption key={config.id} value={config.id}>
-										{config.name}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
+					{/* Support prompt description */}
+					<div
+						style={{
+							fontSize: "13px",
+							color: "var(--vscode-descriptionForeground)",
+							margin: "8px 0 16px",
+						}}>
+						{supportPromptDescriptions[activeSupportTab]}
+					</div>
+
+					{/* Show active tab content */}
+					<div key={activeSupportTab}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "4px",
+							}}>
+							<div style={{ fontWeight: "bold" }}>Prompt</div>
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => handleSupportReset(activeSupportTab)}
+								title={`Reset ${activeSupportTab} prompt to default`}>
+								<span className="codicon codicon-discard"></span>
+							</VSCodeButton>
 						</div>
 
-						<div style={{ marginBottom: "8px" }}>
-							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									marginBottom: "4px",
-								}}>
-								<div style={{ fontWeight: "bold" }}>Enhancement Prompt</div>
-								<div style={{ display: "flex", gap: "8px" }}>
-									<VSCodeButton
-										appearance="icon"
-										onClick={handleEnhanceReset}
-										title="Revert to default">
-										<span className="codicon codicon-discard"></span>
-									</VSCodeButton>
-								</div>
-							</div>
-							<div
-								style={{
-									fontSize: "13px",
-									color: "var(--vscode-descriptionForeground)",
-									marginBottom: "8px",
-								}}>
-								This prompt will be used to refine your input when you hit the sparkle icon in chat.
-							</div>
-						</div>
 						<VSCodeTextArea
-							value={getEnhancePromptValue()}
-							onChange={handleEnhancePromptChange}
-							rows={4}
+							value={getSupportPromptValue(activeSupportTab)}
+							onChange={(e) => {
+								const value =
+									(e as CustomEvent)?.detail?.target?.value ||
+									((e as any).target as HTMLTextAreaElement).value
+								const trimmedValue = value.trim()
+								updateSupportPrompt(activeSupportTab, trimmedValue || undefined)
+							}}
+							rows={6}
 							resize="vertical"
 							style={{ width: "100%" }}
 						/>
 
-						<div style={{ marginTop: "12px" }}>
-							<VSCodeTextArea
-								value={testPrompt}
-								onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
-								placeholder="Enter a prompt to test the enhancement"
-								rows={3}
-								resize="vertical"
-								style={{ width: "100%" }}
-								data-testid="test-prompt-textarea"
-							/>
-							<div
-								style={{
-									marginTop: "8px",
-									display: "flex",
-									justifyContent: "flex-start",
-									alignItems: "center",
-									gap: 8,
-								}}>
-								<VSCodeButton
-									onClick={handleTestEnhancement}
-									disabled={isEnhancing}
-									appearance="primary">
-									Preview Prompt Enhancement
-								</VSCodeButton>
-							</div>
-						</div>
+						{activeSupportTab === "ENHANCE" && (
+							<>
+								<div>
+									<div
+										style={{
+											color: "var(--vscode-foreground)",
+											fontSize: "13px",
+											marginBottom: "20px",
+											marginTop: "5px",
+										}}></div>
+									<div style={{ marginBottom: "12px" }}>
+										<div style={{ marginBottom: "8px" }}>
+											<div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+												API Configuration
+											</div>
+											<div
+												style={{
+													fontSize: "13px",
+													color: "var(--vscode-descriptionForeground)",
+												}}>
+												You can select an API configuration to always use for enhancing prompts,
+												or just use whatever is currently selected
+											</div>
+										</div>
+										<VSCodeDropdown
+											value={enhancementApiConfigId || ""}
+											data-testid="api-config-dropdown"
+											onChange={(e: any) => {
+												const value = e.detail?.target?.value || e.target?.value
+												setEnhancementApiConfigId(value)
+												vscode.postMessage({
+													type: "enhancementApiConfigId",
+													text: value,
+												})
+											}}
+											style={{ width: "300px" }}>
+											<VSCodeOption value="">
+												Use currently selected API configuration
+											</VSCodeOption>
+											{(listApiConfigMeta || []).map((config) => (
+												<VSCodeOption key={config.id} value={config.id}>
+													{config.name}
+												</VSCodeOption>
+											))}
+										</VSCodeDropdown>
+									</div>
+								</div>
+
+								<div style={{ marginTop: "12px" }}>
+									<VSCodeTextArea
+										value={testPrompt}
+										onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
+										placeholder="Enter a prompt to test the enhancement"
+										rows={3}
+										resize="vertical"
+										style={{ width: "100%" }}
+										data-testid="test-prompt-textarea"
+									/>
+									<div
+										style={{
+											marginTop: "8px",
+											display: "flex",
+											justifyContent: "flex-start",
+											alignItems: "center",
+											gap: 8,
+										}}>
+										<VSCodeButton
+											onClick={handleTestEnhancement}
+											disabled={isEnhancing}
+											appearance="primary">
+											Preview Prompt Enhancement
+										</VSCodeButton>
+									</div>
+								</div>
+							</>
+						)}
 					</div>
 				</div>
-
-				{/* Bottom padding */}
-				<div style={{ height: "20px" }} />
 			</div>
 
 			{isCreateModeDialogOpen && (
