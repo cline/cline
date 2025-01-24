@@ -142,10 +142,20 @@
 					},
 					"description": "Settings for VSCode Language Model API"
 				},
-				"cline.mcp.enabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Include MCP server functionality in AI prompts. When disabled, the AI will not be aware of MCP capabilities. This saves context window tokens."
+				"cline.mcp.mode": {
+					"type": "string",
+					"enum": [
+						"enabled",
+						"mcp-tools-only",
+						"disabled"
+					],
+					"enumDescriptions": [
+						"Full MCP functionality including server use and build instructions",
+						"Enable MCP server use but exclude build instructions from AI prompts to save tokens",
+						"Disable all MCP functionality"
+					],
+					"default": "enabled",
+					"description": "Control MCP server functionality and its inclusion in AI prompts. When disabled, Cline will not be aware of MCP capabilities, saving model context window tokens."
 				}
 			}
 		}

@@ -15,7 +15,15 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
-import { McpResource, McpResourceResponse, McpResourceTemplate, McpServer, McpTool, McpToolCallResponse } from "../../shared/mcp"
+import {
+	McpMode,
+	McpResource,
+	McpResourceResponse,
+	McpResourceTemplate,
+	McpServer,
+	McpTool,
+	McpToolCallResponse,
+} from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 
@@ -59,8 +67,8 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
-	isMcpEnabled(): boolean {
-		return vscode.workspace.getConfiguration("cline.mcp").get("enabled") ?? true
+	getMode(): McpMode {
+		return vscode.workspace.getConfiguration("cline.mcp").get<McpMode>("mode", "enabled")
 	}
 
 	async getMcpServersPath(): Promise<string> {
