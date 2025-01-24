@@ -37,6 +37,7 @@ export interface ApiHandlerOptions {
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	mistralApiKey?: string
+	isAzureOpenAiService?: boolean
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
 }
