@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.2.8
+
+### Patch Changes
+
+- v3.2.8
+- Fix button to open custom modes settings
+
 ## [3.2.7]
 
 - Fix bug creating new configuration profiles
