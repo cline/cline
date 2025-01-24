@@ -9,6 +9,7 @@ import { getAskFollowupQuestionDescription } from "./ask-followup-question"
 import { getAttemptCompletionDescription } from "./attempt-completion"
 import { getUseMcpToolDescription } from "./use-mcp-tool"
 import { getAccessMcpResourceDescription } from "./access-mcp-resource"
+import { getSwitchModeDescription } from "./switch-mode"
 import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
 import { Mode, ModeConfig, getModeConfig, isToolAllowedForMode, getGroupName } from "../../../shared/modes"
@@ -28,6 +29,7 @@ const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined>
 	attempt_completion: () => getAttemptCompletionDescription(),
 	use_mcp_tool: (args) => getUseMcpToolDescription(args),
 	access_mcp_resource: (args) => getAccessMcpResourceDescription(args),
+	switch_mode: () => getSwitchModeDescription(),
 	apply_diff: (args) =>
 		args.diffStrategy ? args.diffStrategy.getToolDescription({ cwd: args.cwd, toolOptions: args.toolOptions }) : "",
 }
@@ -97,4 +99,5 @@ export {
 	getAttemptCompletionDescription,
 	getUseMcpToolDescription,
 	getAccessMcpResourceDescription,
+	getSwitchModeDescription,
 }

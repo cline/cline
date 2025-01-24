@@ -166,11 +166,14 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "switchMode"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+	mode?: string
+	reason?: string
 }
 
 // must keep in sync with system prompt
