@@ -83,6 +83,26 @@ describe("isToolAllowedForMode", () => {
 			const diffError = isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, "test.js")
 			expect(diffError).toBeInstanceOf(FileRestrictionError)
 		})
+
+		it("allows ask mode to edit markdown files only", () => {
+			// Should allow editing markdown files
+			const mdResult = isToolAllowedForMode("write_to_file", "ask", [], undefined, "test.md")
+			expect(mdResult).toBe(true)
+
+			// Should allow applying diffs to markdown files
+			const diffResult = isToolAllowedForMode("apply_diff", "ask", [], undefined, "readme.md")
+			expect(diffResult).toBe(true)
+
+			// Should reject non-markdown files
+			const jsResult = isToolAllowedForMode("write_to_file", "ask", [], undefined, "test.js")
+			expect(jsResult).toBeInstanceOf(FileRestrictionError)
+			expect((jsResult as FileRestrictionError).message).toContain("Markdown files only")
+
+			// Should maintain read capabilities
+			expect(isToolAllowedForMode("read_file", "ask", [])).toBe(true)
+			expect(isToolAllowedForMode("browser_action", "ask", [])).toBe(true)
+			expect(isToolAllowedForMode("use_mcp_tool", "ask", [])).toBe(true)
+		})
 	})
 
 	it("handles non-existent modes", () => {
@@ -99,9 +119,15 @@ describe("isToolAllowedForMode", () => {
 })
 
 describe("FileRestrictionError", () => {
-	it("formats error message correctly", () => {
+	it("formats error message with pattern when no description provided", () => {
 		const error = new FileRestrictionError("Markdown Editor", "\\.md$")
 		expect(error.message).toBe("This mode (Markdown Editor) can only edit files matching the pattern: \\.md$")
+		expect(error.name).toBe("FileRestrictionError")
+	})
+
+	it("formats error message with description when provided", () => {
+		const error = new FileRestrictionError("Markdown Editor", "\\.md$", "Markdown files only")
+		expect(error.message).toBe("This mode (Markdown Editor) can only edit files matching Markdown files only")
 		expect(error.name).toBe("FileRestrictionError")
 	})
 })
