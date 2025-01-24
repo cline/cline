@@ -1,5 +1,16 @@
 # Roo Code Changelog
 
+## 3.3.0
+
+### Minor Changes
+
+- Added suport for configuring Bedrock provider with AWS Profiles. Useful for users with SSO or other integrations who don't have access to long term credentials.
+- v3.3
+
+### Patch Changes
+
+- Add a switch_mode tool to allow Roo to propose switching modes
+
 ## [3.3.0]
 
 - **Code Actions Integration**: Native VS Code code actions support with quick fixes and refactoring options
