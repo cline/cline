@@ -21,7 +21,7 @@
 		"model": "模型",
 		"apiProvider": "API 提供者",
 		"enterApiKey": "輸入 API 金鑰...",
-		"apiKey": "API 金鑰",
+		"apiKey": "API 密鑰"
 		"enterBaseUrl": "輸入基本 URL...",
 		"baseUrl": "基本 URL",
 		"enterModelId": "輸入模型 ID...",
