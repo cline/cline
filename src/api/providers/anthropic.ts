@@ -17,8 +17,9 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
-		const modelId = this.getModel().id
+		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-5-sonnet-20241022":
@@ -37,7 +38,7 @@ export class AnthropicHandler implements ApiHandler {
 				stream = await this.client.beta.promptCaching.messages.create(
 					{
 						model: modelId,
-						max_tokens: this.getModel().info.maxTokens || 8192,
+						max_tokens: model.info.maxTokens || 8192,
 						temperature: 0,
 						system: [
 							{
@@ -104,7 +105,7 @@ export class AnthropicHandler implements ApiHandler {
 			default: {
 				stream = (await this.client.messages.create({
 					model: modelId,
-					max_tokens: this.getModel().info.maxTokens || 8192,
+					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
