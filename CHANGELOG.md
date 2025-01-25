@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.1
-
-### Patch Changes
+## [3.3.1]
 
 - Fix issue where the terminal management system was creating unnecessary new terminals (thanks @evan-fannin!)
 - Fix bug where the saved API provider for a mode wasn't being selected after a mode switch command
