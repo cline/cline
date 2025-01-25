@@ -66,6 +66,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.ollamaModelId,
 							config.lmStudioModelId,
 							config.geminiApiKey,
+							config.geminiBaseUrl,
 							config.openAiNativeApiKey,
 							config.deepSeekApiKey,
 							config.mistralApiKey,
