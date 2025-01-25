@@ -151,6 +151,7 @@ export class OpenRouterHandler implements ApiHandler {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+					"User-Agent": "Cline",
 				},
 				timeout: 5_000, // this request hangs sometimes
 			})
