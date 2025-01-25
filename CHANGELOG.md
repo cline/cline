@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.1
+
+### Patch Changes
+
+- Fix issue where the terminal management system was creating unnecessary new terminals (thanks @evan-fannin!)
+- Fix bug where the saved API provider for a mode wasn't being selected after a mode switch command
+
 ## [3.3.0]
 
 - Native VS Code code actions support with quick fixes and refactoring options
