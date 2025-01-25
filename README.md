@@ -135,8 +135,8 @@ You can customize how Cline tracks and checkpoints files during tasks using a `.
 {
     "ignore": ["*.dat", "large_data/*"],     // Glob patterns for files to ignore
     "thresholds": {
-        "maxFileSize": 10485760,             // Max size for individual files (10MB)
-        "maxCheckpointSize": 1073741824      // Max total checkpoint size (1GB)
+        "maxFileSize": 10485760,             // Optional: Max size for individual files (10MB)
+        "maxCheckpointSize": 1073741824      // Optional: Max total checkpoint size (1GB)
     },
     "tracking": {
         "excludeTypes": [".jpg", ".png"],    // File extensions to ignore
@@ -147,7 +147,7 @@ You can customize how Cline tracks and checkpoints files during tasks using a `.
 
 This configuration lets you:
 - Exclude specific files/patterns with `ignore` using glob syntax
-- Set size limits with `thresholds` to prevent large checkpoints
+- Set optional size limits with `thresholds` (by default, no size limits are enforced)
 - Control tracking with `excludeTypes` and `excludeDirs` for efficient snapshots
 
 By default, Cline excludes the following file types from checkpoints:

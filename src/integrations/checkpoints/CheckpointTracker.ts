@@ -23,10 +23,9 @@ class CheckpointTracker {
 		this.taskId = taskId
 		this.cwd = cwd
 		this.fileTracker = new FileAccessTracker(cwd)
-		this.initializeFileTracker()
 	}
 
-	private async initializeFileTracker(): Promise<void> {
+	private async initialize(): Promise<void> {
 		await this.fileTracker.initialize()
 	}
 
@@ -45,6 +44,7 @@ class CheckpointTracker {
 
 			const cwd = await CheckpointTracker.getWorkingDirectory()
 			const newTracker = new CheckpointTracker(provider, taskId, cwd)
+			await newTracker.initialize()
 			await newTracker.initShadowGit()
 			return newTracker
 		} catch (error) {
@@ -110,9 +110,9 @@ class CheckpointTracker {
 		} else {
 			const checkpointsDir = path.dirname(gitPath)
 			const git = simpleGit(checkpointsDir)
-			console.log('CheckpointTracker: Initializing new Git repository:', {
+			console.log("CheckpointTracker: Initializing new Git repository:", {
 				path: checkpointsDir,
-				worktree: this.cwd
+				worktree: this.cwd,
 			})
 			await git.init()
 
@@ -138,110 +138,13 @@ class CheckpointTracker {
 				console.warn("Failed to read .gitattributes:", error)
 			}
 
-			// Add basic excludes directly in git config, while respecting any .gitignore in the workspace
-			// .git/info/exclude is local to the shadow git repo, so it's not shared with the main repo - and won't conflict with user's .gitignore
-			// TODO: let user customize these
-			const excludesPath = path.join(gitPath, "info", "exclude")
-			await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
-			await fs.writeFile(
-				excludesPath,
-				[
-					".git/", // ignore the user's .git
-					`.git${GIT_DISABLED_SUFFIX}/`, // ignore the disabled nested git repos
-					".DS_Store",
-					"*.log",
-					"node_modules/",
-					"__pycache__/",
-					"env/",
-					"venv/",
-					"target/dependency/",
-					"build/dependencies/",
-					"dist/",
-					"out/",
-					"bundle/",
-					"vendor/",
-					"tmp/",
-					"temp/",
-					"deps/",
-					"pkg/",
-					"Pods/",
-					// Media files
-					"*.jpg",
-					"*.jpeg",
-					"*.png",
-					"*.gif",
-					"*.bmp",
-					"*.ico",
-					// "*.svg",
-					"*.mp3",
-					"*.mp4",
-					"*.wav",
-					"*.avi",
-					"*.mov",
-					"*.wmv",
-					"*.webm",
-					"*.webp",
-					"*.m4a",
-					"*.flac",
-					// Build and dependency directories
-					"build/",
-					"bin/",
-					"obj/",
-					".gradle/",
-					".idea/",
-					".vscode/",
-					".vs/",
-					"coverage/",
-					".next/",
-					".nuxt/",
-					// Cache and temporary files
-					"*.cache",
-					"*.tmp",
-					"*.temp",
-					"*.swp",
-					"*.swo",
-					"*.pyc",
-					"*.pyo",
-					".pytest_cache/",
-					".eslintcache",
-					// Environment and config files
-					".env*",
-					"*.local",
-					"*.development",
-					"*.production",
-					// Large data files
-					"*.zip",
-					"*.tar",
-					"*.gz",
-					"*.rar",
-					"*.7z",
-					"*.iso",
-					"*.bin",
-					"*.exe",
-					"*.dll",
-					"*.so",
-					"*.dylib",
-					// Database files
-					"*.sqlite",
-					"*.db",
-					"*.sql",
-					// Log files
-					"*.logs",
-					"*.error",
-					"npm-debug.log*",
-					"yarn-debug.log*",
-					"yarn-error.log*",
-					...lfsPatterns,
-				].join("\n"),
-			)
-
 			// Set up git identity (git throws an error if user.name or user.email is not set)
 			await git.addConfig("user.name", "Cline Checkpoint")
 			await git.addConfig("user.email", "noreply@example.com")
 
 			await this.addAllFiles(git)
 			// Initial commit (--allow-empty ensures it works even with no files)
-			console.log('CheckpointTracker: Creating initial commit')
+			console.log("CheckpointTracker: Creating initial commit")
 			await git.commit("initial commit", { "--allow-empty": null })
 
 			return gitPath
@@ -269,7 +172,7 @@ class CheckpointTracker {
 			const gitPath = await this.getShadowGitPath()
 			const git = simpleGit(path.dirname(gitPath))
 			await this.addAllFiles(git)
-			console.log('CheckpointTracker: Creating checkpoint commit')
+			console.log("CheckpointTracker: Creating checkpoint commit")
 			const result = await git.commit("checkpoint", {
 				"--allow-empty": null,
 			})
@@ -294,11 +197,11 @@ class CheckpointTracker {
 
 		try {
 			// Get list of tracked files in the checkpoint
-			const trackedFiles = (await git.raw(['ls-tree', '-r', '--name-only', commitHash])).split('\n').filter(Boolean)
-			console.log('CheckpointTracker: Restoring checkpoint:', {
+			const trackedFiles = (await git.raw(["ls-tree", "-r", "--name-only", commitHash])).split("\n").filter(Boolean)
+			console.log("CheckpointTracker: Restoring checkpoint:", {
 				commitHash,
 				worktree: this.cwd,
-				trackedFileCount: trackedFiles.length
+				trackedFileCount: trackedFiles.length,
 			})
 
 			// Create a list of paths to protect (files not in the checkpoint)
@@ -309,29 +212,29 @@ class CheckpointTracker {
 				ignore: [
 					".git/**",
 					"node_modules/**",
-					...trackedFiles // Ignore files that are in the checkpoint since we'll restore them
-				]
+					...trackedFiles, // Ignore files that are in the checkpoint since we'll restore them
+				],
 			})
 
 			// First reset the tracked files
-			console.log('CheckpointTracker: Resetting to commit:', commitHash)
+			console.log("CheckpointTracker: Resetting to commit:", commitHash)
 			await git.reset(["--hard", commitHash])
 
 			// Then clean only the files that were tracked in the checkpoint
 			// This ensures we don't delete files that weren't part of the checkpoint
-			const filesToClean = trackedFiles.filter(file => {
+			const filesToClean = trackedFiles.filter((file) => {
 				// Don't clean files that exist in currentFiles (they weren't in the checkpoint)
 				return !currentFiles.includes(file)
 			})
 
 			if (filesToClean.length > 0) {
-				console.log('CheckpointTracker: Cleaning files:', {
+				console.log("CheckpointTracker: Cleaning files:", {
 					count: filesToClean.length,
-					files: filesToClean
+					files: filesToClean,
 				})
 				// Create a temporary file with paths to clean
 				const cleanListPath = path.join(gitPath, "clean-list")
-				await fs.writeFile(cleanListPath, filesToClean.join('\n'))
+				await fs.writeFile(cleanListPath, filesToClean.join("\n"))
 
 				// Use pathspec-from-file to only clean specific files
 				await git.clean("f", ["-d", "--pathspec-from-file", cleanListPath])
@@ -340,9 +243,9 @@ class CheckpointTracker {
 				await fs.unlink(cleanListPath)
 			}
 
-			console.log('CheckpointTracker: Checkpoint restore completed:', {
+			console.log("CheckpointTracker: Checkpoint restore completed:", {
 				restoredFiles: filesToClean.length,
-				preservedFiles: currentFiles.length
+				preservedFiles: currentFiles.length,
 			})
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -434,19 +337,17 @@ class CheckpointTracker {
 	}
 
 	private async addAllFiles(git: SimpleGit) {
-		// Get list of tracked files first
-		const trackedFiles = this.fileTracker.getAccessedFiles()
+		// Get list of modified files only
+		const trackedFiles = this.fileTracker.getModifiedFiles()
 
 		if (trackedFiles.length === 0) {
-			// If no files were tracked, add an empty commit
+			// If no files were modified, add an empty commit
 			return
 		}
 
-		// Check total size of tracked files
-		const totalSize = await this.fileTracker.getTotalTrackedSize()
-		const maxSize = 1024 * 1024 * 1024 // 1GB default
-		if (totalSize > maxSize) {
-			console.warn(`Total tracked files size (${totalSize} bytes) exceeds limit (${maxSize} bytes)`)
+		// Check total size against configured limit
+		if (!(await this.fileTracker.checkTotalSize())) {
+			console.warn("Total tracked files size exceeds configured limit")
 			return
 		}
 
@@ -454,22 +355,22 @@ class CheckpointTracker {
 		await this.renameNestedGitRepos(true, trackedFiles)
 		try {
 			// Add all tracked files in one operation
-			console.log('CheckpointTracker: Adding files to Git:', {
-				files: trackedFiles.map(f => path.relative(this.cwd, f))
+			console.log("CheckpointTracker: Adding files to Git:", {
+				files: trackedFiles.map((f) => path.relative(this.cwd, f)),
 			})
 			await git.add(trackedFiles)
 
 			// Run garbage collection if needed
-			console.log('CheckpointTracker: Running Git garbage collection')
-			await git.raw(['gc', '--auto'])
+			console.log("CheckpointTracker: Running Git garbage collection")
+			await git.raw(["gc", "--auto"])
 
 			// Log checkpoint stats
 			const stats = this.fileTracker.getStats()
-			console.log('CheckpointTracker: Checkpoint stats:', {
+			console.log("CheckpointTracker: Checkpoint stats:", {
 				totalFiles: stats.totalFiles,
 				excludedFiles: stats.excludedFiles,
 				checkpointSize: `${(stats.checkpointSize / 1024 / 1024).toFixed(2)}MB`,
-				duration: `${(stats.duration / 1000).toFixed(2)}s`
+				duration: `${(stats.duration / 1000).toFixed(2)}s`,
 			})
 		} catch (error) {
 			console.error("Failed to add files to git:", error)
@@ -485,14 +386,21 @@ class CheckpointTracker {
 	 * @param operation Type of operation ("read" or "write")
 	 */
 	public async trackFileAccess(filePath: string, operation: "read" | "write"): Promise<void> {
-		await this.fileTracker.trackFileAccess(filePath, operation)
+		try {
+			await this.fileTracker.trackFileAccess(filePath, operation)
+		} catch (error) {
+			// Log error but don't throw since tracking is non-critical
+			if (error instanceof Error) {
+				console.warn(`CheckpointTracker: Failed to track file access for ${filePath}:`, error.message)
+			}
+		}
 	}
 
 	// Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's requirement of using submodules for nested repos.
 	private async renameNestedGitRepos(disable: boolean, trackedFiles?: string[]) {
 		// If we have tracked files, only look in their directories
 		const searchPaths = trackedFiles
-			? [...new Set(trackedFiles.map(f => path.dirname(path.join(this.cwd, f))))]
+			? [...new Set(trackedFiles.map((f) => path.dirname(path.join(this.cwd, f))))]
 			: [this.cwd]
 
 		const processedPaths = new Set<string>()
@@ -537,10 +445,13 @@ class CheckpointTracker {
 					await fs.rename(fullGitPath, newPath)
 					console.log(`CheckpointTracker: ${disable ? "Disabled" : "Enabled"} nested Git repo:`, {
 						repo: repoKey,
-						operation: disable ? "disable" : "enable"
+						operation: disable ? "disable" : "enable",
 					})
 				} catch (error) {
-					console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${repoKey}:`, error)
+					console.error(
+						`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${repoKey}:`,
+						error,
+					)
 				}
 			})
 
