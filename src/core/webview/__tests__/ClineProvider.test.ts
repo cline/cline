@@ -1100,6 +1100,68 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	describe("handleModeSwitch", () => {
+		beforeEach(() => {
+			// Set up webview for each test
+			provider.resolveWebviewView(mockWebviewView)
+		})
+
+		test("loads saved API config when switching modes", async () => {
+			// Mock ConfigManager methods
+			provider.configManager = {
+				getModeConfigId: jest.fn().mockResolvedValue("saved-config-id"),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "saved-config", id: "saved-config-id", apiProvider: "anthropic" }]),
+				loadConfig: jest.fn().mockResolvedValue({ apiProvider: "anthropic" }),
+				setModeConfig: jest.fn(),
+			} as any
+
+			// Switch to architect mode
+			await provider.handleModeSwitch("architect")
+
+			// Verify mode was updated
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+
+			// Verify saved config was loaded
+			expect(provider.configManager.getModeConfigId).toHaveBeenCalledWith("architect")
+			expect(provider.configManager.loadConfig).toHaveBeenCalledWith("saved-config")
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "saved-config")
+
+			// Verify state was posted to webview
+			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
+		})
+
+		test("saves current config when switching to mode without config", async () => {
+			// Mock ConfigManager methods
+			provider.configManager = {
+				getModeConfigId: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "current-config", id: "current-id", apiProvider: "anthropic" }]),
+				setModeConfig: jest.fn(),
+			} as any
+
+			// Mock current config name
+			mockContext.globalState.get = jest.fn((key: string) => {
+				if (key === "currentApiConfigName") return "current-config"
+				return undefined
+			})
+
+			// Switch to architect mode
+			await provider.handleModeSwitch("architect")
+
+			// Verify mode was updated
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+
+			// Verify current config was saved as default for new mode
+			expect(provider.configManager.setModeConfig).toHaveBeenCalledWith("architect", "current-id")
+
+			// Verify state was posted to webview
+			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
+		})
+	})
+
 	describe("updateCustomMode", () => {
 		test("updates both file and state when updating custom mode", async () => {
 			provider.resolveWebviewView(mockWebviewView)
