@@ -51,6 +51,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -303,12 +304,38 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(uriScheme)}
-							style={{ margin: "5px 0 0 0" }}
-							appearance="secondary">
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
+						<p>
+							<VSCodeButtonLink
+								href={getOpenRouterAuthUrl(uriScheme)}
+								style={{ margin: "5px 0 0 0" }}
+								appearance="secondary">
+								Get OpenRouter API Key
+							</VSCodeButtonLink>
+						</p>
+					)}
+					<Checkbox
+						checked={openRouterBaseUrlSelected}
+						onChange={(checked: boolean) => {
+							setOpenRouterBaseUrlSelected(checked)
+							if (!checked) {
+								handleInputChange("openRouterBaseUrl")({
+									target: {
+										value: "",
+									},
+								})
+							}
+						}}>
+						Use custom base URL
+					</Checkbox>
+
+					{openRouterBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.openRouterBaseUrl || "https://openrouter.ai/api/v1"}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("openRouterBaseUrl")}
+							placeholder="Default: https://openrouter.ai/api/v1"
+						/>
 					)}
 					<p
 						style={{
