@@ -129,6 +129,56 @@ As Cline works through a task, the extension takes a snapshot of your workspace 
 
 For example, when working with a local web server, you can use 'Restore Workspace Only' to quickly test different versions of your app, then use 'Restore Task and Workspace' when you find the version you want to continue building from. This lets you safely explore different approaches without losing progress.
 
+You can customize how Cline tracks and checkpoints files during tasks using a `.checkpointrules` file in your project's root directory:
+
+```json
+{
+    "ignore": ["*.dat", "large_data/*"],     // Glob patterns for files to ignore
+    "thresholds": {
+        "maxFileSize": 10485760,             // Max size for individual files (10MB)
+        "maxCheckpointSize": 1073741824      // Max total checkpoint size (1GB)
+    },
+    "tracking": {
+        "excludeTypes": [".jpg", ".png"],    // File extensions to ignore
+        "excludeDirs": ["node_modules"]      // Directories to ignore
+    }
+}
+```
+
+This configuration lets you:
+- Exclude specific files/patterns with `ignore` using glob syntax
+- Set size limits with `thresholds` to prevent large checkpoints
+- Control tracking with `excludeTypes` and `excludeDirs` for efficient snapshots
+
+By default, Cline excludes the following file types from checkpoints:
+
+*Git and Version Control*
+    .git/, .git${GIT_DISABLED_SUFFIX}/, .idea/, .vscode/, .vs/, .gradle/
+
+*Build and Dependency Directories*
+    bin/, build/, bundle/, dist/, env/, node_modules/, obj/, out/, pkg/, target/dependency/, tmp/, vendor/, venv/
+
+*Cache and Temporary Files*
+    .eslintcache, .pytest_cache/, *.cache, *.pyc, *.pyo, *.swp, *.swo, *.temp, *.tmp
+
+*Media Files*
+    *.avi, *.bmp, *.flac, *.gif, *.ico, *.jpeg, *.jpg, *.m4a, *.mov, *.mp3, *.mp4, *.png, *.wav, *.webm, *.webp, *.wmv
+
+*Environment and Config Files*
+    .env*, *.development, *.local, *.production
+
+*Large Data Files*
+    *.7z, *.bin, *.dylib, *.dll, *.exe, *.gz, *.iso, *.rar, *.so, *.tar, *.zip
+
+*Database Files*
+    *.db, *.sql, *.sqlite
+
+*Log Files*
+    *.error, *.log, *.logs, npm-debug.log*, yarn-debug.log*, yarn-error.log*
+
+*Miscellaneous*
+    .DS_Store
+
 <!-- Transparent pixel to create line break after floating image -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
