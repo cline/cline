@@ -1,3 +1,4 @@
+import sourceMapSupport from "source-map-support"
 import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
@@ -8,7 +9,6 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
-import sourceMapSupport from "source-map-support"
 
 sourceMapSupport.install()
 
