@@ -781,38 +781,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						break
 					case "mode":
-						const newMode = message.text as Mode
-						await this.updateGlobalState("mode", newMode)
-
-						// Load the saved API config for the new mode if it exists
-						const savedConfigId = await this.configManager.getModeConfigId(newMode)
-						const listApiConfig = await this.configManager.listConfig()
-
-						// Update listApiConfigMeta first to ensure UI has latest data
-						await this.updateGlobalState("listApiConfigMeta", listApiConfig)
-
-						// If this mode has a saved config, use it
-						if (savedConfigId) {
-							const config = listApiConfig?.find((c) => c.id === savedConfigId)
-							if (config?.name) {
-								const apiConfig = await this.configManager.loadConfig(config.name)
-								await Promise.all([
-									this.updateGlobalState("currentApiConfigName", config.name),
-									this.updateApiConfiguration(apiConfig),
-								])
-							}
-						} else {
-							// If no saved config for this mode, save current config as default
-							const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
-							if (currentApiConfigName) {
-								const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
-								if (config?.id) {
-									await this.configManager.setModeConfig(newMode, config.id)
-								}
-							}
-						}
-
-						await this.postStateToWebview()
+						await this.handleModeSwitch(message.text as Mode)
 						break
 					case "updateSupportPrompt":
 						try {
@@ -1239,6 +1208,44 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+
+	/**
+	 * Handle switching to a new mode, including updating the associated API configuration
+	 * @param newMode The mode to switch to
+	 */
+	public async handleModeSwitch(newMode: Mode) {
+		await this.updateGlobalState("mode", newMode)
+
+		// Load the saved API config for the new mode if it exists
+		const savedConfigId = await this.configManager.getModeConfigId(newMode)
+		const listApiConfig = await this.configManager.listConfig()
+
+		// Update listApiConfigMeta first to ensure UI has latest data
+		await this.updateGlobalState("listApiConfigMeta", listApiConfig)
+
+		// If this mode has a saved config, use it
+		if (savedConfigId) {
+			const config = listApiConfig?.find((c) => c.id === savedConfigId)
+			if (config?.name) {
+				const apiConfig = await this.configManager.loadConfig(config.name)
+				await Promise.all([
+					this.updateGlobalState("currentApiConfigName", config.name),
+					this.updateApiConfiguration(apiConfig),
+				])
+			}
+		} else {
+			// If no saved config for this mode, save current config as default
+			const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
+			if (currentApiConfigName) {
+				const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
+				if (config?.id) {
+					await this.configManager.setModeConfig(newMode, config.id)
+				}
+			}
+		}
+
+		await this.postStateToWebview()
 	}
 
 	private async updateApiConfiguration(apiConfiguration: ApiConfiguration) {

@@ -2065,11 +2065,10 @@ export class Cline {
 									break
 								}
 
-								// Switch the mode
+								// Switch the mode using shared handler
 								const provider = this.providerRef.deref()
 								if (provider) {
-									await provider.updateGlobalState("mode", mode_slug)
-									await provider.postStateToWebview()
+									await provider.handleModeSwitch(mode_slug)
 								}
 								pushToolResult(
 									`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${
