@@ -677,13 +677,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
-			const { selectedProvider, selectedModelId, selectedAdvisorModelId } = normalizeApiConfiguration(apiConfiguration)
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
 				case "anthropic":
 				case "openrouter":
-					return `${selectedProvider}:${selectedModelId}/${selectedAdvisorModelId}`
+					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
