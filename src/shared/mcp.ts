@@ -1,3 +1,5 @@
+export type McpMode = "enabled" | "mcp-tools-only" | "disabled"
+
 export type McpServer = {
 	name: string
 	config: string

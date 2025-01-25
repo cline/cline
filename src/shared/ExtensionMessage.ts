@@ -20,12 +20,20 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -35,6 +43,7 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	openAiModels?: string[]
 	mcpServers?: McpServer[]
 }
 
@@ -51,6 +60,13 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
+	localeLanguage: string
+	isLoggedIn: boolean
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
 }
 
 export interface ClineMessage {

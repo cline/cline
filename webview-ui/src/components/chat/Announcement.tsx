@@ -1,22 +1,25 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
-// import VSCodeButtonLink from "./VSCodeButtonLink"
-// import { getOpenRouterAuthUrl } from "./ApiOptions"
-// import { vscode } from "../utils/vscode"
+import { useTranslation } from "react-i18next"
+import { Trans } from "react-i18next"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
 
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
 }
+
 /*
 You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
+	const { t } = useTranslation("translation", { keyPrefix: "announcement" })
+
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div
 			style={{
-				backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
+				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
 				borderRadius: "3px",
 				padding: "12px 16px",
 				margin: "5px 15px 5px 15px",
@@ -26,13 +29,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in v{minorVersion}
-			</h3>
+			<h3 style={{ margin: "0 0 8px" }}>{t("newInVersion", { version: minorVersion })}</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Plan/Act mode toggle:</b> Plan mode lets Cline focus on gathering information, asking clarifying questions,
-					brainstorm ideas, and architect a solution. Switch back to Act mode to let him execute the plan!
+					<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks clarifying
+					questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
 				</li>
 				<li>
 					<b>Quick API/model switching</b> with a new popup menu under the chat field
@@ -83,7 +87,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							Switch to OpenRouter
 						</VSCodeButton>
 					)}
-				</li> 
+				</li>
 				<li>
 					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
 					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
@@ -101,21 +105,19 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<div
 				style={{
 					height: "1px",
-					background: "var(--vscode-foreground)",
+					background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 					opacity: 0.1,
 					margin: "8px 0",
 				}}
 			/>
 			<p style={{ margin: "0" }}>
-				Join our{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord
-				</VSCodeLink>{" "}
-				or{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">
-					r/cline
-				</VSCodeLink>
-				for more updates!
+				<Trans
+					i18nKey="announcement.joinOurCommunities"
+					components={{
+						DiscordLink: <VSCodeLink href="https://discord.gg/cline" />,
+						RedditLink: <VSCodeLink href="https://www.reddit.com/r/cline/" />,
+					}}
+				/>
 			</p>
 		</div>
 	)
