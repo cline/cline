@@ -27,6 +27,8 @@ const fs = require("fs")
 // Get all files in the shared directory
 const sharedDir = path.resolve(__dirname, "..", "..", "src", "shared")
 
+config.resolve.fallback = { path: require.resolve("path-browserify") }
+
 function getAllFiles(dir) {
 	let files = []
 	fs.readdirSync(dir).forEach((file) => {
