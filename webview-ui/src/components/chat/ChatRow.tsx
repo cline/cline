@@ -25,6 +25,25 @@ import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
 
+const CopyButton = styled.div`
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	opacity: 0;
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorGroup-border);
+
+	&:hover {
+		background: var(--vscode-toolbar-hoverBackground);
+	}
+`
+
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
@@ -32,7 +51,72 @@ const ChatRowContainer = styled.div`
 	&:hover ${CheckpointControls} {
 		opacity: 1;
 	}
+
+	&:hover ${CopyButton} {
+		opacity: 1;
+	}
 `
+
+// Function to convert message content to markdown
+const getMessageMarkdown = (message: ClineMessage): string => {
+	if (!message) return ""
+	const type = message.type === "ask" ? message.ask : message.say
+
+	// Helper to wrap code blocks
+	const wrapCodeBlock = (content: string, lang = "") => {
+		return "```" + lang + "\n" + content + "\n```"
+	}
+
+	if (message.ask === "command" || message.say === "command") {
+		const splitMessage = (text: string) => {
+			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+			if (outputIndex === -1) {
+				return { command: text, output: "" }
+			}
+			return {
+				command: text.slice(0, outputIndex).trim(),
+				output: text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim(),
+			}
+		}
+
+		const { command, output } = splitMessage(message.text || "")
+		let md = "### Command\n" + wrapCodeBlock(command, "shell")
+		if (output) {
+			md += "\n\n### Output\n" + wrapCodeBlock(output, "shell")
+		}
+		return md
+	}
+
+	if (message.ask === "tool" || message.say === "tool") {
+		const tool = JSON.parse(message.text || "{}") as ClineSayTool
+		switch (tool.tool) {
+			case "editedExistingFile":
+			case "newFileCreated":
+				return `### ${tool.path}\n` + wrapCodeBlock(tool.content || "", "")
+			case "searchFiles":
+				return `### Search Results (${tool.regex})\n` + wrapCodeBlock(tool.content || "", "")
+			default:
+				return tool.content || ""
+		}
+	}
+
+	switch (type) {
+		case "error":
+			return `**Error:** ${message.text}`
+		case "completion_result":
+			const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+			const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+			return `### Task Completed\n${text}`
+		case "api_req_started":
+			if (message.text) {
+				const info: ClineApiReqInfo = JSON.parse(message.text)
+				return wrapCodeBlock(info.request || "", "markdown")
+			}
+			return ""
+		default:
+			return message.text ?? ""
+	}
+}
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -69,10 +153,19 @@ const ChatRow = memo(
 				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 		}
 
+		const handleCopyMarkdown = useCallback(() => {
+			const markdown = getMessageMarkdown(message)
+			navigator.clipboard.writeText(markdown ?? "")
+			// Could add a toast notification here
+		}, [message])
+
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>
 				<ChatRowContent {...props} />
 				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
+				<CopyButton onClick={handleCopyMarkdown} title="Copy as Markdown">
+					<span className="codicon codicon-copy"></span>
+				</CopyButton>
 			</ChatRowContainer>,
 		)
 
