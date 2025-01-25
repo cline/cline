@@ -45,7 +45,7 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
-import { fileExistsAtPath } from "../utils/fs"
+import { checkClineIgnoreFile, fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
@@ -1581,6 +1581,9 @@ export class Cline {
 						}
 
 						try {
+							// Check if the file is protected by .clineignore
+							checkClineIgnoreFile(relPath)
+
 							// Construct newContent from diff
 							let newContent: string
 							if (diff) {
@@ -1611,6 +1614,9 @@ export class Cline {
 									break
 								}
 							} else if (content) {
+								// Check if the file is protected by .clineignore
+								checkClineIgnoreFile(relPath)
+
 								newContent = content
 
 								// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
