@@ -3,17 +3,8 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
-import {
-	anthropicDefaultModelId,
-	bedrockDefaultModelId,
-	deepSeekDefaultModelId,
-	geminiDefaultModelId,
-	mistralDefaultModelId,
-	openAiNativeDefaultModelId,
-	openRouterDefaultModelId,
-	vertexDefaultModelId,
-} from "../../../../src/shared/api"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -26,7 +17,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import Thumbnails from "../common/Thumbnails"
-import ApiOptions from "../settings/ApiOptions"
+import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 
@@ -686,35 +677,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
-			switch (apiConfiguration.apiProvider) {
+			switch (selectedProvider) {
 				case "anthropic":
-					return `anthropic:${apiConfiguration.apiModelId || anthropicDefaultModelId}`
-				case "openai":
-					return `openai:${apiConfiguration.openAiModelId || unknownModel}`
 				case "openrouter":
-					return `openrouter:${apiConfiguration.openRouterModelId || openRouterDefaultModelId}`
-				case "bedrock":
-					return `bedrock:${apiConfiguration.apiModelId || bedrockDefaultModelId}`
-				case "vertex":
-					return `vertex:${apiConfiguration.apiModelId || vertexDefaultModelId}`
-				case "ollama":
-					return `ollama:${apiConfiguration.ollamaModelId || unknownModel}`
-				case "lmstudio":
-					return `lmstudio:${apiConfiguration.lmStudioModelId || unknownModel}`
-				case "gemini":
-					return `gemini:${apiConfiguration.apiModelId || geminiDefaultModelId}`
-				case "openai-native":
-					return `openai-native:${apiConfiguration.apiModelId || openAiNativeDefaultModelId}`
-				case "deepseek":
-					return `deepseek:${apiConfiguration.apiModelId || deepSeekDefaultModelId}`
-				case "mistral":
-					return `mistral:${apiConfiguration.apiModelId || mistralDefaultModelId}`
+					return `${selectedProvider}:${selectedModelId}`
+				case "openai":
+					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				default:
-					return unknownModel
+					return `${selectedProvider}:${selectedModelId}`
 			}
 		}, [apiConfiguration])
 
