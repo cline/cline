@@ -61,8 +61,8 @@ export function formatContentBlockToMarkdown(
 			}
 			return `[Tool Use: ${block.name}]\n${input}`
 		case "tool_result":
-			// For now we're not doing tool name lookup since we don't use tools anymore
-			// const toolName = findToolName(block.tool_use_id, messages)
+			// 目前，我们不进行工具名称查找，因为我们不再使用工具
+			// const toolName = findToolName（block.tool_use_id， messages）
 			const toolName = "Tool"
 			if (typeof block.content === "string") {
 				return `[${toolName}${block.is_error ? " (Error)" : ""}]\n${block.content}`

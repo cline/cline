@@ -67,36 +67,47 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
+/**
+ * Cline 核心类，负责处理与 AI 的交互、工具使用、文件操作等核心功能
+ * 
+ * 主要职责：
+ * 1. 管理任务生命周期（创建、恢复、检查点等）
+ * 2. 处理与 AI 的对话流
+ * 3. 执行各种工具操作（文件读写、命令执行、浏览器操作等）
+ * 4. 管理终端会话和浏览器会话
+ * 5. 处理用户反馈和自动批准设置
+ */
 export class Cline {
-	readonly taskId: string
-	api: ApiHandler
-	private terminalManager: TerminalManager
-	private urlContentFetcher: UrlContentFetcher
-	browserSession: BrowserSession
-	private didEditFile: boolean = false
-	customInstructions?: string
-	autoApprovalSettings: AutoApprovalSettings
-	private browserSettings: BrowserSettings
-	private chatSettings: ChatSettings
-	apiConversationHistory: Anthropic.MessageParam[] = []
-	clineMessages: ClineMessage[] = []
-	private askResponse?: ClineAskResponse
-	private askResponseText?: string
-	private askResponseImages?: string[]
-	private lastMessageTs?: number
-	private consecutiveAutoApprovedRequestsCount: number = 0
-	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClineProvider>
-	private abort: boolean = false
-	didFinishAbortingStream = false
-	abandoned = false
-	private diffViewProvider: DiffViewProvider
-	private checkpointTracker?: CheckpointTracker
-	checkpointTrackerErrorMessage?: string
-	conversationHistoryDeletedRange?: [number, number]
-	isInitialized = false
-	isAwaitingPlanResponse = false
-	didRespondToPlanAskBySwitchingMode = false
+
+	readonly taskId: string // 当前任务的唯一标识符
+	api: ApiHandler // API 处理器，用于与 AI 模型交互
+	private terminalManager: TerminalManager // 终端管理器，用于执行命令
+	private urlContentFetcher: UrlContentFetcher // URL 内容获取器，用于获取网页内容
+	browserSession: BrowserSession // 浏览器会话管理器，用于控制浏览器操作
+	private didEditFile: boolean = false // 标记是否编辑过文件，用于判断是否需要等待终端更新
+	customInstructions?: string // 用户自定义指令，用于定制 AI 行为
+	autoApprovalSettings: AutoApprovalSettings // 自动批准设置，控制工具使用的自动批准行为
+	private browserSettings: BrowserSettings // 浏览器设置，控制浏览器相关行为
+	private chatSettings: ChatSettings // 聊天设置，控制聊天相关行为
+	apiConversationHistory: Anthropic.MessageParam[] = [] // API 对话历史记录，保存与 AI 的对话
+	clineMessages: ClineMessage[] = [] // Cline 消息记录，保存所有交互消息
+	private askResponse?: ClineAskResponse // 用户响应，保存用户对询问的响应
+	private askResponseText?: string // 用户响应文本，保存用户输入的文本
+	private askResponseImages?: string[] // 用户响应图片，保存用户上传的图片
+	private lastMessageTs?: number // 最后一条消息的时间戳，用于消息排序
+	private consecutiveAutoApprovedRequestsCount: number = 0 // 连续自动批准请求计数，用于限制自动批准次数
+	private consecutiveMistakeCount: number = 0 // 连续错误计数，用于检测和防止重复错误
+	private providerRef: WeakRef<ClineProvider> // ClineProvider 的弱引用，用于访问 UI 相关功能
+	private abort: boolean = false // 是否中止任务，用于控制任务终止
+	didFinishAbortingStream = false // 是否完成中止流，用于判断流式处理是否完成中止
+	abandoned = false // 是否被放弃，用于判断任务是否被用户放弃
+	private diffViewProvider: DiffViewProvider // 差异视图提供者，用于显示文件差异
+	private checkpointTracker?: CheckpointTracker // 检查点跟踪器，用于管理任务检查点
+	checkpointTrackerErrorMessage?: string // 检查点错误信息，保存检查点相关错误
+	conversationHistoryDeletedRange?: [number, number] // 对话历史删除范围，用于记录被删除的对话范围
+	isInitialized = false // 是否已初始化，用于判断实例是否完成初始化
+	isAwaitingPlanResponse = false // 是否等待计划响应，用于 PLAN MODE 下的状态管理
+	didRespondToPlanAskBySwitchingMode = false // 是否通过切换模式响应计划询问，用于模式切换判断
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -133,11 +144,11 @@ export class Cline {
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
-		if (historyItem) {
+		if (historyItem) {// 历史任务
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			this.resumeTaskFromHistory()
-		} else if (task || images) {
+		} else if (task || images) { // 新建任务
 			this.taskId = Date.now().toString()
 			this.startTask(task, images)
 		} else {
@@ -154,7 +165,7 @@ export class Cline {
 		this.chatSettings = chatSettings
 	}
 
-	// Storing task to disk for history
+	// 将任务存储到磁盘以保存历史记录
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
@@ -190,7 +201,7 @@ export class Cline {
 			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
-			// in the off chance this fails, we don't want to stop the task
+			// 如果失败，我们不想停止任务
 			console.error("Failed to save API conversation history:", error)
 		}
 	}
@@ -513,7 +524,7 @@ export class Cline {
 		return false
 	}
 
-	// Communicate with webview
+	// 与 webview 通信
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
 	async ask(
@@ -741,13 +752,14 @@ export class Cline {
 		}
 	}
 
-	// Task lifecycle
+	// 任务生命周期管理
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
 		this.apiConversationHistory = []
+		// 更新窗口消息
 		await this.providerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
@@ -1013,21 +1025,30 @@ export class Cline {
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
 		await this.initiateTaskLoop(newUserContent, false)
 	}
-
+	/**
+	 * 该函数负责启动一个任务循环，持续调用递归请求，直到任务完成或用户中止。
+	 * 循环中首次请求时会包含文件详情，后续请求则不再包含。若在循环中未调用完成尝试，
+	 * 系统将强制继续任务，直到达到最大请求次数或用户确认任务完成。
+	 * 
+	 * @param userContent 用户上下文信息
+	 * @param isNewTask  是否是新任务
+	 */
 	private async initiateTaskLoop(userContent: UserContent, isNewTask: boolean): Promise<void> {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails, isNewTask)
-			includeFileDetails = false // we only need file details the first time
+			includeFileDetails = false // 首次请求时会包含文件详情
 
-			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
-			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
+			//  这个代理循环的工作方式是 cline 将获得一个任务，然后他调用工具来完成该任务。
+			// 除非有attempt_completion呼叫，否则我们会一直用他的工具的响应来回复他，直到他attempt_completion或不再使用工具。
+			// 如果他不再使用工具，我们会让他考虑一下他是否完成了任务，然后打电话给attempt_completion，否则继续完成任务。
+			// 有一个MAX_REQUESTS_PER_TASK限制来防止无限请求，但系统会提示 Cline 尽可能高效地完成任务。
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
-				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
-				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+				// 目前，任务永远不会 “完成”。仅当用户达到最大请求数并拒绝重置计数时，才会发生这种情况。
+				// this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
 			} else {
 				// this.say(
@@ -1053,7 +1074,7 @@ export class Cline {
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 
-	// Checkpoints
+	// 检查点管理
 
 	async saveCheckpoint() {
 		const commitHash = await this.checkpointTracker?.commit() // silently fails for now
@@ -1092,7 +1113,7 @@ export class Cline {
 		}
 	}
 
-	// Tools
+	// 工具操作管理
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
@@ -1194,8 +1215,13 @@ export class Cline {
 		return false
 	}
 
+	/**
+	 * 尝试发起 API 请求
+	 * @param previousApiReqIndex 上一个 API 请求的索引
+	 * @returns 返回一个异步生成器，用于处理 API 流
+	 */
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		// Wait for MCP servers to be connected before generating system prompt
+		// 等待 MCP 服务器连接后再生成系统提示符
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
@@ -1316,6 +1342,10 @@ export class Cline {
 		yield* iterator
 	}
 
+	/**
+	 * 展示助手消息
+	 * 处理从 AI 接收到的消息，包括文本内容和工具调用
+	 */
 	async presentAssistantMessage() {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
@@ -2795,6 +2825,15 @@ export class Cline {
 		}
 	}
 
+	/**
+	 * 递归处理 Cline 请求
+	 * 1、判断模型错误次数是否大于3次，如果大于三次可能存在致命问题，需要提示用户
+	 * 2、判断自动审批是否已满，如果已满需要通知用户
+	 * @param userContent 用户内容
+	 * @param includeFileDetails 是否包含文件详情
+	 * @param isNewTask 是否是新任务
+	 * @returns 返回是否结束循环
+	 */
 	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false,
@@ -2803,7 +2842,7 @@ export class Cline {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
 		}
-
+		// 累计遇到三次及以上的错误，提示用户
 		if (this.consecutiveMistakeCount >= 3) {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -2845,15 +2884,15 @@ export class Cline {
 				"auto_approval_max_req_reached",
 				`Cline has auto-approved ${this.autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
 			)
-			// if we get past the promise it means the user approved and did not start a new task
+			// 如果我们超过了 Promise，则意味着用户批准了新任务，但没有启动新任务
 			this.consecutiveAutoApprovedRequestsCount = 0
 		}
 
-		// get previous api req's index to check token usage and determine if we need to truncate conversation history
+		// 获取先前 API Req 的索引以检查令牌使用情况并确定是否需要截断对话历史记录
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		//获取详细细节是一项昂贵的操作，它使用 globby 自上而下构建项目的文件结构，对于大型项目，可能需要几秒钟
+		//为了获得最佳用户体验，我们会在发生这种情况时显示带有 loading Spinner 的占位符 api_req_started 消息
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
@@ -2861,9 +2900,9 @@ export class Cline {
 			}),
 		)
 
-		// use this opportunity to initialize the checkpoint tracker (can be expensive to initialize in the constructor)
-		// FIXME: right now we're letting users init checkpoints for old tasks, but this could be a problem if opening a task in the wrong workspace
-		// isNewTask &&
+		// 利用这个机会初始化 Checkpoint Tracker（在构造函数中初始化可能很昂贵）
+		// FIXME：现在我们允许用户为旧任务初始化检查点，但如果在错误的工作区中打开任务，这可能是个问题
+		// isNewTask & &
 		if (!this.checkpointTracker) {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
@@ -2871,13 +2910,13 @@ export class Cline {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				this.checkpointTrackerErrorMessage = errorMessage // 将立即显示，因为我们接下来保存了 ClineMessages 哪些帖子状态到 webview
 			}
 		}
-
+		// 加载上下文信息
 		const [parsedUserContent, environmentDetails] = await this.loadContext(userContent, includeFileDetails)
 		userContent = parsedUserContent
-		// add environment details as its own text block, separate from tool results
+		// 将环境详细信息添加为其自己的文本块，与工具结果分开
 		userContent.push({ type: "text", text: environmentDetails })
 
 		await this.addToApiConversationHistory({
@@ -2885,7 +2924,8 @@ export class Cline {
 			content: userContent,
 		})
 
-		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
+		// 由于我们在等待实际启动 API 请求（例如加载潜在详细信息）时发送了一条占位符api_req_started消息来更新 WebView，
+		// 因此我们需要更新该消息的文本
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
@@ -2900,9 +2940,12 @@ export class Cline {
 			let outputTokens = 0
 			let totalCost: number | undefined
 
-			// update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
-			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
-			// (it's worth removing a few months from now)
+			//用于更新某个 API 请求的消息内容。该函数接受两个可选参数：cancelReason 和 streamingFailedMessage。
+			// 函数的主要功能是修改 this.clineMessages 数组中最后一个 API 请求的文本内容，将其更新为一个包含多个信息的 JSON 字符串。
+			// 更新api_req_started。我们不能再使用 api_req_finished，因为这是一种独特的情况，
+			// 它可能出现在流式消息之后（即在更新或执行过程中）
+			// 幸运的是，无论如何，api_req_finished 总是被解析为 GUI，因此它仅用于遗留目的，以跟踪 Tasks from History 中的价格
+			// （从现在开始几个月后删除是值得的）
 			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 					...JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}"),
@@ -2917,23 +2960,23 @@ export class Cline {
 					streamingFailedMessage,
 				} satisfies ClineApiReqInfo)
 			}
-
+			// 用于处理流的中止操作。它主要的功能是在中止流时进行一些清理和状态更新，包括保存消息、更新状态以及记录中止原因。
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}
 
-				// if last message is a partial we need to update and save it
+				// 如果最后一条消息是部分消息，我们需要更新并保存它
 				const lastMessage = this.clineMessages.at(-1)
 				if (lastMessage && lastMessage.partial) {
-					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
+					// lastMessage.ts = Date.now（） 不要更新 ts，因为它被用作 virtuoso list 的键
 					lastMessage.partial = false
-					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
+					// 我们不是流式传输 partialMessage 事件，而是像往常一样执行 save 和 post 以持久化到磁盘
 					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessages()
 				}
 
-				// Let assistant know their response was interrupted for when task is resumed
+				// 让助理知道他们的响应在任务恢复时被打断
 				await this.addToApiConversationHistory({
 					role: "assistant",
 					content: [
@@ -2950,11 +2993,11 @@ export class Cline {
 					],
 				})
 
-				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
+				// 将 api_req_started 更新为 Cancelled 和 Cost，以便我们可以显示部分流的 cost
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessages()
 
-				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
+				// 向 provider 发出信号，表明它可以从磁盘检索保存的消息，因为 abortTask 本质上不能等待
 				this.didFinishAbortingStream = true
 			}
 
@@ -2970,8 +3013,10 @@ export class Cline {
 			this.presentAssistantMessageHasPendingUpdates = false
 			this.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-
-			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+			
+			// 处理一个从API请求返回的流数据，实时更新助手的消息并管理流的状态。
+			// 具体来说，它主要处理来自API的不同类型的chunk（数据块），并根据这些数据块更新内部状态和用户界面。
+			const stream = this.attemptApiRequest(previousApiReqIndex) // 仅当第一个 chunk 成功时才产生，否则将允许用户重试请求（很可能是由于速率限制错误，该错误在第一个 chunk 上抛出）
 			let assistantMessage = ""
 			this.isStreaming = true
 			try {
@@ -3115,15 +3160,27 @@ export class Cline {
 		}
 	}
 
+	/**
+	 * 加载上下文信息
+	 * @param userContent 用户内容
+	 * @param includeFileDetails 是否包含文件详情
+	 * @returns 返回处理后的用户内容和环境详情
+	 */
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
 		return await Promise.all([
-			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
-			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
+			// 这是从工具结果中动态加载上下文提及的临时解决方案。
+			// 它会检查是否存在指示工具被拒绝并提供反馈的标签
+			// （参见 formatToolDeniedFeedback、attemptCompletion、executeCommand 和 consecutiveMistakeCount >= 3）
+			//  或 “<answer>”（参见 askFollowupQuestion），我们将所有用户生成的内容放在这些标签中，
+			// 以便它们可以有效地用作何时应该解析提及的标记）。但是，如果我们将来允许多个工具响应，
+			// 我们将需要专门解析用户内容标签中的提及。	
+			//  （注意：这会导致 @/ import 别名错误，其中文件内容也被解析，因为 v2 将工具结果转换为文本块）			
 			Promise.all(
 				userContent.map(async (block) => {
 					if (block.type === "text") {
-						// We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
-						// FIXME: Only parse text in between these tags instead of the entire text block which may contain other tool results. This is part of a larger issue where we shouldn't be using regex to parse mentions in the first place (ie for cases where file paths have spaces)
+						// 我们需要确保任何用户生成的内容都包含在其中一个标签中，以便我们知道要解析提及
+						// FIXME：仅解析这些标签之间的文本，而不是可能包含其他工具结果的整个文本块。这是一个更大问题的一部分，
+						// 我们首先不应该使用 regex 来解析提及（即对于文件路径有空格的情况）
 						if (
 							block.text.includes("<feedback>") ||
 							block.text.includes("<answer>") ||
@@ -3143,10 +3200,15 @@ export class Cline {
 		])
 	}
 
+	/**
+	 * 获取环境详情
+	 * @param includeFileDetails 是否包含文件详情
+	 * @returns 返回格式化的环境详情字符串
+	 */
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
-		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
+		// cline 知道用户在消息之间是否从一个文件转到另一个文件可能很有用，因此我们始终包含此上下文	
 		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)

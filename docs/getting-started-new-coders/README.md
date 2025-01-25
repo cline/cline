@@ -1,92 +1,89 @@
-# Getting Started with Cline | New Coders
+# Cline 入门 |新程序员
 
-Welcome to Cline! This guide will help you get set up and start using Cline to build your first project.
+欢迎来到 Cline！本指南将帮助您设置并开始使用 Cline 构建您的第一个项目。
 
-## What You'll Need
+## 你需要什么
 
-Before you begin, make sure you have the following:
+在开始之前，请确保您拥有以下内容：
 
--   **VS Code:** A free, powerful code editor.
-    -   [Download VS Code](https://code.visualstudio.com/)
--   **Development Tools:** Essential software for coding (Homebrew, Node.js, Git, etc.).
-    -   Follow our [Installing Essential Development Tools](installing-dev-essentials.md) guide to set these up with Cline's help (after getting setup here)
-    -   Cline will guide you through installing everything you need
--   **Cline Projects Folder:** A dedicated folder for all your Cline projects.
-    -   On macOS: Create a folder named "Cline" in your Documents folder
-        -   Path: `/Users/[your-username]/Documents/Cline`
-    -   On Windows: Create a folder named "Cline" in your Documents folder
-        -   Path: `C:\Users\[your-username]\Documents\Cline`
-    -   Inside this Cline folder, create separate folders for each project
-        -   Example: `Documents/Cline/workout-app` for a workout tracking app
-        -   Example: `Documents/Cline/portfolio-website` for your portfolio
--   **Cline Extension in VS Code:** The Cline extension installed in VS Code.
+- VS Code：一个免费、强大的代码编辑器。
+    - [下载 VS Code]（https://code.visualstudio.com/）
+- **开发工具：** 编码必备软件（Homebrew、Node.js、Git 等）。
+    - 按照我们的 [安装基本开发工具]（installing-dev-essentials.md） 指南在 Cline 的帮助下进行设置（在此处设置之后）
+    - Cline 将指导您安装所需的一切
+- Cline 项目文件夹：所有 Cline 项目的专用文件夹。
+    - 在 macOS 上：在 Documents 文件夹中创建名为 “Cline” 的文件夹
+        - 路径： '/Users/[your-username]/Documents/Cline'
+    - 在 Windows 上：在 Documents 文件夹中创建名为 “Cline” 的文件夹
+- 路径：“C：\Users\[your-username]\Documents\Cline”
+    - 在此 Cline 文件夹中，为每个项目创建单独的文件夹
+        - 示例：锻炼跟踪应用的 'Documents/Cline/workout-app'
+        - 示例：您的投资组合的 'Documents/Cline/portfolio-website'
+- VS Code 中的 Cline 扩展：VS Code 中安装的 Cline 扩展。
 
--   Here's a [tutorial](https://www.youtube.com/watch?v=N4td-fKhsOQ) on everything you need to get started.
+- 这是一个 [教程]（https://www.youtube.com/watch?v=N4td-fKhsOQ），介绍了您开始所需的一切。
 
-## Step-by-Step Setup
+## 分步设置
 
-Follow these steps to get Cline up and running:
+请按照以下步骤启动并运行 Cline：
 
-1. **Open VS Code:** Launch the VS Code application. If VS Code shows "Running extensions might...", click "Allow".
+1. 打开 VS Code：启动 VS Code 应用程序。如果 VS Code 显示“正在运行的扩展可能...”，请单击“允许”。
 
-2. **Open Your Cline Folder:** In VS Code, open the Cline folder you created in Documents.
+2. **打开您的 Cline 文件夹：** 在 VS Code 中，打开您在 Documents 中创建的 Cline 文件夹。
 
-3. **Navigate to Extensions:** Click on the Extensions icon in the Activity Bar on the side of VS Code.
+3. **导航到扩展：** 单击 VS Code 侧面活动栏中的“扩展”图标。
 
-4. **Search for 'Cline':** In the Extensions search bar, type "Cline".
+4. **搜索 'Cline':** 在“扩展”搜索栏中，键入“Cline”。
+5. **安装扩展：** 单击 Cline 扩展旁边的“安装”按钮。
 
-5. **Install the Extension:** Click the "Install" button next to the Cline extension.
+6. **打开 Cline：** 安装后，您可以通过以下几种方式打开 Cline：
+    - 单击 Activity Bar 中的 Cline 图标。
+    - 使用命令面板 （'CMD/CTRL + Shift + P'） 并键入“Cline： 在新选项卡中打开”，以在编辑器中将 Cline 作为选项卡打开。建议这样做以获得更好的视图。
+    - **故障排除：** 如果您没有看到 Cline 图标，请尝试重新启动 VS Code。
+    - **您将看到的内容：** 您应该会看到 Cline 聊天窗口出现在您的 VS Code 编辑器中。
 
-6. **Open Cline:** Once installed, you can open Cline in a few ways:
-    - Click the Cline icon in the Activity Bar.
-    - Use the command palette (`CMD/CTRL + Shift + P`) and type "Cline: Open In New Tab" to open Cline as a tab in your editor. This is recommended for a better view.
-    - **Troubleshooting:** If you don't see the Cline icon, try restarting VS Code.
-    - **What You'll See:** You should see the Cline chat window appear in your VS Code editor.
+![gettingStartedVsCodeCline]（https://github.com/user-attachments/assets/622b4bb7-859b-4c2e-b87b-c12e3eabefb8）
 
-![gettingStartedVsCodeCline](https://github.com/user-attachments/assets/622b4bb7-859b-4c2e-b87b-c12e3eabefb8)
+## 设置 OpenRouter API 密钥
 
-## Setting up OpenRouter API Key
+现在您已经安装了 Cline，您需要设置您的 OpenRouter API 密钥以使用 Cline 的全部功能。
 
-Now that you have Cline installed, you'll need to set up your OpenRouter API key to use Cline's full capabilities.
+1. **获取您的 OpenRouter API 密钥：**
+    - [获取您的 OpenRouter API 密钥]（https://openrouter.ai/）
+2. **输入您的 OpenRouter API 密钥：**
+- 导航到 Cline 扩展中的设置按钮。
+    - 输入您的 OpenRouter API 密钥。
+    - 选择首选的 API 模型。
+        - **编码推荐模型：**
+            - 'anthropic/claude-3.5-sonnet'：最常用于编码任务。
+            - 'google/gemini-2.0-flash-exp：free'：一个免费的编码选项。
+            - 'deepseek/deepseek-chat'：超级便宜，几乎和 3.5 十四行诗一样好
+        - [OpenRouter 型号排名]（https://openrouter.ai/rankings/programming）
 
-1.  **Get your OpenRouter API Key:**
-    -   [Get your OpenRouter API Key](https://openrouter.ai/)
-2.  **Input Your OpenRouter API Key:**
-    -   Navigate to the settings button in the Cline extension.
-    -   Input your OpenRouter API key.
-    -   Select your preferred API model.
-        -   **Recommended Models for Coding:**
-            -   `anthropic/claude-3.5-sonnet`: Most used for coding tasks.
-            -   `google/gemini-2.0-flash-exp:free`: A free option for coding.
-            -   `deepseek/deepseek-chat`: SUPER CHEAP, almost as good as 3.5 sonnet
-        -   [OpenRouter Model Rankings](https://openrouter.ai/rankings/programming)
+## 您与 Cline 的第一次互动
 
-## Your First Interaction with Cline
-
-Now you're ready to start building with Cline. Let's create your first project folder and build something! Copy and paste the following prompt into the Cline chat window:
+现在，您可以开始使用 Cline 进行构建了。让我们创建您的第一个项目文件夹并构建一些东西！将以下提示复制并粘贴到 Cline 聊天窗口中：
 
 ```
-Hey Cline! Could you help me create a new project folder called "hello-world" in my Cline directory and make a simple webpage that says "Hello World" in big blue text?
+嘿克莱恩！您能否帮我在我的 Cline 目录中创建一个名为“hello-world”的新项目文件夹，并制作一个简单的网页，用蓝色大文本显示“Hello World”？
 ```
+**您将看到的内容：** Cline 将帮助您创建项目文件夹并设置您的第一个网页。
 
-**What You'll See:** Cline will help you create the project folder and set up your first webpage.
+## 使用 Cline 的提示
 
-## Tips for Working with Cline
+- **提问：如果您对某事有不确定之处，请随时询问 Cline！
+- **使用屏幕截图：** Cline 可以理解图像，因此请随意使用屏幕截图向他展示您正在做什么。
+- **复制和粘贴错误：** 如果您遇到错误，请将错误消息复制并粘贴到 Cline 的聊天中。这将帮助他了解问题并提供解决方案。
+- **直白地说：** Cline 旨在理解简单的非技术语言。请随意用自己的话描述您的想法，Cline 会将它们转化为代码。
 
--   **Ask Questions:** If you're unsure about something, don't hesitate to ask Cline!
--   **Use Screenshots:** Cline can understand images, so feel free to use screenshots to show him what you're working on.
--   **Copy and Paste Errors:** If you encounter errors, copy and paste the error messages into Cline's chat. This will help him understand the issue and provide a solution.
--   **Speak Plainly:** Cline is designed to understand plain, non-technical language. Feel free to describe your ideas in your own words, and Cline will translate them into code.
+## 常见问题
+- 什么是终端？终端是一个基于文本的界面，用于与您的计算机交互。它允许您运行命令来执行各种任务，例如安装软件包、运行脚本和管理文件。Cline 使用终端执行命令并与您的开发环境交互。
+- **代码库如何工作？**（本节将根据新程序员的常见问题进行扩展）
 
-## FAQs
+## 还在苦苦挣扎吗？
 
--   **What is the Terminal?** The terminal is a text-based interface for interacting with your computer. It allows you to run commands to perform various tasks, such as installing packages, running scripts, and managing files. Cline uses the terminal to execute commands and interact with your development environment.
--   **How Does the Codebase Work?** (This section will be expanded based on common questions from new coders)
+请随时与我联系，我将帮助您开始使用 Cline。
 
-## Still Struggling?
+昵称 |608-558-2410
 
-Feel free to contact me, and I'll help you get started with Cline.
-
-nick | 608-558-2410
-
-Join our Discord community: [https://discord.gg/cline](https://discord.gg/cline)
+加入我们的 Discord 社区：[https://discord.gg/cline]（https://discord.gg/cline）

@@ -32,7 +32,7 @@ export function openMention(mention?: string): void {
 		vscode.env.openExternal(vscode.Uri.parse(mention))
 	}
 }
-
+// 搜索文本中提示的（mention），并根据提及的类型生成相应的文本，同时收集所有的提及到一个集合中。
 export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
