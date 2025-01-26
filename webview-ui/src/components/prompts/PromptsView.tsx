@@ -43,6 +43,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		customModePrompts,
 		customSupportPrompts,
 		listApiConfigMeta,
+		currentApiConfigName,
 		enhancementApiConfigId,
 		setEnhancementApiConfigId,
 		mode,
@@ -609,6 +610,36 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 					{/* Mode settings */}
 					<>
+						<div style={{ marginBottom: "12px" }}>
+							<div style={{ fontWeight: "bold", marginBottom: "4px" }}>API Configuration</div>
+							<div style={{ marginBottom: "8px" }}>
+								<VSCodeDropdown
+									value={currentApiConfigName || ""}
+									onChange={(e: any) => {
+										const value = e.detail?.target?.value || e.target?.value
+										vscode.postMessage({
+											type: "loadApiConfiguration",
+											text: value,
+										})
+									}}
+									style={{ width: "100%" }}>
+									{(listApiConfigMeta || []).map((config) => (
+										<VSCodeOption key={config.id} value={config.name}>
+											{config.name}
+										</VSCodeOption>
+									))}
+								</VSCodeDropdown>
+								<div
+									style={{
+										fontSize: "12px",
+										marginTop: "5px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Select which API configuration to use for this mode
+								</div>
+							</div>
+						</div>
+
 						{/* Show tools for all modes */}
 						<div style={{ marginBottom: "16px" }}>
 							<div

@@ -79,7 +79,7 @@ export const ChatRowContent = ({
 	isLast,
 	isStreaming,
 }: ChatRowContentProps) => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, alwaysAllowMcp } = useExtensionState()
 	const [reasoningCollapsed, setReasoningCollapsed] = useState(false)
 
 	// Auto-collapse reasoning when new messages arrive
@@ -888,6 +888,7 @@ export const ChatRowContent = ({
 														)?.alwaysAllow || false,
 												}}
 												serverName={useMcpServer.serverName}
+												alwaysAllowMcp={alwaysAllowMcp}
 											/>
 										</div>
 										{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
