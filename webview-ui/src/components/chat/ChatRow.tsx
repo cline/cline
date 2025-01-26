@@ -751,7 +751,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}>
 									{icon}
 									{title}
-									{/* Need to render this everytime since it affects height of row by 2px */}
+									{/* Need to render this every time since it affects height of row by 2px */}
 									<VSCodeBadge
 										style={{
 											opacity: cost != null && cost > 0 ? 1 : 0,
