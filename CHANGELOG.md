@@ -1,12 +1,12 @@
 # Roo Code Changelog
 
-## 3.3.2
-
-### Patch Changes
+## [3.3.2]
 
 - Add a dropdown to select the API configuration for a mode in the Prompts tab
 - Fix bug where always allow wasn't showing up for MCP tools
-- v3.3.2
+- Improve OpenRouter DeepSeek-R1 integration by setting temperature to the recommended 0.6 and displaying the reasoning output (thanks @Szpadel!)
+- Allow specifying a custom OpenRouter base URL (thanks @dairui1!)
+- Make the UI for nested settings nicer (thanks @PretzelVector!)
 
 ## [3.3.1]
 
