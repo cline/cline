@@ -2,6 +2,13 @@ name: Bug Report
 description: File a bug report
 labels: ["bug"]
 body:
+    - type: input
+      id: version
+      attributes:
+          label: Which version of the app are you using?
+          description: Please specify the app version you're using (e.g. v3.3.1)
+      validations:
+          required: true
     - type: dropdown
       id: provider
       attributes:
