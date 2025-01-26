@@ -108,7 +108,7 @@ export interface ExtensionState {
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string
-	experimentalDiffStrategy?: boolean
+	experiments: Record<string, boolean> // Map of experiment IDs to their enabled state
 	autoApprovalEnabled?: boolean
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)

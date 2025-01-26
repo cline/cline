@@ -61,6 +61,7 @@ import { OpenRouterHandler } from "../api/providers/openrouter"
 import { McpHub } from "../services/mcp/McpHub"
 import crypto from "crypto"
 import { insertGroups } from "./diff/insert-groups"
+import { EXPERIMENT_IDS } from "../shared/experiments"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -151,9 +152,8 @@ export class Cline {
 	async updateDiffStrategy(experimentalDiffStrategy?: boolean) {
 		// If not provided, get from current state
 		if (experimentalDiffStrategy === undefined) {
-			const { experimentalDiffStrategy: stateExperimentalDiffStrategy } =
-				(await this.providerRef.deref()?.getState()) ?? {}
-			experimentalDiffStrategy = stateExperimentalDiffStrategy ?? false
+			const { experiments: stateExperimental } = (await this.providerRef.deref()?.getState()) ?? {}
+			experimentalDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false
 		}
 		this.diffStrategy = getDiffStrategy(this.api.getModel().id, this.fuzzyMatchThreshold, experimentalDiffStrategy)
 	}
@@ -810,7 +810,7 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, mode, customModePrompts, preferredLanguage } =
+		const { browserViewportSize, mode, customModePrompts, preferredLanguage, experiments } =
 			(await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
@@ -831,6 +831,7 @@ export class Cline {
 				this.customInstructions,
 				preferredLanguage,
 				this.diffEnabled,
+				experiments,
 			)
 		})()
 

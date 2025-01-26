@@ -4,6 +4,7 @@ import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessa
 import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug, modes } from "../../../shared/modes"
 import { addCustomInstructions } from "../../prompts/sections/custom-instructions"
+import { experimentDefault, experiments } from "../../../shared/experiments"
 
 // Mock custom-instructions module
 const mockAddCustomInstructions = jest.fn()
@@ -320,6 +321,7 @@ describe("ClineProvider", () => {
 			requestDelaySeconds: 5,
 			mode: defaultModeSlug,
 			customModes: [],
+			experiments: experimentDefault,
 		}
 
 		const message: ExtensionMessage = {
@@ -617,6 +619,7 @@ describe("ClineProvider", () => {
 			mode: "code",
 			diffEnabled: true,
 			fuzzyMatchThreshold: 1.0,
+			experiments: experimentDefault,
 		} as any)
 
 		// Reset Cline mock
@@ -636,7 +639,7 @@ describe("ClineProvider", () => {
 			"Test task",
 			undefined,
 			undefined,
-			undefined,
+			false,
 		)
 	})
 	test("handles mode-specific custom instructions updates", async () => {
@@ -887,6 +890,7 @@ describe("ClineProvider", () => {
 				},
 				mcpEnabled: true,
 				mode: "code" as const,
+				experiments: experimentDefault,
 			} as any)
 
 			const handler1 = getMessageHandler()
@@ -918,6 +922,7 @@ describe("ClineProvider", () => {
 				},
 				mcpEnabled: false,
 				mode: "code" as const,
+				experiments: experimentDefault,
 			} as any)
 
 			const handler2 = getMessageHandler()
@@ -985,6 +990,7 @@ describe("ClineProvider", () => {
 				experimentalDiffStrategy: true,
 				diffEnabled: true,
 				fuzzyMatchThreshold: 0.8,
+				experiments: experimentDefault,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffStrategy and diffEnabled are passed
@@ -1012,6 +1018,7 @@ describe("ClineProvider", () => {
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				true, // diffEnabled
+				experimentDefault,
 			)
 
 			// Run the test again to verify it's consistent
@@ -1034,6 +1041,7 @@ describe("ClineProvider", () => {
 				experimentalDiffStrategy: true,
 				diffEnabled: false,
 				fuzzyMatchThreshold: 0.8,
+				experiments: experimentDefault,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffEnabled is passed as false
@@ -1061,6 +1069,7 @@ describe("ClineProvider", () => {
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				false, // diffEnabled
+				experimentDefault,
 			)
 		})
 
@@ -1077,6 +1086,7 @@ describe("ClineProvider", () => {
 				mode: "architect",
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
+				experiments: experimentDefault,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to call addCustomInstructions

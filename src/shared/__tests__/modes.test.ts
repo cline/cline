@@ -14,6 +14,12 @@ describe("isToolAllowedForMode", () => {
 			roleDefinition: "You are a CSS editor",
 			groups: ["read", ["edit", { fileRegex: "\\.css$" }], "browser"],
 		},
+		{
+			slug: "test-exp-mode",
+			name: "Test Exp Mode",
+			roleDefinition: "You are an experimental tester",
+			groups: ["read", "edit", "browser"],
+		},
 	]
 
 	it("allows always available tools", () => {
@@ -239,6 +245,87 @@ describe("isToolAllowedForMode", () => {
 		}
 
 		expect(isToolAllowedForMode("write_to_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
+	})
+
+	describe("experimental tools", () => {
+		it("disables tools when experiment is disabled", () => {
+			const experiments = {
+				search_and_replace: false,
+				insert_code_block: false,
+			}
+
+			expect(
+				isToolAllowedForMode(
+					"search_and_replace",
+					"test-exp-mode",
+					customModes,
+					undefined,
+					undefined,
+					experiments,
+				),
+			).toBe(false)
+
+			expect(
+				isToolAllowedForMode(
+					"insert_code_block",
+					"test-exp-mode",
+					customModes,
+					undefined,
+					undefined,
+					experiments,
+				),
+			).toBe(false)
+		})
+
+		it("allows tools when experiment is enabled", () => {
+			const experiments = {
+				search_and_replace: true,
+				insert_code_block: true,
+			}
+
+			expect(
+				isToolAllowedForMode(
+					"search_and_replace",
+					"test-exp-mode",
+					customModes,
+					undefined,
+					undefined,
+					experiments,
+				),
+			).toBe(true)
+
+			expect(
+				isToolAllowedForMode(
+					"insert_code_block",
+					"test-exp-mode",
+					customModes,
+					undefined,
+					undefined,
+					experiments,
+				),
+			).toBe(true)
+		})
+
+		it("allows non-experimental tools when experiments are disabled", () => {
+			const experiments = {
+				search_and_replace: false,
+				insert_code_block: false,
+			}
+
+			expect(
+				isToolAllowedForMode("read_file", "markdown-editor", customModes, undefined, undefined, experiments),
+			).toBe(true)
+			expect(
+				isToolAllowedForMode(
+					"write_to_file",
+					"markdown-editor",
+					customModes,
+					undefined,
+					{ path: "test.md" },
+					experiments,
+				),
+			).toBe(true)
+		})
 	})
 })
 

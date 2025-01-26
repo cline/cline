@@ -46,6 +46,7 @@ export function getToolDescriptionsForMode(
 	browserViewportSize?: string,
 	mcpHub?: McpHub,
 	customModes?: ModeConfig[],
+	experiments?: Record<string, boolean>,
 ): string {
 	const config = getModeConfig(mode, customModes)
 	const args: ToolArgs = {
@@ -64,7 +65,7 @@ export function getToolDescriptionsForMode(
 		const toolGroup = TOOL_GROUPS[groupName]
 		if (toolGroup) {
 			toolGroup.forEach((tool) => {
-				if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [])) {
+				if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [], experiments ?? {})) {
 					tools.add(tool)
 				}
 			})
