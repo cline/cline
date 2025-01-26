@@ -74,7 +74,7 @@ type GlobalStateKey =
 	| "vsCodeLmModelSelector"
 	| "localeLanguage"
 	| "userInfo"
-  | "geminiBaseUrl"
+	| "geminiBaseUrl"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
