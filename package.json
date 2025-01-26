@@ -156,6 +156,11 @@
 					],
 					"default": "enabled",
 					"description": "Control MCP server functionality and its inclusion in AI prompts. When disabled, Cline will not be aware of MCP capabilities, saving model context window tokens."
+				},
+				"cline.enableCheckpoints": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable checkpoint creation during task execution"
 				}
 			}
 		}
