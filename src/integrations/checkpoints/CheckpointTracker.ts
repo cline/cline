@@ -6,7 +6,6 @@ import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { fileExistsAtPath } from "../../utils/fs"
 import { globby } from "globby"
-import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 
 class CheckpointTracker {
 	private providerRef: WeakRef<ClineProvider>
@@ -115,9 +114,117 @@ class CheckpointTracker {
 			// Disable commit signing for shadow repo
 			await git.addConfig("commit.gpgSign", "false")
 
-			// Get LFS patterns and write excludes file
-			const lfsPatterns = await getLfsPatterns(this.cwd)
-			await writeExcludesFile(gitPath, lfsPatterns)
+			// Get LFS patterns from workspace if they exist
+			let lfsPatterns: string[] = []
+			try {
+				const attributesPath = path.join(this.cwd, ".gitattributes")
+				if (await fileExistsAtPath(attributesPath)) {
+					const attributesContent = await fs.readFile(attributesPath, "utf8")
+					lfsPatterns = attributesContent
+						.split("\n")
+						.filter((line) => line.includes("filter=lfs"))
+						.map((line) => line.split(" ")[0].trim())
+				}
+			} catch (error) {
+				console.warn("Failed to read .gitattributes:", error)
+			}
+
+			// Add basic excludes directly in git config, while respecting any .gitignore in the workspace
+			// .git/info/exclude is local to the shadow git repo, so it's not shared with the main repo - and won't conflict with user's .gitignore
+			// TODO: let user customize these
+			const excludesPath = path.join(gitPath, "info", "exclude")
+			await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
+			await fs.writeFile(
+				excludesPath,
+				[
+					".git/", // ignore the user's .git
+					`.git${GIT_DISABLED_SUFFIX}/`, // ignore the disabled nested git repos
+					".DS_Store",
+					"*.log",
+					"node_modules/",
+					"__pycache__/",
+					"env/",
+					"venv/",
+					"target/dependency/",
+					"build/dependencies/",
+					"dist/",
+					"out/",
+					"bundle/",
+					"vendor/",
+					"tmp/",
+					"temp/",
+					"deps/",
+					"pkg/",
+					"Pods/",
+					// Media files
+					"*.jpg",
+					"*.jpeg",
+					"*.png",
+					"*.gif",
+					"*.bmp",
+					"*.ico",
+					// "*.svg",
+					"*.mp3",
+					"*.mp4",
+					"*.wav",
+					"*.avi",
+					"*.mov",
+					"*.wmv",
+					"*.webm",
+					"*.webp",
+					"*.m4a",
+					"*.flac",
+					// Build and dependency directories
+					"build/",
+					"bin/",
+					"obj/",
+					".gradle/",
+					".idea/",
+					".vscode/",
+					".vs/",
+					"coverage/",
+					".next/",
+					".nuxt/",
+					// Cache and temporary files
+					"*.cache",
+					"*.tmp",
+					"*.temp",
+					"*.swp",
+					"*.swo",
+					"*.pyc",
+					"*.pyo",
+					".pytest_cache/",
+					".eslintcache",
+					// Environment and config files
+					".env*",
+					"*.local",
+					"*.development",
+					"*.production",
+					// Large data files
+					"*.zip",
+					"*.tar",
+					"*.gz",
+					"*.rar",
+					"*.7z",
+					"*.iso",
+					"*.bin",
+					"*.exe",
+					"*.dll",
+					"*.so",
+					"*.dylib",
+					// Database files
+					"*.sqlite",
+					"*.db",
+					"*.sql",
+					// Log files
+					"*.logs",
+					"*.error",
+					"npm-debug.log*",
+					"yarn-debug.log*",
+					"yarn-error.log*",
+					...lfsPatterns,
+				].join("\n"),
+			)
 
 			// Set up git identity (git throws an error if user.name or user.email is not set)
 			await git.addConfig("user.name", "Cline Checkpoint")
@@ -308,6 +415,6 @@ class CheckpointTracker {
 	}
 }
 
-export const GIT_DISABLED_SUFFIX = "_disabled"
+const GIT_DISABLED_SUFFIX = "_disabled"
 
 export default CheckpointTracker
