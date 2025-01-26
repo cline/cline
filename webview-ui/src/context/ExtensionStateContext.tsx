@@ -16,7 +16,7 @@ import { McpServer } from "../../../src/shared/mcp"
 import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
 import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } from "../../../src/shared/modes"
 import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
-import { EXPERIMENT_IDS, experimentDefault } from "../../../src/shared/experiments"
+import { experimentDefault } from "../../../src/shared/experiments"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
