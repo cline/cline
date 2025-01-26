@@ -2219,7 +2219,7 @@ export class Cline {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
@@ -2391,9 +2391,14 @@ export class Cline {
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
+			let reasoningMessage = ""
 			try {
 				for await (const chunk of stream) {
 					switch (chunk.type) {
+						case "reasoning":
+							reasoningMessage += chunk.text
+							await this.say("reasoning", reasoningMessage, undefined, true)
+							break
 						case "usage":
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens

@@ -15,6 +15,7 @@ import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
+import ReasoningBlock from "./ReasoningBlock"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
@@ -79,6 +80,14 @@ export const ChatRowContent = ({
 	isStreaming,
 }: ChatRowContentProps) => {
 	const { mcpServers } = useExtensionState()
+	const [reasoningCollapsed, setReasoningCollapsed] = useState(false)
+
+	// Auto-collapse reasoning when new messages arrive
+	useEffect(() => {
+		if (!isLast && message.say === "reasoning") {
+			setReasoningCollapsed(true)
+		}
+	}, [isLast, message.say])
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -472,6 +481,14 @@ export const ChatRowContent = ({
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
+				case "reasoning":
+					return (
+						<ReasoningBlock
+							content={message.text || ""}
+							isCollapsed={reasoningCollapsed}
+							onToggleCollapse={() => setReasoningCollapsed(!reasoningCollapsed)}
+						/>
+					)
 				case "api_req_started":
 					return (
 						<>
