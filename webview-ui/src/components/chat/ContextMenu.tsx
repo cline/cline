@@ -64,7 +64,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									whiteSpace: "nowrap",
 									overflow: "hidden",
 									textOverflow: "ellipsis",
-									direction: "rtl",
 									textAlign: "left",
 								}}>
 								{cleanPathPrefix(option.value || "") + "\u200E"}
