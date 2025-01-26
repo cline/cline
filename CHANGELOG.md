@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.3
+
+### Patch Changes
+
+- Throw errors sooner when a mode tries to write a restricted file
+- v3.3.3
+
 ## [3.3.2]
 
 - Add a dropdown to select the API configuration for a mode in the Prompts tab
