@@ -7,6 +7,7 @@ export type McpServer = {
 	resources?: McpResource[]
 	resourceTemplates?: McpResourceTemplate[]
 	disabled?: boolean
+	timeout?: number
 }
 
 export type McpTool = {

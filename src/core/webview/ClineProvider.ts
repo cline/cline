@@ -1177,6 +1177,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						await this.postStateToWebview()
 						break
+					case "updateMcpTimeout":
+						if (message.serverName && typeof message.timeout === "number") {
+							try {
+								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
+							} catch (error) {
+								console.error(`Failed to update timeout for ${message.serverName}:`, error)
+								vscode.window.showErrorMessage(`Failed to update server timeout`)
+							}
+						}
+						break
 					case "updateCustomMode":
 						if (message.modeConfig) {
 							await this.customModesManager.updateCustomMode(message.modeConfig.slug, message.modeConfig)

@@ -19,66 +19,6 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled } = useExtensionState()
-	// const [servers, setServers] = useState<McpServer[]>([
-	// 	// Add some mock servers for testing
-	// 	{
-	// 		name: "local-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"local-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-tools"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connected",
-	// 		tools: [
-	// 			{
-	// 				name: "execute_command",
-	// 				description: "Run a shell command on the local system",
-	// 			},
-	// 			{
-	// 				name: "read_file",
-	// 				description: "Read contents of a file from the filesystem",
-	// 			},
-	// 		],
-	// 	},
-	// 	{
-	// 		name: "postgres-db",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"postgres-db": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "disconnected",
-	// 		error: "Failed to connect to database: Connection refused",
-	// 	},
-	// 	{
-	// 		name: "github-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"github-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-github"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connecting",
-	// 		resources: [
-	// 			{
-	// 				uri: "github://repo/issues",
-	// 				name: "Repository Issues",
-	// 			},
-	// 			{
-	// 				uri: "github://repo/pulls",
-	// 				name: "Pull Requests",
-	// 			},
-	// 		],
-	// 	},
-	// ])
 
 	return (
 		<div
@@ -161,6 +101,21 @@ const McpView = ({ onDone }: McpViewProps) => {
 // Server Row Component
 const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowMcp?: boolean }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
+	const [timeoutValue, setTimeoutValue] = useState(() => {
+		const configTimeout = JSON.parse(server.config)?.timeout
+		return configTimeout ?? 60 // Default 1 minute (60 seconds)
+	})
+
+	const timeoutOptions = [
+		{ value: 15, label: "15 seconds" },
+		{ value: 30, label: "30 seconds" },
+		{ value: 60, label: "1 minute" },
+		{ value: 300, label: "5 minutes" },
+		{ value: 600, label: "10 minutes" },
+		{ value: 900, label: "15 minutes" },
+		{ value: 1800, label: "30 minutes" },
+		{ value: 3600, label: "60 minutes" },
+	]
 
 	const getStatusColor = () => {
 		switch (server.status) {
@@ -183,6 +138,16 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
+		})
+	}
+
+	const handleTimeoutChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+		const seconds = parseInt(event.target.value)
+		setTimeoutValue(seconds)
+		vscode.postMessage({
+			type: "updateMcpTimeout",
+			serverName: server.name,
+			timeout: seconds,
 		})
 	}
 
@@ -302,7 +267,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 							fontSize: "13px",
 							borderRadius: "0 0 4px 4px",
 						}}>
-						<VSCodePanels>
+						<VSCodePanels style={{ marginBottom: "10px" }}>
 							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
 								Resources (
@@ -350,6 +315,46 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 								)}
 							</VSCodePanelView>
 						</VSCodePanels>
+
+						{/* Network Timeout */}
+						<div style={{ padding: "10px 7px" }}>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "10px",
+									marginBottom: "8px",
+								}}>
+								<span>Network Timeout</span>
+								<select
+									value={timeoutValue}
+									onChange={handleTimeoutChange}
+									style={{
+										flex: 1,
+										padding: "4px",
+										background: "var(--vscode-dropdown-background)",
+										color: "var(--vscode-dropdown-foreground)",
+										border: "1px solid var(--vscode-dropdown-border)",
+										borderRadius: "2px",
+										outline: "none",
+										cursor: "pointer",
+									}}>
+									{timeoutOptions.map((option) => (
+										<option key={option.value} value={option.value}>
+											{option.label}
+										</option>
+									))}
+								</select>
+							</div>
+							<span
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									display: "block",
+								}}>
+								Maximum time to wait for server responses
+							</span>
+						</div>
 
 						<VSCodeButton
 							appearance="secondary"
