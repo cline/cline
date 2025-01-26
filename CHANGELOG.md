@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.3.2
+
+### Patch Changes
+
+- Add a dropdown to select the API configuration for a mode in the Prompts tab
+- Fix bug where always allow wasn't showing up for MCP tools
+- v3.3.2
+
 ## [3.3.1]
 
 - Fix issue where the terminal management system was creating unnecessary new terminals (thanks @evan-fannin!)
