@@ -8,15 +8,15 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSayTool,
-	ExtensionMessage,
 	COMPLETION_RESULT_CHANGES_FLAG,
+	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
-import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
+import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import SuccessButton from "../common/SuccessButton"
@@ -427,7 +427,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
@@ -685,13 +685,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 
 					{useMcpServer.type === "use_mcp_tool" && (
 						<>
-							<McpToolRow
-								tool={{
-									name: useMcpServer.toolName || "",
-									description:
-										server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
-								}}
-							/>
+							<div onClick={(e) => e.stopPropagation()}>
+								<McpToolRow
+									tool={{
+										name: useMcpServer.toolName || "",
+										description:
+											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
+										autoApprove:
+											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
+											false,
+									}}
+									serverName={useMcpServer.serverName}
+								/>
+							</div>
 							{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
 								<div style={{ marginTop: "8px" }}>
 									<div
@@ -1153,6 +1159,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<Markdown markdown={message.text} />
 							</div>
 						</>
+					)
+				case "plan_mode_response":
+					return (
+						<div style={{}}>
+							<Markdown markdown={message.text} />
+						</div>
 					)
 				default:
 					return null

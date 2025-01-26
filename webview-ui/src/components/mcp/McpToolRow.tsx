@@ -1,19 +1,45 @@
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "../../../../src/shared/mcp"
+import { vscode } from "../../utils/vscode"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 
 type McpToolRowProps = {
 	tool: McpTool
+	serverName?: string
 }
 
-const McpToolRow = ({ tool }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
+	const { autoApprovalSettings } = useExtensionState()
+
+	const handleAutoApproveChange = () => {
+		if (!serverName) return
+
+		vscode.postMessage({
+			type: "toggleToolAutoApprove",
+			serverName,
+			toolName: tool.name,
+			autoApprove: !tool.autoApprove,
+		})
+	}
 	return (
 		<div
 			key={tool.name}
 			style={{
 				padding: "3px 0",
 			}}>
-			<div style={{ display: "flex" }}>
-				<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
-				<span style={{ fontWeight: 500 }}>{tool.name}</span>
+			<div
+				data-testid="tool-row-container"
+				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+				onClick={(e) => e.stopPropagation()}>
+				<div style={{ display: "flex", alignItems: "center" }}>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
+					<span style={{ fontWeight: 500 }}>{tool.name}</span>
+				</div>
+				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+					<VSCodeCheckbox checked={tool.autoApprove} onChange={handleAutoApproveChange} data-tool={tool.name}>
+						Auto-approve
+					</VSCodeCheckbox>
+				)}
 			</div>
 			{tool.description && (
 				<div
