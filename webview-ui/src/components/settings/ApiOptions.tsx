@@ -330,7 +330,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 
 					{openRouterBaseUrlSelected && (
 						<VSCodeTextField
-							value={apiConfiguration?.openRouterBaseUrl || "https://openrouter.ai/api/v1"}
+							value={apiConfiguration?.openRouterBaseUrl || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							type="url"
 							onInput={handleInputChange("openRouterBaseUrl")}

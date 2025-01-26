@@ -26,7 +26,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: this.options.openRouterBaseUrl,
+			baseURL: this.options.openRouterBaseUrl || "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
