@@ -78,7 +78,7 @@ export const ChatRowContent = ({
 	isLast,
 	isStreaming,
 }: ChatRowContentProps) => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, alwaysAllowMcp } = useExtensionState()
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -871,6 +871,7 @@ export const ChatRowContent = ({
 														)?.alwaysAllow || false,
 												}}
 												serverName={useMcpServer.serverName}
+												alwaysAllowMcp={alwaysAllowMcp}
 											/>
 										</div>
 										{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
