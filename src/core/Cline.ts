@@ -2870,7 +2870,7 @@ export class Cline {
 			this.isStreaming = true
 			try {
 				for await (const chunk of stream) {
-					switch (chunk.type) {
+					switch (chunk?.type) {
 						case "usage":
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
