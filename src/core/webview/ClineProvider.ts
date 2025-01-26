@@ -683,7 +683,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "openExtensionSettings": {
-						await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:saoudrizwan.claude-dev")
+						const settingsFilter = message.text || ""
+						await vscode.commands.executeCommand(
+							"workbench.action.openSettings",
+							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
+						)
 						break
 					}
 					// Add more switch case statements here as more webview message commands
