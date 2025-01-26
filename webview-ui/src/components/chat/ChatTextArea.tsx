@@ -790,8 +790,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										key={config.name}
 										value={config.name}
 										style={{
-											backgroundColor: "var(--vscode-dropdown-background)",
-											color: "var(--vscode-dropdown-foreground)",
+											...optionStyle,
 										}}>
 										{config.name}
 									</option>
