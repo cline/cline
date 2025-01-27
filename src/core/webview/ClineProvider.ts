@@ -43,6 +43,7 @@ import { CustomModesManager } from "../config/CustomModesManager"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
+import { error } from "console"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -544,7 +545,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
 								])
 							})
-							.catch(console.error)
+							.catch((error) =>
+								this.outputChannel.appendLine(
+									`Error list api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								),
+							)
 
 						break
 					case "newTask":
@@ -664,7 +669,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
 								timeout: 3_000,
 							}).catch(() => {
-								console.error("Failed to abort task")
+								this.outputChannel.appendLine(
+									`Failed to abort task ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 							})
 							if (this.cline) {
 								// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
@@ -700,7 +707,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							await this.mcpHub?.restartConnection(message.text!)
 						} catch (error) {
-							console.error(`Failed to retry connection for ${message.text}:`, error)
+							this.outputChannel.appendLine(
+								`Failed to retry connection for ${message.text}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 						}
 						break
 					}
@@ -712,7 +721,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								message.alwaysAllow!,
 							)
 						} catch (error) {
-							console.error(`Failed to toggle auto-approve for tool ${message.toolName}:`, error)
+							this.outputChannel.appendLine(
+								`Failed to toggle auto-approve for tool ${message.toolName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 						}
 						break
 					}
@@ -720,7 +731,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
 						} catch (error) {
-							console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
+							this.outputChannel.appendLine(
+								`Failed to toggle MCP server ${message.serverName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 						}
 						break
 					}
@@ -800,7 +813,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("customSupportPrompts", updatedPrompts)
 							await this.postStateToWebview()
 						} catch (error) {
-							console.error("Error update support prompt:", error)
+							this.outputChannel.appendLine(
+								`Error update support prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 							vscode.window.showErrorMessage("Failed to update support prompt")
 						}
 						break
@@ -822,7 +837,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("customSupportPrompts", updatedPrompts)
 							await this.postStateToWebview()
 						} catch (error) {
-							console.error("Error reset support prompt:", error)
+							this.outputChannel.appendLine(
+								`Error reset support prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 							vscode.window.showErrorMessage("Failed to reset support prompt")
 						}
 						break
@@ -987,7 +1004,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									text: enhancedPrompt,
 								})
 							} catch (error) {
-								console.error("Error enhancing prompt:", error)
+								this.outputChannel.appendLine(
+									`Error enhancing prompt: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to enhance prompt")
 								await this.postMessageToWebview({
 									type: "enhancedPrompt",
@@ -1042,7 +1061,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								mode: message.mode,
 							})
 						} catch (error) {
-							console.error("Error getting system prompt:", error)
+							this.outputChannel.appendLine(
+								`Error getting system prompt:  ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 							vscode.window.showErrorMessage("Failed to get system prompt")
 						}
 						break
@@ -1056,7 +1077,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									commits,
 								})
 							} catch (error) {
-								console.error("Error searching commits:", error)
+								this.outputChannel.appendLine(
+									`Error searching commits: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to search commits")
 							}
 						}
@@ -1076,7 +1099,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 								await this.postStateToWebview()
 							} catch (error) {
-								console.error("Error create new api configuration:", error)
+								this.outputChannel.appendLine(
+									`Error create new api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to create api configuration")
 							}
 						}
@@ -1099,7 +1124,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 								await this.postStateToWebview()
 							} catch (error) {
-								console.error("Error create new api configuration:", error)
+								this.outputChannel.appendLine(
+									`Error create new api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to create api configuration")
 							}
 						}
@@ -1118,7 +1145,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 								await this.postStateToWebview()
 							} catch (error) {
-								console.error("Error load api configuration:", error)
+								this.outputChannel.appendLine(
+									`Error load api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to load api configuration")
 							}
 						}
@@ -1154,7 +1183,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 								await this.postStateToWebview()
 							} catch (error) {
-								console.error("Error delete api configuration:", error)
+								this.outputChannel.appendLine(
+									`Error delete api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage("Failed to delete api configuration")
 							}
 						}
@@ -1165,7 +1196,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 							this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
 						} catch (error) {
-							console.error("Error get list api configuration:", error)
+							this.outputChannel.appendLine(
+								`Error get list api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
 							vscode.window.showErrorMessage("Failed to get list api configuration")
 						}
 						break
@@ -1182,7 +1215,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							try {
 								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
 							} catch (error) {
-								console.error(`Failed to update timeout for ${message.serverName}:`, error)
+								this.outputChannel.appendLine(
+									`Failed to update timeout for ${message.serverName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
 								vscode.window.showErrorMessage(`Failed to update server timeout`)
 							}
 						}
@@ -1423,7 +1458,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const models = await vscode.lm.selectChatModels({})
 			return models || []
 		} catch (error) {
-			console.error("Error fetching VS Code LM models:", error)
+			this.outputChannel.appendLine(
+				`Error fetching VS Code LM models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
 			return []
 		}
 	}
@@ -1466,7 +1503,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			console.error("Error exchanging code for API key:", error)
+			this.outputChannel.appendLine(
+				`Error exchanging code for API key: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
 			throw error
 		}
 
@@ -1496,7 +1535,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				throw new Error("Invalid response from Glama API")
 			}
 		} catch (error) {
-			console.error("Error exchanging code for API key:", error)
+			this.outputChannel.appendLine(
+				`Error exchanging code for API key: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
 			throw error
 		}
 
@@ -1583,12 +1624,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					models[rawModel.id] = modelInfo
 				}
 			} else {
-				console.error("Invalid response from Glama API")
+				this.outputChannel.appendLine("Invalid response from Glama API")
 			}
 			await fs.writeFile(glamaModelsFilePath, JSON.stringify(models))
-			console.log("Glama models fetched and saved", models)
+			this.outputChannel.appendLine(`Glama models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
-			console.error("Error fetching Glama models:", error)
+			this.outputChannel.appendLine(
+				`Error fetching Glama models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
 		}
 
 		await this.postMessageToWebview({ type: "glamaModels", glamaModels: models })
@@ -1706,12 +1749,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					models[rawModel.id] = modelInfo
 				}
 			} else {
-				console.error("Invalid response from OpenRouter API")
+				this.outputChannel.appendLine("Invalid response from OpenRouter API")
 			}
 			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-			console.log("OpenRouter models fetched and saved", models)
+			this.outputChannel.appendLine(`OpenRouter models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
-			console.error("Error fetching OpenRouter models:", error)
+			this.outputChannel.appendLine(
+				`Error fetching OpenRouter models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
 		}
 
 		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
