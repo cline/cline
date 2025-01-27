@@ -1,15 +1,18 @@
 import * as vscode from "vscode"
 import * as path from "path"
+import { ClineProvider } from "./webview/ClineProvider"
 
 export const ACTION_NAMES = {
 	EXPLAIN: "Roo Code: Explain Code",
 	FIX: "Roo Code: Fix Code",
+	FIX_IN_CURRENT_TASK: "Roo Code: Fix Code in Current Task",
 	IMPROVE: "Roo Code: Improve Code",
 } as const
 
 const COMMAND_IDS = {
 	EXPLAIN: "roo-cline.explainCode",
 	FIX: "roo-cline.fixCode",
+	FIX_IN_CURRENT_TASK: "roo-cline.fixCodeInCurrentTask",
 	IMPROVE: "roo-cline.improveCode",
 } as const
 
@@ -159,6 +162,13 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 							effectiveRange.text,
 							diagnosticMessages,
 						]),
+
+						this.createAction(
+							ACTION_NAMES.FIX_IN_CURRENT_TASK,
+							vscode.CodeActionKind.QuickFix,
+							COMMAND_IDS.FIX_IN_CURRENT_TASK,
+							[filePath, effectiveRange.text, diagnosticMessages],
+						),
 					)
 				}
 			}

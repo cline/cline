@@ -125,7 +125,7 @@ describe("CodeActionProvider", () => {
 
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
-			expect(actions).toHaveLength(3)
+			expect(actions).toHaveLength(4)
 			expect((actions as any).some((a: any) => a.title === "Roo Code: Fix Code")).toBe(true)
 		})
 
