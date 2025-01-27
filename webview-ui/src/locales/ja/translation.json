@@ -129,7 +129,7 @@
 		"planModeResponse": "計画モード応答",
 		"seeNewChanges": "新しい変更を見る",
 		"commandRequiresApproval": "このコマンドは明示的な承認が必要です。",
-		"troubleshootingGuide": "トラブルシューティングガイド",
+		"troubleshootingGuide": "Windows PowerShellの問題が発生しているようです。この<Link>トラブルシューティングガイド</Link>をご覧ください。",
 		"clineWantsToViewTopLevelFiles": "クラインがこのディレクトリのトップレベルファイルを表示したいと考えています：",
 		"clineViewedTopLevelFiles": "クラインがこのディレクトリのトップレベルファイルを表示しました：",
 		"clineWantsToRecursivelyViewFiles": "クラインがこのディレクトリのすべてのファイルを再帰的に表示したいと考えています：",

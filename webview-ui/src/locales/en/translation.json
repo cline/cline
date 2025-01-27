@@ -87,8 +87,8 @@
 	},
 	"chatRow": {
 		"error": "Error",
-		"mistakeLimitReached": "Mistake limit reached",
-		"autoApprovalMaxReqReached": "Auto approval max request reached",
+		"mistakeLimitReached": "Cline is having trouble...",
+		"autoApprovalMaxReqReached": "Maximum Requests Reached",
 		"command": {
 			"ask": "Cline wants to execute this command:",
 			"say": "Cline executed this command:"
@@ -99,13 +99,13 @@
 			"tool": "tool",
 			"resource": "resource"
 		},
-		"completionResult": "Completion result",
-		"apiReqCancelled": "API request cancelled",
-		"apiStreamingFailed": "API streaming failed",
-		"apiRequest": "API request",
-		"apiRequestFailed": "API request failed",
-		"apiRequestInProgress": "API request in progress",
-		"followup": "Follow-up",
+		"completionResult": "Task Completed",
+		"apiReqCancelled": "API Request Cancelled",
+		"apiStreamingFailed": "API Streaming Failed",
+		"apiRequest": "API Request",
+		"apiRequestFailed": "API Request Failed",
+		"apiRequestInProgress": "API Request...",
+		"followup": "Cline has a question:",
 		"tool": {
 			"editedExistingFile": {
 				"ask": "Cline wants to edit this file:",
@@ -129,7 +129,7 @@
 		"planModeResponse": "Plan Mode Response",
 		"seeNewChanges": "See new changes",
 		"commandRequiresApproval": "The model has determined this command requires explicit approval.",
-		"troubleshootingGuide": "troubleshooting guide",
+		"troubleshootingGuide": "It seems like you're having Windows PowerShell issues, please see this <Link>troubleshooting guide</Link>",
 		"clineWantsToViewTopLevelFiles": "Cline wants to view the top level files in this directory:",
 		"clineViewedTopLevelFiles": "Cline viewed the top level files in this directory:",
 		"clineWantsToRecursivelyViewFiles": "Cline wants to recursively view all files in this directory:",

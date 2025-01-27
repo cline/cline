@@ -124,7 +124,7 @@
 		"planModeResponse": "计划模式响应",
 		"seeNewChanges": "查看新更改",
 		"commandRequiresApproval": "模型已确定此命令需要明确批准。",
-		"troubleshootingGuide": "故障排除指南",
+		"troubleshootingGuide": "看起来你遇到了 Windows PowerShell 问题，请参阅此 <Link>故障排除指南</Link>",
 		"clineWantsToViewTopLevelFiles": "Cline 想查看此目录中的顶级文件：",
 		"clineViewedTopLevelFiles": "Cline 查看了此目录中的顶级文件：",
 		"clineWantsToRecursivelyViewFiles": "Cline 想递归查看此目录中的所有文件：",

@@ -3,6 +3,7 @@ import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
 import { useTranslation } from "react-i18next"
+import { Trans } from "react-i18next"
 import styled from "styled-components"
 import {
 	ClineApiReqInfo,
@@ -786,7 +787,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											<>
 												<br />
 												<br />
-												{t("troubleshootingGuide")}
+												<Trans
+													i18nKey="chatRow.troubleshootingGuide"
+													components={{
+														Link: (
+															<a
+																href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+																style={{
+																	color: "inherit",
+																	textDecoration: "underline",
+																}}>
+																PowerShell
+															</a>
+														),
+													}}
+												/>
 											</>
 										)}
 									</p>
@@ -1032,6 +1047,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										{t("response")}
 									</a>
 								</div>
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
 							</div>
 						</>
 					)
