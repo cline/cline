@@ -5,7 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ExperimentalFeature from "./ExperimentalFeature"
-import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId, ExperimentKey } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
 import ApiConfigManager from "./ApiConfigManager"
 
 type SettingsViewProps = {
