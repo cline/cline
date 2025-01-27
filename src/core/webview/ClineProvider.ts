@@ -43,7 +43,6 @@ import { CustomModesManager } from "../config/CustomModesManager"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
-import { error } from "console"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -668,7 +667,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							this.cline.abortTask()
 							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
 								timeout: 3_000,
-							}).catch(() => {
+							}).catch((error) => {
 								this.outputChannel.appendLine(
 									`Failed to abort task ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 								)
