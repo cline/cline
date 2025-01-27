@@ -26,6 +26,8 @@
 </table>
 </div>
 
+Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
+
 Other language [README files](./README.md) are available in:
 - [Español](./locales/es/README.md)
 - [Deutsch](./locales/de/README.md)
