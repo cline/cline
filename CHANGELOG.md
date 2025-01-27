@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.3.4
+
+### Patch Changes
+
+- Add per-server MCP network timeout configuration
+- v3.3.4
+- Speed up diff editing (thanks @hannesrudolph!)
+
 ## [3.3.3]
 
 - Throw errors sooner when a mode tries to write a restricted file
