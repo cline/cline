@@ -4,6 +4,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { version } from "../../../package.json"
 
 export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -14,6 +15,9 @@ export class OllamaHandler implements ApiHandler {
 		this.client = new OpenAI({
 			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
 			apiKey: "ollama",
+			defaultHeaders: {
+				"User-Agent": `Cline/${version}`,
+			},
 		})
 	}
 

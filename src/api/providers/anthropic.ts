@@ -3,6 +3,7 @@ import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
+import { version } from "../../../package.json"
 
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -13,6 +14,9 @@ export class AnthropicHandler implements ApiHandler {
 		this.client = new Anthropic({
 			apiKey: this.options.apiKey,
 			baseURL: this.options.anthropicBaseUrl || undefined,
+			defaultHeaders: {
+				"User-Agent": `Cline/${version}`,
+			},
 		})
 	}
 

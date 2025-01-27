@@ -5,6 +5,7 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { version } from "../../../package.json"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -18,11 +19,17 @@ export class OpenAiHandler implements ApiHandler {
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders: {
+					"User-Agent": `Cline/${version}`,
+				},
 			})
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
+				defaultHeaders: {
+					"User-Agent": `Cline/${version}`,
+				},
 			})
 		}
 	}
