@@ -234,7 +234,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
 
-		if (visibleProvider.cline && ["roo-cline.fixCodeInCurrentTask"].indexOf(command) !== -1) {
+		if (visibleProvider.cline && command.endsWith("InCurrentTask")) {
 			await visibleProvider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",

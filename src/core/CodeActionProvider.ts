@@ -5,14 +5,12 @@ import { ClineProvider } from "./webview/ClineProvider"
 export const ACTION_NAMES = {
 	EXPLAIN: "Roo Code: Explain Code",
 	FIX: "Roo Code: Fix Code",
-	FIX_IN_CURRENT_TASK: "Roo Code: Fix Code in Current Task",
 	IMPROVE: "Roo Code: Improve Code",
 } as const
 
 const COMMAND_IDS = {
 	EXPLAIN: "roo-cline.explainCode",
 	FIX: "roo-cline.fixCode",
-	FIX_IN_CURRENT_TASK: "roo-cline.fixCodeInCurrentTask",
 	IMPROVE: "roo-cline.improveCode",
 } as const
 
@@ -116,6 +114,18 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 		return action
 	}
 
+	private createActionPair(
+		baseTitle: string,
+		kind: vscode.CodeActionKind,
+		baseCommand: string,
+		args: any[],
+	): vscode.CodeAction[] {
+		return [
+			this.createAction(`${baseTitle} in New Task`, kind, baseCommand, args),
+			this.createAction(`${baseTitle} in Current Task`, kind, `${baseCommand}InCurrentTask`, args),
+		]
+	}
+
 	private hasIntersectingRange(range1: vscode.Range, range2: vscode.Range): boolean {
 		// Optimize range intersection check
 		return !(
@@ -141,8 +151,9 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 			const actions: vscode.CodeAction[] = []
 
 			// Create actions using helper method
+			// Add explain actions
 			actions.push(
-				this.createAction(ACTION_NAMES.EXPLAIN, vscode.CodeActionKind.QuickFix, COMMAND_IDS.EXPLAIN, [
+				...this.createActionPair(ACTION_NAMES.EXPLAIN, vscode.CodeActionKind.QuickFix, COMMAND_IDS.EXPLAIN, [
 					filePath,
 					effectiveRange.text,
 				]),
@@ -157,27 +168,23 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 				if (relevantDiagnostics.length > 0) {
 					const diagnosticMessages = relevantDiagnostics.map(this.createDiagnosticData)
 					actions.push(
-						this.createAction(ACTION_NAMES.FIX, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
+						...this.createActionPair(ACTION_NAMES.FIX, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
 							filePath,
 							effectiveRange.text,
 							diagnosticMessages,
 						]),
-
-						this.createAction(
-							ACTION_NAMES.FIX_IN_CURRENT_TASK,
-							vscode.CodeActionKind.QuickFix,
-							COMMAND_IDS.FIX_IN_CURRENT_TASK,
-							[filePath, effectiveRange.text, diagnosticMessages],
-						),
 					)
 				}
 			}
 
+			// Add improve actions
 			actions.push(
-				this.createAction(ACTION_NAMES.IMPROVE, vscode.CodeActionKind.RefactorRewrite, COMMAND_IDS.IMPROVE, [
-					filePath,
-					effectiveRange.text,
-				]),
+				...this.createActionPair(
+					ACTION_NAMES.IMPROVE,
+					vscode.CodeActionKind.RefactorRewrite,
+					COMMAND_IDS.IMPROVE,
+					[filePath, effectiveRange.text],
+				),
 			)
 
 			return actions
