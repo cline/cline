@@ -62,7 +62,7 @@ export class OpenAiHandler implements ApiHandler {
 			info: {
 				...openAiModelInfoSaneDefaults,
 				contextWindow: this.options.openAiContextWindow ?? openAiModelInfoSaneDefaults.contextWindow,
-			}
+			},
 		}
 	}
 }
