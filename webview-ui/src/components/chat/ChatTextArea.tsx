@@ -4,7 +4,7 @@ import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -211,6 +211,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
+		const { t } = useTranslation("translation", { keyPrefix: "chatTextArea" })
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
@@ -1063,8 +1064,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
 						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
-						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "plan"}>{t("plan")}</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "act"}>{t("act")}</SwitchOption>
 					</SwitchContainer>
 				</ControlsContainer>
 			</div>

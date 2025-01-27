@@ -1,0 +1,175 @@
+{
+	"announcement": {
+		"newInVersion": "Nuevo en la versión {{version}}",
+		"joinOurCommunities": "Únete a nuestro <DiscordLink>Discord</DiscordLink> o <RedditLink>Reddit</RedditLink> para más actualizaciones!"
+	},
+	"settingsView": {
+		"settings": "Configuraciones",
+		"done": "Hecho",
+		"language": "Idioma",
+		"customInstructions": "Instrucciones personalizadas",
+		"customInstructionsPlaceholder": "por ejemplo, \"Realiza pruebas unitarias al final\", \"Usa TypeScript con async/await\", \"Habla en japonés\"",
+		"customInstructionsDescription": "Estas instrucciones se agregarán al final del prompt del sistema que se envía con cada solicitud.",
+		"debug": "Depurar",
+		"resetState": "Restablecer estado",
+		"resetStateDescription": "Esto restablecerá todo el estado global y el almacenamiento secreto en la extensión.",
+		"feedback": "Si tienes preguntas o comentarios, no dudes en abrir un issue en",
+		"version": "v"
+	},
+	"apiOptions": {
+		"selectModel": "Seleccionar modelo...",
+		"model": "Modelo",
+		"apiProvider": "Proveedor de API",
+		"enterApiKey": "Ingresar clave API...",
+		"apiKey": "Clave API",
+		"enterBaseUrl": "Ingresar URL base...",
+		"baseUrl": "URL base",
+		"optionalBaseUrl": "URL base (opcional)",
+		"enterModelId": "Ingresar ID del modelo...",
+		"modelId": "ID del modelo",
+		"useCustomBaseUrl": "Usar URL base personalizada",
+		"apiKeyInfo": "Esta clave se almacena localmente y solo se usa para realizar solicitudes API desde esta extensión.",
+		"getDefault": "Predeterminado: {{defaultValue}}",
+		"getApiKeyMessage": "Puedes obtener una clave API de {{vendor}} registrándote aquí.",
+		"getApiVendorKey": "Clave API de {{vendor}}",
+		"getCompatibleVendor": "Compatible con {{vendor}}",
+		"lmStudioInfo": "LM Studio te permite ejecutar modelos localmente en tu computadora. Encuentra instrucciones para comenzar en su <Link href=\"https://lmstudio.ai/docs\">Guía de inicio rápido.</Link> También debes iniciar la función de <Link href=\"https://lmstudio.ai/docs/basics/server\">servidor local</Link> de LM Studio para usarla con esta extensión. <ErrSpan>(<b>Nota:</b> Cline usa prompts complejos y funciona mejor con modelos Claude. Los modelos menos potentes pueden no funcionar como se espera.)</ErrSpan>",
+		"ollamaInfo": "Ollama te permite ejecutar modelos localmente en tu computadora. Encuentra instrucciones para comenzar en su <Link href=\"https://github.com/ollama/ollama/blob/main/README.md\">Guía de inicio rápido.</Link> <ErrorSpan>(<b>Nota:</b> Cline usa prompts complejos y funciona mejor con modelos Claude. Los modelos menos potentes pueden no funcionar como se espera.)</ErrorSpan>",
+		"azureInfo": "<ErrSpan>(<b>Nota:</b> Cline usa prompts complejos y funciona mejor con modelos Claude. Los modelos menos potentes pueden no funcionar como se espera.)</ErrSpan>",
+		"setAzureApiVersion": "Establecer versión de API de Azure",
+		"enterGcpProjectId": "Ingresar ID del proyecto...",
+		"gcpProjectId": "ID del proyecto de Google Cloud",
+		"gcpLinks": "Para usar Google Cloud Vertex AI, debes <Link href=\"https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin\"> 1) crear una cuenta de Google Cloud › habilitar la API de Vertex AI › habilitar los modelos Claude deseados, </Link><br /> <Link href=\"https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp\"> 2) instalar la CLI de Google Cloud › configurar credenciales predeterminadas de la aplicación. </Link>",
+		"enterAwsAccessKey": "Ingresar clave de acceso...",
+		"awsAccessKey": "Clave de acceso de AWS",
+		"enterAwsSecretKey": "Ingresar clave secreta...",
+		"awsSecretKey": "Clave secreta de AWS",
+		"enterAwsSessionToken": "Ingresar token de sesión...",
+		"awsSessionToken": "Token de sesión de AWS",
+		"getRegion": "Región de {{vendor}}",
+		"selectRegion": "Seleccionar región...",
+		"useCrossRegionInference": "Usar inferencia entre regiones",
+		"awsInfo": "Autentícate proporcionando las claves mencionadas arriba o usando las credenciales predeterminadas de AWS, es decir, ~/.aws/credentials o variables de entorno. Estas credenciales solo se usan localmente para realizar solicitudes API desde esta extensión.",
+		"vscodeLanguageModelsInfo": "La API de Modelos de Lenguaje de VS Code te permite usar modelos proporcionados por otras extensiones de VS Code (incluyendo, pero no limitado a GitHub Copilot). La forma más fácil de comenzar es instalar la extensión Copilot desde el VS Marketplace y habilitar Claude 3.5 Sonnet.",
+		"experimentalFeature": "Nota: Esta es una integración muy experimental y puede no funcionar como se espera.",
+		"supportsImages": "Soporta imágenes",
+		"doesNotSupportImages": "No soporta imágenes",
+		"supportsComputerUse": "Soporta uso de computadora",
+		"doesNotSupportComputerUse": "No soporta uso de computadora",
+		"supportsPromptCache": "Soporta caché de prompts",
+		"doesNotSupportPromptCache": "No soporta caché de prompts",
+		"maxOutput": "Salida máxima",
+		"tokens": "Tokens",
+		"inputPrice": "Precio de entrada",
+		"millionTokens": "Millones de tokens",
+		"cacheWritesPrice": "Precio de escritura en caché",
+		"cacheReadsPrice": "Precio de lectura en caché",
+		"outputPrice": "Precio de salida",
+		"geminiInfo": "* Gratis hasta {{selectedModelId}} solicitudes por minuto. Después, la facturación depende del tamaño del prompt.",
+		"pricingDetails": "Para más información, consulta los detalles de precios.",
+		"languageModel": "Modelo de lenguaje"
+	},
+	"welcomeView": {
+		"greeting": "¡Hola! Soy Cline, tu asistente de IA.",
+		"description": "Puedo realizar todo tipo de tareas gracias a los últimos avances en <ClaudeLink>las habilidades de codificación agencial de Claude 3.5 Sonnet</ClaudeLink> y el acceso a herramientas que me permiten crear y editar archivos, explorar proyectos complejos, usar el navegador y ejecutar comandos de terminal (por supuesto, con tu permiso). Incluso puedo usar MCP para crear nuevas herramientas y expandir mis propias habilidades.",
+		"getStarted": "Para comenzar, esta extensión necesita un proveedor de API para Claude 3.5 Sonnet.",
+		"letsGo": "¡Vamos allá!"
+	},
+	"chatView": {
+		"typeMessage": "Escribir mensaje...",
+		"typeTask": "Escribir tarea...",
+		"whatCanIDoForYou": "¿Qué puedo hacer por ti?",
+		"thanksTo": "Gracias a <ClaudeLink>las habilidades de codificación agencial de Claude 3.5 Sonnet</ClaudeLink>, puedo manejar tareas complejas de desarrollo de software paso a paso. Con herramientas que me permiten crear y editar archivos, explorar proyectos complejos, usar el navegador y ejecutar comandos de terminal (después de que hayas dado permiso), puedo ayudarte de una manera que va más allá de la autocompletación de código o el soporte técnico. Incluso puedo usar MCP para crear nuevas herramientas y expandir mis propias habilidades."
+	},
+	"chatTextArea": {
+		"plan": "Planificar",
+		"act": "Actuar"
+	},
+	"chatRow": {
+		"error": "Error",
+		"mistakeLimitReached": "Límite de errores alcanzado",
+		"autoApprovalMaxReqReached": "Número máximo de aprobaciones automáticas alcanzado",
+		"command": {
+			"ask": "Cline quiere ejecutar este comando:",
+			"say": "Cline ha ejecutado este comando:"
+		},
+		"useMcpServer": {
+			"ask": "Cline quiere usar este {type} en {serverName}:",
+			"say": "Cline ha usado este {type} en {serverName}:",
+			"tool": "Herramienta",
+			"resource": "Recurso"
+		},
+		"completionResult": "Resultado de la finalización",
+		"apiReqCancelled": "Solicitud API cancelada",
+		"apiStreamingFailed": "Transmisión API fallida",
+		"apiRequest": "Solicitud API",
+		"apiRequestFailed": "Solicitud API fallida",
+		"apiRequestInProgress": "Solicitud API en progreso",
+		"followup": "Seguimiento",
+		"tool": {
+			"editedExistingFile": {
+				"ask": "Cline quiere editar este archivo:",
+				"say": "Cline está editando este archivo:"
+			},
+			"createdNewFile": {
+				"ask": "Cline quiere crear este archivo:",
+				"say": "Cline ha creado este archivo:"
+			},
+			"readExistingFile": {
+				"ask": "Cline quiere leer este archivo:",
+				"say": "Cline ha leído este archivo:"
+			}
+		},
+		"apiReqStarted": "Solicitud API iniciada",
+		"userFeedback": "Comentarios del usuario",
+		"userFeedbackDiff": "Diferencia de comentarios del usuario",
+		"diffEditFailed": "Edición de diferencia fallida",
+		"shellIntegrationUnavailable": "Integración de shell no disponible",
+		"mcpServerResponse": "Respuesta del servidor MCP",
+		"planModeResponse": "Respuesta del modo plan",
+		"seeNewChanges": "Ver nuevos cambios",
+		"commandRequiresApproval": "El modelo ha determinado que este comando requiere aprobación explícita.",
+		"troubleshootingGuide": "Guía de solución de problemas",
+		"clineWantsToViewTopLevelFiles": "Cline quiere ver los archivos principales en este directorio:",
+		"clineViewedTopLevelFiles": "Cline ha visto los archivos principales en este directorio:",
+		"clineWantsToRecursivelyViewFiles": "Cline quiere ver todos los archivos en este directorio de forma recursiva:",
+		"clineRecursivelyViewedFiles": "Cline ha visto todos los archivos en este directorio de forma recursiva:",
+		"clineWantsToViewSourceCodeDefinitions": "Cline quiere ver los nombres de las definiciones de código fuente usadas en este directorio:",
+		"clineViewedSourceCodeDefinitions": "Cline ha visto los nombres de las definiciones de código fuente usadas en este directorio:",
+		"clineWantsToSearchDirectory": "Cline quiere buscar en este directorio por {{regex}}:",
+		"clineSearchedDirectory": "Cline ha buscado en este directorio por {{regex}}:",
+		"diffEditFailedMessage": "Esto generalmente ocurre cuando el modelo usa patrones de búsqueda que no encuentran nada en el archivo. Intentar de nuevo...",
+		"shellIntegrationUnavailableMessage": "Cline no puede mostrar la salida del comando. Por favor, actualiza VSCode (CMD/CTRL + Shift + P → \"Update\") y asegúrate de estar usando una shell compatible: zsh, bash, fish o PowerShell (CMD/CTRL + Shift + P → \"Terminal: Seleccionar perfil predeterminado\"). ¿Sigues teniendo problemas?",
+		"response": "Respuesta",
+		"stillHavingTrouble": "¿Sigues teniendo problemas?"
+	},
+	"autoApproveMenu": {
+		"none": "Ninguno",
+		"autoApprove": "Aprobación automática:",
+		"autoApproveDescription": "La aprobación automática permite a Cline realizar las siguientes acciones sin pedir permiso. Por favor, úsalo con precaución y solo habilítalo si entiendes los riesgos.",
+		"autoApproveMaxRequestsDescription": "Cline realizará automáticamente tantas solicitudes API antes de que se requiera una aprobación para continuar con la tarea.",
+		"enableNotifications": "Habilitar notificaciones",
+		"enableNotificationsDescription": "Recibe notificaciones del sistema cuando Cline necesita aprobación para continuar o cuando una tarea se ha completado."
+	},
+	"historyPreview": {
+		"recentTasks": "Tareas recientes",
+		"tokens": "Tokens",
+		"cache": "Caché",
+		"apiCost": "Costo de API",
+		"viewAllHistory": "Ver todo el historial"
+	},
+	"historyView": {
+		"history": "Historial",
+		"done": "Hecho",
+		"fuzzySearchHistory": "Búsqueda difusa en el historial...",
+		"newest": "Más reciente",
+		"oldest": "Más antiguo",
+		"mostExpensive": "Más caro",
+		"mostTokens": "Más tokens",
+		"mostRelevant": "Más relevante",
+		"tokens": "Tokens:",
+		"cache": "Caché:",
+		"apiCost": "Costo de API:",
+		"export": "EXPORTAR"
+	}
+}

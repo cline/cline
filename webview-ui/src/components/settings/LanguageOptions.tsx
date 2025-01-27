@@ -22,6 +22,7 @@ const LanguageOptions = () => {
 					style={{ width: "100%" }}
 					onChange={changeLanguage}>
 					<VSCodeOption value="en">English</VSCodeOption>
+					<VSCodeOption value="es">Español</VSCodeOption>
 					<VSCodeOption value="de">Deutsch</VSCodeOption>
 					<VSCodeOption value="zh-CN">中文(简体)</VSCodeOption>
 					<VSCodeOption value="zh-TW">中文(繁體)</VSCodeOption>
