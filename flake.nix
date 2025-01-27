@@ -6,13 +6,15 @@
   };
 
   outputs = { self, nixpkgs, ... }: let
-    system = "aarch64-darwin";
-  in {
-    devShells."${system}".default = let
+    systems = [ "aarch64-darwin" "x86_64-linux" ];
+
+    forAllSystems = nixpkgs.lib.genAttrs systems;
+
+    mkDevShell = system: let
       pkgs = import nixpkgs { inherit system; };
     in pkgs.mkShell {
       name = "roo-code";
-
+      
       packages = with pkgs; [
         nodejs_20
         zsh
@@ -23,5 +25,9 @@
         exec zsh
       '';
     };
+  in {
+    devShells = forAllSystems (system: {
+      default = mkDevShell system;
+    });
   };
 }
