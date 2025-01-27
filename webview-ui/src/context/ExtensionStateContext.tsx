@@ -72,7 +72,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.vsCodeLmModelSelector,
 						].some((key) => key !== undefined)
 					: false
-				setShowWelcome(!hasKey)
+				setShowWelcome(!hasKey && !message.state!.isLoggedIn)
 				setDidHydrateState(true)
 				break
 			}

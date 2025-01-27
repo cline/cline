@@ -8,7 +8,7 @@ import ApiOptions from "./ApiOptions"
 import LanguageOptions from "./LanguageOptions"
 import SettingsButton from "../common/SettingsButton"
 
-const IS_DEV = false // FIXME: use flags when packaging
+const IS_DEV = true // FIXME: use flags when packaging
 
 type SettingsViewProps = {
 	onDone: () => void
