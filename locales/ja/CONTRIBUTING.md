@@ -1,82 +1,82 @@
-# Contributing to Cline
+# Clineへの貢献
 
-We're thrilled you're interested in contributing to Cline. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Cline smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+Clineへの貢献に興味をお持ちいただきありがとうございます。
 
-## Reporting Bugs or Issues
+## バグや問題の報告
 
-Bug reports help make Cline better for everyone! Before creating a new issue, please [search existing ones](https://github.com/cline/cline/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/cline/cline/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
+バグ報告は、Clineを皆さんにとってより良いものにするために役立ちます！新しい問題を作成する前に、重複を避けるために[既存の問題を検索](https://github.com/cline/cline/issues)してください。バグを報告する準備ができたら、[問題ページ](https://github.com/cline/cline/issues/new/choose)に移動し、関連情報を記入するためのテンプレートをご利用ください。
 
 <blockquote class='warning-note'>
-     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/cline/cline/security/advisories/new">Github security tool to report it privately</a>.
+    🔐 <b>重要:</b> セキュリティ脆弱性を発見した場合は、<a href="https://github.com/cline/cline/security/advisories/new">Githubセキュリティツールを使用して非公開で報告</a>してください。
 </blockquote>
 
-## Deciding What to Work On
+## 作業内容の決定
 
-Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
+最初の貢献をお探しですか？["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue)や["help wanted"](https://github.com/cline/cline/labels/help%20wanted)のラベルが付いた問題をチェックしてください。これらは新しい貢献者向けに特に選ばれたもので、私たちが助けを求めている分野です！
 
-We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+また、[ドキュメント](https://github.com/cline/cline/tree/main/docs)への貢献も歓迎します！誤字の修正、既存のガイドの改善、新しい教育コンテンツの作成など、コミュニティ主導のリソースリポジトリを構築するために皆さんの力をお借りしたいと考えています。`/docs`に飛び込んで、改善が必要な箇所を探してみてください。
 
-If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
+大きな機能に取り組む予定がある場合は、まず[機能リクエスト](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)を作成し、それがClineのビジョンに合致するかどうかを議論しましょう。
 
-## Development Setup
+## 開発環境のセットアップ
 
-1. **VS Code Extensions**
+1. **VS Code拡張機能**
 
-    - When opening the project, VS Code will prompt you to install recommended extensions
-    - These extensions are required for development - please accept all installation prompts
-    - If you dismissed the prompts, you can install them manually from the Extensions panel
+    - プロジェクトを開くと、VS Codeは推奨される拡張機能のインストールを促します
+    - これらの拡張機能は開発に必要です - すべてのインストールプロンプトを受け入れてください
+    - プロンプトを閉じた場合は、拡張機能パネルから手動でインストールできます
 
-2. **Local Development**
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run test` to run tests locally
-    - Before submitting PR, run `npm run format:fix` to format your code
+2. **ローカル開発**
+    - `npm run install:all`を実行して依存関係をインストールします
+    - `npm run test`を実行してローカルでテストを実行します
+    - PRを提出する前に、`npm run format:fix`を実行してコードをフォーマットします
 
-## Writing and Submitting Code
+## コードの作成と提出
 
-Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
+誰でもClineにコードを貢献できますが、貢献がスムーズに統合されるように以下のガイドラインに従ってください：
 
-1. **Keep Pull Requests Focused**
+1. **プルリクエストを集中させる**
 
-    - Limit PRs to a single feature or bug fix
-    - Split larger changes into smaller, related PRs
-    - Break changes into logical commits that can be reviewed independently
+    - PRは単一の機能またはバグ修正に限定してください
+    - 大きな変更は小さな関連PRに分割してください
+    - 論理的なコミットに分けて、独立してレビューできるようにしてください
 
-2. **Code Quality**
+2. **コード品質**
 
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
-    - All PRs must pass CI checks which include both linting and formatting
-    - Address any ESLint warnings or errors before submitting
-    - Follow TypeScript best practices and maintain type safety
+    - `npm run lint`を実行してコードスタイルをチェックします
+    - `npm run format`を実行してコードを自動的にフォーマットします
+    - すべてのPRは、リンティングとフォーマットを含むCIチェックに合格する必要があります
+    - 提出前にESLintの警告やエラーをすべて解決してください
+    - TypeScriptのベストプラクティスに従い、型の安全性を維持してください
 
-3. **Testing**
+3. **テスト**
 
-    - Add tests for new features
-    - Run `npm test` to ensure all tests pass
-    - Update existing tests if your changes affect them
-    - Include both unit tests and integration tests where appropriate
+    - 新しい機能にはテストを追加してください
+    - `npm test`を実行してすべてのテストが合格することを確認してください
+    - 変更が既存のテストに影響を与える場合は、それらを更新してください
+    - 適切な場合には、ユニットテストと統合テストの両方を含めてください
 
-4. **Commit Guidelines**
+4. **コミットガイドライン**
 
-    - Write clear, descriptive commit messages
-    - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
-    - Reference relevant issues in commits using #issue-number
+    - 明確で説明的なコミットメッセージを書いてください
+    - 従来のコミット形式（例："feat:", "fix:", "docs:"）を使用してください
+    - コミットで関連する問題を#issue-numberを使用して参照してください
 
-5. **Before Submitting**
+5. **提出前に**
 
-    - Rebase your branch on the latest main
-    - Ensure your branch builds successfully
-    - Double-check all tests are passing
-    - Review your changes for any debugging code or console logs
+    - 最新のmainにブランチをリベースしてください
+    - ブランチが正常にビルドされることを確認してください
+    - すべてのテストが合格していることを再確認してください
+    - デバッグコードやコンソールログがないか変更を確認してください
 
-6. **Pull Request Description**
-    - Clearly describe what your changes do
-    - Include steps to test the changes
-    - List any breaking changes
-    - Add screenshots for UI changes
+6. **プルリクエストの説明**
+    - 変更内容を明確に説明してください
+    - 変更をテストする手順を含めてください
+    - 破壊的な変更がある場合はリストしてください
+    - UIの変更にはスクリーンショットを追加してください
 
-## Contribution Agreement
+## 貢献契約
 
-By submitting a pull request, you agree that your contributions will be licensed under the same license as the project ([Apache 2.0](LICENSE)).
+プルリクエストを提出することで、あなたの貢献がプロジェクトと同じライセンス（[Apache 2.0](LICENSE)）の下でライセンスされることに同意したことになります。
 
-Remember: Contributing to Cline isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀
+覚えておいてください：Clineへの貢献はコードを書くことだけではなく、AI支援開発の未来を形作るコミュニティの一員になることです。一緒に素晴らしいものを作りましょう！🚀

@@ -1,76 +1,47 @@
-# Contributor Covenant Code of Conduct
+# 貢獻者公約行為準則
 
-## Our Pledge
+## 我們的承諾
 
-In the interest of fostering an open and welcoming environment, we as
-contributors and maintainers pledge to making participation in our project and
-our community a harassment-free experience for everyone, regardless of age, body
-size, disability, ethnicity, sex characteristics, gender identity and expression,
-level of experience, education, socio-economic status, nationality, personal
-appearance, race, religion, or sexual identity and orientation.
+為了促進一個開放和歡迎的環境，我們作為貢獻者和維護者承諾，使我們的項目和社區的參與對每個人來說都是一個無騷擾的體驗，不論年齡、體型、殘疾、種族、性別特徵、性別認同和表達、經驗水平、教育程度、社會經濟地位、國籍、個人外貌、種族、宗教或性取向。
 
-## Our Standards
+## 我們的標準
 
-Examples of behavior that contributes to creating a positive environment
-include:
+有助於創造積極環境的行為示例包括：
 
--   Using welcoming and inclusive language
--   Being respectful of differing viewpoints and experiences
--   Gracefully accepting constructive criticism
--   Focusing on what is best for the community
--   Showing empathy towards other community members
+- 使用歡迎和包容的語言
+- 尊重不同的觀點和經驗
+- 優雅地接受建設性的批評
+- 專注於對社區最有利的事情
+- 對其他社區成員表示同情
 
-Examples of unacceptable behavior by participants include:
+參與者不可接受的行為示例包括：
 
--   The use of sexualized language or imagery and unwelcome sexual attention or
-    advances
--   Trolling, insulting/derogatory comments, and personal or political attacks
--   Public or private harassment
--   Publishing others' private information, such as a physical or electronic
-    address, without explicit permission
--   Other conduct which could reasonably be considered inappropriate in a
-    professional setting
+- 使用性化語言或圖像以及不受歡迎的性注意或挑逗
+- 騷擾、侮辱/貶低性評論和個人或政治攻擊
+- 公開或私下騷擾
+- 未經明確許可發布他人的私人信息，例如物理或電子地址
+- 其他在專業環境中合理認為不適當的行為
 
-## Our Responsibilities
+## 我們的責任
 
-Project maintainers are responsible for clarifying the standards of acceptable
-behavior and are expected to take appropriate and fair corrective action in
-response to any instances of unacceptable behavior.
+項目維護者有責任澄清可接受行為的標準，並預期對任何不可接受行為的實例採取適當和公平的糾正行動。
 
-Project maintainers have the right and responsibility to remove, edit, or
-reject comments, commits, code, wiki edits, issues, and other contributions
-that are not aligned to this Code of Conduct, or to ban temporarily or
-permanently any contributor for other behaviors that they deem inappropriate,
-threatening, offensive, or harmful.
+項目維護者有權利和責任刪除、編輯或拒絕與本行為準則不符的評論、提交、代碼、維基編輯、問題和其他貢獻，或暫時或永久禁止任何他們認為不適當、威脅、冒犯或有害的貢獻者。
 
-## Scope
+## 範圍
 
-This Code of Conduct applies both within project spaces and in public spaces
-when an individual is representing the project or its community. Examples of
-representing a project or community include using an official project e-mail
-address, posting via an official social media account, or acting as an appointed
-representative at an online or offline event. Representation of a project may be
-further defined and clarified by project maintainers.
+此行為準則適用於項目空間內以及當個人代表項目或其社區時的公共空間。代表項目或社區的示例包括使用官方項目電子郵件地址、通過官方社交媒體帳戶發布或作為在線或離線活動的指定代表。項目的代表可能由項目維護者進一步定義和澄清。
 
-## Enforcement
+## 執行
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting the project team at hi@cline.bot. All complaints
-will be reviewed and investigated and will result in a response that
-is deemed necessary and appropriate to the circumstances. The project team is
-obligated to maintain confidentiality with regard to the reporter of an incident.
-Further details of specific enforcement policies may be posted separately.
+濫用、騷擾或其他不可接受行為的實例可以通過聯繫項目團隊 hi@cline.bot 來報告。所有投訴將被審查和調查，並將根據情況作出必要和適當的回應。項目團隊有義務對事件的報告者保密。具體執行政策的詳細信息可能會單獨發布。
 
-Project maintainers who do not follow or enforce the Code of Conduct in good
-faith may face temporary or permanent repercussions as determined by other
-members of the project's leadership.
+未能善意遵循或執行行為準則的項目維護者可能會面臨由項目領導層其他成員決定的暫時或永久後果。
 
-## Attribution
+## 歸屬
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4,
-available at https://www.contributor-covenant.org/version/1/4/code-of-conduct.html
+此行為準則改編自 [Contributor Covenant][homepage]，版本 1.4，可在 https://www.contributor-covenant.org/version/1/4/code-of-conduct.html 獲得。
 
 [homepage]: https://www.contributor-covenant.org
 
-For answers to common questions about this code of conduct, see
-https://www.contributor-covenant.org/faq
+有關此行為準則的常見問題的答案，請參見 https://www.contributor-covenant.org/faq
