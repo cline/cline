@@ -28,7 +28,7 @@ export class UnboundHandler implements ApiHandler {
 			const data = await response.json()
 
 			if (!response.ok) {
-				throw new Error(data.error)
+				throw new Error(data.error.message)
 			}
 
 			yield {
@@ -42,7 +42,7 @@ export class UnboundHandler implements ApiHandler {
 			}
 		} catch (error) {
 			if (error instanceof Error) {
-				throw new Error(`Unbound Gateway completion error: ${error.message}`)
+				throw new Error(`Unbound Gateway completion error:\n ${error.message}`)
 			}
 			throw error
 		}
