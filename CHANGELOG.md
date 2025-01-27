@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.3.4]
+
+- Add per-server MCP network timeout configuration ranging from 15 seconds to an hour
+- Speed up diff editing (thanks @hannesrudolph and @KyleHerndon!)
+- Add option to perform explain/improve/fix code actions either in the existing task or a new task (thanks @samhvw8!)
+
 ## [3.3.3]
 
 - Throw errors sooner when a mode tries to write a restricted file
