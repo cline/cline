@@ -28,7 +28,7 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 		id: EXPERIMENT_IDS.SEARCH_AND_REPLACE,
 		name: "Use experimental search and replace tool",
 		description:
-			"Enable the experimental Search and Replace tool. This tool allows Roo to search and replace term. Can be run multiple search and replace in sequence at once request.",
+			"Enable the experimental search and replace tool, allowing Roo to replace multiple instances of a search term in one request.",
 		enabled: false,
 	},
 	INSERT_BLOCK: {
@@ -36,7 +36,7 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 		name: "Use experimental insert block tool",
 
 		description:
-			"Enable the experimental insert block tool. This tool allows Roo to insert code blocks into files. Can be insert multiple blocks at once.",
+			"Enable the experimental insert block tool, allowing Roo to insert multiple code blocks at once at specific line numbers without needing to create a diff.",
 		enabled: false,
 	},
 }
