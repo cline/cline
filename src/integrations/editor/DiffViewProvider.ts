@@ -88,7 +88,6 @@ export class DiffViewProvider {
 		if (!isFinal) {
 			accumulatedLines.pop() // remove the last partial line only if it's not the final update
 		}
-		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
 		const diffEditor = this.activeDiffEditor
 		const document = diffEditor?.document
@@ -100,21 +99,19 @@ export class DiffViewProvider {
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
-			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			edit.replace(document.uri, rangeToReplace, contentToReplace)
-			await vscode.workspace.applyEdit(edit)
-			// Update decorations
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
-		}
+		const endLine = accumulatedLines.length
+		// Replace all content up to the current line with accumulated lines
+		const edit = new vscode.WorkspaceEdit()
+		const rangeToReplace = new vscode.Range(0, 0, endLine + 1, 0)
+		const contentToReplace = accumulatedLines.slice(0, endLine + 1).join("\n") + "\n"
+		edit.replace(document.uri, rangeToReplace, contentToReplace)
+		await vscode.workspace.applyEdit(edit)
+		// Update decorations
+		this.activeLineController.setActiveLine(endLine)
+		this.fadedOverlayController.updateOverlayAfterLine(endLine, document.lineCount)
+		// Scroll to the current line
+		this.scrollEditorToLine(endLine)
+
 		// Update the streamedLines with the new accumulated content
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
