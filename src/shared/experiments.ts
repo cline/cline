@@ -1,19 +1,22 @@
-export interface ExperimentConfig {
-	id: string
-	name: string
-	description: string
-	enabled: boolean
-}
-
 export const EXPERIMENT_IDS = {
 	DIFF_STRATEGY: "experimentalDiffStrategy",
 	SEARCH_AND_REPLACE: "search_and_replace",
 	INSERT_BLOCK: "insert_code_block",
 } as const
 
-export type ExperimentId = keyof typeof EXPERIMENT_IDS
+export type ExperimentKey = keyof typeof EXPERIMENT_IDS
+export type ExperimentId = valueof<typeof EXPERIMENT_IDS>
 
-export const experimentConfigsMap: Record<ExperimentId, ExperimentConfig> = {
+export interface ExperimentConfig {
+	id: ExperimentId
+	name: string
+	description: string
+	enabled: boolean
+}
+
+type valueof<X> = X[keyof X]
+
+export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 	DIFF_STRATEGY: {
 		id: EXPERIMENT_IDS.DIFF_STRATEGY,
 		name: "Use experimental unified diff strategy",
@@ -42,13 +45,13 @@ export const experimentConfigsMap: Record<ExperimentId, ExperimentConfig> = {
 export const experimentConfigs = Object.values(experimentConfigsMap)
 export const experimentDefault = Object.fromEntries(
 	Object.entries(experimentConfigsMap).map(([_, config]) => [config.id, config.enabled]),
-)
+) as Record<ExperimentId, boolean>
 
 export const experiments = {
-	get: (id: ExperimentId): ExperimentConfig | undefined => {
+	get: (id: ExperimentKey): ExperimentConfig | undefined => {
 		return experimentConfigsMap[id]
 	},
-	isEnabled: (experimentsConfig: Record<string, boolean>, id: string): boolean => {
+	isEnabled: (experimentsConfig: Record<ExperimentId, boolean>, id: ExperimentId): boolean => {
 		return experimentsConfig[id] ?? experimentDefault[id]
 	},
 } as const
