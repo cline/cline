@@ -5,7 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ExperimentalFeature from "./ExperimentalFeature"
-import { EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId, ExperimentKey } from "../../../../src/shared/experiments"
 import ApiConfigManager from "./ApiConfigManager"
 
 type SettingsViewProps = {
@@ -96,6 +96,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				text: currentApiConfigName,
 				apiConfiguration,
 			})
+
+			console.log("Experiments", experiments)
 
 			vscode.postMessage({
 				type: "updateExperimental",
@@ -646,14 +648,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								</p>
 							</div>
 						)}
-						{Object.values(experimentConfigsMap)
-							.filter((config) => config.id !== EXPERIMENT_IDS.DIFF_STRATEGY)
+						{Object.entries(experimentConfigsMap)
+							.filter((config) => config[0] !== "DIFF_STRATEGY")
 							.map((config) => (
 								<ExperimentalFeature
-									key={config.id}
-									{...config}
-									enabled={experiments[config.id] ?? false}
-									onChange={(enabled) => setExperimentEnabled(config.id, enabled)}
+									key={config[0]}
+									{...config[1]}
+									enabled={
+										experiments[EXPERIMENT_IDS[config[0] as keyof typeof EXPERIMENT_IDS]] ?? false
+									}
+									onChange={(enabled) =>
+										setExperimentEnabled(
+											EXPERIMENT_IDS[config[0] as keyof typeof EXPERIMENT_IDS],
+											enabled,
+										)
+									}
 								/>
 							))}
 					</div>

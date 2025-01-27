@@ -1,14 +1,13 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 interface ExperimentalFeatureProps {
-	id: string
 	name: string
 	description: string
 	enabled: boolean
 	onChange: (value: boolean) => void
 }
 
-const ExperimentalFeature = ({ id, name, description, enabled, onChange }: ExperimentalFeatureProps) => {
+const ExperimentalFeature = ({ name, description, enabled, onChange }: ExperimentalFeatureProps) => {
 	return (
 		<div
 			style={{
