@@ -536,6 +536,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<span style={{ fontWeight: 500 }}>{t("model")}</span>
 					<OpenAiModelPicker />
+					<VSCodeTextField
+						value={apiConfiguration?.openAiContextWindow ? apiConfiguration.openAiContextWindow.toString() : ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("openAiContextWindow")}
+						placeholder={"Default: 128000"}>
+						<span style={{ fontWeight: 500 }}>Context Window Size</span>
+					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {

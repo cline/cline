@@ -59,6 +59,7 @@ type GlobalStateKey =
 	| "customInstructions"
 	| "taskHistory"
 	| "openAiBaseUrl"
+	| "openAiContextWindow"
 	| "openAiModelId"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
@@ -426,6 +427,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								vertexProjectId,
 								vertexRegion,
 								openAiBaseUrl,
+								openAiContextWindow,
 								openAiApiKey,
 								openAiModelId,
 								ollamaModelId,
@@ -454,6 +456,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
+							await this.updateGlobalState("openAiContextWindow", openAiContextWindow)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
@@ -1238,6 +1241,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
+			openAiContextWindow,
 			openAiApiKey,
 			openAiModelId,
 			ollamaModelId,
@@ -1274,6 +1278,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("openAiContextWindow") as Promise<number | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
@@ -1327,6 +1332,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				vertexProjectId,
 				vertexRegion,
 				openAiBaseUrl,
+				openAiContextWindow,
 				openAiApiKey,
 				openAiModelId,
 				ollamaModelId,

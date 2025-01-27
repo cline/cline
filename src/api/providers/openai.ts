@@ -59,7 +59,10 @@ export class OpenAiHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.openAiModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			info: {
+				...openAiModelInfoSaneDefaults,
+				contextWindow: this.options.openAiContextWindow ?? openAiModelInfoSaneDefaults.contextWindow,
+			}
 		}
 	}
 }
