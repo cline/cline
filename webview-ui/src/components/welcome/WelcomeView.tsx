@@ -5,6 +5,7 @@ import { validateApiConfiguration } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 import { useTranslation } from "react-i18next"
+import LanguageOptions from "../settings/LanguageOptions"
 import { Trans } from "react-i18next"
 
 const WelcomeView = () => {
@@ -53,6 +54,7 @@ const WelcomeView = () => {
 
 			<div style={{ marginTop: "10px" }}>
 				<ApiOptions showModelOptions={false} />
+				<LanguageOptions />
 				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
 					{t("letsGo")}
 				</VSCodeButton>
