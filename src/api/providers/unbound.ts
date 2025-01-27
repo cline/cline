@@ -20,7 +20,7 @@ export class UnboundHandler implements ApiHandler {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: this.getModel().id,
+					model: this.getModel().id.split("/")[1],
 					messages: [{ role: "system", content: systemPrompt }, ...messages],
 				}),
 			})
