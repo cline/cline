@@ -2,6 +2,10 @@
 
 <!-- Describe your changes in detail. What problem does this PR solve? -->
 
+### Test Procedure
+
+<!-- How did you test this? Are you confident that it will not introduce bugs? If so, why? -->
+
 ### Type of Change
 
 <!-- Put an 'x' in all boxes that apply -->
