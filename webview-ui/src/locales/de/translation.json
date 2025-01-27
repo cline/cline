@@ -68,5 +68,108 @@
 		"geminiInfo": "* Kostenlos bis zu {{selectedModelId}} Anfragen pro Minute. Danach hängt die Abrechnung von der Prompt-Größe ab.",
 		"pricingDetails": "Weitere Informationen finden Sie in den Preisdaten.",
 		"languageModel": "Sprachmodell"
+	},
+	"welcomeView": {
+		"greeting": "Hallo! Ich bin Cline, dein KI-Assistent.",
+		"description": "Ich kann alle möglichen Aufgaben dank der neuesten Durchbrüche in <ClaudeLink>Claude 3.5 Sonnets agentischen Codierungsfähigkeiten</ClaudeLink> und dem Zugriff auf Werkzeuge, die es mir ermöglichen, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu verwenden und Terminalbefehle auszuführen (natürlich mit deiner Erlaubnis). Ich kann sogar MCP verwenden, um neue Werkzeuge zu erstellen und meine eigenen Fähigkeiten zu erweitern.",
+		"getStarted": "Um loszulegen, benötigt diese Erweiterung einen API-Anbieter für Claude 3.5 Sonnet.",
+		"letsGo": "Los geht's!"
+	},
+	"chatView": {
+		"typeMessage": "Nachricht eingeben...",
+		"typeTask": "Aufgabe eingeben...",
+		"whatCanIDoForYou": "Was kann ich für dich tun?",
+		"thanksTo": "Dank <ClaudeLink>Claude 3.5 Sonnets agentischen Codierungsfähigkeiten</ClaudeLink> kann ich komplexe Softwareentwicklungsaufgaben Schritt für Schritt bewältigen. Mit Werkzeugen, die es mir ermöglichen, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu verwenden und Terminalbefehle auszuführen (nachdem du die Erlaubnis erteilt hast), kann ich dir auf eine Weise helfen, die über die Codevervollständigung oder den technischen Support hinausgeht. Ich kann sogar MCP verwenden, um neue Werkzeuge zu erstellen und meine eigenen Fähigkeiten zu erweitern."
+	},
+	"chatTextArea": {
+		"plan": "Planen",
+		"act": "Handeln"
+	},
+	"chatRow": {
+		"error": "Fehler",
+		"mistakeLimitReached": "Fehlergrenze erreicht",
+		"autoApprovalMaxReqReached": "Maximale Anzahl automatischer Genehmigungen erreicht",
+		"command": {
+			"ask": "Cline möchte diesen Befehl ausführen:",
+			"say": "Cline hat diesen Befehl ausgeführt:"
+		},
+		"useMcpServer": {
+			"ask": "Cline möchte dieses {type} auf {serverName} verwenden:",
+			"say": "Cline hat dieses {type} auf {serverName} verwendet:",
+			"tool": "Werkzeug",
+			"resource": "Ressource"
+		},
+		"completionResult": "Abschlussergebnis",
+		"apiReqCancelled": "API-Anfrage abgebrochen",
+		"apiStreamingFailed": "API-Streaming fehlgeschlagen",
+		"apiRequest": "API-Anfrage",
+		"apiRequestFailed": "API-Anfrage fehlgeschlagen",
+		"apiRequestInProgress": "API-Anfrage in Bearbeitung",
+		"followup": "Nachverfolgung",
+		"tool": {
+			"editedExistingFile": {
+				"ask": "Cline möchte diese Datei bearbeiten:",
+				"say": "Cline bearbeitet diese Datei:"
+			},
+			"createdNewFile": {
+				"ask": "Cline möchte diese Datei erstellen:",
+				"say": "Cline hat diese Datei erstellt:"
+			},
+			"readExistingFile": {
+				"ask": "Cline möchte diese Datei lesen:",
+				"say": "Cline hat diese Datei gelesen:"
+			}
+		},
+		"apiReqStarted": "API-Anfrage gestartet",
+		"userFeedback": "Benutzer-Feedback",
+		"userFeedbackDiff": "Benutzer-Feedback-Diff",
+		"diffEditFailed": "Diff-Bearbeitung fehlgeschlagen",
+		"shellIntegrationUnavailable": "Shell-Integration nicht verfügbar",
+		"mcpServerResponse": "MCP-Server-Antwort",
+		"planModeResponse": "Planmodus-Antwort",
+		"seeNewChanges": "Neue Änderungen anzeigen",
+		"commandRequiresApproval": "Das Modell hat bestimmt, dass dieser Befehl eine ausdrückliche Genehmigung erfordert.",
+		"troubleshootingGuide": "Es scheint, dass Sie Probleme mit Windows PowerShell haben. Bitte sehen Sie sich diesen <Link>Fehlerbehebungsleitfaden</Link> an.",
+		"clineWantsToViewTopLevelFiles": "Cline möchte die obersten Dateien in diesem Verzeichnis anzeigen:",
+		"clineViewedTopLevelFiles": "Cline hat die obersten Dateien in diesem Verzeichnis angezeigt:",
+		"clineWantsToRecursivelyViewFiles": "Cline möchte alle Dateien in diesem Verzeichnis rekursiv anzeigen:",
+		"clineRecursivelyViewedFiles": "Cline hat alle Dateien in diesem Verzeichnis rekursiv angezeigt:",
+		"clineWantsToViewSourceCodeDefinitions": "Cline möchte die in diesem Verzeichnis verwendeten Quellcode-Definitionsnamen anzeigen:",
+		"clineViewedSourceCodeDefinitions": "Cline hat die in diesem Verzeichnis verwendeten Quellcode-Definitionsnamen angezeigt:",
+		"clineWantsToSearchDirectory": "Cline möchte dieses Verzeichnis nach {{regex}} durchsuchen:",
+		"clineSearchedDirectory": "Cline hat dieses Verzeichnis nach {{regex}} durchsucht:",
+		"diffEditFailedMessage": "Dies passiert normalerweise, wenn das Modell Suchmuster verwendet, die nichts in der Datei finden. Erneut versuchen...",
+		"shellIntegrationUnavailableMessage": "Cline kann die Ausgabe des Befehls nicht anzeigen. Bitte aktualisiere VSCode (CMD/CTRL + Shift + P → \"Update\") und stelle sicher, dass du eine unterstützte Shell verwendest: zsh, bash, fish oder PowerShell (CMD/CTRL + Shift + P → \"Terminal: Standardprofil auswählen\"). Immer noch Probleme?",
+		"response": "Antwort",
+		"stillHavingTrouble": "Immer noch Probleme?"
+	},
+	"autoApproveMenu": {
+		"none": "Keine",
+		"autoApprove": "Automatische Genehmigung:",
+		"autoApproveDescription": "Die automatische Genehmigung ermöglicht es Cline, die folgenden Aktionen ohne Erlaubnis auszuführen. Bitte mit Vorsicht verwenden und nur aktivieren, wenn Sie die Risiken verstehen.",
+		"autoApproveMaxRequestsDescription": "Cline wird automatisch so viele API-Anfragen stellen, bevor eine Genehmigung zur Fortsetzung der Aufgabe erforderlich ist.",
+		"enableNotifications": "Benachrichtigungen aktivieren",
+		"enableNotificationsDescription": "Erhalte Systembenachrichtigungen, wenn Cline eine Genehmigung zur Fortsetzung benötigt oder wenn eine Aufgabe abgeschlossen ist."
+	},
+	"historyPreview": {
+		"recentTasks": "Kürzliche Aufgaben",
+		"tokens": "Tokens",
+		"cache": "Cache",
+		"apiCost": "API-Kosten",
+		"viewAllHistory": "Alle Verlauf anzeigen"
+	},
+	"historyView": {
+		"history": "Verlauf",
+		"done": "Fertig",
+		"fuzzySearchHistory": "Verlauf unscharf durchsuchen...",
+		"newest": "Neueste",
+		"oldest": "Älteste",
+		"mostExpensive": "Teuerste",
+		"mostTokens": "Meiste Tokens",
+		"mostRelevant": "Relevanteste",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "API-Kosten:",
+		"export": "EXPORTIEREN"
 	}
 }

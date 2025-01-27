@@ -63,5 +63,108 @@
 		"geminiInfo": "* 每分鐘最多免費 {{selectedModelId}} 次請求。之後，計費取決於提示大小。",
 		"pricingDetails": "更多信息，請參見定價詳情。",
 		"languageModel": "語言模型"
+	},
+	"welcomeView": {
+		"greeting": "您好！我是 Cline，您的 AI 助手。",
+		"description": "得益於 <ClaudeLink>Claude 3.5 Sonnet 的代理編碼能力</ClaudeLink> 和訪問各種工具，我可以執行各種任務，這些工具讓我能夠創建和編輯文件、探索複雜項目、使用瀏覽器和執行終端命令（當然是在您的許可下）。我甚至可以使用 MCP 創建新工具並擴展我自己的能力。",
+		"getStarted": "要開始使用，這個擴展需要 Claude 3.5 Sonnet 的 API 提供者。",
+		"letsGo": "讓我們開始吧！"
+	},
+	"chatView": {
+		"typeMessage": "輸入消息...",
+		"typeTask": "輸入任務...",
+		"whatCanIDoForYou": "我能為您做什麼？",
+		"thanksTo": "感謝 <ClaudeLink>Claude 3.5 Sonnet 的代理編碼能力，</ClaudeLink> 我可以逐步處理複雜的軟件開發任務。通過這些工具，我可以創建和編輯文件、探索複雜項目、使用瀏覽器和執行終端命令（在您授權後），我可以幫助您完成超越代碼補全或技術支持的任務。我甚至可以使用 MCP 創建新工具並擴展我自己的能力。"
+	},
+	"chatTextArea": {
+		"plan": "計劃",
+		"act": "行動"
+	},
+	"chatRow": {
+		"error": "錯誤",
+		"mistakeLimitReached": "錯誤次數達到上限",
+		"autoApprovalMaxReqReached": "自動批准請求次數達到上限",
+		"command": {
+			"ask": "Cline 想要執行此命令：",
+			"say": "Cline 執行了此命令："
+		},
+		"useMcpServer": {
+			"ask": "Cline 想要在 {serverName} 上使用此 {type}：",
+			"say": "Cline 在 {serverName} 上使用了此 {type}：",
+			"tool": "工具",
+			"resource": "資源"
+		},
+		"completionResult": "完成結果",
+		"apiReqCancelled": "API 請求已取消",
+		"apiStreamingFailed": "API 流式傳輸失敗",
+		"apiRequest": "API 請求",
+		"apiRequestFailed": "API 請求失敗",
+		"apiRequestInProgress": "API 請求進行中",
+		"followup": "後續",
+		"tool": {
+			"editedExistingFile": {
+				"ask": "Cline 想要編輯此文件：",
+				"say": "Cline 正在編輯此文件："
+			},
+			"createdNewFile": {
+				"ask": "Cline 想要創建此文件：",
+				"say": "Cline 創建了此文件："
+			},
+			"readExistingFile": {
+				"ask": "Cline 想要閱讀此文件：",
+				"say": "Cline 閱讀了此文件："
+			}
+		},
+		"apiReqStarted": "API 請求已開始",
+		"userFeedback": "用戶反饋",
+		"userFeedbackDiff": "用戶反饋差異",
+		"diffEditFailed": "差異編輯失敗",
+		"shellIntegrationUnavailable": "Shell 集成不可用",
+		"mcpServerResponse": "MCP 服務器響應",
+		"planModeResponse": "計劃模式響應",
+		"seeNewChanges": "查看新變更",
+		"commandRequiresApproval": "模型已確定此命令需要明確批准。",
+		"troubleshootingGuide": "看起來您遇到了 Windows PowerShell 問題，請參閱此 <Link>故障排除指南</Link>",
+		"clineWantsToViewTopLevelFiles": "Cline 想要查看此目錄中的頂層文件：",
+		"clineViewedTopLevelFiles": "Cline 查看了此目錄中的頂層文件：",
+		"clineWantsToRecursivelyViewFiles": "Cline 想要遞歸查看此目錄中的所有文件：",
+		"clineRecursivelyViewedFiles": "Cline 遞歸查看了此目錄中的所有文件：",
+		"clineWantsToViewSourceCodeDefinitions": "Cline 想要查看此目錄中使用的源代碼定義名稱：",
+		"clineViewedSourceCodeDefinitions": "Cline 查看了此目錄中使用的源代碼定義名稱：",
+		"clineWantsToSearchDirectory": "Cline 想要在此目錄中搜索 {{regex}}：",
+		"clineSearchedDirectory": "Cline 在此目錄中搜索了 {{regex}}：",
+		"diffEditFailedMessage": "這通常發生在模型使用的搜索模式與文件中的任何內容不匹配時。重試中...",
+		"shellIntegrationUnavailableMessage": "Cline 將無法查看命令的輸出。請更新 VSCode（CMD/CTRL + Shift + P → \"Update\"）並確保您使用的是受支持的 shell：zsh、bash、fish 或 PowerShell（CMD/CTRL + Shift + P → \"Terminal: Select Default Profile\"）。仍有問題？",
+		"response": "響應",
+		"stillHavingTrouble": "仍有問題？"
+	},
+	"autoApproveMenu": {
+		"none": "無",
+		"autoApprove": "自動批准：",
+		"autoApproveDescription": "自動批准允許 Cline 執行以下操作而無需請求許可。請謹慎使用，僅在您了解風險的情況下啟用。",
+		"autoApproveMaxRequestsDescription": "Cline 將自動發出這麼多 API 請求，然後再請求批准以繼續任務。",
+		"enableNotifications": "啟用通知",
+		"enableNotificationsDescription": "當 Cline 需要批准以繼續或任務完成時接收系統通知。"
+	},
+	"historyPreview": {
+		"recentTasks": "最近任務",
+		"tokens": "標記",
+		"cache": "緩存",
+		"apiCost": "API 成本",
+		"viewAllHistory": "查看所有歷史記錄"
+	},
+	"historyView": {
+		"history": "歷史",
+		"done": "完成",
+		"fuzzySearchHistory": "模糊搜索歷史...",
+		"newest": "最新",
+		"oldest": "最舊",
+		"mostExpensive": "最昂貴",
+		"mostTokens": "最多標記",
+		"mostRelevant": "最相關",
+		"tokens": "標記：",
+		"cache": "緩存：",
+		"apiCost": "API 成本：",
+		"export": "導出"
 	}
 }

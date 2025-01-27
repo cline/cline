@@ -68,5 +68,108 @@
 		"geminiInfo": "* Free up to {{selectedModelId}} requests per minute. After that, billing depends on prompt size.",
 		"pricingDetails": "For more info, see pricing details.",
 		"languageModel": "Language Model"
+	},
+	"welcomeView": {
+		"greeting": "Hello! I'm Cline, your AI assistant.",
+		"description": "I can do all kinds of tasks thanks to the latest breakthroughs in <ClaudeLink>Claude 3.5 Sonnet's agentic coding capabilities</ClaudeLink> and access to tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (with your permission, of course). I can even use MCP to create new tools and extend my own capabilities.",
+		"getStarted": "To get started, this extension needs an API provider for Claude 3.5 Sonnet.",
+		"letsGo": "Let's go!"
+	},
+	"chatView": {
+		"typeMessage": "Type a message...",
+		"typeTask": "Type a task...",
+		"whatCanIDoForYou": "What can I do for you?",
+		"thanksTo": "Thanks to <ClaudeLink>Claude 3.5 Sonnet's agentic coding capabilities,</ClaudeLink> I can handle complex software development tasks step-by-step. With tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (after you grant permission), I can assist you in ways that go beyond code completion or tech support. I can even use MCP to create new tools and extend my own capabilities."
+	},
+	"chatTextArea": {
+		"plan": "Plan",
+		"act": "Act"
+	},
+	"chatRow": {
+		"error": "Error",
+		"mistakeLimitReached": "Cline is having trouble...",
+		"autoApprovalMaxReqReached": "Maximum Requests Reached",
+		"command": {
+			"ask": "Cline wants to execute this command:",
+			"say": "Cline executed this command:"
+		},
+		"useMcpServer": {
+			"ask": "Cline wants to use this {type} on {serverName}:",
+			"say": "Cline used this {type} on {serverName}:",
+			"tool": "tool",
+			"resource": "resource"
+		},
+		"completionResult": "Task Completed",
+		"apiReqCancelled": "API Request Cancelled",
+		"apiStreamingFailed": "API Streaming Failed",
+		"apiRequest": "API Request",
+		"apiRequestFailed": "API Request Failed",
+		"apiRequestInProgress": "API Request...",
+		"followup": "Cline has a question:",
+		"tool": {
+			"editedExistingFile": {
+				"ask": "Cline wants to edit this file:",
+				"say": "Cline is editing this file:"
+			},
+			"createdNewFile": {
+				"ask": "Cline wants to create this file:",
+				"say": "Cline created this file:"
+			},
+			"readExistingFile": {
+				"ask": "Cline wants to read this file:",
+				"say": "Cline read this file:"
+			}
+		},
+		"apiReqStarted": "API Request Started",
+		"userFeedback": "User Feedback",
+		"userFeedbackDiff": "User Feedback Diff",
+		"diffEditFailed": "Diff Edit Failed",
+		"shellIntegrationUnavailable": "Shell Integration Unavailable",
+		"mcpServerResponse": "MCP Server Response",
+		"planModeResponse": "Plan Mode Response",
+		"seeNewChanges": "See new changes",
+		"commandRequiresApproval": "The model has determined this command requires explicit approval.",
+		"troubleshootingGuide": "It seems like you're having Windows PowerShell issues, please see this <Link>troubleshooting guide</Link>",
+		"clineWantsToViewTopLevelFiles": "Cline wants to view the top level files in this directory:",
+		"clineViewedTopLevelFiles": "Cline viewed the top level files in this directory:",
+		"clineWantsToRecursivelyViewFiles": "Cline wants to recursively view all files in this directory:",
+		"clineRecursivelyViewedFiles": "Cline recursively viewed all files in this directory:",
+		"clineWantsToViewSourceCodeDefinitions": "Cline wants to view source code definition names used in this directory:",
+		"clineViewedSourceCodeDefinitions": "Cline viewed source code definition names used in this directory:",
+		"clineWantsToSearchDirectory": "Cline wants to search this directory for {{regex}}:",
+		"clineSearchedDirectory": "Cline searched this directory for {{regex}}:",
+		"diffEditFailedMessage": "This usually happens when the model uses search patterns that don't match anything in the file. Retrying...",
+		"shellIntegrationUnavailableMessage": "Cline won't be able to view the command's output. Please update VSCode (CMD/CTRL + Shift + P → \"Update\") and make sure you're using a supported shell: zsh, bash, fish, or PowerShell (CMD/CTRL + Shift + P → \"Terminal: Select Default Profile\"). Still having trouble?",
+		"response": "Response",
+		"stillHavingTrouble": "Still having trouble?"
+	},
+	"autoApproveMenu": {
+		"none": "None",
+		"autoApprove": "Auto Approve:",
+		"autoApproveDescription": "Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks.",
+		"autoApproveMaxRequestsDescription": "Cline will automatically make this many API requests before asking for approval to proceed with the task.",
+		"enableNotifications": "Enable Notifications",
+		"enableNotificationsDescription": "Receive system notifications when Cline requires approval to proceed or when a task is completed."
+	},
+	"historyPreview": {
+		"recentTasks": "Recent Tasks",
+		"tokens": "Tokens",
+		"cache": "Cache",
+		"apiCost": "API Cost",
+		"viewAllHistory": "View all history"
+	},
+	"historyView": {
+		"history": "History",
+		"done": "Done",
+		"fuzzySearchHistory": "Fuzzy search history...",
+		"newest": "Newest",
+		"oldest": "Oldest",
+		"mostExpensive": "Most Expensive",
+		"mostTokens": "Most Tokens",
+		"mostRelevant": "Most Relevant",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "API Cost:",
+		"export": "EXPORT"
 	}
 }

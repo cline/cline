@@ -75,7 +75,7 @@ declare module "vscode" {
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	const { t, ready } = useTranslation("translation", { keyPrefix: "apiOptions", useSuspense: false })
+	const { t } = useTranslation("translation", { keyPrefix: "apiOptions" })
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
@@ -831,7 +831,7 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const { t, ready } = useTranslation("translation", { keyPrefix: "apiOptions", useSuspense: false })
+	const { t } = useTranslation("translation", { keyPrefix: "apiOptions" })
 
 	const infoItems = [
 		modelInfo.description && (
