@@ -129,7 +129,7 @@
 		"planModeResponse": "Planmodus-Antwort",
 		"seeNewChanges": "Neue Änderungen anzeigen",
 		"commandRequiresApproval": "Das Modell hat bestimmt, dass dieser Befehl eine ausdrückliche Genehmigung erfordert.",
-		"troubleshootingGuide": "Fehlerbehebungshandbuch",
+		"troubleshootingGuide": "Es scheint, dass Sie Probleme mit Windows PowerShell haben. Bitte sehen Sie sich diesen <Link>Fehlerbehebungsleitfaden</Link> an.",
 		"clineWantsToViewTopLevelFiles": "Cline möchte die obersten Dateien in diesem Verzeichnis anzeigen:",
 		"clineViewedTopLevelFiles": "Cline hat die obersten Dateien in diesem Verzeichnis angezeigt:",
 		"clineWantsToRecursivelyViewFiles": "Cline möchte alle Dateien in diesem Verzeichnis rekursiv anzeigen:",
