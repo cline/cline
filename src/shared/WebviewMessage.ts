@@ -51,6 +51,7 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
+		| "updateMcpTimeout"
 		| "fuzzyMatchThreshold"
 		| "preferredLanguage"
 		| "writeDelayMs"
@@ -99,6 +100,7 @@ export interface WebviewMessage {
 	query?: string
 	slug?: string
 	modeConfig?: ModeConfig
+	timeout?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

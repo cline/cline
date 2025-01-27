@@ -35,12 +35,13 @@ export type McpConnection = {
 // StdioServerParameters
 const AlwaysAllowSchema = z.array(z.string()).default([])
 
-const StdioConfigSchema = z.object({
+export const StdioConfigSchema = z.object({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
 	alwaysAllow: AlwaysAllowSchema.optional(),
 	disabled: z.boolean().optional(),
+	timeout: z.number().min(1).max(3600).optional().default(60),
 })
 
 const McpSettingsSchema = z.object({
@@ -238,28 +239,6 @@ export class McpHub {
 			}
 			transport.start = async () => {} // No-op now, .connect() won't fail
 
-			// // Set up notification handlers
-			// client.setNotificationHandler(
-			// 	// @ts-ignore-next-line
-			// 	{ method: "notifications/tools/list_changed" },
-			// 	async () => {
-			// 		console.log(`Tools changed for server: ${name}`)
-			// 		connection.server.tools = await this.fetchTools(name)
-			// 		await this.notifyWebviewOfServerChanges()
-			// 	},
-			// )
-
-			// client.setNotificationHandler(
-			// 	// @ts-ignore-next-line
-			// 	{ method: "notifications/resources/list_changed" },
-			// 	async () => {
-			// 		console.log(`Resources changed for server: ${name}`)
-			// 		connection.server.resources = await this.fetchResources(name)
-			// 		connection.server.resourceTemplates = await this.fetchResourceTemplates(name)
-			// 		await this.notifyWebviewOfServerChanges()
-			// 	},
-			// )
-
 			// Connect
 			await client.connect(transport)
 			connection.server.status = "connected"
@@ -339,10 +318,6 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
-				// connection.client.removeNotificationHandler("notifications/tools/list_changed")
-				// connection.client.removeNotificationHandler("notifications/resources/list_changed")
-				// connection.client.removeNotificationHandler("notifications/stderr")
-				// connection.client.removeNotificationHandler("notifications/stderr")
 				await connection.transport.close()
 				await connection.client.close()
 			} catch (error) {
@@ -468,8 +443,6 @@ export class McpHub {
 		})
 	}
 
-	// Public methods for server management
-
 	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
 		let settingsPath: string
 		try {
@@ -545,6 +518,59 @@ export class McpHub {
 		}
 	}
 
+	public async updateServerTimeout(serverName: string, timeout: number): Promise<void> {
+		let settingsPath: string
+		try {
+			settingsPath = await this.getMcpSettingsFilePath()
+
+			// Ensure the settings file exists and is accessible
+			try {
+				await fs.access(settingsPath)
+			} catch (error) {
+				console.error("Settings file not accessible:", error)
+				throw new Error("Settings file not accessible")
+			}
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Validate the config structure
+			if (!config || typeof config !== "object") {
+				throw new Error("Invalid config structure")
+			}
+
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
+				config.mcpServers = {}
+			}
+
+			if (config.mcpServers[serverName]) {
+				// Create a new server config object to ensure clean structure
+				const serverConfig = {
+					...config.mcpServers[serverName],
+					timeout,
+				}
+
+				config.mcpServers[serverName] = serverConfig
+
+				// Write the entire config back
+				const updatedConfig = {
+					mcpServers: config.mcpServers,
+				}
+
+				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await this.notifyWebviewOfServerChanges()
+			}
+		} catch (error) {
+			console.error("Failed to update server timeout:", error)
+			if (error instanceof Error) {
+				console.error("Error details:", error.message, error.stack)
+			}
+			vscode.window.showErrorMessage(
+				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			throw error
+		}
+	}
+
 	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
@@ -579,6 +605,16 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
+		let timeout: number
+		try {
+			const parsedConfig = StdioConfigSchema.parse(JSON.parse(connection.server.config))
+			timeout = (parsedConfig.timeout ?? 60) * 1000
+		} catch (error) {
+			console.error("Failed to parse server config for timeout:", error)
+			// Default to 60 seconds if parsing fails
+			timeout = 60 * 1000
+		}
+
 		return await connection.client.request(
 			{
 				method: "tools/call",
@@ -588,6 +624,9 @@ export class McpHub {
 				},
 			},
 			CallToolResultSchema,
+			{
+				timeout,
+			},
 		)
 	}
 

@@ -2,8 +2,8 @@ import type { McpHub as McpHubType } from "../McpHub"
 import type { ClineProvider } from "../../../core/webview/ClineProvider"
 import type { ExtensionContext, Uri } from "vscode"
 import type { McpConnection } from "../McpHub"
+import { StdioConfigSchema } from "../McpHub"
 
-const vscode = require("vscode")
 const fs = require("fs/promises")
 const { McpHub } = require("../McpHub")
 
@@ -280,6 +280,7 @@ describe("McpHub", () => {
 					},
 				},
 				expect.any(Object),
+				expect.objectContaining({ timeout: 60000 }), // Default 60 second timeout
 			)
 		})
 
@@ -287,6 +288,193 @@ describe("McpHub", () => {
 			await expect(mcpHub.callTool("non-existent-server", "some-tool", {})).rejects.toThrow(
 				"No connection found for server: non-existent-server",
 			)
+		})
+
+		describe("timeout configuration", () => {
+			it("should validate timeout values", () => {
+				// Test valid timeout values
+				const validConfig = {
+					command: "test",
+					timeout: 60,
+				}
+				expect(() => StdioConfigSchema.parse(validConfig)).not.toThrow()
+
+				// Test invalid timeout values
+				const invalidConfigs = [
+					{ command: "test", timeout: 0 }, // Too low
+					{ command: "test", timeout: 3601 }, // Too high
+					{ command: "test", timeout: -1 }, // Negative
+				]
+
+				invalidConfigs.forEach((config) => {
+					expect(() => StdioConfigSchema.parse(config)).toThrow()
+				})
+			})
+
+			it("should use default timeout of 60 seconds if not specified", async () => {
+				const mockConnection: McpConnection = {
+					server: {
+						name: "test-server",
+						config: JSON.stringify({ command: "test" }), // No timeout specified
+						status: "connected",
+					},
+					client: {
+						request: jest.fn().mockResolvedValue({ content: [] }),
+					} as any,
+					transport: {} as any,
+				}
+
+				mcpHub.connections = [mockConnection]
+				await mcpHub.callTool("test-server", "test-tool")
+
+				expect(mockConnection.client.request).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.anything(),
+					expect.objectContaining({ timeout: 60000 }), // 60 seconds in milliseconds
+				)
+			})
+
+			it("should apply configured timeout to tool calls", async () => {
+				const mockConnection: McpConnection = {
+					server: {
+						name: "test-server",
+						config: JSON.stringify({ command: "test", timeout: 120 }), // 2 minutes
+						status: "connected",
+					},
+					client: {
+						request: jest.fn().mockResolvedValue({ content: [] }),
+					} as any,
+					transport: {} as any,
+				}
+
+				mcpHub.connections = [mockConnection]
+				await mcpHub.callTool("test-server", "test-tool")
+
+				expect(mockConnection.client.request).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.anything(),
+					expect.objectContaining({ timeout: 120000 }), // 120 seconds in milliseconds
+				)
+			})
+		})
+
+		describe("updateServerTimeout", () => {
+			it("should update server timeout in settings file", async () => {
+				const mockConfig = {
+					mcpServers: {
+						"test-server": {
+							command: "node",
+							args: ["test.js"],
+							timeout: 60,
+						},
+					},
+				}
+
+				// Mock reading initial config
+				;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+
+				await mcpHub.updateServerTimeout("test-server", 120)
+
+				// Verify the config was updated correctly
+				const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
+				const writtenConfig = JSON.parse(writeCall[1])
+				expect(writtenConfig.mcpServers["test-server"].timeout).toBe(120)
+			})
+
+			it("should fallback to default timeout when config has invalid timeout", async () => {
+				const mockConfig = {
+					mcpServers: {
+						"test-server": {
+							command: "node",
+							args: ["test.js"],
+							timeout: 60,
+						},
+					},
+				}
+
+				// Mock initial read
+				;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+
+				// Update with invalid timeout
+				await mcpHub.updateServerTimeout("test-server", 3601)
+
+				// Config is written
+				expect(fs.writeFile).toHaveBeenCalled()
+
+				// Setup connection with invalid timeout
+				const mockConnection: McpConnection = {
+					server: {
+						name: "test-server",
+						config: JSON.stringify({
+							command: "node",
+							args: ["test.js"],
+							timeout: 3601, // Invalid timeout
+						}),
+						status: "connected",
+					},
+					client: {
+						request: jest.fn().mockResolvedValue({ content: [] }),
+					} as any,
+					transport: {} as any,
+				}
+
+				mcpHub.connections = [mockConnection]
+
+				// Call tool - should use default timeout
+				await mcpHub.callTool("test-server", "test-tool")
+
+				// Verify default timeout was used
+				expect(mockConnection.client.request).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.anything(),
+					expect.objectContaining({ timeout: 60000 }), // Default 60 seconds
+				)
+			})
+
+			it("should accept valid timeout values", async () => {
+				const mockConfig = {
+					mcpServers: {
+						"test-server": {
+							command: "node",
+							args: ["test.js"],
+							timeout: 60,
+						},
+					},
+				}
+
+				;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+
+				// Test valid timeout values
+				const validTimeouts = [1, 60, 3600]
+				for (const timeout of validTimeouts) {
+					await mcpHub.updateServerTimeout("test-server", timeout)
+					expect(fs.writeFile).toHaveBeenCalled()
+					jest.clearAllMocks() // Reset for next iteration
+					;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+				}
+			})
+
+			it("should notify webview after updating timeout", async () => {
+				const mockConfig = {
+					mcpServers: {
+						"test-server": {
+							command: "node",
+							args: ["test.js"],
+							timeout: 60,
+						},
+					},
+				}
+
+				;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
+
+				await mcpHub.updateServerTimeout("test-server", 120)
+
+				expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith(
+					expect.objectContaining({
+						type: "mcpServers",
+					}),
+				)
+			})
 		})
 	})
 })
