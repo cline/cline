@@ -40,13 +40,7 @@ import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
-import {
-	EXPERIMENT_IDS,
-	experimentConfigs,
-	experiments as Experiments,
-	experimentDefault,
-	ExperimentId,
-} from "../../shared/experiments"
+import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"

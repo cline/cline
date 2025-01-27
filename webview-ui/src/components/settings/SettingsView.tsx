@@ -5,7 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ExperimentalFeature from "./ExperimentalFeature"
-import { experimentConfigs, EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
 import ApiConfigManager from "./ApiConfigManager"
 
 type SettingsViewProps = {
@@ -646,7 +646,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								</p>
 							</div>
 						)}
-						{experimentConfigs
+						{Object.values(experimentConfigsMap)
 							.filter((config) => config.id !== EXPERIMENT_IDS.DIFF_STRATEGY)
 							.map((config) => (
 								<ExperimentalFeature

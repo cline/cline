@@ -41,8 +41,6 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 	},
 }
 
-// Keep the array version for backward compatibility
-export const experimentConfigs = Object.values(experimentConfigsMap)
 export const experimentDefault = Object.fromEntries(
 	Object.entries(experimentConfigsMap).map(([_, config]) => [config.id, config.enabled]),
 ) as Record<ExperimentId, boolean>
