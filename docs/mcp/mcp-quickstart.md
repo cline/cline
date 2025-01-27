@@ -75,6 +75,22 @@ After saving the file:
 
 <img src="https://github.com/user-attachments/assets/2abbb3de-e902-4ec2-a5e5-9418ed34684e" alt="MCP Server Panel with Installer" width="400" />
 
+## ⚡ Auto-Restart
+
+During local development, you can configure your MCP server to automatically restart when specific files change by adding a `watch` array to your configuration:
+
+```json
+{
+	"mcpServers": {
+		"my-server": {
+			"command": "node",
+			"args": ["server.js"],
+			"watch": ["server.js", "config.json"]
+		}
+	}
+}
+```
+
 ## 🤔 What Next?
 
 Now that you have the MCP installer, you can ask Cline to add more servers from:
