@@ -5,7 +5,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
-import LanguageOptions from "./LanguageOptions"
+//import LanguageOptions from "./LanguageOptions"
 import SettingsButton from "../common/SettingsButton"
 
 const IS_DEV = false // FIXME: use flags when packaging
@@ -117,9 +117,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						{t("customInstructionsDescription")}
 					</p>
 				</div>
-				<div style={{ marginBottom: 5 }}>
+				{/*<div style={{ marginBottom: 5 }}>
 					<LanguageOptions />
-				</div>
+				</div>*/}
 
 				{IS_DEV && (
 					<>
