@@ -55,6 +55,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		mode,
 		setMode,
 		autoApprovalEnabled,
+		alwaysAllowModeSwitch,
 	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -565,7 +566,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				(alwaysAllowReadOnly && message.ask === "tool" && isReadOnlyToolAction(message)) ||
 				(alwaysAllowWrite && message.ask === "tool" && isWriteToolAction(message)) ||
 				(alwaysAllowExecute && message.ask === "command" && isAllowedCommand(message)) ||
-				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message))
+				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message)) ||
+				(alwaysAllowModeSwitch &&
+					message.ask === "tool" &&
+					JSON.parse(message.text || "{}")?.tool === "switchMode")
 			)
 		},
 		[
@@ -579,6 +583,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			isAllowedCommand,
 			alwaysAllowMcp,
 			isMcpToolAlwaysAllowed,
+			alwaysAllowModeSwitch,
 		],
 	)
 
@@ -915,6 +920,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					cacheWrites={apiMetrics.totalCacheWrites}
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
+					contextTokens={apiMetrics.contextTokens}
 					onClose={handleTaskCloseButtonClick}
 				/>
 			) : (

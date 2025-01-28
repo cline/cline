@@ -19,6 +19,7 @@ interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
 }
 
 import { SingleCompletionHandler } from ".."
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -41,7 +42,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		messages: Anthropic.Messages.MessageParam[],
 	): AsyncGenerator<ApiStreamChunk> {
 		// Convert Anthropic messages to OpenAI format
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
@@ -117,6 +118,9 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			case "deepseek/deepseek-r1":
 				// Recommended temperature for DeepSeek reasoning models
 				temperature = 0.6
+				// DeepSeek highly recommends using user instead of system role
+				openAiMessages[0].role = "user"
+				openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
 		// https://openrouter.ai/docs/transforms
