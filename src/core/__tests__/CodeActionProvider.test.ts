@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { CodeActionProvider } from "../CodeActionProvider"
+import { CodeActionProvider, ACTION_NAMES } from "../CodeActionProvider"
 
 // Mock VSCode API
 jest.mock("vscode", () => ({
@@ -109,9 +109,11 @@ describe("CodeActionProvider", () => {
 		it("should provide explain and improve actions by default", () => {
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
-			expect(actions).toHaveLength(2)
-			expect((actions as any)[0].title).toBe("Roo Code: Explain Code")
-			expect((actions as any)[1].title).toBe("Roo Code: Improve Code")
+			expect(actions).toHaveLength(4)
+			expect((actions as any)[0].title).toBe(`${ACTION_NAMES.EXPLAIN} in New Task`)
+			expect((actions as any)[1].title).toBe(`${ACTION_NAMES.EXPLAIN} in Current Task`)
+			expect((actions as any)[2].title).toBe(`${ACTION_NAMES.IMPROVE} in New Task`)
+			expect((actions as any)[3].title).toBe(`${ACTION_NAMES.IMPROVE} in Current Task`)
 		})
 
 		it("should provide fix action when diagnostics exist", () => {
@@ -125,8 +127,9 @@ describe("CodeActionProvider", () => {
 
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
-			expect(actions).toHaveLength(3)
-			expect((actions as any).some((a: any) => a.title === "Roo Code: Fix Code")).toBe(true)
+			expect(actions).toHaveLength(6)
+			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX} in New Task`)).toBe(true)
+			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX} in Current Task`)).toBe(true)
 		})
 
 		it("should handle errors gracefully", () => {

@@ -40,6 +40,7 @@ import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
+import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
@@ -80,6 +81,8 @@ type GlobalStateKey =
 	| "alwaysAllowWrite"
 	| "alwaysAllowExecute"
 	| "alwaysAllowBrowser"
+	| "alwaysAllowMcp"
+	| "alwaysAllowModeSwitch"
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
@@ -100,7 +103,6 @@ type GlobalStateKey =
 	| "soundEnabled"
 	| "soundVolume"
 	| "diffEnabled"
-	| "alwaysAllowMcp"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
@@ -118,7 +120,7 @@ type GlobalStateKey =
 	| "customModePrompts"
 	| "customSupportPrompts"
 	| "enhancementApiConfigId"
-	| "experimentalDiffStrategy"
+	| "experiments" // Map of experiment IDs to their enabled state
 	| "autoApprovalEnabled"
 	| "customModes" // Array of custom modes
 	| "unboundModelId"
@@ -190,10 +192,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
-	public static async handleCodeAction(
-		promptType: keyof typeof ACTION_NAMES,
-		params: Record<string, string | any[]>,
-	): Promise<void> {
+	public static async getInstance(): Promise<ClineProvider | undefined> {
 		let visibleProvider = ClineProvider.getVisibleInstance()
 
 		// If no visible provider, try to show the sidebar view
@@ -209,9 +208,45 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
+		return visibleProvider
+	}
+
+	public static async isActiveTask(): Promise<boolean> {
+		const visibleProvider = await ClineProvider.getInstance()
+		if (!visibleProvider) {
+			return false
+		}
+
+		if (visibleProvider.cline) {
+			return true
+		}
+
+		return false
+	}
+
+	public static async handleCodeAction(
+		command: string,
+		promptType: keyof typeof ACTION_NAMES,
+		params: Record<string, string | any[]>,
+	): Promise<void> {
+		const visibleProvider = await ClineProvider.getInstance()
+		if (!visibleProvider) {
+			return
+		}
+
 		const { customSupportPrompts } = await visibleProvider.getState()
 
 		const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
+
+		if (visibleProvider.cline && command.endsWith("InCurrentTask")) {
+			await visibleProvider.postMessageToWebview({
+				type: "invoke",
+				invoke: "sendMessage",
+				text: prompt,
+			})
+
+			return
+		}
 
 		await visibleProvider.initClineWithTask(prompt)
 	}
@@ -307,7 +342,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
-			experimentalDiffStrategy,
+			experiments,
 		} = await this.getState()
 
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
@@ -322,7 +357,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 			undefined,
-			experimentalDiffStrategy,
+			experiments,
 		)
 	}
 
@@ -335,7 +370,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
-			experimentalDiffStrategy,
+			experiments,
 		} = await this.getState()
 
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
@@ -350,7 +385,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			undefined,
 			historyItem,
-			experimentalDiffStrategy,
+			experiments,
 		)
 	}
 
@@ -587,6 +622,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "alwaysAllowMcp":
 						await this.updateGlobalState("alwaysAllowMcp", message.bool)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowModeSwitch":
+						await this.updateGlobalState("alwaysAllowModeSwitch", message.bool)
 						await this.postStateToWebview()
 						break
 					case "askResponse":
@@ -1008,14 +1047,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								diffEnabled,
 								mcpEnabled,
 								fuzzyMatchThreshold,
-								experimentalDiffStrategy,
+								experiments,
 							} = await this.getState()
 
 							// Create diffStrategy based on current model and settings
 							const diffStrategy = getDiffStrategy(
 								apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
 								fuzzyMatchThreshold,
-								experimentalDiffStrategy,
+								Experiments.isEnabled(experiments, EXPERIMENT_IDS.DIFF_STRATEGY),
 							)
 							const cwd =
 								vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
@@ -1036,6 +1075,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								customInstructions,
 								preferredLanguage,
 								diffEnabled,
+								experiments,
 							)
 
 							await this.postMessageToWebview({
@@ -1171,14 +1211,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							vscode.window.showErrorMessage("Failed to get list api configuration")
 						}
 						break
-					case "experimentalDiffStrategy":
-						await this.updateGlobalState("experimentalDiffStrategy", message.bool ?? false)
-						// Update diffStrategy in current Cline instance if it exists
-						if (this.cline) {
-							await this.cline.updateDiffStrategy(message.bool ?? false)
+					case "updateExperimental": {
+						if (!message.values) {
+							break
 						}
+
+						const updatedExperiments = {
+							...((await this.getGlobalState("experiments")) ?? experimentDefault),
+							...message.values,
+						} as Record<ExperimentId, boolean>
+
+						await this.updateGlobalState("experiments", updatedExperiments)
+
+						// Update diffStrategy in current Cline instance if it exists
+						if (message.values[EXPERIMENT_IDS.DIFF_STRATEGY] !== undefined && this.cline) {
+							await this.cline.updateDiffStrategy(
+								Experiments.isEnabled(updatedExperiments, EXPERIMENT_IDS.DIFF_STRATEGY),
+							)
+						}
+
 						await this.postStateToWebview()
 						break
+					}
 					case "updateMcpTimeout":
 						if (message.serverName && typeof message.timeout === "number") {
 							try {
@@ -1821,6 +1875,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
 			alwaysAllowMcp,
+			alwaysAllowModeSwitch,
 			soundEnabled,
 			diffEnabled,
 			taskHistory,
@@ -1840,8 +1895,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customModePrompts,
 			customSupportPrompts,
 			enhancementApiConfigId,
-			experimentalDiffStrategy,
 			autoApprovalEnabled,
+			experiments,
 		} = await this.getState()
 
 		const allowedCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -1855,6 +1910,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
+			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			uriScheme: vscode.env.uriScheme,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || [])
@@ -1880,9 +1936,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customModePrompts: customModePrompts ?? {},
 			customSupportPrompts: customSupportPrompts ?? {},
 			enhancementApiConfigId,
-			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes: await this.customModesManager.getCustomModes(),
+			experiments: experiments ?? experimentDefault,
 		}
 	}
 
@@ -1982,6 +2038,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
 			alwaysAllowMcp,
+			alwaysAllowModeSwitch,
 			taskHistory,
 			allowedCommands,
 			soundEnabled,
@@ -2004,9 +2061,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customModePrompts,
 			customSupportPrompts,
 			enhancementApiConfigId,
-			experimentalDiffStrategy,
 			autoApprovalEnabled,
 			customModes,
+			experiments,
 			unboundApiKey,
 			unboundModelId,
 		] = await Promise.all([
@@ -2053,6 +2110,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysAllowMcp") as Promise<boolean | undefined>,
+			this.getGlobalState("alwaysAllowModeSwitch") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
@@ -2075,10 +2133,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customModePrompts") as Promise<CustomModePrompts | undefined>,
 			this.getGlobalState("customSupportPrompts") as Promise<CustomSupportPrompts | undefined>,
 			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
-			this.getGlobalState("experimentalDiffStrategy") as Promise<boolean | undefined>,
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 			this.customModesManager.getCustomModes(),
-			this.getSecret("unboundApiKey") as Promise<string | undefined>,
+			this.getGlobalState("experiments") as Promise<Record<ExperimentId, boolean> | undefined>,
+      this.getSecret("unboundApiKey") as Promise<string | undefined>,
 			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
 		])
 
@@ -2145,6 +2203,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
+			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			taskHistory,
 			allowedCommands,
 			soundEnabled: soundEnabled ?? false,
@@ -2194,7 +2253,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customModePrompts: customModePrompts ?? {},
 			customSupportPrompts: customSupportPrompts ?? {},
 			enhancementApiConfigId,
-			experimentalDiffStrategy: experimentalDiffStrategy ?? false,
+			experiments: experiments ?? experimentDefault,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes,
 		}

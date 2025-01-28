@@ -21,7 +21,7 @@ export const TOOL_DISPLAY_NAMES = {
 // Define available tool groups
 export const TOOL_GROUPS: Record<string, ToolGroupValues> = {
 	read: ["read_file", "search_files", "list_files", "list_code_definition_names"],
-	edit: ["write_to_file", "apply_diff"],
+	edit: ["write_to_file", "apply_diff", "insert_code_block", "search_and_replace"],
 	browser: ["browser_action"],
 	command: ["execute_command"],
 	mcp: ["use_mcp_tool", "access_mcp_resource"],

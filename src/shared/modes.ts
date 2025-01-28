@@ -160,10 +160,17 @@ export function isToolAllowedForMode(
 	customModes: ModeConfig[],
 	toolRequirements?: Record<string, boolean>,
 	toolParams?: Record<string, any>, // All tool parameters
+	experiments?: Record<string, boolean>,
 ): boolean {
 	// Always allow these tools
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
+	}
+
+	if (experiments && tool in experiments) {
+		if (!experiments[tool]) {
+			return false
+		}
 	}
 
 	// Check tool requirements if any exist
@@ -198,7 +205,7 @@ export function isToolAllowedForMode(
 			const filePath = toolParams?.path
 			if (
 				filePath &&
-				(toolParams.diff || toolParams.content) &&
+				(toolParams.diff || toolParams.content || toolParams.operations) &&
 				!doesFileMatchRegex(filePath, options.fileRegex)
 			) {
 				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath)

@@ -313,4 +313,168 @@ describe("ChatView - Auto Approval Tests", () => {
 			})
 		})
 	})
+
+	it("auto-approves mode switch when enabled", async () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatView
+					isHidden={false}
+					showAnnouncement={false}
+					hideAnnouncement={() => {}}
+					showHistoryView={() => {}}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		// First hydrate state with initial task
+		mockPostMessage({
+			alwaysAllowModeSwitch: true,
+			autoApprovalEnabled: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+			],
+		})
+
+		// Then send the mode switch ask message
+		mockPostMessage({
+			alwaysAllowModeSwitch: true,
+			autoApprovalEnabled: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "tool",
+					ts: Date.now(),
+					text: JSON.stringify({ tool: "switchMode" }),
+					partial: false,
+				},
+			],
+		})
+
+		// Wait for the auto-approval message
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "askResponse",
+				askResponse: "yesButtonClicked",
+			})
+		})
+	})
+
+	it("does not auto-approve mode switch when disabled", async () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatView
+					isHidden={false}
+					showAnnouncement={false}
+					hideAnnouncement={() => {}}
+					showHistoryView={() => {}}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		// First hydrate state with initial task
+		mockPostMessage({
+			alwaysAllowModeSwitch: false,
+			autoApprovalEnabled: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+			],
+		})
+
+		// Then send the mode switch ask message
+		mockPostMessage({
+			alwaysAllowModeSwitch: false,
+			autoApprovalEnabled: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "tool",
+					ts: Date.now(),
+					text: JSON.stringify({ tool: "switchMode" }),
+					partial: false,
+				},
+			],
+		})
+
+		// Verify no auto-approval message was sent
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({
+			type: "askResponse",
+			askResponse: "yesButtonClicked",
+		})
+	})
+
+	it("does not auto-approve mode switch when auto-approval is disabled", async () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ChatView
+					isHidden={false}
+					showAnnouncement={false}
+					hideAnnouncement={() => {}}
+					showHistoryView={() => {}}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		// First hydrate state with initial task
+		mockPostMessage({
+			alwaysAllowModeSwitch: true,
+			autoApprovalEnabled: false,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+			],
+		})
+
+		// Then send the mode switch ask message
+		mockPostMessage({
+			alwaysAllowModeSwitch: true,
+			autoApprovalEnabled: false,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now() - 2000,
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "tool",
+					ts: Date.now(),
+					text: JSON.stringify({ tool: "switchMode" }),
+					partial: false,
+				},
+			],
+		})
+
+		// Verify no auto-approval message was sent
+		expect(vscode.postMessage).not.toHaveBeenCalledWith({
+			type: "askResponse",
+			askResponse: "yesButtonClicked",
+		})
+	})
 })

@@ -3,14 +3,58 @@ import { modes, ModeConfig } from "../../../shared/modes"
 import * as vscode from "vscode"
 import * as path from "path"
 
+function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Record<string, boolean>): string {
+	const instructions: string[] = []
+	const availableTools: string[] = ["write_to_file (for creating new files or complete file rewrites)"]
+
+	// Collect available editing tools
+	if (diffStrategy) {
+		availableTools.push("apply_diff (for replacing lines in existing files)")
+	}
+	if (experiments?.["insert_code_block"]) {
+		availableTools.push("insert_code_block (for adding sections to existing files)")
+	}
+	if (experiments?.["search_and_replace"]) {
+		availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
+	}
+
+	// Base editing instruction mentioning all available tools
+	if (availableTools.length > 1) {
+		instructions.push(`- For editing files, you have access to these tools: ${availableTools.join(", ")}.`)
+	}
+
+	// Additional details for experimental features
+	if (experiments?.["insert_code_block"]) {
+		instructions.push(
+			"- The insert_code_block tool adds code snippets or content blocks to files, such as adding a new function to a JavaScript file or inserting a new route in a Python file. This tool will insert it at the specified line location. It can support multiple operations at once.",
+		)
+	}
+
+	if (experiments?.["search_and_replace"]) {
+		instructions.push(
+			"- The search_and_replace tool finds and replaces text or regex in files. This tool allows you to search for a specific regex pattern or text and replace it with another value. Be cautious when using this tool to ensure you are replacing the correct text. It can support multiple operations at once.",
+		)
+	}
+
+	instructions.push(
+		"- When using the write_to_file tool to modify a file, use the tool directly with the desired content. You do not need to display the content before using the tool. ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.",
+	)
+
+	if (availableTools.length > 1) {
+		instructions.push(
+			"- You should always prefer using other editing tools over write_to_file when making changes to existing files since write_to_file is much slower and cannot handle large files.",
+		)
+	}
+
+	return instructions.join("\n")
+}
+
 export function getRulesSection(
 	cwd: string,
 	supportsComputerUse: boolean,
 	diffStrategy?: DiffStrategy,
-	context?: vscode.ExtensionContext,
+	experiments?: Record<string, boolean> | undefined,
 ): string {
-	const settingsDir = context ? path.join(context.globalStorageUri.fsPath, "settings") : "<settings directory>"
-	const customModesPath = path.join(settingsDir, "cline_custom_modes.json")
 	return `====
 
 RULES
@@ -21,15 +65,10 @@ RULES
 - Before using the execute_command tool, you must first think about the SYSTEM INFORMATION context provided to understand the user's environment and tailor your commands to ensure they are compatible with their system. You must also consider if the command you need to run should be executed in a specific directory outside of the current working directory '${cwd.toPosix()}', and if so prepend with \`cd\`'ing into that directory && then executing the command (as one command since you are stuck operating from '${cwd.toPosix()}'). For example, if you needed to run \`npm install\` in a project outside of '${cwd.toPosix()}', you would need to prepend with a \`cd\` i.e. pseudocode for this would be \`cd (path to project) && (command, in this case npm install)\`.
 - When using the search_files tool, craft your regex patterns carefully to balance specificity and flexibility. Based on the user's task you may use it to find code patterns, TODO comments, function definitions, or any text-based information across the project. The results include context, so analyze the surrounding code to better understand the matches. Leverage the search_files tool in combination with other tools for more comprehensive analysis. For example, use it to find specific code patterns, then use read_file to examine the full context of interesting matches before using write_to_file to make informed changes.
 - When creating a new project (such as an app, website, or any software project), organize all new files within a dedicated project directory unless the user specifies otherwise. Use appropriate file paths when writing files, as the write_to_file tool will automatically create any necessary directories. Structure the project logically, adhering to best practices for the specific type of project being created. Unless otherwise specified, new projects should be easily run without additional setup, for example most projects can be built in HTML, CSS, and JavaScript - which you can open in a browser.
-${
-	diffStrategy
-		? "- You should use apply_diff instead of write_to_file when making changes to existing files since it is much faster and easier to apply a diff than to write the entire file again. Only use write_to_file to edit files when apply_diff has failed repeatedly to apply the diff."
-		: "- When you want to modify a file, use the write_to_file tool directly with the desired content. You do not need to display the content before using the tool."
-}
+${getEditingInstructions(diffStrategy, experiments)}
 - Some modes have restrictions on which files they can edit. If you attempt to edit a restricted file, the operation will be rejected with a FileRestrictionError that will specify which file patterns are allowed for the current mode.
 - Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
-- Be sure to consider the type of project (e.g. Python, JavaScript, web application) when determining the appropriate structure and files to include. Also consider what files may be most relevant to accomplishing the task, for example looking at a project's manifest file would help you understand the project's dependencies, which you could incorporate into any code you write.
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
 - You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
@@ -45,7 +84,6 @@ ${
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
 - Before executing commands, check the "Actively Running Terminals" section in environment_details. If present, consider how these active processes might impact your task. For example, if a local development server is already running, you wouldn't need to start it again. If no active terminals are listed, proceed with command execution as normal.
-- When using the write_to_file tool, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 		supportsComputerUse

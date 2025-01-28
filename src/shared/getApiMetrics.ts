@@ -6,6 +6,7 @@ interface ApiMetrics {
 	totalCacheWrites?: number
 	totalCacheReads?: number
 	totalCost: number
+	contextTokens: number // Total tokens in conversation (last message's tokensIn + tokensOut)
 }
 
 /**
@@ -32,7 +33,21 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 		totalCacheWrites: undefined,
 		totalCacheReads: undefined,
 		totalCost: 0,
+		contextTokens: 0,
 	}
+
+	// Find the last api_req_started message that has valid token information
+	const lastApiReq = [...messages].reverse().find((message) => {
+		if (message.type === "say" && message.say === "api_req_started" && message.text) {
+			try {
+				const parsedData = JSON.parse(message.text)
+				return typeof parsedData.tokensIn === "number" && typeof parsedData.tokensOut === "number"
+			} catch {
+				return false
+			}
+		}
+		return false
+	})
 
 	messages.forEach((message) => {
 		if (message.type === "say" && message.say === "api_req_started" && message.text) {
@@ -54,6 +69,14 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 				}
 				if (typeof cost === "number") {
 					result.totalCost += cost
+				}
+
+				// If this is the last api request, use its tokens for context size
+				if (message === lastApiReq) {
+					// Only update context tokens if both input and output tokens are non-zero
+					if (tokensIn > 0 && tokensOut > 0) {
+						result.contextTokens = tokensIn + tokensOut
+					}
 				}
 			} catch (error) {
 				console.error("Error parsing JSON:", error)
