@@ -1,7 +1,7 @@
 import { ToolArgs } from "./types"
 
 export function getInsertCodeBlockDescription(args: ToolArgs): string {
-	return `## insert_code_block
+	return `## insert_content
 Description: Inserts code blocks at specific line positions in a file. This is the primary tool for adding new code (functions/methods/classes, imports, attributes etc.) as it allows for precise insertions without overwriting existing content. The tool uses an efficient line-based insertion system that maintains file integrity and proper ordering of multiple insertions. Beware to use the proper indentation. This tool is the preferred way to add new code to files.
 Parameters:
 - path: (required) The path of the file to insert code into (relative to the current working directory ${args.cwd.toPosix()})
@@ -9,7 +9,7 @@ Parameters:
     * start_line: (required) The line number where the code block should be inserted.  The content currently at that line will end up below the inserted code block.
     * content: (required) The code block to insert at the specified position. IMPORTANT NOTE: If the content is a single line, it can be a string. If it's a multi-line content, it should be a string with newline characters (\n) for line breaks.
 Usage:
-<insert_code_block>
+<insert_content>
 <path>File path here</path>
 <operations>[
   {
@@ -17,9 +17,9 @@ Usage:
     "content": "Your code block here"
   }
 ]</operations>
-</insert_code_block>
+</insert_content>
 Example: Insert a new function and its import statement
-<insert_code_block>
+<insert_content>
 <path>src/app.ts</path>
 <operations>[
   {
@@ -31,5 +31,5 @@ Example: Insert a new function and its import statement
     "content": "function calculateTotal(items: number[]): number {\n    return items.reduce((sum, item) => sum + item, 0);\n}"
   }
 ]</operations>
-</insert_code_block>`
+</insert_content>`
 }

@@ -544,7 +544,7 @@ describe("SYSTEM_PROMPT", () => {
 			// Verify base instruction lists all available tools
 			expect(prompt).toContain("apply_diff (for replacing lines in existing files)")
 			expect(prompt).toContain("write_to_file (for creating new files or complete file rewrites)")
-			expect(prompt).toContain("insert_code_block (for adding sections to existing files)")
+			expect(prompt).toContain("insert_content (for adding lines to existing files)")
 			expect(prompt).toContain("search_and_replace (for finding and replacing individual pieces of text)")
 		})
 
@@ -574,7 +574,7 @@ describe("SYSTEM_PROMPT", () => {
 			expect(prompt).toContain(
 				"You should always prefer using other editing tools over write_to_file when making changes to existing files since write_to_file is much slower and cannot handle large files.",
 			)
-			expect(prompt).toContain("The insert_code_block tool adds code snippets or content blocks to files")
+			expect(prompt).toContain("The insert_content tool adds lines of text to files")
 			expect(prompt).toContain("The search_and_replace tool finds and replaces text or regex in files")
 		})
 	})

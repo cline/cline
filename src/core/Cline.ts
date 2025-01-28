@@ -1010,7 +1010,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.regex}'${
 								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
 							}]`
-						case "insert_code_block":
+						case "insert_content":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_and_replace":
 							return `[${block.name} for '${block.params.path}']`
@@ -1486,7 +1486,7 @@ export class Cline {
 						}
 					}
 
-					case "insert_code_block": {
+					case "insert_content": {
 						const relPath: string | undefined = block.params.path
 						const operations: string | undefined = block.params.operations
 
@@ -1505,15 +1505,13 @@ export class Cline {
 							// Validate required parameters
 							if (!relPath) {
 								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("insert_code_block", "path"))
+								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "path"))
 								break
 							}
 
 							if (!operations) {
 								this.consecutiveMistakeCount++
-								pushToolResult(
-									await this.sayAndCreateMissingParamError("insert_code_block", "operations"),
-								)
+								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "operations"))
 								break
 							}
 
@@ -1629,7 +1627,7 @@ export class Cline {
 							)
 							await this.diffViewProvider.reset()
 						} catch (error) {
-							handleError("insert block", error)
+							handleError("insert content", error)
 							await this.diffViewProvider.reset()
 						}
 						break

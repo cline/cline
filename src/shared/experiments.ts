@@ -1,7 +1,7 @@
 export const EXPERIMENT_IDS = {
 	DIFF_STRATEGY: "experimentalDiffStrategy",
 	SEARCH_AND_REPLACE: "search_and_replace",
-	INSERT_BLOCK: "insert_code_block",
+	INSERT_BLOCK: "insert_content",
 } as const
 
 export type ExperimentKey = keyof typeof EXPERIMENT_IDS
@@ -29,10 +29,10 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 		enabled: false,
 	},
 	INSERT_BLOCK: {
-		name: "Use experimental insert block tool",
+		name: "Use experimental insert content tool",
 
 		description:
-			"Enable the experimental insert block tool, allowing Roo to insert multiple code blocks at once at specific line numbers without needing to create a diff.",
+			"Enable the experimental insert content tool, allowing Roo to insert content at specific line numbers without needing to create a diff.",
 		enabled: false,
 	},
 }
