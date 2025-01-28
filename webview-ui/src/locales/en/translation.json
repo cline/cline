@@ -1,6 +1,6 @@
 {
 	"appRoot": {
-		"customInstructions": "The user has changed the language, please speak English from now on."
+		"customInstructions": ""
 	},
 	"announcement": {
 		"newInVersion": "New in version {{version}}",
