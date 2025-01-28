@@ -13,8 +13,7 @@
 		"debug": "調試",
 		"resetState": "重置狀態",
 		"resetStateDescription": "這將重置擴展中的所有全局狀態和秘密存儲。",
-		"feedback": "如果您有任何問題或反饋，請隨時在以下網址提交問題",
-		"version": "版本"
+		"feedback": "如果您有任何問題或反饋，請隨時在以下網址提交問題"
 	},
 	"apiOptions": {
 		"selectModel": "選擇模型...",

@@ -13,8 +13,7 @@
 		"debug": "调试",
 		"resetState": "重置状态",
 		"resetStateDescription": "这将重置扩展中的所有全局状态和秘密存储。",
-		"feedback": "如果您有任何问题或反馈，请随时在以下网址提交问题",
-		"version": "版本"
+		"feedback": "如果您有任何问题或反馈，请随时在以下网址提交问题"
 	},
 	"apiOptions": {
 		"selectModel": "选择模型...",
