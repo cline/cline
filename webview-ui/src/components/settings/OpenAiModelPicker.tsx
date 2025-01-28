@@ -25,6 +25,7 @@ const OpenAiModelPicker: React.FC = () => {
 		}
 		setApiConfiguration(apiConfig)
 		onUpdateApiConfig(apiConfig)
+		setSearchTerm(newModelId)
 	}
 
 	useEffect(() => {
