@@ -11,10 +11,12 @@ export type ApiProvider =
 	| "deepseek"
 	| "mistral"
 	| "vscode-lm"
+	| "cline"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	clineApiKey?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string

@@ -37,6 +37,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type SecretKey =
 	| "apiKey"
+	| "clineApiKey"
 	| "openRouterApiKey"
 	| "awsAccessKey"
 	| "awsSecretKey"
@@ -836,13 +837,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return true
 	}
 
-	async handleAuthCallback(token: string) {
+	async handleAuthCallback(token: string, apiKey: string) {
 		try {
 			// First sign in with Firebase to trigger auth state change
 			await this.authManager.signInWithCustomToken(token)
 
 			// Then store the token securely
 			await this.storeSecret("authToken", token)
+			await this.storeSecret("clineApiKey", apiKey)
+
+			const clineProvider: ApiProvider = "cline"
+			await this.updateGlobalState("apiProvider", clineProvider)
+
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {

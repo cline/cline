@@ -70,9 +70,10 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.deepSeekApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
 						].some((key) => key !== undefined)
 					: false
-				setShowWelcome(!hasKey && !message.state!.isLoggedIn)
+				setShowWelcome(!hasKey)
 				setDidHydrateState(true)
 				break
 			}
