@@ -5,6 +5,7 @@ import { validateApiConfiguration } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 import { useTranslation } from "react-i18next"
+import LanguageOptions from "../settings/LanguageOptions"
 import { Trans } from "react-i18next"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
@@ -112,12 +113,12 @@ const WelcomeView = () => {
 					)}
 				</div>
 
-				<div style={{ marginTop: "15px" }}>
-					<ApiOptions showModelOptions={false} />
-					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
-						{t("letsGo")}
-					</VSCodeButton>
-				</div>
+			<div style={{ marginTop: "15px" }}>
+				<ApiOptions showModelOptions={false} />
+				<LanguageOptions />
+				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+					{t("letsGo")}
+				</VSCodeButton>
 			</div>
 		</div>
 	)
