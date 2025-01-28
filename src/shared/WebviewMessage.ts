@@ -41,6 +41,7 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "alwaysAllowBrowser"
 		| "alwaysAllowMcp"
+		| "alwaysAllowModeSwitch"
 		| "playSound"
 		| "soundEnabled"
 		| "soundVolume"
