@@ -13,6 +13,7 @@ import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { ClineHandler } from "./providers/cline"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -50,6 +51,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new MistralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
+		case "cline":
+			return new ClineHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

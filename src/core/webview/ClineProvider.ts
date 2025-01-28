@@ -139,6 +139,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async handleSignOut() {
 		try {
 			await this.authManager.signOut()
+			await this.storeSecret("authToken", undefined)
+			await this.storeSecret("clineApiKey", undefined)
+			await this.updateGlobalState("apiProvider", "openrouter")
+			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
@@ -849,6 +853,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const clineProvider: ApiProvider = "cline"
 			await this.updateGlobalState("apiProvider", clineProvider)
 
+			// Update API configuration with the new provider and auth token
+			const { apiConfiguration } = await this.getState()
+			const updatedConfig = {
+				...apiConfiguration,
+				apiProvider: clineProvider,
+				clineApiKey: apiKey,
+				authToken: token,
+			}
+
+			if (this.cline) {
+				this.cline.api = buildApiHandler(updatedConfig)
+			}
+
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
@@ -1236,6 +1253,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
+			clineApiKey,
 			awsAccessKey,
 			awsSecretKey,
 			awsSessionToken,
@@ -1267,11 +1285,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vsCodeLmModelSelector,
 			localeLanguage,
 			userInfo,
+			authToken,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+			this.getSecret("clineApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
@@ -1303,6 +1323,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("localeLanguage") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
+			this.getSecret("authToken") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1325,6 +1346,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				apiModelId,
 				apiKey,
 				openRouterApiKey,
+				clineApiKey,
 				awsAccessKey,
 				awsSecretKey,
 				awsSessionToken,
@@ -1348,6 +1370,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				authToken,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1434,6 +1457,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"deepSeekApiKey",
 			"mistralApiKey",
 			"authToken",
+			"clineApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

@@ -17,6 +17,7 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	clineApiKey?: string
+	authToken?: string // firebase auth token for cline provider
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
