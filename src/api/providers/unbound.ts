@@ -96,11 +96,20 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
+			const usage = chunk.usage
 
 			if (delta?.content) {
 				yield {
 					type: "text",
 					text: delta.content,
+				}
+			}
+
+			if (usage) {
+				yield {
+					type: "usage",
+					inputTokens: usage?.prompt_tokens || 0,
+					outputTokens: usage?.completion_tokens || 0,
 				}
 			}
 		}
