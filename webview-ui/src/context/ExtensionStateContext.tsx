@@ -16,6 +16,7 @@ import { McpServer } from "../../../src/shared/mcp"
 import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
 import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } from "../../../src/shared/modes"
 import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
+import { experimentDefault, ExperimentId } from "../../../src/shared/experiments"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -63,9 +64,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCustomSupportPrompts: (value: CustomSupportPrompts) => void
 	enhancementApiConfigId?: string
 	setEnhancementApiConfigId: (value: string) => void
-	experimentalDiffStrategy: boolean
-	setExperimentalDiffStrategy: (value: boolean) => void
-	autoApprovalEnabled?: boolean
+	setExperimentEnabled: (id: ExperimentId, enabled: boolean) => void
 	setAutoApprovalEnabled: (value: boolean) => void
 	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 	customModes: ModeConfig[]
@@ -98,8 +97,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		mode: defaultModeSlug,
 		customModePrompts: defaultPrompts,
 		customSupportPrompts: {},
+		experiments: experimentDefault,
 		enhancementApiConfigId: "",
-		experimentalDiffStrategy: false,
 		autoApprovalEnabled: false,
 		customModes: [],
 	})
@@ -242,7 +241,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		fuzzyMatchThreshold: state.fuzzyMatchThreshold,
 		writeDelayMs: state.writeDelayMs,
 		screenshotQuality: state.screenshotQuality,
-		experimentalDiffStrategy: state.experimentalDiffStrategy ?? false,
+		setExperimentEnabled: (id, enabled) =>
+			setState((prevState) => ({ ...prevState, experiments: { ...prevState.experiments, [id]: enabled } })),
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -279,8 +279,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setCustomSupportPrompts: (value) => setState((prevState) => ({ ...prevState, customSupportPrompts: value })),
 		setEnhancementApiConfigId: (value) =>
 			setState((prevState) => ({ ...prevState, enhancementApiConfigId: value })),
-		setExperimentalDiffStrategy: (value) =>
-			setState((prevState) => ({ ...prevState, experimentalDiffStrategy: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 		handleInputChange,
 		setCustomModes: (value) => setState((prevState) => ({ ...prevState, customModes: value })),

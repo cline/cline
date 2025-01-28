@@ -39,6 +39,7 @@ async function generatePrompt(
 	globalCustomInstructions?: string,
 	preferredLanguage?: string,
 	diffEnabled?: boolean,
+	experiments?: Record<string, boolean>,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -68,6 +69,7 @@ ${getToolDescriptionsForMode(
 	browserViewportSize,
 	mcpHub,
 	customModeConfigs,
+	experiments,
 )}
 
 ${getToolUseGuidelinesSection()}
@@ -78,7 +80,7 @@ ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy
 
 ${modesSection}
 
-${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, context)}
+${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experiments)}
 
 ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
@@ -102,6 +104,7 @@ export const SYSTEM_PROMPT = async (
 	globalCustomInstructions?: string,
 	preferredLanguage?: string,
 	diffEnabled?: boolean,
+	experiments?: Record<string, boolean>,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -135,5 +138,6 @@ export const SYSTEM_PROMPT = async (
 		globalCustomInstructions,
 		preferredLanguage,
 		diffEnabled,
+		experiments,
 	)
 }
