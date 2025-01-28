@@ -1707,34 +1707,40 @@ export class Cline {
 
 								// Read the original file content
 								const fileContent = await fs.readFile(absolutePath, "utf-8")
-								const lines = fileContent.split("\n")
-								let newContent = fileContent
+								let lines = fileContent.split("\n")
 
-								// Apply each search/replace operation
 								for (const op of parsedOperations) {
+									const flags = op.regex_flags ?? (op.ignore_case ? "gi" : "g")
+									const multilineFlags = flags.includes("m") ? flags : flags + "m"
+
 									const searchPattern = op.use_regex
-										? new RegExp(op.search, op.regex_flags || (op.ignore_case ? "gi" : "g"))
-										: new RegExp(escapeRegExp(op.search), op.ignore_case ? "gi" : "g")
+										? new RegExp(op.search, multilineFlags)
+										: new RegExp(escapeRegExp(op.search), multilineFlags)
 
 									if (op.start_line || op.end_line) {
-										// Line-restricted replacement
-										const startLine = (op.start_line || 1) - 1
-										const endLine = (op.end_line || lines.length) - 1
+										const startLine = Math.max((op.start_line ?? 1) - 1, 0)
+										const endLine = Math.min((op.end_line ?? lines.length) - 1, lines.length - 1)
 
+										// Get the content before and after the target section
 										const beforeLines = lines.slice(0, startLine)
-										const targetLines = lines.slice(startLine, endLine + 1)
 										const afterLines = lines.slice(endLine + 1)
 
-										const modifiedLines = targetLines.map((line) =>
-											line.replace(searchPattern, op.replace),
-										)
+										// Get the target section and perform replacement
+										const targetContent = lines.slice(startLine, endLine + 1).join("\n")
+										const modifiedContent = targetContent.replace(searchPattern, op.replace)
+										const modifiedLines = modifiedContent.split("\n")
 
-										newContent = [...beforeLines, ...modifiedLines, ...afterLines].join("\n")
+										// Reconstruct the full content with the modified section
+										lines = [...beforeLines, ...modifiedLines, ...afterLines]
 									} else {
 										// Global replacement
-										newContent = newContent.replace(searchPattern, op.replace)
+										const fullContent = lines.join("\n")
+										const modifiedContent = fullContent.replace(searchPattern, op.replace)
+										lines = modifiedContent.split("\n")
 									}
 								}
+
+								const newContent = lines.join("\n")
 
 								this.consecutiveMistakeCount = 0
 
