@@ -13,9 +13,6 @@ export class Logger {
 	}
 
 	static log(message: string) {
-		if (!Logger.outputChannel) {
-			throw new Error("Logger must be initialized first")
-		}
 		Logger.outputChannel.appendLine(message)
 	}
 }
