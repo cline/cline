@@ -7,7 +7,7 @@ Parameters:
 - path: (required) The path of the file to insert code into (relative to the current working directory ${args.cwd.toPosix()})
 - operations: (required) A JSON array of insertion operations. Each operation is an object with:
     * start_line: (required) The line number where the code block should be inserted.  The content currently at that line will end up below the inserted code block.
-    * content: (required) The code block to insert at the specified position
+    * content: (required) The code block to insert at the specified position. IMPORTANT NOTE: If the content is a single line, it can be a string. If it's a multi-line content, it should be a string with newline characters (\n) for line breaks.
 Usage:
 <insert_code_block>
 <path>File path here</path>
