@@ -36,10 +36,18 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 		contextTokens: 0,
 	}
 
-	// Find the last api_req_started message to get the context size
-	const lastApiReq = [...messages]
-		.reverse()
-		.find((message) => message.type === "say" && message.say === "api_req_started" && message.text)
+	// Find the last api_req_started message that has valid token information
+	const lastApiReq = [...messages].reverse().find((message) => {
+		if (message.type === "say" && message.say === "api_req_started" && message.text) {
+			try {
+				const parsedData = JSON.parse(message.text)
+				return typeof parsedData.tokensIn === "number" && typeof parsedData.tokensOut === "number"
+			} catch {
+				return false
+			}
+		}
+		return false
+	})
 
 	messages.forEach((message) => {
 		if (message.type === "say" && message.say === "api_req_started" && message.text) {
