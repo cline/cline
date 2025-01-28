@@ -180,6 +180,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="groq">Groq</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -747,6 +748,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}}
 							/>
 						}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "groq" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.groqApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("groqApiKey")}
+						placeholder="Enter Groq API Key">
+						<span style={{ fontWeight: 500 }}>Groq API Key</span>
+					</VSCodeTextField>
+
+					<VSCodeTextField
+						value={apiConfiguration?.groqModelId || ""}
+						style={{ width: "100%", marginTop: 5 }}
+						onInput={handleInputChange("groqModelId")}
+						placeholder="deepseek-r1-distill-llama-70b">
+						<span style={{ fontWeight: 500 }}>Groq Model ID</span>
+					</VSCodeTextField>
+
+					<p style={{ fontSize: 12, marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+						DeepSeek R1 Distilled Llama 70B served via GroqCloud. 
+						<VSCodeLink href="https://console.groq.com/docs" style={{ marginLeft: 6 }}>
+							Groq Docs
+						</VSCodeLink>
 					</p>
 				</div>
 			)}

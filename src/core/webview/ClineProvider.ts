@@ -46,6 +46,7 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "mistralApiKey"
+	| "GroqApiKey"
 	| "authToken"
 	| "authNonce"
 type GlobalStateKey =

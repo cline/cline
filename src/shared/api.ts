@@ -11,6 +11,7 @@ export type ApiProvider =
 	| "deepseek"
 	| "mistral"
 	| "vscode-lm"
+	| "groq"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -39,6 +40,8 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	groqApiKey?: string
+	groqModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -107,6 +110,23 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
+
+export type GroqModelId = keyof typeof groqModels
+
+export const groqDefaultModelId: GroqModelId = "deepseek-r1-distill-llama-70b"
+
+export const groqModels = {
+	"deepseek-r1-distill-llama-70b": {
+		contextWindow: 128_000, // 128k
+		maxTokens: undefined, // unknown max output tokens
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek R1 Distilled Llama 70B served on GroqCloud. 128k token context window.",
+	},
+} as const
 
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
