@@ -26,12 +26,7 @@
 </table>
 </div>
 
-Andere Sprachversionen der [README-Dateien](./README.md) sind verfügbar in:
-- [Español](./locales/es/README.md)
-- [Deutsch](./locales/de/README.md)
-- [日本語](./locales/ja/README.md)
-- [简体中文](./locales/zh-cn/README.md)
-- [繁體中文](./locales/zh-tw/README.md)
+Lernen Sie Cline kennen, einen KI-Assistenten, der Ihre **CLI** u**N**d **E**ditor nutzen kann.
 
 Dank der [agentischen Codierungsfähigkeiten von Claude 3.5 Sonnet](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf) kann Cline komplexe Softwareentwicklungsaufgaben Schritt für Schritt bewältigen. Mit Werkzeugen, die ihm das Erstellen und Bearbeiten von Dateien, das Erkunden großer Projekte, die Nutzung des Browsers und das Ausführen von Terminalbefehlen (nach Ihrer Genehmigung) ermöglichen, kann er Ihnen auf eine Weise helfen, die über die Codevervollständigung oder technischen Support hinausgeht. Cline kann sogar das Model Context Protocol (MCP) verwenden, um neue Werkzeuge zu erstellen und seine eigenen Fähigkeiten zu erweitern. Während autonome KI-Skripte traditionell in sandboxed Umgebungen laufen, bietet diese Erweiterung eine Mensch-in-der-Schleife-GUI, um jede Dateiänderung und jeden Terminalbefehl zu genehmigen, was eine sichere und zugängliche Möglichkeit bietet, das Potenzial agentischer KI zu erkunden.
 
