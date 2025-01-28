@@ -1604,7 +1604,7 @@ export class Cline {
 								}
 
 								// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
-								// because file is not open. 
+								// because file is not open.
 								if (!this.diffViewProvider.isEditing) {
 									await this.diffViewProvider.open(relPath)
 								}
