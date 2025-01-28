@@ -1,6 +1,6 @@
-<div align="center">
+<div align="center"><sub>
 English | <a href="./locales/es/README.md" target="_blank">Español</a> | <a href="./locales/de/README.md" target="_blank">Deutsch</a> | <a href="./locales/ja/README.md" target="_blank">日本語</a> | <a href="./locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="./locales/zh-tw/README.md" target="_blank">繁體中文</a>
-</div>
+</sub></div>
 
 # Cline – \#1 on OpenRouter
 
