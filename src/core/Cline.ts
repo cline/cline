@@ -75,6 +75,7 @@ export class Cline {
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
+	localeLanguage?: string
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
@@ -119,6 +120,7 @@ export class Cline {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		customInstructions?: string,
+		localeLanguage?: string,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -130,6 +132,7 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
+		this.localeLanguage = localeLanguage
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -1212,6 +1215,13 @@ export class Cline {
 			this.browserSettings,
 		)
 
+		let userSelectedNonEnglishLanguage: string | undefined
+		// While we check vscode for preferred language, it's likely not giving us one of the language options
+		console.log("this.localeLanguage", this.localeLanguage)
+		if (this.localeLanguage && this.localeLanguage !== "en") {
+			userSelectedNonEnglishLanguage = this.localeLanguage
+		}
+
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1226,9 +1236,13 @@ export class Cline {
 			}
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions) {
+		if (settingsCustomInstructions || clineRulesFileInstructions || userSelectedNonEnglishLanguage) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions)
+			systemPrompt += addUserInstructions(
+				settingsCustomInstructions,
+				clineRulesFileInstructions,
+				userSelectedNonEnglishLanguage,
+			)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
