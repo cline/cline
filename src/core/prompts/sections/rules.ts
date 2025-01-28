@@ -11,8 +11,8 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	if (diffStrategy) {
 		availableTools.push("apply_diff (for replacing lines in existing files)")
 	}
-	if (experiments?.["insert_code_block"]) {
-		availableTools.push("insert_code_block (for adding sections to existing files)")
+	if (experiments?.["insert_content"]) {
+		availableTools.push("insert_content (for adding lines to existing files)")
 	}
 	if (experiments?.["search_and_replace"]) {
 		availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
@@ -24,9 +24,9 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	}
 
 	// Additional details for experimental features
-	if (experiments?.["insert_code_block"]) {
+	if (experiments?.["insert_content"]) {
 		instructions.push(
-			"- The insert_code_block tool adds code snippets or content blocks to files, such as adding a new function to a JavaScript file or inserting a new route in a Python file. This tool will insert it at the specified line location. It can support multiple operations at once.",
+			"- The insert_content tool adds lines of text to files, such as adding a new function to a JavaScript file or inserting a new route in a Python file. This tool will insert it at the specified line location. It can support multiple operations at once.",
 		)
 	}
 

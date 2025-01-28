@@ -3,7 +3,7 @@ import { getReadFileDescription } from "./read-file"
 import { getWriteToFileDescription } from "./write-to-file"
 import { getSearchFilesDescription } from "./search-files"
 import { getListFilesDescription } from "./list-files"
-import { getInsertCodeBlockDescription } from "./insert-code-block"
+import { getInsertContentDescription } from "./insert-content"
 import { getSearchAndReplaceDescription } from "./search-and-replace"
 import { getListCodeDefinitionNamesDescription } from "./list-code-definition-names"
 import { getBrowserActionDescription } from "./browser-action"
@@ -15,7 +15,7 @@ import { getSwitchModeDescription } from "./switch-mode"
 import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
 import { Mode, ModeConfig, getModeConfig, isToolAllowedForMode, getGroupName } from "../../../shared/modes"
-import { ToolName, getToolName, getToolOptions, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tool-groups"
+import { ToolName, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tool-groups"
 import { ToolArgs } from "./types"
 
 // Map of tool names to their description functions
@@ -32,7 +32,7 @@ const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined>
 	use_mcp_tool: (args) => getUseMcpToolDescription(args),
 	access_mcp_resource: (args) => getAccessMcpResourceDescription(args),
 	switch_mode: () => getSwitchModeDescription(),
-	insert_code_block: (args) => getInsertCodeBlockDescription(args),
+	insert_content: (args) => getInsertContentDescription(args),
 	search_and_replace: (args) => getSearchAndReplaceDescription(args),
 	apply_diff: (args) =>
 		args.diffStrategy ? args.diffStrategy.getToolDescription({ cwd: args.cwd, toolOptions: args.toolOptions }) : "",
@@ -105,6 +105,6 @@ export {
 	getUseMcpToolDescription,
 	getAccessMcpResourceDescription,
 	getSwitchModeDescription,
-	getInsertCodeBlockDescription,
+	getInsertContentDescription,
 	getSearchAndReplaceDescription,
 }
