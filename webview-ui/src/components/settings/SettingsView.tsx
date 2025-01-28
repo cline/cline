@@ -151,7 +151,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: "0 0 16px 0",
 						}}>
 						<i className="codicon codicon-settings-gear" />
-						Advanced Settings
+						{t("advancedSettings")}
 					</SettingsButton>
 				</div>
 				<div

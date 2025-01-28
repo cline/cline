@@ -7,6 +7,7 @@ import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
 import { useTranslation } from "react-i18next"
+import { translateLanguageCode } from "../../utils/i18n"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -15,7 +16,7 @@ type HistoryViewProps = {
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { t } = useTranslation("translation", { keyPrefix: "historyView" })
+	const { t, i18n } = useTranslation("translation", { keyPrefix: "history" })
 	const { taskHistory } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
@@ -41,8 +42,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
+		const languageCode = translateLanguageCode(i18n.language)
 		return date
-			?.toLocaleString("en-US", {
+			?.toLocaleString(languageCode, {
 				month: "long",
 				day: "numeric",
 				hour: "numeric",
@@ -321,7 +323,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														fontWeight: 500,
 														color: "var(--vscode-descriptionForeground)",
 													}}>
-													{t("tokens")}
+													{t("tokens")}:
 												</span>
 												<span
 													style={{
@@ -374,7 +376,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														fontWeight: 500,
 														color: "var(--vscode-descriptionForeground)",
 													}}>
-													{t("cache")}
+													{t("cache")}:
 												</span>
 												<span
 													style={{
@@ -431,7 +433,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 															fontWeight: 500,
 															color: "var(--vscode-descriptionForeground)",
 														}}>
-														{t("apiCost")}
+														{t("apiCost")}:
 													</span>
 													<span
 														style={{

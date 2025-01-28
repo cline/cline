@@ -10,12 +10,14 @@ import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { Trans, useTranslation } from "react-i18next"
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 }
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
+	const { t } = useTranslation("translation", { keyPrefix: "openModelPicker" })
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -147,7 +149,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>{t("model")}</span>
 				</label>
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
@@ -168,7 +170,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						{searchTerm && (
 							<div
 								className="input-icon-button codicon codicon-close"
-								aria-label="Clear search"
+								aria-label={t("clearSearch")}
 								onClick={() => {
 									handleModelChange("")
 									setIsDropdownVisible(true)
@@ -220,19 +222,23 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					<>
-						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-							OpenRouter.
-						</VSCodeLink>
-						If you're unsure which model to choose, Cline works best with{" "}
-						<VSCodeLink
-							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}>
-							anthropic/claude-3.5-sonnet:beta.
-						</VSCodeLink>
-						You can also try searching "free" for no-cost options currently available.
-					</>
+					<Trans
+						i18nKey="openModelPicker.info"
+						components={{
+							OpenRouterLink: (
+								<VSCodeLink
+									style={{ display: "inline", fontSize: "inherit" }}
+									href="https://openrouter.ai/models"
+								/>
+							),
+							ClaudeLink: (
+								<VSCodeLink
+									style={{ display: "inline", fontSize: "inherit" }}
+									onClick={() => handleModelChange("anthropic/claude-3.5-sonnet:beta")}
+								/>
+							),
+						}}
+					/>
 				</p>
 			)}
 		</div>
@@ -338,6 +344,7 @@ export const ModelDescriptionMarkdown = memo(
 		setIsExpanded: (isExpanded: boolean) => void
 		isPopup?: boolean
 	}) => {
+		const { t } = useTranslation("translation", { keyPrefix: "openModelPicker" })
 		const [reactContent, setMarkdown] = useRemark()
 		// const [isExpanded, setIsExpanded] = useState(false)
 		const [showSeeMore, setShowSeeMore] = useState(false)
@@ -409,7 +416,7 @@ export const ModelDescriptionMarkdown = memo(
 									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
-								See more
+								{t("seeMore")}
 							</VSCodeLink>
 						</div>
 					)}

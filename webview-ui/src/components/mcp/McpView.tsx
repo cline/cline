@@ -5,12 +5,14 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
+import { Trans, useTranslation } from "react-i18next"
 
 type McpViewProps = {
 	onDone: () => void
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
+	const { t } = useTranslation("translation", { keyPrefix: "mcp" })
 	const { mcpServers: servers } = useExtensionState()
 
 	// const [servers, setServers] = useState<McpServer[]>([
@@ -92,8 +94,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 					alignItems: "center",
 					padding: "10px 17px 10px 20px",
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>{t("mcpServers")}</h3>
+				<VSCodeButton onClick={onDone}>{t("done")}</VSCodeButton>
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
@@ -104,19 +106,23 @@ const McpView = ({ onDone }: McpViewProps) => {
 						marginBottom: "16px",
 						marginTop: "5px",
 					}}>
-					The{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-						Model Context Protocol
-					</VSCodeLink>{" "}
-					enables communication with locally running MCP servers that provide additional tools and resources to extend
-					Cline's capabilities. You can use{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-						community-made servers
-					</VSCodeLink>{" "}
-					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-						See a demo here.
-					</VSCodeLink>
+					<Trans
+						i18nKey="mcp.viewInfo"
+						components={{
+							ModelContextLink: (
+								<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }} />
+							),
+							ServersLink: (
+								<VSCodeLink
+									href="https://github.com/modelcontextprotocol/servers"
+									style={{ display: "inline" }}
+								/>
+							),
+							DemoLink: (
+								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }} />
+							),
+						}}
+					/>
 				</div>
 
 				{servers.length > 0 && (
@@ -142,7 +148,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							vscode.postMessage({ type: "openMcpSettings" })
 						}}>
 						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-						Configure MCP Servers
+						{t("configureMcpServers")}
 					</VSCodeButton>
 				</div>
 
@@ -156,7 +162,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							})
 						}}
 						style={{ fontSize: "12px" }}>
-						Advanced MCP Settings
+						{t("advancedMcpSettings")}
 					</VSCodeLink>
 				</div>
 
@@ -169,6 +175,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
+	const { t } = useTranslation("translation", { keyPrefix: "mcp" })
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const getStatusColor = () => {
@@ -298,7 +305,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							width: "calc(100% - 20px)",
 							margin: "0 10px 10px 10px",
 						}}>
-						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
+						{server.status === "connecting" ? t("retrying") : t("retryConnections")}
 					</VSCodeButton>
 				</div>
 			) : (
@@ -311,9 +318,12 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							borderRadius: "0 0 4px 4px",
 						}}>
 						<VSCodePanels>
-							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
+							<VSCodePanelTab id="tools">
+								{t("tools")} ({server.tools?.length || 0})
+							</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
-								Resources ({[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
+								{t("resources")} ({[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0}
+								)
 							</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
@@ -335,7 +345,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										No tools found
+										{t("noToolsFound")}
 									</div>
 								)}
 							</VSCodePanelView>
@@ -363,7 +373,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										No resources found
+										{t("noResourcesFound")}
 									</div>
 								)}
 							</VSCodePanelView>
@@ -377,7 +387,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								width: "calc(100% - 14px)",
 								margin: "0 7px 3px 7px",
 							}}>
-							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
+							{server.status === "connecting" ? t("restarting") : t("restartServer")}
 						</VSCodeButton>
 					</div>
 				)

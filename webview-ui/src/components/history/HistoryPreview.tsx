@@ -4,13 +4,14 @@ import { vscode } from "../../utils/vscode"
 import { memo } from "react"
 import { formatLargeNumber } from "../../utils/format"
 import { useTranslation } from "react-i18next"
+import { translateLanguageCode } from "../../utils/i18n"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { t } = useTranslation("translation", { keyPrefix: "historyPreview" })
+	const { t, i18n } = useTranslation("translation", { keyPrefix: "history" })
 	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
@@ -18,8 +19,9 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
+		const languageCode = translateLanguageCode(i18n.language)
 		return date
-			?.toLocaleString("en-US", {
+			?.toLocaleString(languageCode, {
 				month: "long",
 				day: "numeric",
 				hour: "numeric",

@@ -13,7 +13,8 @@
 		"debug": "Depurar",
 		"resetState": "Restablecer estado",
 		"resetStateDescription": "Esto restablecerá todo el estado global y el almacenamiento secreto en la extensión.",
-		"feedback": "Si tienes preguntas o comentarios, no dudes en abrir un issue en"
+		"feedback": "Si tienes preguntas o comentarios, no dudes en abrir un issue en",
+		"advancedSettings": "Configuraciones avanzadas"
 	},
 	"apiOptions": {
 		"selectModel": "Seleccionar modelo...",
@@ -150,25 +151,62 @@
 		"enableNotifications": "Habilitar notificaciones",
 		"enableNotificationsDescription": "Recibe notificaciones del sistema cuando Cline necesita aprobación para continuar o cuando una tarea se ha completado."
 	},
-	"historyPreview": {
+	"history": {
 		"recentTasks": "Tareas recientes",
 		"tokens": "Tokens",
 		"cache": "Caché",
 		"apiCost": "Costo de API",
-		"viewAllHistory": "Ver todo el historial"
-	},
-	"historyView": {
+		"viewAllHistory": "Ver todo el historial",
 		"history": "Historial",
 		"done": "Hecho",
 		"fuzzySearchHistory": "Búsqueda difusa en el historial...",
-		"newest": "Más reciente",
+		"newest": "Más nuevo",
 		"oldest": "Más antiguo",
 		"mostExpensive": "Más caro",
 		"mostTokens": "Más tokens",
 		"mostRelevant": "Más relevante",
-		"tokens": "Tokens:",
-		"cache": "Caché:",
-		"apiCost": "Costo de API:",
 		"export": "EXPORTAR"
+	},
+	"mcp": {
+		"noDescription": "Sin descripción",
+		"parameters": "Parámetros",
+		"unknown": "Desconocido",
+		"autoApprove": "Aprobación automática",
+		"mcpServers": "Servidores MCP",
+		"done": "Hecho",
+		"retrying": "Reintentando...",
+		"retryConnections": "Reintentar conexiones",
+		"restarting": "Reiniciando...",
+		"restartServer": "Reiniciar servidor",
+		"tools": "Herramientas",
+		"noToolsFound": "No se encontraron herramientas",
+		"resources": "Recursos",
+		"noResourcesFound": "No se encontraron recursos",
+		"configureMcpServers": "Configurar servidores MCP",
+		"advancedMcpSettings": "Configuración avanzada de MCP",
+		"viewInfo": "El <ModelContextLink>Protocolo de Contexto de Modelo</ModelContextLink> permite la comunicación con servidores MCP que se ejecutan localmente y proporcionan herramientas y recursos adicionales para ampliar las capacidades de Cline. Puedes usar <ServersLink>servidores creados por la comunidad</ServersLink> o pedirle a Cline que cree nuevas herramientas específicas para tu flujo de trabajo (por ejemplo, \"agrega una herramienta que obtenga la última documentación de npm\"). <DemoLink>Ver una demostración aquí.</DemoLink>"
+	},
+	"openModelPicker": {
+		"info": "La extensión obtiene automáticamente la lista más reciente de modelos disponibles en <OpenRouterLink>OpenRouter.</OpenRouterLink> Si no estás seguro de qué modelo elegir, Cline funciona mejor con <ClaudeLink>anthropic/claude-3.5-sonnet:beta.</ClaudeLink> También puedes intentar buscar \"gratis\" para opciones sin costo disponibles actualmente.",
+		"selectModel": "Buscar y seleccionar un modelo...",
+		"model": "Modelo",
+		"apiProvider": "Proveedor de API",
+		"clearSearch": "Borrar búsqueda",
+		"seeMore": "Ver más",
+		"seeLess": "Ver menos"
+	},
+	"tabNavbar": {
+		"newChat": "Nuevo Chat",
+		"history": "Historial",
+		"settings": "Configuraciones"
+	},
+	"taskHeader": {
+		"task": "Tarea",
+		"tokens": "Tokens",
+		"cache": "Caché",
+		"apiCost": "Costo de API",
+		"seeMore": "Ver más",
+		"seeLess": "Ver menos",
+		"seeHereForInstructions": "Ver aquí para instrucciones"
 	}
 }

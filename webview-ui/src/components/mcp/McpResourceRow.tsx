@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { McpResource, McpResourceTemplate } from "../../../../src/shared/mcp"
 
 type McpResourceRowProps = {
@@ -5,6 +6,7 @@ type McpResourceRowProps = {
 }
 
 const McpResourceRow = ({ item }: McpResourceRowProps) => {
+	const { t } = useTranslation("translation", { keyPrefix: "mcp" })
 	const hasUri = "uri" in item
 	const uri = hasUri ? item.uri : item.uriTemplate
 
@@ -35,7 +37,7 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 						? item.description
 						: !item.description && item.name
 							? item.name
-							: "No description"}
+							: t("noDescription")}
 			</div>
 			<div
 				style={{
@@ -49,7 +51,7 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 						padding: "1px 4px",
 						borderRadius: "3px",
 					}}>
-					{item.mimeType || "Unknown"}
+					{item.mimeType || t("unknown")}
 				</code>
 			</div>
 		</div>

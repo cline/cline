@@ -13,7 +13,8 @@
 		"debug": "Debug",
 		"resetState": "Reset State",
 		"resetStateDescription": "This will reset all global state and secret storage in the extension.",
-		"feedback": "If you have any questions or feedback, feel free to open an issue at"
+		"feedback": "If you have any questions or feedback, feel free to open an issue at",
+		"advancedSettings": "Advanced Settings"
 	},
 	"apiOptions": {
 		"selectModel": "Select a Model...",
@@ -150,14 +151,12 @@
 		"enableNotifications": "Enable Notifications",
 		"enableNotificationsDescription": "Receive system notifications when Cline requires approval to proceed or when a task is completed."
 	},
-	"historyPreview": {
+	"history": {
 		"recentTasks": "Recent Tasks",
 		"tokens": "Tokens",
 		"cache": "Cache",
 		"apiCost": "API Cost",
-		"viewAllHistory": "View all history"
-	},
-	"historyView": {
+		"viewAllHistory": "View all history",
 		"history": "History",
 		"done": "Done",
 		"fuzzySearchHistory": "Fuzzy search history...",
@@ -166,9 +165,48 @@
 		"mostExpensive": "Most Expensive",
 		"mostTokens": "Most Tokens",
 		"mostRelevant": "Most Relevant",
-		"tokens": "Tokens:",
-		"cache": "Cache:",
-		"apiCost": "API Cost:",
 		"export": "EXPORT"
+	},
+	"mcp": {
+		"noDescription": "No description",
+		"parameters": "Parameters",
+		"unknown": "Unknown",
+		"autoApprove": "Auto-approve",
+		"mcpServers": "MCP Servers",
+		"done": "Done",
+		"retrying": "Retrying...",
+		"retryConnections": "Retry Connections",
+		"restarting": "Restarting...",
+		"restartServer": "Restart Server",
+		"tools": "Tools",
+		"noToolsFound": "No tools found",
+		"resources": "Resources",
+		"noResourcesFound": "No resources found",
+		"configureMcpServers": "Configure MCP Servers",
+		"advancedMcpSettings": "Advanced MCP Settings",
+		"viewInfo": "The <ModelContextLink>Model Context Protocol</ModelContextLink> enables communication with locally running MCP servers that provide additional tools and resources to extend Cline's capabilities. You can use <ServersLink>community-made servers</ServersLink> or ask Cline to create new tools specific to your workflow (e.g., \"add a tool that gets the latest npm docs\"). <DemoLink>See a demo here.</DemoLink>"
+	},
+	"openModelPicker": {
+		"info": "The extension automatically fetches the latest list of models available on <OpenRouterLink>OpenRouter.</OpenRouterLink> If you're unsure which model to choose, Cline works best with <ClaudeLink>anthropic/claude-3.5-sonnet:beta.</ClaudeLink> You can also try searching \"free\" for no-cost options currently available.",
+		"selectModel": "Search & select a model...",
+		"model": "Model",
+		"apiProvider": "API Provider",
+		"clearSearch": "Clear search",
+		"seeMore": "See more",
+		"seeLess": "See less"
+	},
+	"tabNavbar": {
+		"newChat": "New Chat",
+		"history": "History",
+		"settings": "Settings"
+	},
+	"taskHeader": {
+		"task": "Task",
+		"tokens": "Tokens",
+		"cache": "Cache",
+		"apiCost": "API Cost",
+		"seeMore": "See more",
+		"seeLess": "See less",
+		"seeHereForInstructions": "See here for instructions"
 	}
 }

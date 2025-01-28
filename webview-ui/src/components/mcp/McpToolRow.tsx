@@ -2,6 +2,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "../../../../src/shared/mcp"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+import { useTranslation } from "react-i18next"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -9,6 +10,7 @@ type McpToolRowProps = {
 }
 
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
+	const { t } = useTranslation("translation", { keyPrefix: "mcp" })
 	const { autoApprovalSettings } = useExtensionState()
 
 	const handleAutoApproveChange = () => {
@@ -37,7 +39,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
 					<VSCodeCheckbox checked={tool.autoApprove} onChange={handleAutoApproveChange} data-tool={tool.name}>
-						Auto-approve
+						{t("autoApprove")}
 					</VSCodeCheckbox>
 				)}
 			</div>
@@ -70,7 +72,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 								fontSize: "11px",
 								textTransform: "uppercase",
 							}}>
-							Parameters
+							{t("parameters")}
 						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(([paramName, schema]) => {
 							const isRequired =
@@ -108,7 +110,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 											overflowWrap: "break-word",
 											wordBreak: "break-word",
 										}}>
-										{schema.description || "No description"}
+										{schema.description || t("noDescription")}
 									</span>
 								</div>
 							)

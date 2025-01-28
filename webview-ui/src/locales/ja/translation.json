@@ -13,7 +13,8 @@
 		"debug": "デバッグ",
 		"resetState": "状態をリセット",
 		"resetStateDescription": "拡張機能のすべてのグローバル状態とシークレットストレージがリセットされます。",
-		"feedback": "ご質問やフィードバックがある場合は、ご自由にイシューを作成してください。"
+		"feedback": "ご質問やフィードバックがある場合は、ご自由にイシューを作成してください。",
+		"advancedSettings": "詳細設定"
 	},
 	"apiOptions": {
 		"selectModel": "モデルを選択...",
@@ -150,25 +151,62 @@
 		"enableNotifications": "通知を有効にする",
 		"enableNotificationsDescription": "クラインがタスクを進めるために承認を求めるとき、またはタスクが完了したときにシステム通知を受け取ります。"
 	},
-	"historyPreview": {
+	"history": {
 		"recentTasks": "最近のタスク",
 		"tokens": "トークン",
 		"cache": "キャッシュ",
 		"apiCost": "APIコスト",
-		"viewAllHistory": "すべての履歴を見る"
-	},
-	"historyView": {
+		"viewAllHistory": "すべての履歴を見る",
 		"history": "履歴",
 		"done": "完了",
-		"fuzzySearchHistory": "履歴をあいまい検索...",
+		"fuzzySearchHistory": "履歴をファジー検索...",
 		"newest": "最新",
 		"oldest": "最古",
 		"mostExpensive": "最も高価",
-		"mostTokens": "最も多いトークン",
+		"mostTokens": "最もトークン",
 		"mostRelevant": "最も関連性が高い",
-		"tokens": "トークン:",
-		"cache": "キャッシュ:",
-		"apiCost": "APIコスト:",
 		"export": "エクスポート"
+	},
+	"mcp": {
+		"noDescription": "説明なし",
+		"parameters": "パラメーター",
+		"unknown": "不明",
+		"autoApprove": "自動承認",
+		"mcpServers": "MCPサーバー",
+		"done": "完了",
+		"retrying": "再試行中...",
+		"retryConnections": "接続を再試行",
+		"restarting": "再起動中...",
+		"restartServer": "サーバーを再起動",
+		"tools": "ツール",
+		"noToolsFound": "ツールが見つかりません",
+		"resources": "リソース",
+		"noResourcesFound": "リソースが見つかりません",
+		"configureMcpServers": "MCPサーバーを設定",
+		"advancedMcpSettings": "高度なMCP設定",
+		"viewInfo": "<ModelContextLink>モデルコンテキストプロトコル</ModelContextLink>は、クラインの機能を拡張するために追加のツールやリソースを提供するローカルで実行されているMCPサーバーとの通信を可能にします。<ServersLink>コミュニティ製のサーバー</ServersLink>を使用するか、クラインに特定のワークフローに合わせた新しいツールを作成するよう依頼できます（例：「最新のnpmドキュメントを取得するツールを追加」）。<DemoLink>デモはこちらをご覧ください。</DemoLink>"
+	},
+	"openModelPicker": {
+		"info": "拡張機能は<OpenRouterLink>OpenRouter</OpenRouterLink>で利用可能な最新のモデルリストを自動的に取得します。どのモデルを選択すべきか分からない場合、クラインは<ClaudeLink>anthropic/claude-3.5-sonnet:beta</ClaudeLink>で最適に動作します。また、現在利用可能な無料オプションを探すために「free」と検索することもできます。",
+		"selectModel": "モデルを検索して選択...",
+		"model": "モデル",
+		"apiProvider": "APIプロバイダー",
+		"clearSearch": "検索をクリア",
+		"seeMore": "もっと見る",
+		"seeLess": "少なく見る"
+	},
+	"tabNavbar": {
+		"newChat": "新しいチャット",
+		"history": "履歴",
+		"settings": "設定"
+	},
+	"taskHeader": {
+		"task": "タスク",
+		"tokens": "トークン",
+		"cache": "キャッシュ",
+		"apiCost": "APIコスト",
+		"seeMore": "もっと見る",
+		"seeLess": "少なく見る",
+		"seeHereForInstructions": "手順についてはこちらをご覧ください"
 	}
 }

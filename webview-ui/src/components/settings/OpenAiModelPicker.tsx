@@ -6,8 +6,10 @@ import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
+import { useTranslation } from "react-i18next"
 
 const OpenAiModelPicker: React.FC = () => {
+	const { t } = useTranslation("translation", { keyPrefix: "openModelPicker" })
 	const { apiConfiguration, setApiConfiguration, openAiModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openAiModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -129,7 +131,7 @@ const OpenAiModelPicker: React.FC = () => {
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
-						placeholder="Search and select a model..."
+						placeholder={t("searchModels")}
 						value={searchTerm}
 						onInput={(e) => {
 							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
@@ -141,7 +143,7 @@ const OpenAiModelPicker: React.FC = () => {
 						{searchTerm && (
 							<div
 								className="input-icon-button codicon codicon-close"
-								aria-label="Clear search"
+								aria-label={t("clearSearch")}
 								onClick={() => {
 									handleModelChange("")
 									setIsDropdownVisible(true)
@@ -278,6 +280,7 @@ export const ModelDescriptionMarkdown = memo(
 		isExpanded: boolean
 		setIsExpanded: (isExpanded: boolean) => void
 	}) => {
+		const { t } = useTranslation("translation", { keyPrefix: "openAiModelPicker" })
 		const [reactContent, setMarkdown] = useRemark()
 		// const [isExpanded, setIsExpanded] = useState(false)
 		const [showSeeMore, setShowSeeMore] = useState(false)
@@ -349,7 +352,7 @@ export const ModelDescriptionMarkdown = memo(
 									backgroundColor: "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
-								See more
+								{t("seeMore")}
 							</VSCodeLink>
 						</div>
 					)}
