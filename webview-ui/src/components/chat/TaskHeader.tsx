@@ -277,7 +277,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
 								<span style={{ fontWeight: "bold" }}>Context:</span>
 								<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-									{formatLargeNumber(contextTokens || 0)}
+									{contextTokens ? formatLargeNumber(contextTokens) : '-'}
 								</span>
 							</div>
 
