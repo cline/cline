@@ -3041,6 +3041,14 @@ export class Cline {
 		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
+		// Add context tokens information
+		const { contextTokens } = getApiMetrics(this.clineMessages)
+		const modelInfo = this.api.getModel().info
+		const contextWindow = modelInfo.contextWindow
+		const contextPercentage =
+			contextTokens && contextWindow ? Math.round((contextTokens / contextWindow) * 100) : undefined
+		details += `\n\n# Current Context Size (Tokens)\n${contextTokens ? `${contextTokens.toLocaleString()} (${contextPercentage}%)` : "(Not available)"}`
+
 		// Add current mode and any mode-specific warnings
 		const { mode, customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
