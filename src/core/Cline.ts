@@ -3043,7 +3043,11 @@ export class Cline {
 
 		// Add context tokens information
 		const { contextTokens } = getApiMetrics(this.clineMessages)
-		details += `\n\n# Current Context Size (Tokens)\n${contextTokens ? contextTokens.toLocaleString() : "(Not available)"}`
+		const modelInfo = this.api.getModel().info
+		const contextWindow = modelInfo.contextWindow
+		const contextPercentage =
+			contextTokens && contextWindow ? Math.round((contextTokens / contextWindow) * 100) : undefined
+		details += `\n\n# Current Context Size (Tokens)\n${contextTokens ? `${contextTokens.toLocaleString()} (${contextPercentage}%)` : "(Not available)"}`
 
 		// Add current mode and any mode-specific warnings
 		const { mode, customModes } = (await this.providerRef.deref()?.getState()) ?? {}
