@@ -10,7 +10,6 @@ import { ExtensionStateContextProvider, useExtensionState } from "./context/Exte
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
 import { useTranslation } from "react-i18next"
-import { get } from "http"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, localeLanguage } = useExtensionState()
