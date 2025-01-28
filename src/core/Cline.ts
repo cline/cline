@@ -1217,7 +1217,6 @@ export class Cline {
 
 		let userSelectedNonEnglishLanguage: string | undefined
 		// While we check vscode for preferred language, it's likely not giving us one of the language options
-		console.log("this.localeLanguage", this.localeLanguage)
 		if (this.localeLanguage && this.localeLanguage !== "en") {
 			userSelectedNonEnglishLanguage = this.localeLanguage
 		}
