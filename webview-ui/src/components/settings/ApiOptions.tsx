@@ -8,7 +8,10 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useEvent, useInterval } from "react-use"
+import styled from "styled-components"
+import * as vscodemodels from "vscode"
 import {
 	ApiConfiguration,
 	ApiProvider,
@@ -32,16 +35,11 @@ import {
 	vertexDefaultModelId,
 	vertexModels,
 } from "../../../../src/shared/api"
-import { useTranslation } from "react-i18next"
-import { Trans } from "react-i18next"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import styled from "styled-components"
-import * as vscodemodels from "vscode"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import OpenAiModelPicker from "./OpenAiModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -169,7 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
-					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
+					style={{ minWidth: 130, position: "relative" }}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -534,8 +532,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={t("enterApiKey")}>
 						<span style={{ fontWeight: 500 }}>{t("apiKey")}</span>
 					</VSCodeTextField>
-					<span style={{ fontWeight: 500 }}>{t("model")}</span>
-					<OpenAiModelPicker />
+					<VSCodeTextField
+						value={apiConfiguration?.openAiModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("openAiModelId")}
+						placeholder={t("enterModelId")}>
+						<span style={{ fontWeight: 500 }}>{t("modelId")}</span>
+					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
