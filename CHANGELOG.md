@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.5
+
+### Patch Changes
+
+- v3.3.5
+
 ## [3.3.4]
 
 - Add per-server MCP network timeout configuration ranging from 15 seconds to an hour
