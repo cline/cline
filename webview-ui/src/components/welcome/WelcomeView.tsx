@@ -56,9 +56,8 @@ const WelcomeView = () => {
 
 				<div style={{ marginTop: "10px" }}>
 					<ul style={{ paddingLeft: "20px", margin: "10px 0" }}>
-						<li>Get $5 worth of free tokens</li>
-						<li>No processing fees</li>
-						<li>Seamless integration</li>
+						<li>Get 1 task worth of free tokens</li>
+						<li>No credit card required - just start using Cline immediately!</li>
 					</ul>
 				</div>
 			</div>

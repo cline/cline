@@ -6,6 +6,7 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
@@ -83,6 +84,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+
+	const handleClineLogin = () => {
+		vscode.postMessage({ type: "accountLoginClicked" })
+	}
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({ ...apiConfiguration, [field]: event.target.value })
@@ -170,6 +175,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider")}
 					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}>
+					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -184,6 +190,40 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "cline" && (
+				<div>
+					{apiConfiguration?.clineApiKey && (
+						<VSCodeTextField
+							value={apiConfiguration.clineApiKey}
+							style={{ width: "100%" }}
+							type="password"
+							onInput={handleInputChange("clineApiKey")}
+							placeholder={t("enterApiKey")}>
+							<span style={{ fontWeight: 500 }}>Cline API Key</span>
+						</VSCodeTextField>
+					)}
+
+					{apiConfiguration?.clineApiKey && (
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: 3,
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							{t("apiKeyInfo")}
+						</p>
+					)}
+
+					{!apiConfiguration?.clineApiKey && (
+						<div style={{ marginTop: 2 }}>
+							<VSCodeButton appearance="primary" onClick={handleClineLogin}>
+								Get Cline API Key
+							</VSCodeButton>
+						</div>
+					)}
+				</div>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -963,6 +1003,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
 	}
 	switch (provider) {
+		case "cline":
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "bedrock":
