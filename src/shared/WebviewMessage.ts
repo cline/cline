@@ -41,6 +41,8 @@ export interface WebviewMessage {
 		| "getLatestState"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "subscribeEmail"
+		| "changeLanguage"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

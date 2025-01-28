@@ -1,13 +1,18 @@
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import { vscode } from "../../utils/vscode"
 
 const LanguageOptions = () => {
 	const { t, i18n } = useTranslation("translation", { keyPrefix: "settingsView", useSuspense: false })
 
 	const changeLanguage = (e: any) => {
 		const language = e.target.value
-		i18n.changeLanguage(language)
+		// i18n.changeLanguage(language)
+		vscode.postMessage({
+			type: "changeLanguage",
+			text: language,
+		})
 	}
 
 	return (
@@ -22,6 +27,7 @@ const LanguageOptions = () => {
 					style={{ width: "100%" }}
 					onChange={changeLanguage}>
 					<VSCodeOption value="en">English</VSCodeOption>
+					<VSCodeOption value="es">Español</VSCodeOption>
 					<VSCodeOption value="de">Deutsch</VSCodeOption>
 					<VSCodeOption value="zh-CN">中文(简体)</VSCodeOption>
 					<VSCodeOption value="zh-TW">中文(繁體)</VSCodeOption>
