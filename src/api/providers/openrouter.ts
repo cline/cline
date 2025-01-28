@@ -114,13 +114,11 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		let temperature = 0
-		switch (this.getModel().id) {
-			case "deepseek/deepseek-r1":
-				// Recommended temperature for DeepSeek reasoning models
-				temperature = 0.6
-				// DeepSeek highly recommends using user instead of system role
-				openAiMessages[0].role = "user"
-				openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		if (this.getModel().id === "deepseek/deepseek-r1" || this.getModel().id.startsWith("deepseek/deepseek-r1:")) {
+			// Recommended temperature for DeepSeek reasoning models
+			temperature = 0.6
+			// DeepSeek highly recommends using user instead of system role
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
 		// https://openrouter.ai/docs/transforms
