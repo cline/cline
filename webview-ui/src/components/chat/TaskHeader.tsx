@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { memo, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
