@@ -65,7 +65,10 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 
 				// If this is the last api request, use its tokens for context size
 				if (message === lastApiReq) {
-					result.contextTokens = (tokensIn || 0) + (tokensOut || 0)
+					// Only update context tokens if both input and output tokens are non-zero
+					if (tokensIn > 0 && tokensOut > 0) {
+						result.contextTokens = tokensIn + tokensOut
+					}
 				}
 			} catch (error) {
 				console.error("Error parsing JSON:", error)
