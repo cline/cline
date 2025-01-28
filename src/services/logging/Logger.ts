@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import type { OutputChannel } from "vscode"
 
 /**
  * Simple logging utility for the extension's backend code.
@@ -6,9 +6,9 @@ import * as vscode from "vscode"
  * to ensure proper registration with the extension context.
  */
 export class Logger {
-	private static outputChannel: vscode.OutputChannel
+	private static outputChannel: OutputChannel
 
-	static initialize(outputChannel: vscode.OutputChannel) {
+	static initialize(outputChannel: OutputChannel) {
 		Logger.outputChannel = outputChannel
 	}
 
