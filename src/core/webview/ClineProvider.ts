@@ -713,7 +713,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		console.log("Subscribing email:", email)
 		this.postMessageToWebview({ type: "emailSubscribed" })
-		// doesn't matter if this fails
+		// Currently ignoring errors to this endpoint, but after accounts we'll remove this anyways
 		try {
 			const response = await axios.post(
 				"https://app.cline.bot/api/mailing-list",
@@ -729,7 +729,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			console.log("Email subscribed successfully. Response:", response.data)
 		} catch (error) {
 			console.error("Failed to subscribe email:", error)
-			return
 		}
 	}
 
