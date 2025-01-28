@@ -72,7 +72,7 @@ jobs:
               run: |
                   current_package_version=$(node -p "require('./package.json').version")
                   npm run publish:marketplace
-                  echo "Successfully published version $current_package_version to VS Code Marketplace"
+                  echo "Successfully published version $current_package_version to VS Code Marketplace and Open VSX Registry"
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
