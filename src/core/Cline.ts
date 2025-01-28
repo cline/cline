@@ -2391,6 +2391,10 @@ export class Cline {
 			let reasoningMessage = ""
 			try {
 				for await (const chunk of stream) {
+					if (!chunk) {
+						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
+						continue
+					}
 					switch (chunk.type) {
 						case "reasoning":
 							reasoningMessage += chunk.text
