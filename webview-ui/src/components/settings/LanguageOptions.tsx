@@ -1,20 +1,23 @@
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 
 const LanguageOptions = () => {
-	const { t, i18n } = useTranslation("translation", { keyPrefix: "settingsView", useSuspense: false })
+	const { setCustomInstructions } = useExtensionState()
+	const { t, i18n } = useTranslation("translation")
 
 	const changeLanguage = (e: any) => {
 		const language = e.target.value
 		i18n.changeLanguage(language)
+		setCustomInstructions(t("appRoot.customInstructions"))
 	}
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 			<div className="dropdown-container">
 				<label htmlFor="language-dropdown">
-					<span style={{ fontWeight: 500 }}>{t("language")}</span>
+					<span style={{ fontWeight: 500 }}>{t("settingsView.language")}</span>
 				</label>
 				<VSCodeDropdown
 					id="language-dropdown"

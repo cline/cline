@@ -1,4 +1,7 @@
 {
+	"appRoot": {
+		"customInstructions": "ユーザーが言語を変更しました。今後は日本語で話してください。"
+	},
 	"announcement": {
 		"newInVersion": "バージョン{{version}}の新機能",
 		"joinOurCommunities": "最新情報については、<DiscordLink>Discord</DiscordLink> または <RedditLink>Reddit</RedditLink> にぜひご参加ください！"
@@ -70,7 +73,7 @@
 		"languageModel": "言語モデル"
 	},
 	"welcomeView": {
-		"greeting": "こんにちは！私はあなたのAIアシスタント、クラインです。",
+		"greeting": "こんにちは！私はクラインです",
 		"description": "最新の<ClaudeLink>Claude 3.5 Sonnetのエージェントコーディング機能</ClaudeLink>と、ファイルの作成や編集、複雑なプロジェクトの探索、ブラウザの使用、ターミナルコマンドの実行（もちろん、あなたの許可が必要です）を可能にするツールのおかげで、あらゆるタスクをこなすことができます。さらに、MCPを使用して新しいツールを作成し、自分の能力を拡張することもできます。",
 		"getStarted": "始めるには、この拡張機能にClaude 3.5 SonnetのAPIプロバイダーが必要です。",
 		"letsGo": "さあ、始めましょう！"

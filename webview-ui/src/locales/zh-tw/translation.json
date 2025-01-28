@@ -1,4 +1,7 @@
 {
+	"appRoot": {
+		"customInstructions": "使用者已更改語言，請使用繁體中文。"
+	},
 	"announcement": {
 		"newInVersion": "版本 {{version}} 中的新功能",
 		"joinOurCommunities": "加入我們的 <DiscordLink>Discord</DiscordLink> 或 <RedditLink>Reddit</RedditLink> 獲取更多更新！"
@@ -65,7 +68,7 @@
 		"languageModel": "語言模型"
 	},
 	"welcomeView": {
-		"greeting": "您好！我是 Cline，您的 AI 助手。",
+		"greeting": "嗨！我是 Cline",
 		"description": "得益於 <ClaudeLink>Claude 3.5 Sonnet 的代理編碼能力</ClaudeLink> 和訪問各種工具，我可以執行各種任務，這些工具讓我能夠創建和編輯文件、探索複雜項目、使用瀏覽器和執行終端命令（當然是在您的許可下）。我甚至可以使用 MCP 創建新工具並擴展我自己的能力。",
 		"getStarted": "要開始使用，這個擴展需要 Claude 3.5 Sonnet 的 API 提供者。",
 		"letsGo": "讓我們開始吧！"

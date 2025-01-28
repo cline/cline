@@ -1,4 +1,7 @@
 {
+	"appRoot": {
+		"customInstructions": "The user has changed the language, please speak English from now on."
+	},
 	"announcement": {
 		"newInVersion": "New in version {{version}}",
 		"joinOurCommunities": "Join our <DiscordLink>Discord</DiscordLink> or <RedditLink>Reddit</RedditLink> for more updates!"
@@ -70,7 +73,7 @@
 		"languageModel": "Language Model"
 	},
 	"welcomeView": {
-		"greeting": "Hello! I'm Cline, your AI assistant.",
+		"greeting": "Hi! I'm Cline",
 		"description": "I can do all kinds of tasks thanks to the latest breakthroughs in <ClaudeLink>Claude 3.5 Sonnet's agentic coding capabilities</ClaudeLink> and access to tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (with your permission, of course). I can even use MCP to create new tools and extend my own capabilities.",
 		"getStarted": "To get started, this extension needs an API provider for Claude 3.5 Sonnet.",
 		"letsGo": "Let's go!"
