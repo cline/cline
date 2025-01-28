@@ -1296,6 +1296,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Unbound API Key</span>
 					</VSCodeTextField>
+					{!apiConfiguration?.unboundApiKey && (
+						<VSCodeButtonLink
+							href="https://gateway.getunbound.ai"
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get Unbound API Key
+						</VSCodeButtonLink>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
