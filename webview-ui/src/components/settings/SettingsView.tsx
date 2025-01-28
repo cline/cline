@@ -97,8 +97,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				apiConfiguration,
 			})
 
-			console.log("Experiments", experiments)
-
 			vscode.postMessage({
 				type: "updateExperimental",
 				values: experiments,

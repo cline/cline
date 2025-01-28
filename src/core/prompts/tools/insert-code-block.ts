@@ -6,7 +6,7 @@ Description: Inserts code blocks at specific line positions in a file. This is t
 Parameters:
 - path: (required) The path of the file to insert code into (relative to the current working directory ${args.cwd.toPosix()})
 - operations: (required) A JSON array of insertion operations. Each operation is an object with:
-    * start_line: (required) The line number where the code block should be inserted
+    * start_line: (required) The line number where the code block should be inserted.  The content currently at that line will end up below the inserted code block.
     * content: (required) The code block to insert at the specified position
 Usage:
 <insert_code_block>

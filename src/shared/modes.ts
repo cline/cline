@@ -205,7 +205,7 @@ export function isToolAllowedForMode(
 			const filePath = toolParams?.path
 			if (
 				filePath &&
-				(toolParams.diff || toolParams.content) &&
+				(toolParams.diff || toolParams.content || toolParams.operations) &&
 				!doesFileMatchRegex(filePath, options.fileRegex)
 			) {
 				throw new FileRestrictionError(mode.name, options.fileRegex, options.description, filePath)
