@@ -1272,10 +1272,16 @@ export class Cline {
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
+					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
+					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					this.conversationHistoryDeletedRange = getNextTruncationRange(
 						this.apiConversationHistory,
 						this.conversationHistoryDeletedRange,
+						keep,
 					)
 					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
 					// await this.overwriteApiConversationHistory(truncatedMessages)

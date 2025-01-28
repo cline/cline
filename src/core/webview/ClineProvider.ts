@@ -74,6 +74,9 @@ type GlobalStateKey =
 	| "vsCodeLmModelSelector"
 	| "localeLanguage"
 	| "userInfo"
+	| "previousModeApiProvider"
+	| "previousModeModelId"
+	| "previousModeModelInfo"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -501,6 +504,71 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "chatSettings":
 						if (message.chatSettings) {
 							const didSwitchToActMode = message.chatSettings.mode === "act"
+
+							// Get previous model info that we will revert to after saving current mode api info
+							const {
+								apiConfiguration,
+								previousModeApiProvider: newApiProvider,
+								previousModeModelId: newModelId,
+								previousModeModelInfo: newModelInfo,
+							} = await this.getState()
+
+							// Save the last model used in this mode
+							await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
+							switch (apiConfiguration.apiProvider) {
+								case "anthropic":
+								case "bedrock":
+								case "vertex":
+								case "gemini":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
+									break
+								case "openrouter":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
+									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
+									break
+								case "vscode-lm":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
+									break
+								case "openai":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
+									break
+								case "ollama":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
+									break
+								case "lmstudio":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
+									break
+							}
+
+							// Restore the model used in previous mode
+							if (newApiProvider && newModelId) {
+								await this.updateGlobalState("apiProvider", newApiProvider)
+								switch (newApiProvider) {
+									case "anthropic":
+									case "bedrock":
+									case "vertex":
+									case "gemini":
+										await this.updateGlobalState("apiModelId", newModelId)
+										break
+									case "openrouter":
+										await this.updateGlobalState("openRouterModelId", newModelId)
+										await this.updateGlobalState("openRouterModelInfo", newModelInfo)
+										break
+									case "vscode-lm":
+										await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+										break
+									case "openai":
+										await this.updateGlobalState("openAiModelId", newModelId)
+										break
+									case "ollama":
+										await this.updateGlobalState("ollamaModelId", newModelId)
+										break
+									case "lmstudio":
+										await this.updateGlobalState("lmStudioModelId", newModelId)
+										break
+								}
+							}
+
 							await this.updateGlobalState("chatSettings", message.chatSettings)
 							await this.postStateToWebview()
 							if (this.cline) {
@@ -1198,10 +1266,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			userInfo,
+			authToken,
 			localeLanguage,
 		} = await this.getState()
 
-		const authToken = await this.getSecret("authToken")
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1310,6 +1378,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vsCodeLmModelSelector,
 			localeLanguage,
 			userInfo,
+			authToken,
+			previousModeApiProvider,
+			previousModeModelId,
+			previousModeModelInfo,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1346,6 +1418,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("localeLanguage") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
+			this.getSecret("authToken") as Promise<string | undefined>,
+			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
+			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
+			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1400,6 +1476,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			localeLanguage,
 			userInfo,
+			authToken,
+			previousModeApiProvider,
+			previousModeModelId,
+			previousModeModelInfo,
 		}
 	}
 

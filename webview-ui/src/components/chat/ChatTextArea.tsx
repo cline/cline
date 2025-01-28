@@ -586,20 +586,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
+		// Separate the API config submission logic
+		const submitApiConfig = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
+
 		const onModeToggle = useCallback(() => {
 			if (textAreaDisabled) return
-			const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-			vscode.postMessage({
-				type: "chatSettings",
-				chatSettings: {
-					mode: newMode,
-				},
-			})
-			// Focus the textarea after mode toggle with slight delay
+			let changeModeDelay = 0
+			if (showModelSelector) {
+				// user has model selector open, so we should save it before switching modes
+				submitApiConfig()
+				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+			}
 			setTimeout(() => {
-				textAreaRef.current?.focus()
-			}, 100)
-		}, [chatSettings.mode, textAreaDisabled])
+				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
+				vscode.postMessage({
+					type: "chatSettings",
+					chatSettings: {
+						mode: newMode,
+					},
+				})
+				// Focus the textarea after mode toggle with slight delay
+				setTimeout(() => {
+					textAreaRef.current?.focus()
+				}, 100)
+			}, changeModeDelay)
+		}, [chatSettings.mode, textAreaDisabled, showModelSelector, submitApiConfig])
 
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
@@ -643,18 +663,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			handleInputChange(event)
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
-
-		// Separate the API config submission logic
-		const submitApiConfig = useCallback(() => {
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-
-			if (!apiValidationResult && !modelIdValidationResult) {
-				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			} else {
-				vscode.postMessage({ type: "getLatestState" })
-			}
-		}, [apiConfiguration, openRouterModels])
 
 		// Use an effect to detect menu close
 		useEffect(() => {
