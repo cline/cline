@@ -16,6 +16,7 @@ interface TaskHeaderProps {
 	cacheWrites?: number
 	cacheReads?: number
 	totalCost: number
+	contextTokens: number
 	onClose: () => void
 }
 
@@ -27,6 +28,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheWrites,
 	cacheReads,
 	totalCost,
+	contextTokens,
 	onClose,
 }) => {
 	const { apiConfiguration } = useExtensionState()
@@ -270,6 +272,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</span>
 								</div>
 								{!isCostAvailable && <ExportButton />}
+							</div>
+
+							<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+								<span style={{ fontWeight: "bold" }}>Context:</span>
+								<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+									{formatLargeNumber(contextTokens || 0)}
+								</span>
 							</div>
 
 							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
