@@ -7,7 +7,7 @@ Parameters:
 - path: (required) The path of the file to modify (relative to the current working directory ${args.cwd.toPosix()})
 - operations: (required) A JSON array of search/replace operations. Each operation is an object with:
     * search: (required) The text or pattern to search for
-    * replace: (required) The text to replace matches with
+    * replace: (required) The text to replace matches with. If multiple lines need to be replaced, use "\n" for newlines
     * start_line: (optional) Starting line number for restricted replacement
     * end_line: (optional) Ending line number for restricted replacement
     * use_regex: (optional) Whether to treat search as a regex pattern
