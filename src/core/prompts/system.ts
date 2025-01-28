@@ -80,7 +80,7 @@ ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy
 
 ${modesSection}
 
-${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, context, experiments)}
+${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experiments)}
 
 ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 

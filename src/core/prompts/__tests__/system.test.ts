@@ -518,6 +518,65 @@ describe("SYSTEM_PROMPT", () => {
 			expect(prompt).toContain(EXPERIMENT_IDS.SEARCH_AND_REPLACE)
 			expect(prompt).not.toContain(EXPERIMENT_IDS.INSERT_BLOCK)
 		})
+
+		it("should list all available editing tools in base instruction", async () => {
+			const experiments = {
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
+			}
+
+			const prompt = await SYSTEM_PROMPT(
+				mockContext,
+				"/test/path",
+				false,
+				undefined,
+				new SearchReplaceDiffStrategy(),
+				undefined,
+				defaultModeSlug,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				true, // diffEnabled
+				experiments,
+			)
+
+			// Verify base instruction lists all available tools
+			expect(prompt).toContain("apply_diff (for replacing lines in existing files)")
+			expect(prompt).toContain("write_to_file (for creating new files or complete file rewrites)")
+			expect(prompt).toContain("insert_code_block (for adding sections to existing files)")
+			expect(prompt).toContain("search_and_replace (for finding and replacing individual pieces of text)")
+		})
+
+		it("should provide detailed instructions for each enabled tool", async () => {
+			const experiments = {
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
+			}
+
+			const prompt = await SYSTEM_PROMPT(
+				mockContext,
+				"/test/path",
+				false,
+				undefined,
+				new SearchReplaceDiffStrategy(),
+				undefined,
+				defaultModeSlug,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				true,
+				experiments,
+			)
+
+			// Verify detailed instructions for each tool
+			expect(prompt).toContain(
+				"You should always prefer using other editing tools over write_to_file when making changes to existing files since write_to_file is much slower and cannot handle large files.",
+			)
+			expect(prompt).toContain("The insert_code_block tool adds code snippets or content blocks to files")
+			expect(prompt).toContain("The search_and_replace tool finds and replaces text or regex in files")
+		})
 	})
 
 	afterAll(() => {
