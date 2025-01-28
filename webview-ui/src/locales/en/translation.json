@@ -13,8 +13,7 @@
 		"debug": "Debug",
 		"resetState": "Reset State",
 		"resetStateDescription": "This will reset all global state and secret storage in the extension.",
-		"feedback": "If you have any questions or feedback, feel free to open an issue at",
-		"version": "v"
+		"feedback": "If you have any questions or feedback, feel free to open an issue at"
 	},
 	"apiOptions": {
 		"selectModel": "Select a Model...",

@@ -13,8 +13,7 @@
 		"debug": "Debuggen",
 		"resetState": "Zustand zurücksetzen",
 		"resetStateDescription": "Dies setzt den gesamten globalen Zustand und die geheime Speicherung in der Erweiterung zurück.",
-		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue eröffnen unter",
-		"version": "v"
+		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue eröffnen unter"
 	},
 	"apiOptions": {
 		"selectModel": "Modell auswählen...",

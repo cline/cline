@@ -13,8 +13,7 @@
 		"debug": "Depurar",
 		"resetState": "Restablecer estado",
 		"resetStateDescription": "Esto restablecerá todo el estado global y el almacenamiento secreto en la extensión.",
-		"feedback": "Si tienes preguntas o comentarios, no dudes en abrir un issue en",
-		"version": "v"
+		"feedback": "Si tienes preguntas o comentarios, no dudes en abrir un issue en"
 	},
 	"apiOptions": {
 		"selectModel": "Seleccionar modelo...",

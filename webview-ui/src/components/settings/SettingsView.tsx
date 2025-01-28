@@ -179,7 +179,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: "10px 0 0 0",
 							padding: 0,
 						}}>
-						{t("version")} {version}
+						v{version}
 					</p>
 				</div>
 			</div>
