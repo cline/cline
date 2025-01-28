@@ -62,6 +62,11 @@ const WelcomeView = () => {
 					overflow: "auto",
 				}}>
 				<h2>{t("greeting")}</h2>
+
+				<div style={{ marginBottom: "10px" }}>
+					<LanguageOptions />
+				</div>
+
 				<p>
 					<Trans
 						i18nKey="welcomeView.description"
@@ -115,7 +120,6 @@ const WelcomeView = () => {
 
 				<div style={{ marginTop: "15px" }}>
 					<ApiOptions showModelOptions={false} />
-					<LanguageOptions />
 					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
 						{t("letsGo")}
 					</VSCodeButton>
