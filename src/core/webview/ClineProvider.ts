@@ -630,6 +630,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
+					case "subscribeEmail":
+						this.subscribeEmail(message.text)
+						break
 					case "accountLoginClicked": {
 						// Generate nonce for state validation
 						const nonce = crypto.randomBytes(32).toString("hex")
@@ -697,6 +700,36 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+
+	async subscribeEmail(email?: string) {
+		if (!email) {
+			return
+		}
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+		if (!emailRegex.test(email)) {
+			vscode.window.showErrorMessage("Please enter a valid email address")
+			return
+		}
+		console.log("Subscribing email:", email)
+		this.postMessageToWebview({ type: "emailSubscribed" })
+		// Currently ignoring errors to this endpoint, but after accounts we'll remove this anyways
+		try {
+			const response = await axios.post(
+				"https://app.cline.bot/api/mailing-list",
+				{
+					email: email,
+				},
+				{
+					headers: {
+						"Content-Type": "application/json",
+					},
+				},
+			)
+			console.log("Email subscribed successfully. Response:", response.data)
+		} catch (error) {
+			console.error("Failed to subscribe email:", error)
+		}
 	}
 
 	async cancelTask() {
