@@ -920,6 +920,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					cacheWrites={apiMetrics.totalCacheWrites}
 					cacheReads={apiMetrics.totalCacheReads}
 					totalCost={apiMetrics.totalCost}
+					contextTokens={apiMetrics.contextTokens}
 					onClose={handleTaskCloseButtonClick}
 				/>
 			) : (
