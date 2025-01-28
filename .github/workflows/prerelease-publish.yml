@@ -72,9 +72,8 @@ jobs:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
               run: |
                   current_package_version=$(node -p "require('./package.json').version")
-                  vsce package
-                  vsce publish --pre-release -p ${{ secrets.VSCE_PAT }}
-                  echo "Successfully published pre-release version $current_package_version to VS Code Marketplace"
+                  npm run publish:marketplace:prerelease
+                  echo "Successfully published pre-release version $current_package_version to VS Code Marketplace and Open VSX Registry"
 
             - name: Create GitHub Pre-release
               uses: softprops/action-gh-release@v1
