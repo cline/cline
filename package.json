@@ -145,22 +145,22 @@
 				"cline.mcp.mode": {
 					"type": "string",
 					"enum": [
-						"enabled",
-						"mcp-tools-only",
-						"disabled"
+						"full",
+						"server-use-only",
+						"off"
 					],
 					"enumDescriptions": [
-						"Full MCP functionality including server use and build instructions",
-						"Enable MCP server use but exclude build instructions from AI prompts to save tokens",
+						"Enable all MCP functionality (server use and build instructions)",
+						"Enable MCP server use only (excludes instructions about building MCP servers)",
 						"Disable all MCP functionality"
 					],
-					"default": "enabled",
-					"description": "Control MCP server functionality and its inclusion in AI prompts. When disabled, Cline will not be aware of MCP capabilities, saving model context window tokens."
+					"default": "full",
+					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
 				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
-					"description": "Enable checkpoint creation during task execution"
+					"description": "Enables extension to save checkpoints of workspace throughout the task."
 				}
 			}
 		}
