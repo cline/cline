@@ -5,6 +5,8 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ApiConfigManager from "./ApiConfigManager"
+import { Dropdown } from "vscrui"
+import type { DropdownOption } from "vscrui"
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -444,23 +446,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 15px 0" }}>Browser Settings</h3>
 					<div style={{ marginBottom: 15 }}>
 						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport size</label>
-						<select
-							value={browserViewportSize}
-							onChange={(e) => setBrowserViewportSize(e.target.value)}
-							style={{
-								width: "100%",
-								padding: "4px 8px",
-								backgroundColor: "var(--vscode-input-background)",
-								color: "var(--vscode-input-foreground)",
-								border: "1px solid var(--vscode-input-border)",
-								borderRadius: "2px",
-								height: "28px",
-							}}>
-							<option value="1280x800">Large Desktop (1280x800)</option>
-							<option value="900x600">Small Desktop (900x600)</option>
-							<option value="768x1024">Tablet (768x1024)</option>
-							<option value="360x640">Mobile (360x640)</option>
-						</select>
+						<div className="dropdown-container">
+							<Dropdown
+								value={browserViewportSize}
+								onChange={(value: unknown) => {
+									setBrowserViewportSize((value as DropdownOption).value)
+								}}
+								style={{ width: "100%" }}
+								options={[
+									{ value: "1280x800", label: "Large Desktop (1280x800)" },
+									{ value: "900x600", label: "Small Desktop (900x600)" },
+									{ value: "768x1024", label: "Tablet (768x1024)" },
+									{ value: "360x640", label: "Mobile (360x640)" },
+								]}
+							/>
+						</div>
 						<p
 							style={{
 								fontSize: "12px",

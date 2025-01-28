@@ -1,6 +1,8 @@
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useRef, useState } from "react"
 import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
+import { Dropdown } from "vscrui"
+import type { DropdownOption } from "vscrui"
 
 interface ApiConfigManagerProps {
 	currentApiConfigName?: string
@@ -133,28 +135,20 @@ const ApiConfigManager = ({
 				) : (
 					<>
 						<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-							<select
+							<Dropdown
 								id="config-profile"
 								value={currentApiConfigName}
-								onChange={(e) => onSelectConfig(e.target.value)}
+								onChange={(value: unknown) => {
+									onSelectConfig((value as DropdownOption).value)
+								}}
 								style={{
-									flexGrow: 1,
-									padding: "4px 8px",
-									paddingRight: "24px",
-									backgroundColor: "var(--vscode-dropdown-background)",
-									color: "var(--vscode-dropdown-foreground)",
-									border: "1px solid var(--vscode-dropdown-border)",
-									borderRadius: "2px",
-									height: "28px",
-									cursor: "pointer",
-									outline: "none",
-								}}>
-								{listApiConfigMeta?.map((config) => (
-									<option key={config.name} value={config.name}>
-										{config.name}
-									</option>
-								))}
-							</select>
+									minWidth: 130,
+								}}
+								options={listApiConfigMeta.map((config) => ({
+									value: config.name,
+									label: config.name,
+								}))}
+							/>
 							<VSCodeButton
 								appearance="icon"
 								onClick={handleAdd}
