@@ -23,6 +23,15 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
+            # Validate that changes exist
+            - name: Check for Changie entries
+              run: |
+                  if [ -z "$(ls -A .changes/unreleased 2>/dev/null)" ]; then
+                    echo "Error: No Changie entries found in .changes/unreleased/"
+                    echo "Please run 'npm run changie new' and commit the generated change file"
+                    exit 1
+                  fi
+
             # Use Changie to batch changes and get the next version
             - name: Batch changes
               id: batch
