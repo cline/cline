@@ -160,6 +160,31 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 
 </details>
 
+<details>
+<summary>Creating a Pull Request</summary>
+
+1. Before creating a PR, generate a changeset entry:
+    ```bash
+    npm run changeset
+    ```
+   This will prompt you for:
+   - Type of change (major, minor, patch)
+     - `major` → breaking changes (1.0.0 → 2.0.0)
+     - `minor` → new features (1.0.0 → 1.1.0)
+     - `patch` → bug fixes (1.0.0 → 1.0.1)
+   - Description of your changes
+
+2. Commit your changes and the generated `.changeset` file
+
+3. Push your branch and create a PR on GitHub. Our CI will:
+   - Run tests and checks
+   - Changesetbot will create a comment showing the version impact
+   - When merged to main, changesetbot will create a Version Packages PR
+   - When the Version Packages PR is merged, a new release will be published
+
+</details>
+
+
 ## License
 
 [Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)

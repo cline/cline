@@ -4,7 +4,6 @@ import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { useTranslation } from "react-i18next"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -211,7 +210,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { t } = useTranslation("translation", { keyPrefix: "chatTextArea" })
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
@@ -586,20 +584,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
+		// Separate the API config submission logic
+		const submitApiConfig = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
+
 		const onModeToggle = useCallback(() => {
 			if (textAreaDisabled) return
-			const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-			vscode.postMessage({
-				type: "chatSettings",
-				chatSettings: {
-					mode: newMode,
-				},
-			})
-			// Focus the textarea after mode toggle with slight delay
+			let changeModeDelay = 0
+			if (showModelSelector) {
+				// user has model selector open, so we should save it before switching modes
+				submitApiConfig()
+				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+			}
 			setTimeout(() => {
-				textAreaRef.current?.focus()
-			}, 100)
-		}, [chatSettings.mode, textAreaDisabled])
+				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
+				vscode.postMessage({
+					type: "chatSettings",
+					chatSettings: {
+						mode: newMode,
+					},
+				})
+				// Focus the textarea after mode toggle with slight delay
+				setTimeout(() => {
+					textAreaRef.current?.focus()
+				}, 100)
+			}, changeModeDelay)
+		}, [chatSettings.mode, textAreaDisabled, showModelSelector, submitApiConfig])
 
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
@@ -643,18 +661,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			handleInputChange(event)
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
-
-		// Separate the API config submission logic
-		const submitApiConfig = useCallback(() => {
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-
-			if (!apiValidationResult && !modelIdValidationResult) {
-				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			} else {
-				vscode.postMessage({ type: "getLatestState" })
-			}
-		}, [apiConfiguration, openRouterModels])
 
 		// Use an effect to detect menu close
 		useEffect(() => {
@@ -1064,8 +1070,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
 						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-						<SwitchOption isActive={chatSettings.mode === "plan"}>{t("plan")}</SwitchOption>
-						<SwitchOption isActive={chatSettings.mode === "act"}>{t("act")}</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
+						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
 					</SwitchContainer>
 				</ControlsContainer>
 			</div>

@@ -1,0 +1,112 @@
+name: "Publish Release"
+
+on:
+    workflow_dispatch:
+        inputs:
+            release-type:
+                description: "Choose release type (release or pre-release)"
+                required: true
+                default: "release"
+                type: choice
+                options:
+                    - pre-release
+                    - release
+
+permissions:
+    contents: write
+    packages: write
+    checks: write
+    pull-requests: write
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+
+    publish:
+        needs: test
+        name: Publish Extension
+        runs-on: ubuntu-latest
+        environment: publish
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            # Cache root dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Install Publishing Tools
+              run: npm install -g vsce ovsx
+
+            - name: Get Version
+              id: get_version
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Create Git Tag
+              run: |
+                  VERSION=v${{ steps.get_version.outputs.version }}
+                  echo "Tagging with $VERSION"
+                  git tag "$VERSION"
+                  git push origin "$VERSION"
+
+            - name: Package and Publish Extension
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: |
+                  # Required to generate the .vsix
+                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+
+                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                    npm run publish:marketplace:prerelease
+                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  else
+                    npm run publish:marketplace
+                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  fi
+
+            # - name: Get Changelog Entry
+            #   id: changelog
+            #   uses: mindsers/changelog-reader-action@v2
+            #   with:
+            #       # This expects a standard Keep a Changelog format
+            #       # "latest" means it will read whichever is the most recent version
+            #       # set in "## [1.2.3] - 2025-01-28" style
+            #       version: latest
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  files: "*.vsix"
+                  # body: ${{ steps.changelog.outputs.content }}
+                  generate_release_notes: true
+                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -185,9 +185,12 @@
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish && ovsx publish",
-		"prepare": "husky"
+		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
+		"prepare": "husky",
+		"changeset": "changeset"
 	},
 	"devDependencies": {
+		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",

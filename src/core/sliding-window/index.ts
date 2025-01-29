@@ -55,13 +55,21 @@ truncated = getTruncatedMessages(messages, deletedRange);
 export function getNextTruncationRange(
 	messages: Anthropic.Messages.MessageParam[],
 	currentDeletedRange: [number, number] | undefined = undefined,
+	keep: "half" | "quarter" = "half",
 ): [number, number] {
 	// Since we always keep the first message, currentDeletedRange[0] will always be 1 (for now until we have a smarter truncation algorithm)
 	const rangeStartIndex = 1
 	const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 1
 
-	// Remove half of user-assistant pairs
-	const messagesToRemove = Math.floor((messages.length - startOfRest) / 4) * 2 // Keep even number
+	let messagesToRemove: number
+	if (keep === "half") {
+		// Remove half of user-assistant pairs
+		messagesToRemove = Math.floor((messages.length - startOfRest) / 4) * 2 // Keep even number
+	} else {
+		// Remove 3/4 of user-assistant pairs
+		messagesToRemove = Math.floor((messages.length - startOfRest) / 8) * 3 * 2
+	}
+
 	let rangeEndIndex = startOfRest + messagesToRemove - 1
 
 	// Make sure the last message being removed is a user message, so that the next message after the initial task message is an assistant message. This preservers the user-assistant-user-assistant structure.
