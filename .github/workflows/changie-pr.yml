@@ -66,11 +66,12 @@ jobs:
 
             - name: Create Pull Request
               if: steps.check.outputs.has_changes == 'true'
-              uses: peter-evans/create-pull-request@v5
+              uses: peter-evans/create-pull-request@v7
               with:
                   title: "Release ${{ steps.latest.outputs.output }}"
                   branch: "release/${{ steps.latest.outputs.output }}"
                   commit-message: "chore: update changelog for ${{ steps.latest.outputs.output }}"
+                  branch-token: ${{ secrets.GITHUB_TOKEN }}
                   body: |
                       This PR was automatically created by the Changie workflow.
                       - Updates CHANGELOG.md
