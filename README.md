@@ -169,6 +169,9 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
     ```
    This will prompt you for:
    - Kind of change (Added, Changed, Deprecated, Removed, Fixed, Security)
+     - `Added` → triggers minor version bump (1.0.0 → 1.1.0)
+     - `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` → triggers patch version bump (1.0.0 → 1.0.1)
+     - Breaking changes → triggers major version bump (1.0.0 → 2.0.0)
    - Description of your changes
    - Issue number (if applicable)
 
