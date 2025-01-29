@@ -17,4 +17,4 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Echo Test
-              run: echo test
+              run: echo ${{ secrets.TEST_SECRET }}
