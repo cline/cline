@@ -19,6 +19,20 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 	),
 }))
 
+jest.mock("vscrui", () => ({
+	Dropdown: ({ id, value, onChange, options, role }: any) => (
+		<div data-testid={`mock-dropdown-${id}`}>
+			<select value={value} onChange={(e) => onChange({ value: e.target.value })} data-testid={id} role={role}>
+				{options.map((opt: any) => (
+					<option key={opt.value} value={opt.value}>
+						{opt.label}
+					</option>
+				))}
+			</select>
+		</div>
+	),
+}))
+
 describe("ApiConfigManager", () => {
 	const mockOnSelectConfig = jest.fn()
 	const mockOnDeleteConfig = jest.fn()
