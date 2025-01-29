@@ -5,6 +5,10 @@ on:
         branches:
             - main
 
+permissions:
+    contents: write
+    pull-requests: write
+
 jobs:
     version-pr:
         name: Create/Update Version PR
