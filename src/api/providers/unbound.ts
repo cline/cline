@@ -3,7 +3,12 @@ import OpenAI from "openai"
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, UnboundModelId, unboundDefaultModelId, unboundModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+
+interface UnboundUsage extends OpenAI.CompletionUsage {
+	cache_creation_input_tokens?: number
+	cache_read_input_tokens?: number
+}
 
 export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -96,7 +101,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
-			const usage = chunk.usage
+			const usage = chunk.usage as UnboundUsage
 
 			if (delta?.content) {
 				yield {
@@ -106,11 +111,21 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (usage) {
-				yield {
+				const usageData: ApiStreamUsageChunk = {
 					type: "usage",
-					inputTokens: usage?.prompt_tokens || 0,
-					outputTokens: usage?.completion_tokens || 0,
+					inputTokens: usage.prompt_tokens || 0,
+					outputTokens: usage.completion_tokens || 0,
 				}
+
+				// Only add cache tokens if they exist
+				if (usage.cache_creation_input_tokens) {
+					usageData.cacheWriteTokens = usage.cache_creation_input_tokens
+				}
+				if (usage.cache_read_input_tokens) {
+					usageData.cacheReadTokens = usage.cache_read_input_tokens
+				}
+
+				yield usageData
 			}
 		}
 	}
