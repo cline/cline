@@ -2,11 +2,13 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { LanguageKey } from "./Languages"
 
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "customInstructions"
+		| "preferredLanguage"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -47,6 +49,7 @@ export interface WebviewMessage {
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
+	preferredLanguage?: LanguageKey
 	images?: string[]
 	bool?: boolean
 	number?: number

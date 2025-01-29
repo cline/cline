@@ -9,6 +9,7 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
+import { DEFAULT_LANGUAGE_SETTINGS, LanguageKey } from "../../../src/shared/Languages"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -20,6 +21,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
+	setPreferredLanguage: (value: LanguageKey) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -36,6 +38,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		preferredLanguage: DEFAULT_LANGUAGE_SETTINGS,
 		isLoggedIn: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -143,6 +146,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				customInstructions: value,
+			})),
+		setPreferredLanguage: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				preferredLanguage: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({

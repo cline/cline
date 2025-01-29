@@ -28,6 +28,7 @@ import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
+import { LanguageKey, DEFAULT_LANGUAGE_SETTINGS } from "../../shared/Languages"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -57,6 +58,7 @@ type GlobalStateKey =
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
+	| "preferredLanguage"
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
@@ -246,7 +248,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+		const { apiConfiguration, customInstructions, preferredLanguage, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
 			this,
@@ -255,6 +257,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			customInstructions,
+			preferredLanguage,
 			task,
 			images,
 		)
@@ -262,7 +265,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+		const { apiConfiguration, customInstructions, preferredLanguage, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
 			this,
@@ -271,6 +274,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			customInstructions,
+			preferredLanguage,
 			undefined,
 			undefined,
 			historyItem,
@@ -479,6 +483,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "customInstructions":
 						await this.updateCustomInstructions(message.text)
+						break
+					case "preferredLanguage":
+						await this.updatePreferredLanguage(message.text as LanguageKey)
 						break
 					case "autoApprovalSettings":
 						if (message.autoApprovalSettings) {
@@ -833,6 +840,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("customInstructions", instructions || undefined)
 		if (this.cline) {
 			this.cline.customInstructions = instructions || undefined
+		}
+		await this.postStateToWebview()
+	}
+
+	async updatePreferredLanguage(language?: LanguageKey) {
+		// User may be clearing the field
+		await this.updateGlobalState("preferredLanguage", language || undefined)
+		if (this.cline) {
+			this.cline.preferredLanguage = language || undefined
 		}
 		await this.postStateToWebview()
 	}
@@ -1246,6 +1262,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			lastShownAnnouncementId,
 			customInstructions,
+			preferredLanguage,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
@@ -1258,6 +1275,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
 			customInstructions,
+			preferredLanguage,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.cline?.taskId ? (taskHistory || []).find((item) => item.id === this.cline?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.cline?.checkpointTrackerErrorMessage,
@@ -1353,6 +1371,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterModelInfo,
 			lastShownAnnouncementId,
 			customInstructions,
+			preferredLanguage,
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
@@ -1392,6 +1411,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
+			this.getGlobalState("preferredLanguage") as Promise<LanguageKey | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
@@ -1450,6 +1470,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			},
 			lastShownAnnouncementId,
 			customInstructions,
+			preferredLanguage: preferredLanguage || DEFAULT_LANGUAGE_SETTINGS,
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,

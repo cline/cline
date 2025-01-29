@@ -59,6 +59,7 @@ import { SYSTEM_PROMPT } from "./prompts/system"
 import { addUserInstructions } from "./prompts/system"
 import { OpenAiHandler } from "../api/providers/openai"
 import { ApiStream } from "../api/transform/stream"
+import { LanguageKey } from "../shared/Languages"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -75,6 +76,7 @@ export class Cline {
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
+	preferredLanguage?: LanguageKey
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
@@ -119,6 +121,7 @@ export class Cline {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		customInstructions?: string,
+		preferredLanguage?: LanguageKey,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -130,6 +133,7 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
+		this.preferredLanguage = preferredLanguage
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -1213,6 +1217,9 @@ export class Cline {
 		)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
+		const preferredLanguageInstructions = this.preferredLanguage
+			? `# Preferred Language\n\nThe user prefers responses in ${this.preferredLanguage}. Please respond in this language in addition to English (language code en).`
+			: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
@@ -1226,9 +1233,13 @@ export class Cline {
 			}
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions) {
+		if (settingsCustomInstructions || clineRulesFileInstructions || preferredLanguageInstructions) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions)
+			systemPrompt += addUserInstructions(
+				settingsCustomInstructions,
+				clineRulesFileInstructions,
+				preferredLanguageInstructions,
+			)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
