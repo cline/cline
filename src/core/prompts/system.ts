@@ -957,16 +957,8 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-export function addUserInstructions(
-	settingsCustomInstructions?: string,
-	clineRulesFileInstructions?: string,
-	chosenLanguage?: string,
-) {
+export function addUserInstructions(settingsCustomInstructions?: string, clineRulesFileInstructions?: string) {
 	let customInstructions = ""
-	if (chosenLanguage) {
-		// Will only be provided for non-english languages
-		customInstructions += `Speak in this language: ${chosenLanguage}.` + "\n\n"
-	}
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}

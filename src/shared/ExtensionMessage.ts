@@ -61,7 +61,6 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	localeLanguage: string
 	isLoggedIn: boolean
 	userInfo?: {
 		displayName: string | null

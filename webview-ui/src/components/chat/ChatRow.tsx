@@ -2,8 +2,6 @@ import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/reac
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
-import { useTranslation } from "react-i18next"
-import { Trans } from "react-i18next"
 import styled from "styled-components"
 import {
 	ClineApiReqInfo,
@@ -101,7 +99,6 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	const { t } = useTranslation("translation", { keyPrefix: "chatRow" })
 	const { mcpServers } = useExtensionState()
 
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -154,7 +151,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>{t("error")}</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Error</span>,
 				]
 			case "mistake_limit_reached":
 				return [
@@ -164,7 +161,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>{t("mistakeLimitReached")}</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 				]
 			case "auto_approval_max_req_reached":
 				return [
@@ -174,7 +171,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							color: errorColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: errorColor, fontWeight: "bold" }}>{t("autoApprovalMaxReqReached")}</span>,
+					<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
 				]
 			case "command":
 				return [
@@ -189,7 +186,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							}}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{message.type === "ask" ? t("command.ask") : t("command.say")}
+						{message.type === "ask" ? "Cline wants to execute this command:" : "Cline executed this command:"}
 					</span>,
 				]
 			case "use_mcp_server":
@@ -208,23 +205,13 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
 						{message.type === "ask" ? (
 							<>
-								{t("useMcpServer.ask", {
-									type:
-										mcpServerUse.type === "use_mcp_tool"
-											? t("useMcpServer.tool")
-											: t("useMcpServer.resource"),
-									serverName: mcpServerUse.serverName,
-								})}
+								Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
 						) : (
 							<>
-								{t("useMcpServer.say", {
-									type:
-										mcpServerUse.type === "use_mcp_tool"
-											? t("useMcpServer.tool")
-											: t("useMcpServer.resource"),
-									serverName: mcpServerUse.serverName,
-								})}
+								Cline {mcpServerUse.type === "use_mcp_tool" ? "used a tool" : "accessed a resource"} on the{" "}
+								<code>{mcpServerUse.serverName}</code> MCP server:
 							</>
 						)}
 					</span>,
@@ -237,7 +224,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							color: successColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: successColor, fontWeight: "bold" }}>{t("completionResult")}</span>,
+					<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 				]
 			case "api_req_started":
 				const getIconSpan = (iconName: string, color: string) => (
@@ -279,7 +266,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									color: normalColor,
 									fontWeight: "bold",
 								}}>
-								{t("apiReqCancelled")}
+								API Request Cancelled
 							</span>
 						) : (
 							<span
@@ -287,15 +274,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									color: errorColor,
 									fontWeight: "bold",
 								}}>
-								{t("apiStreamingFailed")}
+								API Streaming Failed
 							</span>
 						)
 					) : cost != null ? (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>{t("apiRequest")}</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
-						<span style={{ color: errorColor, fontWeight: "bold" }}>{t("apiRequestFailed")}</span>
+						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 					) : (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>{t("apiRequestInProgress")}</span>
+						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
 					),
 				]
 			case "followup":
@@ -306,7 +293,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							color: normalColor,
 							marginBottom: "-1.5px",
 						}}></span>,
-					<span style={{ color: normalColor, fontWeight: "bold" }}>{t("followup")}</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
 				]
 			default:
 				return [null, null]
@@ -320,7 +307,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		isMcpServerResponding,
 		message.text,
 		message.type,
-		t,
 	])
 
 	const headerStyle: React.CSSProperties = {
@@ -361,7 +347,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div style={headerStyle}>
 							{toolIcon("edit")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? t("tool.editedExistingFile.ask") : t("tool.editedExistingFile.say")}
+								{message.type === "ask" ? "Cline wants to edit this file:" : "Cline is editing this file:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -379,7 +365,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? t("tool.createdNewFile.ask") : t("tool.createdNewFile.say")}
+								{message.type === "ask" ? "Cline wants to create a new file:" : "Cline is creating a new file:"}
 							</span>
 						</div>
 						<CodeAccordian
@@ -397,7 +383,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? t("tool.readExistingFile.ask") : t("tool.readExistingFile.say")}
+								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -787,56 +773,52 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											<>
 												<br />
 												<br />
-												<Trans
-													i18nKey="chatRow.troubleshootingGuide"
-													components={{
-														Link: (
-															<a
-																href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-																style={{
-																	color: "inherit",
-																	textDecoration: "underline",
-																}}>
-																PowerShell
-															</a>
-														),
-													}}
-												/>
+												It seems like you're having Windows PowerShell issues, please see this{" "}
+												<a
+													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+													style={{
+														color: "inherit",
+														textDecoration: "underline",
+													}}>
+													troubleshooting guide
+												</a>
+												.
 											</>
 										)}
 									</p>
+
 									{/* {apiProvider === "" && (
-										<div
-											style={{
-												display: "flex",
-												alignItems: "center",
-												backgroundColor:
-													"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
-												color: "var(--vscode-editor-foreground)",
-												padding: "6px 8px",
-												borderRadius: "3px",
-												margin: "10px 0 0 0",
-												fontSize: "12px",
-											}}>
-											<i
-												className="codicon codicon-warning"
+											<div
 												style={{
-													marginRight: 6,
-													fontSize: 16,
-													color: "var(--vscode-errorForeground)",
-												}}></i>
-											<span>
-												Uh-oh, this could be a problem on end. We've been alerted and
-												will resolve this ASAP. You can also{" "}
-												<a
-													href=""
-													style={{ color: "inherit", textDecoration: "underline" }}>
-													contact us
-												</a>
-												.
-											</span>
-										</div>
-									)} */}
+													display: "flex",
+													alignItems: "center",
+													backgroundColor:
+														"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
+													color: "var(--vscode-editor-foreground)",
+													padding: "6px 8px",
+													borderRadius: "3px",
+													margin: "10px 0 0 0",
+													fontSize: "12px",
+												}}>
+												<i
+													className="codicon codicon-warning"
+													style={{
+														marginRight: 6,
+														fontSize: 16,
+														color: "var(--vscode-errorForeground)",
+													}}></i>
+												<span>
+													Uh-oh, this could be a problem on end. We've been alerted and
+													will resolve this ASAP. You can also{" "}
+													<a
+														href=""
+														style={{ color: "inherit", textDecoration: "underline" }}>
+														contact us
+													</a>
+													.
+												</span>
+											</div>
+										)} */}
 								</>
 							)}
 
@@ -941,10 +923,13 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											fontWeight: 500,
 											color: "#FFA500",
 										}}>
-										{t("diffEditFailed")}
+										Diff Edit Failed
 									</span>
 								</div>
-								<div>{t("diffEditFailedMessage")}</div>
+								<div>
+									This usually happens when the model uses search patterns that don't match anything in the
+									file. Retrying...
+								</div>
 							</div>
 						</>
 					)
@@ -984,7 +969,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											cursor: seeNewChangesDisabled ? "wait" : "pointer",
 										}}>
 										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-										{t("seeNewChanges")}
+										See new changes
 									</SuccessButton>
 								</div>
 							)}
@@ -1020,10 +1005,23 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											fontWeight: 500,
 											color: "#FFA500",
 										}}>
-										{t("shellIntegrationUnavailable")}
+										Shell Integration Unavailable
 									</span>
 								</div>
-								<div>{t("shellIntegrationUnavailableMessage")}</div>
+								<div>
+									Cline won't be able to view the command's output. Please update VSCode (
+									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
+									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
+									Profile").{" "}
+									<a
+										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										style={{
+											color: "inherit",
+											textDecoration: "underline",
+										}}>
+										Still having trouble?
+									</a>
+								</div>
 							</div>
 						</>
 					)
@@ -1038,14 +1036,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										fontSize: "12px",
 										textTransform: "uppercase",
 									}}>
-									<a
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
-										style={{
-											color: "inherit",
-											textDecoration: "underline",
-										}}>
-										{t("response")}
-									</a>
+									Response
 								</div>
 								<CodeAccordian
 									code={message.text}
@@ -1145,7 +1136,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
-												{t("seeNewChanges")}
+												See new changes
 											</SuccessButton>
 										</div>
 									)}

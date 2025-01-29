@@ -3,8 +3,6 @@ import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
-import { useTranslation } from "react-i18next"
-import { Trans } from "react-i18next"
 import styled from "styled-components"
 import {
 	ClineAsk,
@@ -38,7 +36,6 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { t } = useTranslation("translation", { keyPrefix: "chatView" })
 	const { version, clineMessages: messages, taskHistory, apiConfiguration } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -669,8 +666,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
-		return task ? t("typeMessage") : t("typeTask")
-	}, [task, t])
+		const text = task ? "Type a message..." : "Type your task here..."
+		return text
+	}, [task])
 
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
@@ -745,19 +743,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}}>
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
-						<h2>{t("whatCanIDoForYou")}</h2>
+						<h2>What can I do for you?</h2>
 						<p>
-							<Trans
-								i18nKey="chatView.thanksTo"
-								components={{
-									ClaudeLink: (
-										<VSCodeLink
-											href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
-											style={{ display: "inline" }}
-										/>
-									),
-								}}
-							/>
+							Thanks to{" "}
+							<VSCodeLink
+								href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
+								style={{ display: "inline" }}>
+								Claude 3.5 Sonnet's agentic coding capabilities,
+							</VSCodeLink>{" "}
+							I can handle complex software development tasks step-by-step. With tools that let me create & edit
+							files, explore complex projects, use the browser, and execute terminal commands (after you grant
+							permission), I can assist you in ways that go beyond code completion or tech support. I can even use
+							MCP to create new tools and extend my own capabilities.
 						</p>
 					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
