@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 import { userInfo } from "os";
 
 describe("Shell Detection", () => {
-  describe("Get various shells using VS Code settings, os, process, or fallback", () => {
+  describe("Get shell using VS Code profiles, os, process, or fallback to /bin/sh", () => {
     let originalPlatform: string;
     let originalEnv: NodeJS.ProcessEnv;
     let originalGetConfig: any;
