@@ -198,6 +198,26 @@ Example: Requesting to switch to code mode
 <reason>Need to make code changes</reason>
 </switch_mode>
 
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
+
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -501,6 +521,26 @@ Example: Requesting to switch to code mode
 <reason>Need to make code changes</reason>
 </switch_mode>
 
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
+
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -803,6 +843,26 @@ Example: Requesting to switch to code mode
 <mode_slug>code</mode_slug>
 <reason>Need to make code changes</reason>
 </switch_mode>
+
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
 
 # Tool Use Guidelines
 
@@ -1152,6 +1212,26 @@ Example: Requesting to switch to code mode
 <mode_slug>code</mode_slug>
 <reason>Need to make code changes</reason>
 </switch_mode>
+
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
 
 # Tool Use Guidelines
 
@@ -1507,6 +1587,26 @@ Example: Requesting to switch to code mode
 <mode_slug>code</mode_slug>
 <reason>Need to make code changes</reason>
 </switch_mode>
+
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
 
 # Tool Use Guidelines
 
@@ -2221,6 +2321,26 @@ Example: Requesting to switch to code mode
 <reason>Need to make code changes</reason>
 </switch_mode>
 
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
+
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -2587,6 +2707,26 @@ Example: Requesting to switch to code mode
 <reason>Need to make code changes</reason>
 </switch_mode>
 
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
+
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -2891,6 +3031,26 @@ Example: Requesting to switch to code mode
 <mode_slug>code</mode_slug>
 <reason>Need to make code changes</reason>
 </switch_mode>
+
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
 
 # Tool Use Guidelines
 
@@ -3238,6 +3398,26 @@ Example: Requesting to switch to code mode
 <reason>Need to make code changes</reason>
 </switch_mode>
 
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
+
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -3526,6 +3706,26 @@ Example: Requesting to switch to code mode
 <mode_slug>code</mode_slug>
 <reason>Need to make code changes</reason>
 </switch_mode>
+
+## new_task
+Description: Create a new task with a specified starting mode and initial message. This tool instructs the system to create a new Cline instance in the given mode with the provided message.
+
+Parameters:
+- mode: (required) The slug of the mode to start the new task in (e.g., "code", "ask", "architect").
+- message: (required) The initial user message or instructions for this new task.
+
+Usage:
+<new_task>
+<mode>your-mode-slug-here</mode>
+<message>Your initial instructions here</message>
+</new_task>
+
+Example:
+<new_task>
+<mode>code</mode>
+<message>Implement a new feature for the application.</message>
+</new_task>
+
 
 # Tool Use Guidelines
 

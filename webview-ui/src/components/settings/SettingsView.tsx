@@ -344,10 +344,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<VSCodeCheckbox
 							checked={alwaysAllowModeSwitch}
 							onChange={(e: any) => setAlwaysAllowModeSwitch(e.target.checked)}>
-							<span style={{ fontWeight: "500" }}>Always approve mode switching</span>
+							<span style={{ fontWeight: "500" }}>Always approve mode switching & task creation</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-							Automatically switch between different AI modes without requiring approval
+							Automatically switch between different AI modes and create new tasks without requiring
+							approval
 						</p>
 					</div>
 

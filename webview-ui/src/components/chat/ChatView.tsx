@@ -569,7 +569,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message)) ||
 				(alwaysAllowModeSwitch &&
 					message.ask === "tool" &&
-					JSON.parse(message.text || "{}")?.tool === "switchMode")
+					(JSON.parse(message.text || "{}")?.tool === "switchMode" ||
+						JSON.parse(message.text || "{}")?.tool === "newTask"))
 			)
 		},
 		[
