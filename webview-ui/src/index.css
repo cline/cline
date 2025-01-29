@@ -1,5 +1,67 @@
 @import "tailwindcss";
 
+@layer base {
+	/* Theme Variables - VSCode Integration */
+	:root {
+		/* Base Colors */
+		--background: var(--vscode-editor-background);
+		--foreground: var(--vscode-editor-foreground);
+
+		/* Component Colors */
+		--card: var(--vscode-editor-background);
+		--card-foreground: var(--vscode-editor-foreground);
+		--popover: var(--vscode-menu-background, var(--vscode-editor-background));
+		--popover-foreground: var(--vscode-menu-foreground, var(--vscode-editor-foreground));
+
+		/* Button Colors */
+		--primary: var(--vscode-button-background);
+		--primary-foreground: var(--vscode-button-foreground);
+		--secondary: var(--vscode-button-secondaryBackground);
+		--secondary-foreground: var(--vscode-button-secondaryForeground);
+		--accent: var(--vscode-focusBorder);
+		--accent-foreground: var(--vscode-button-foreground);
+
+		/* State Colors */
+		--muted: var(--vscode-disabledForeground);
+		--muted-foreground: var(--vscode-descriptionForeground);
+		--destructive: var(--vscode-errorForeground);
+		--destructive-foreground: var(--vscode-editor-background);
+
+		/* UI Elements */
+		--border: var(--vscode-widget-border);
+		--input: var(--vscode-input-background);
+		--ring: var(--vscode-focusBorder);
+		--radius: 0.5rem;
+
+		/* Chart Colors - Using VSCode's chart colors */
+		--chart-1: var(--vscode-charts-red);
+		--chart-2: var(--vscode-charts-blue);
+		--chart-3: var(--vscode-charts-yellow);
+		--chart-4: var(--vscode-charts-orange);
+		--chart-5: var(--vscode-charts-green);
+	}
+}
+
+@layer components {
+	/* Border Styles */
+	.border,
+	.border-r,
+	.border-l,
+	.border-t,
+	.border-b,
+	.border-x,
+	.border-y {
+		border-color: var(--border);
+	}
+
+	/* Code Block Styles */
+	pre,
+	code {
+		background-color: var(--vscode-textCodeBlock-background);
+	}
+}
+
+/* Form Element Focus States */
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
 }
