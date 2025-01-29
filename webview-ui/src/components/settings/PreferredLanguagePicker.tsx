@@ -32,7 +32,7 @@ const PreferredLanguagePicker: React.FC<PreferredLanguagePickerProps> = ({ selec
 					height: "28px",
 				}}>
 				{languageOptions.map((language) => (
-					<VSCodeOption key={language.key} value={language.display}>
+					<VSCodeOption key={language.key} value={language.key}>
 						{language.display}
 					</VSCodeOption>
 				))}
