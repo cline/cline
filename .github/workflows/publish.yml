@@ -88,21 +88,21 @@ jobs:
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 
-            - name: Get Changelog Entry
-              id: changelog
-              uses: mindsers/changelog-reader-action@v2
-              with:
-                  # This expects a standard Keep a Changelog format
-                  # "latest" means it will read whichever is the most recent version
-                  # set in "## [1.2.3] - 2025-01-28" style
-                  version: latest
+            # - name: Get Changelog Entry
+            #   id: changelog
+            #   uses: mindsers/changelog-reader-action@v2
+            #   with:
+            #       # This expects a standard Keep a Changelog format
+            #       # "latest" means it will read whichever is the most recent version
+            #       # set in "## [1.2.3] - 2025-01-28" style
+            #       version: latest
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
                   files: "*.vsix"
-                  body: ${{ steps.changelog.outputs.content }}
-                  generate_release_notes: false
+                  # body: ${{ steps.changelog.outputs.content }}
+                  generate_release_notes: true
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
