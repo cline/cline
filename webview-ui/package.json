@@ -8,7 +8,7 @@
 		"build": "tsc && vite build",
 		"preview": "vite preview",
 		"test": "jest",
-		"lint": "eslint src --ext ts,tsx"
+		"lint": "eslint src --ext ts,tsx --quiet"
 	},
 	"dependencies": {
 		"@vscode/webview-ui-toolkit": "^1.4.0",

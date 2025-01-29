@@ -1,24 +1,56 @@
 {
 	"root": true,
+	"extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaVersion": 6,
-		"sourceType": "module"
+		"ecmaVersion": 2021,
+		"sourceType": "module",
+		"project": "./tsconfig.json"
 	},
 	"plugins": ["@typescript-eslint"],
 	"rules": {
-		"@typescript-eslint/naming-convention": [
+		"@typescript-eslint/naming-convention": ["warn"],
+		"@typescript-eslint/no-explicit-any": "off",
+		"@typescript-eslint/no-unused-vars": [
 			"warn",
 			{
-				"selector": "import",
-				"format": ["camelCase", "PascalCase"]
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_"
 			}
 		],
-		"@typescript-eslint/semi": "off",
-		"eqeqeq": "warn",
+		"@typescript-eslint/explicit-function-return-type": [
+			"warn",
+			{
+				"allowExpressions": true,
+				"allowTypedFunctionExpressions": true
+			}
+		],
+		"@typescript-eslint/explicit-member-accessibility": [
+			"warn",
+			{
+				"accessibility": "explicit"
+			}
+		],
+		"@typescript-eslint/no-non-null-assertion": "warn",
 		"no-throw-literal": "warn",
-		"semi": "off",
-		"react-hooks/exhaustive-deps": "off"
+		"semi": ["off", "always"],
+		"quotes": ["warn", "double", { "avoidEscape": true }],
+		"@typescript-eslint/ban-types": "off",
+		"@typescript-eslint/no-var-requires": "warn",
+		"no-extra-semi": "warn",
+		"prefer-const": "warn",
+		"no-mixed-spaces-and-tabs": "warn",
+		"no-case-declarations": "warn",
+		"no-useless-escape": "warn",
+		"require-yield": "warn",
+		"no-empty": "warn",
+		"no-control-regex": "warn",
+		"@typescript-eslint/ban-ts-comment": "warn"
 	},
-	"ignorePatterns": ["out", "dist", "**/*.d.ts"]
+	"env": {
+		"node": true,
+		"es2021": true
+	},
+	"ignorePatterns": ["dist/**", "out/**", "webview-ui/**", "**/*.js"]
 }
