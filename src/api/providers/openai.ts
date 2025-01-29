@@ -62,13 +62,15 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			const stream = await this.client.chat.completions.create(requestOptions)
 
 			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta
-				if (delta?.content) {
+				const delta = chunk.choices[0]?.delta ?? {}
+
+				if (delta.content) {
 					yield {
 						type: "text",
 						text: delta.content,
 					}
 				}
+
 				if ("reasoning_content" in delta && delta.reasoning_content) {
 					yield {
 						type: "reasoning",
