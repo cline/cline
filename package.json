@@ -186,7 +186,8 @@
 		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish && ovsx publish",
 		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
-		"prepare": "husky"
+		"prepare": "husky",
+		"changie": "changie"
 	},
 	"devDependencies": {
 		"@types/chai": "^5.0.1",
@@ -200,6 +201,7 @@
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
 		"chai": "^4.3.10",
+		"changie": "^1.21.0",
 		"esbuild": "^0.21.5",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",

@@ -75,7 +75,6 @@ export class Cline {
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	localeLanguage?: string
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
@@ -120,7 +119,6 @@ export class Cline {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		customInstructions?: string,
-		localeLanguage?: string,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -132,7 +130,6 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.localeLanguage = localeLanguage
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -1215,12 +1212,6 @@ export class Cline {
 			this.browserSettings,
 		)
 
-		let userSelectedNonEnglishLanguage: string | undefined
-		// While we check vscode for preferred language, it's likely not giving us one of the language options
-		if (this.localeLanguage && this.localeLanguage !== "en") {
-			userSelectedNonEnglishLanguage = this.localeLanguage
-		}
-
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1235,13 +1226,9 @@ export class Cline {
 			}
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions || userSelectedNonEnglishLanguage) {
+		if (settingsCustomInstructions || clineRulesFileInstructions) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(
-				settingsCustomInstructions,
-				clineRulesFileInstructions,
-				userSelectedNonEnglishLanguage,
-			)
+			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -1272,10 +1259,16 @@ export class Cline {
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
+					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
+					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					this.conversationHistoryDeletedRange = getNextTruncationRange(
 						this.apiConversationHistory,
 						this.conversationHistoryDeletedRange,
+						keep,
 					)
 					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
 					// await this.overwriteApiConversationHistory(truncatedMessages)

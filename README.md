@@ -160,6 +160,31 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 
 </details>
 
+<details>
+<summary>Creating a Pull Request</summary>
+
+1. Before creating a PR, generate a changelog entry using [Changie](https://changie.dev/):
+    ```bash
+    npm run changie new
+    ```
+   This will prompt you for:
+   - Kind of change (Added, Changed, Deprecated, Removed, Fixed, Security)
+     - `Added` → triggers minor version bump (1.0.0 → 1.1.0)
+     - `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` → triggers patch version bump (1.0.0 → 1.0.1)
+     - Breaking changes → triggers major version bump (1.0.0 → 2.0.0)
+   - Description of your changes
+   - Issue number (if applicable)
+
+2. Commit your changes and the generated `.changes` file
+
+3. Push your branch and create a PR on GitHub. Our CI will:
+   - Run tests and checks
+   - When merged to main, automatically batch changelog entries
+   - Create a version PR with the updated CHANGELOG.md
+
+</details>
+
+
 ## License
 
 [Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)

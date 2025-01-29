@@ -3,14 +3,12 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { memo } from "react"
 import { formatLargeNumber } from "../../utils/format"
-import { useTranslation } from "react-i18next"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { t } = useTranslation("translation", { keyPrefix: "historyPreview" })
 	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
@@ -71,7 +69,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						fontSize: "0.85em",
 						textTransform: "uppercase",
 					}}>
-					{t("recentTasks")}
+					Recent Tasks
 				</span>
 			</div>
 
@@ -114,14 +112,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										color: "var(--vscode-descriptionForeground)",
 									}}>
 									<span>
-										{t("tokens")}: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
-										{formatLargeNumber(item.tokensOut || 0)}
+										Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓{formatLargeNumber(item.tokensOut || 0)}
 									</span>
 									{!!item.cacheWrites && (
 										<>
 											{" • "}
 											<span>
-												{t("cache")}: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+												Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
 												{formatLargeNumber(item.cacheReads || 0)}
 											</span>
 										</>
@@ -129,9 +126,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									{!!item.totalCost && (
 										<>
 											{" • "}
-											<span>
-												{t("apiCost")}: ${item.totalCost?.toFixed(4)}
-											</span>
+											<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
 										</>
 									)}
 								</div>
@@ -155,7 +150,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								fontSize: "var(--vscode-font-size)",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							{t("viewAllHistory")}
+							View all history
 						</div>
 					</VSCodeButton>
 				</div>
