@@ -1,6 +1,7 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import CreditLimitError from "./CreditLimitError"
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
@@ -874,6 +875,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								onToggleExpand={onToggleExpand}
 							/>
 						</div>
+					)
+				case "credit_limit_reached":
+					const errorData = JSON.parse(message.text || "{}")
+					return (
+						<CreditLimitError
+							creditsRemaining={errorData.creditsRemaining}
+							creditsUsed={errorData.creditsUsed}
+							rechargeUrl={errorData.rechargeUrl}
+						/>
 					)
 				case "error":
 					return (

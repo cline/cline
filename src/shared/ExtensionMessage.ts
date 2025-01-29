@@ -100,6 +100,7 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
+	| "credit_limit_reached"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
