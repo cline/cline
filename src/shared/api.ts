@@ -232,6 +232,25 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Cline
+export type ClineModelId = keyof typeof clineModels
+export const clineDefaultModelId: ClineModelId = "anthropic/claude-3.5-sonnet:beta"
+export const clineModels = {
+	"anthropic/claude-3.5-sonnet:beta": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description:
+			"Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
 export const openAiModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
