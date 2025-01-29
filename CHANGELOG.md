@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.3.5]
+
+- Make information about the conversation's context window usage visible in the task header for humans and in the environment for models (thanks @MuriloFP!)
+- Add checkboxes to auto-approve mode switch requests (thanks @MuriloFP!)
+- Add new experimental editing tools `insert_content` (for inserting blocks of text at a line number) and `search_and_replace` (for replacing all instances of a phrase or regex) to complement diff editing and whole file editing (thanks @samhvw8!)
+- Improved DeepSeek R1 support by capturing reasoning from DeepSeek API as well as more OpenRouter variants, not using system messages, and fixing a crash on empty chunks. Still depends on the DeepSeek API staying up but we'll be in a better place when it does! (thanks @Szpadel!)
+
 ## [3.3.4]
 
 - Add per-server MCP network timeout configuration ranging from 15 seconds to an hour
