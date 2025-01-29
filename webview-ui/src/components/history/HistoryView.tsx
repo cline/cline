@@ -202,6 +202,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						<VSCodeRadioGroup
 							style={{ display: "flex", flexWrap: "wrap" }}
 							value={sortOption}
+							role="radiogroup"
 							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
 							<VSCodeRadio value="newest">Newest</VSCodeRadio>
 							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>

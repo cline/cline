@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
 }
