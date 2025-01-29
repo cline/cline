@@ -22,35 +22,6 @@ interface TaskHeaderProps {
 	onClose: () => void
 }
 
-const LinearProgress: React.FC<{ percentage: number }> = ({ percentage }) => (
-	<div
-		style={{
-			display: "flex",
-			alignItems: "center",
-			gap: "8px",
-			fontSize: "11px",
-		}}>
-		<div
-			style={{
-				width: "100px",
-				height: "4px",
-				backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-				borderRadius: "2px",
-				overflow: "hidden",
-			}}>
-			<div
-				style={{
-					width: `${percentage}%`,
-					height: "100%",
-					backgroundColor: "var(--vscode-badge-foreground)",
-					borderRadius: "2px",
-				}}
-			/>
-		</div>
-		<span>{Math.round(percentage)}%</span>
-	</div>
-)
-
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
@@ -146,36 +117,59 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				<div
 					style={{
 						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						height: 17,
+						flexDirection: windowWidth < 320 ? "column" : "row",
+						gap: "4px",
 					}}>
-					<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-						<span style={{ fontWeight: "bold" }}>Context Window:</span>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							flexShrink: 0, // Prevents shrinking
+						}}>
+						<span style={{ fontWeight: "bold" }}>
+							{/* {windowWidth > 280 && windowWidth < 310 ? "Context:" : "Context Window:"} */}
+							Context Window:
+						</span>
+					</div>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							flex: 1,
+							whiteSpace: "nowrap",
+						}}>
 						<span>
 							{formatLargeNumber(lastApiReqTotalTokens)} (
 							{Math.round((lastApiReqTotalTokens / contextWindow) * 100)}%)
 						</span>
-					</div>
-					<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, marginLeft: 8 }}>
 						<div
 							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "8px",
 								flex: 1,
-								height: "4px",
-								backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-								borderRadius: "2px",
-								overflow: "hidden",
 							}}>
 							<div
 								style={{
-									width: `${(lastApiReqTotalTokens / contextWindow) * 100}%`,
-									height: "100%",
-									backgroundColor: "var(--vscode-badge-foreground)",
+									flex: 1,
+									height: "4px",
+									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
 									borderRadius: "2px",
-								}}
-							/>
+									overflow: "hidden",
+								}}>
+								<div
+									style={{
+										width: `${(lastApiReqTotalTokens / contextWindow) * 100}%`,
+										height: "100%",
+										backgroundColor: "var(--vscode-badge-foreground)",
+										borderRadius: "2px",
+									}}
+								/>
+							</div>
+							<span>{formatLargeNumber(contextWindow)}</span>
 						</div>
-						<span>{formatLargeNumber(contextWindow)}</span>
 					</div>
 				</div>
 			)}
