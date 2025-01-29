@@ -163,24 +163,24 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 <details>
 <summary>Creating a Pull Request</summary>
 
-1. Before creating a PR, generate a changelog entry using [Changie](https://changie.dev/):
+1. Before creating a PR, generate a changeset entry:
     ```bash
-    npm run changie new
+    npm run changeset
     ```
    This will prompt you for:
-   - Kind of change (Added, Changed, Deprecated, Removed, Fixed, Security)
-     - `Added` → triggers minor version bump (1.0.0 → 1.1.0)
-     - `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` → triggers patch version bump (1.0.0 → 1.0.1)
-     - Breaking changes → triggers major version bump (1.0.0 → 2.0.0)
+   - Type of change (major, minor, patch)
+     - `major` → breaking changes (1.0.0 → 2.0.0)
+     - `minor` → new features (1.0.0 → 1.1.0)
+     - `patch` → bug fixes (1.0.0 → 1.0.1)
    - Description of your changes
-   - Issue number (if applicable)
 
-2. Commit your changes and the generated `.changes` file
+2. Commit your changes and the generated `.changeset` file
 
 3. Push your branch and create a PR on GitHub. Our CI will:
    - Run tests and checks
-   - When merged to main, automatically batch changelog entries
-   - Create a version PR with the updated CHANGELOG.md
+   - Changesetbot will create a comment showing the version impact
+   - When merged to main, changesetbot will create a Version Packages PR
+   - When the Version Packages PR is merged, a new release will be published
 
 </details>
 
