@@ -1,6 +1,5 @@
 import { UnboundHandler } from "../unbound"
 import { ApiHandlerOptions } from "../../../shared/api"
-import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 // Mock OpenAI client
@@ -16,6 +15,7 @@ jest.mock("openai", () => {
 					create: (...args: any[]) => {
 						const stream = {
 							[Symbol.asyncIterator]: async function* () {
+								// First chunk with content
 								yield {
 									choices: [
 										{
@@ -24,13 +24,25 @@ jest.mock("openai", () => {
 										},
 									],
 								}
+								// Second chunk with usage data
 								yield {
-									choices: [
-										{
-											delta: {},
-											index: 0,
-										},
-									],
+									choices: [{ delta: {}, index: 0 }],
+									usage: {
+										prompt_tokens: 10,
+										completion_tokens: 5,
+										total_tokens: 15,
+									},
+								}
+								// Third chunk with cache usage data
+								yield {
+									choices: [{ delta: {}, index: 0 }],
+									usage: {
+										prompt_tokens: 8,
+										completion_tokens: 4,
+										total_tokens: 12,
+										cache_creation_input_tokens: 3,
+										cache_read_input_tokens: 2,
+									},
 								}
 							},
 						}
@@ -95,17 +107,35 @@ describe("UnboundHandler", () => {
 			},
 		]
 
-		it("should handle streaming responses", async () => {
+		it("should handle streaming responses with text and usage data", async () => {
 			const stream = handler.createMessage(systemPrompt, messages)
-			const chunks: any[] = []
+			const chunks: Array<{ type: string } & Record<string, any>> = []
 			for await (const chunk of stream) {
 				chunks.push(chunk)
 			}
 
-			expect(chunks.length).toBe(1)
+			expect(chunks.length).toBe(3)
+
+			// Verify text chunk
 			expect(chunks[0]).toEqual({
 				type: "text",
 				text: "Test response",
+			})
+
+			// Verify regular usage data
+			expect(chunks[1]).toEqual({
+				type: "usage",
+				inputTokens: 10,
+				outputTokens: 5,
+			})
+
+			// Verify usage data with cache information
+			expect(chunks[2]).toEqual({
+				type: "usage",
+				inputTokens: 8,
+				outputTokens: 4,
+				cacheWriteTokens: 3,
+				cacheReadTokens: 2,
 			})
 
 			expect(mockCreate).toHaveBeenCalledWith(
