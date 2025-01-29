@@ -66,7 +66,7 @@ jobs:
 
             - name: Create Pull Request
               if: steps.check.outputs.has_changes == 'true'
-              uses: peter-evans/create-pull-request@v4
+              uses: peter-evans/create-pull-request@v5
               with:
                   title: "Release ${{ steps.latest.outputs.output }}"
                   branch: "release/${{ steps.latest.outputs.output }}"
