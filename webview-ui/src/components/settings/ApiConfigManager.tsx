@@ -143,6 +143,7 @@ const ApiConfigManager = ({
 								}}
 								style={{
 									minWidth: 130,
+									zIndex: 1002,
 								}}
 								role="combobox"
 								options={listApiConfigMeta.map((config) => ({
