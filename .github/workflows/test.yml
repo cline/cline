@@ -57,5 +57,8 @@ jobs:
             - name: Prettier / Format Check
               run: npm run format
 
+            - name: Echo Test
+              run: echo test
+    
             - name: Extension Tests
               run: xvfb-run -a npm run test
