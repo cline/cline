@@ -20,25 +20,27 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 
 	const { patterns } = await loadIgnorePatterns(absolutePath)
 
-	const dirsToIgnore = [
-		"node_modules",
-		"__pycache__",
-		"env",
-		"venv",
-		"target/dependency",
-		"build/dependencies",
-		"dist",
-		"out",
-		"bundle",
-		"vendor",
-		"tmp",
-		"temp",
-		"deps",
-		"pkg",
-		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-		...patterns,
-	].map((dir) => `**/${dir}/**`)
+	const dirsToIgnore =
+		patterns.length > 0
+			? patterns
+			: [
+					"node_modules",
+					"__pycache__",
+					"env",
+					"venv",
+					"target/dependency",
+					"build/dependencies",
+					"dist",
+					"out",
+					"bundle",
+					"vendor",
+					"tmp",
+					"temp",
+					"deps",
+					"pkg",
+					"Pods",
+					".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
+				].map((dir) => `**/${dir}/**`)
 
 	const options = {
 		cwd: dirPath,
