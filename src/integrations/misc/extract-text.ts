@@ -4,8 +4,19 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
+import { loadIgnorePatterns } from "../../utils/cline-ignore"
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
+	// Convert file path to relative path
+	const cwd = path.dirname(filePath)
+	const relativePath = path.relative(cwd, filePath)
+
+	// Load and check .clineignore patterns
+	const { shouldIgnore } = await loadIgnorePatterns(cwd)
+	if (shouldIgnore(relativePath)) {
+		throw new Error(`File is ignored by .clineignore: ${filePath}`)
+	}
+
 	try {
 		await fs.access(filePath)
 	} catch (error) {

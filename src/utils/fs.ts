@@ -45,3 +45,14 @@ export async function fileExistsAtPath(filePath: string): Promise<boolean> {
 		return false
 	}
 }
+
+/**
+ * Checks if a file is .clineignore and throws an error if it is
+ * @param filePath - The path of the file to check
+ * @throws Error if the file is .clineignore
+ */
+export function checkClineIgnoreFile(filePath: string): void {
+	if (path.basename(filePath) === ".clineignore") {
+		throw new Error("Cannot modify '.clineignore' file as it is protected from modifications.")
+	}
+}
