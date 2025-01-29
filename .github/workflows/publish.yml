@@ -15,6 +15,8 @@ on:
 permissions:
     contents: write
     packages: write
+    checks: write
+    pull-requests: write
 
 jobs:
     test:
