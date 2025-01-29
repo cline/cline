@@ -106,21 +106,21 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (usage) {
-				if (this.getModel().id.startsWith("anthropic/")) {
-					yield {
-						type: "usage",
-						inputTokens: usage?.prompt_tokens || 0,
-						outputTokens: usage?.completion_tokens || 0,
-						cacheWriteTokens: (usage as any)?.cache_creation_input_tokens || 0,
-						cacheReadTokens: (usage as any)?.cache_read_input_tokens || 0,
-					}
-				} else {
-					yield {
-						type: "usage",
-						inputTokens: usage?.prompt_tokens || 0,
-						outputTokens: usage?.completion_tokens || 0,
-					}
+				const usageData: any = {
+					type: "usage",
+					inputTokens: usage?.prompt_tokens || 0,
+					outputTokens: usage?.completion_tokens || 0,
 				}
+
+				// Only add cache tokens if they exist
+				if ((usage as any)?.cache_creation_input_tokens) {
+					usageData.cacheWriteTokens = (usage as any).cache_creation_input_tokens
+				}
+				if ((usage as any)?.cache_read_input_tokens) {
+					usageData.cacheReadTokens = (usage as any).cache_read_input_tokens
+				}
+
+				yield usageData
 			}
 		}
 	}
