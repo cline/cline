@@ -49,6 +49,9 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 		return false
 	})
 
+	// Keep track of the last valid context tokens
+	let lastValidContextTokens = 0
+
 	messages.forEach((message) => {
 		if (message.type === "say" && message.say === "api_req_started" && message.text) {
 			try {
@@ -71,12 +74,15 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 					result.totalCost += cost
 				}
 
+				// Update last valid context tokens whenever we have valid input and output tokens
+				if (tokensIn > 0 && tokensOut > 0) {
+					lastValidContextTokens = tokensIn + tokensOut
+				}
+
 				// If this is the last api request, use its tokens for context size
 				if (message === lastApiReq) {
-					// Only update context tokens if both input and output tokens are non-zero
-					if (tokensIn > 0 && tokensOut > 0) {
-						result.contextTokens = tokensIn + tokensOut
-					}
+					// Use the last valid context tokens if the current request doesn't have valid tokens
+					result.contextTokens = tokensIn > 0 && tokensOut > 0 ? tokensIn + tokensOut : lastValidContextTokens
 				}
 			} catch (error) {
 				console.error("Error parsing JSON:", error)
