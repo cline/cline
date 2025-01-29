@@ -2180,7 +2180,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 			this.customModesManager.getCustomModes(),
 			this.getGlobalState("experiments") as Promise<Record<ExperimentId, boolean> | undefined>,
-      this.getSecret("unboundApiKey") as Promise<string | undefined>,
+			this.getSecret("unboundApiKey") as Promise<string | undefined>,
 			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
 		])
 

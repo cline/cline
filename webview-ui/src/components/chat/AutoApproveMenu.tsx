@@ -75,10 +75,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		},
 		{
 			id: "switchModes",
-			label: "Switch between modes",
+			label: "Switch modes & create tasks",
 			shortName: "Modes",
 			enabled: alwaysAllowModeSwitch ?? false,
-			description: "Allows automatic switching between different AI modes without requiring approval.",
+			description:
+				"Allows automatic switching between different AI modes and creating new tasks without requiring approval.",
 		},
 		{
 			id: "retryRequests",

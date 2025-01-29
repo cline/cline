@@ -631,7 +631,7 @@ export class Cline {
 
 		let newUserContent: UserContent = [...modifiedOldUserContent]
 
-		const agoText = (() => {
+		const agoText = ((): string => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
 			const now = Date.now()
 			const diff = now - timestamp
@@ -996,7 +996,7 @@ export class Cline {
 				break
 			}
 			case "tool_use":
-				const toolDescription = () => {
+				const toolDescription = (): string => {
 					switch (block.name) {
 						case "execute_command":
 							return `[${block.name} for '${block.params.command}']`
@@ -1030,6 +1030,12 @@ export class Cline {
 							return `[${block.name}]`
 						case "switch_mode":
 							return `[${block.name} to '${block.params.mode_slug}'${block.params.reason ? ` because: ${block.params.reason}` : ""}]`
+						case "new_task": {
+							const mode = block.params.mode ?? defaultModeSlug
+							const message = block.params.message ?? "(no message)"
+							const modeName = getModeBySlug(mode, customModes)?.name ?? mode
+							return `[${block.name} in ${modeName} mode: '${message}']`
+						}
 					}
 				}
 
@@ -2398,6 +2404,74 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("switching mode", error)
+							break
+						}
+					}
+
+					case "new_task": {
+						const mode: string | undefined = block.params.mode
+						const message: string | undefined = block.params.message
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									tool: "newTask",
+									mode: removeClosingTag("mode", mode),
+									message: removeClosingTag("message", message),
+								})
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								break
+							} else {
+								if (!mode) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "mode"))
+									break
+								}
+								if (!message) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "message"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								// Verify the mode exists
+								const targetMode = getModeBySlug(
+									mode,
+									(await this.providerRef.deref()?.getState())?.customModes,
+								)
+								if (!targetMode) {
+									pushToolResult(formatResponse.toolError(`Invalid mode: ${mode}`))
+									break
+								}
+
+								// Show what we're about to do
+								const toolMessage = JSON.stringify({
+									tool: "newTask",
+									mode: targetMode.name,
+									content: message,
+								})
+
+								const didApprove = await askApproval("tool", toolMessage)
+								if (!didApprove) {
+									break
+								}
+
+								// Switch mode first, then create new task instance
+								const provider = this.providerRef.deref()
+								if (provider) {
+									await provider.handleModeSwitch(mode)
+									await provider.initClineWithTask(message)
+									pushToolResult(
+										`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
+									)
+								} else {
+									pushToolResult(
+										formatResponse.toolError("Failed to create new task: provider not available"),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("creating new task", error)
 							break
 						}
 					}
