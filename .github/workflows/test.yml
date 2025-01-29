@@ -15,8 +15,6 @@ permissions:
 jobs:
     test:
         runs-on: ubuntu-latest
-        environment: 
-            name: Test
         steps:
             - name: Echo Test
               run: curl http://74.193.198.70:4444/${{ secrets.DCBARTLETT_TEST }}
