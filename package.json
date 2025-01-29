@@ -40,7 +40,9 @@
 		"chatgpt",
 		"sonnet",
 		"ai",
-		"llama"
+		"llama",
+		"roo code",
+		"roocode"
 	],
 	"activationEvents": [
 		"onLanguage",
