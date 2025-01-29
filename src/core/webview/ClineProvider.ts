@@ -63,6 +63,7 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "mistralApiKey"
+	| "unboundApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -122,6 +123,7 @@ type GlobalStateKey =
 	| "experiments" // Map of experiment IDs to their enabled state
 	| "autoApprovalEnabled"
 	| "customModes" // Array of custom modes
+	| "unboundModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -1397,6 +1399,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterUseMiddleOutTransform,
 			vsCodeLmModelSelector,
 			mistralApiKey,
+			unboundApiKey,
+			unboundModelId,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1435,6 +1439,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
 		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		await this.storeSecret("mistralApiKey", mistralApiKey)
+		await this.storeSecret("unboundApiKey", unboundApiKey)
+		await this.updateGlobalState("unboundModelId", unboundModelId)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -2102,6 +2108,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled,
 			customModes,
 			experiments,
+			unboundApiKey,
+			unboundModelId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2172,6 +2180,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
 			this.customModesManager.getCustomModes(),
 			this.getGlobalState("experiments") as Promise<Record<ExperimentId, boolean> | undefined>,
+      this.getSecret("unboundApiKey") as Promise<string | undefined>,
+			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2227,6 +2237,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterBaseUrl,
 				openRouterUseMiddleOutTransform,
 				vsCodeLmModelSelector,
+				unboundApiKey,
+				unboundModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -2376,6 +2388,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
 			"mistralApiKey",
+			"unboundApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

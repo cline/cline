@@ -14,6 +14,7 @@ export type ApiProvider =
 	| "deepseek"
 	| "vscode-lm"
 	| "mistral"
+	| "unbound"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -57,6 +58,8 @@ export interface ApiHandlerOptions {
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
 	includeMaxTokens?: boolean
+	unboundApiKey?: string
+	unboundModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -592,4 +595,15 @@ export const mistralModels = {
 		inputPrice: 0.3,
 		outputPrice: 0.9,
 	},
+} as const satisfies Record<string, ModelInfo>
+
+// Unbound Security
+export type UnboundModelId = keyof typeof unboundModels
+export const unboundDefaultModelId = "openai/gpt-4o"
+export const unboundModels = {
+	"anthropic/claude-3-5-sonnet-20241022": anthropicModels["claude-3-5-sonnet-20241022"],
+	"openai/gpt-4o": openAiNativeModels["gpt-4o"],
+	"deepseek/deepseek-chat": deepSeekModels["deepseek-chat"],
+	"deepseek/deepseek-reasoner": deepSeekModels["deepseek-reasoner"],
+	"mistral/codestral-latest": mistralModels["codestral-latest"],
 } as const satisfies Record<string, ModelInfo>
