@@ -186,13 +186,9 @@
 		"test:webview": "cd webview-ui && npm run test",
 		"publish:marketplace": "vsce publish && ovsx publish",
 		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
-		"prepare": "husky",
-		"changeset": "changeset",
-		"version-packages": "changeset version && npm install --package-lock-only",
-		"publish": "npm run build && changeset publish && npm install --package-lock-only"
+		"prepare": "husky"
 	},
 	"devDependencies": {
-		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
