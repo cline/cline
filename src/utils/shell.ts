@@ -67,6 +67,7 @@ export function getShell(): string {
   // All other OSes - For now we will use the existing logic that was in place
   // May want to explore the VS Code load method or other user configurable
   // metohods for these in the future
+  // Adapted from previously used package: default-shell (https://www.npmjs.com/package/default-shell) MIT License
   try {
     const { shell } = userInfo();
     if (shell) {
