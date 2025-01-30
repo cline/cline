@@ -118,8 +118,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		// Handle models based on deepseek-r1
 		if (
-			this.getModel().id === "deepseek/deepseek-r1" ||
-			this.getModel().id.startsWith("deepseek/deepseek-r1:") ||
+			this.getModel().id.startsWith("deepseek/deepseek-r1") ||
 			this.getModel().id === "perplexity/sonar-reasoning"
 		) {
 			// Recommended temperature for DeepSeek reasoning models
