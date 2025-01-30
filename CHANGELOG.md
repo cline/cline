@@ -1,11 +1,12 @@
 # Roo Code Changelog
 
-## 3.3.6
+## [3.3.6]
 
-### Patch Changes
-
-- v3.3.6
-- Include keywords per new branding to Roo Code
+- Add a "new task" tool that allows Roo to start new tasks with an initial message and mode
+- Fix a bug that was preventing the use of qwen-max and potentially other OpenAI-compatible providers (thanks @Szpadel!)
+- Add support for perplexity/sonar-reasoning (thanks @Szpadel!)
+- Visual fixes to dropdowns (thanks @psv2522!)
+- Add the [Unbound](https://getunbound.ai/) provider (thanks @vigneshsubbiah16!)
 
 ## [3.3.5]
 
