@@ -41,7 +41,10 @@ describe("ApiConfigManager", () => {
 
 	const defaultProps = {
 		currentApiConfigName: "Default Config",
-		listApiConfigMeta: [{ name: "Default Config" }, { name: "Another Config" }],
+		listApiConfigMeta: [
+			{ id: "default", name: "Default Config" },
+			{ id: "another", name: "Another Config" },
+		],
 		onSelectConfig: mockOnSelectConfig,
 		onDeleteConfig: mockOnDeleteConfig,
 		onRenameConfig: mockOnRenameConfig,
@@ -120,7 +123,7 @@ describe("ApiConfigManager", () => {
 	})
 
 	it("disables delete button when only one config exists", () => {
-		render(<ApiConfigManager {...defaultProps} listApiConfigMeta={[{ name: "Default Config" }]} />)
+		render(<ApiConfigManager {...defaultProps} listApiConfigMeta={[{ id: "default", name: "Default Config" }]} />)
 
 		const deleteButton = screen.getByTitle("Cannot delete the only profile")
 		expect(deleteButton).toHaveAttribute("disabled")

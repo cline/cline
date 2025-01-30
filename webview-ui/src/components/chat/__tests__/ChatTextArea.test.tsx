@@ -16,7 +16,6 @@ jest.mock("../../../components/common/MarkdownBlock")
 
 // Get the mocked postMessage function
 const mockPostMessage = vscode.postMessage as jest.Mock
-/* eslint-enable import/first */
 
 // Mock ExtensionStateContext
 jest.mock("../../../context/ExtensionStateContext")
