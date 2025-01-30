@@ -607,6 +607,28 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={
+							apiConfiguration?.openAiModelInfo?.contextWindow
+								? apiConfiguration.openAiModelInfo.contextWindow.toString()
+								: openAiModelInfoSaneDefaults.contextWindow?.toString()
+						}
+						style={{ width: "100%" }}
+						onInput={(input: any) => {
+							let modelInfo = apiConfiguration?.openAiModelInfo
+								? { ...apiConfiguration.openAiModelInfo }
+								: { ...openAiModelInfoSaneDefaults }
+							modelInfo.contextWindow = input
+							setApiConfiguration({
+								...apiConfiguration,
+								...{
+									openAiModelInfo: modelInfo,
+								},
+							})
+						}}
+						placeholder={"Default: 128000"}>
+						<span style={{ fontWeight: 500 }}>Context Window Size</span>
+					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
