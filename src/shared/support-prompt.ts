@@ -18,8 +18,8 @@ export const createPrompt = (template: string, params: PromptParams): string => 
 		}
 	}
 
-	// Replace any remaining user_input placeholders with empty string
-	result = result.replaceAll("${userInput}", "")
+	// Replace any remaining placeholders with empty strings
+	result = result.replaceAll(/\${[^}]*}/g, "")
 
 	return result
 }
@@ -42,7 +42,7 @@ const supportPromptConfigs: Record<string, SupportPromptConfig> = {
 	EXPLAIN: {
 		label: "Explain Code",
 		description:
-			"Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in the editor context menu (right-click on selected code).",
+			"Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
 		template: `Explain the following code from file path @/\${filePath}:
 \${userInput}
 
@@ -58,7 +58,7 @@ Please provide a clear and concise explanation of what this code does, including
 	FIX: {
 		label: "Fix Issues",
 		description:
-			"Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in the editor context menu (right-click on selected code).",
+			"Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
 		template: `Fix any issues in the following code from file path @/\${filePath}
 \${diagnosticText}
 \${userInput}
@@ -76,7 +76,7 @@ Please:
 	IMPROVE: {
 		label: "Improve Code",
 		description:
-			"Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in the editor context menu (right-click on selected code).",
+			"Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
 		template: `Improve the following code from file path @/\${filePath}:
 \${userInput}
 
@@ -91,6 +91,15 @@ Please suggest improvements for:
 4. Error handling and edge cases
 
 Provide the improved code along with explanations for each enhancement.`,
+	},
+	ADD_TO_CONTEXT: {
+		label: "Add to Context",
+		description:
+			"Add context to your current task or conversation. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
+		template: `@/\${filePath}:
+\`\`\`
+\${selectedText}
+\`\`\``,
 	},
 } as const
 

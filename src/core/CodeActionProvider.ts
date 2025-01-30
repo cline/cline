@@ -1,17 +1,19 @@
 import * as vscode from "vscode"
-import { ClineProvider } from "./webview/ClineProvider"
 import { EditorUtils } from "./EditorUtils"
 
 export const ACTION_NAMES = {
 	EXPLAIN: "Roo Code: Explain Code",
 	FIX: "Roo Code: Fix Code",
+	FIX_LOGIC: "Roo Code: Fix Logic",
 	IMPROVE: "Roo Code: Improve Code",
+	ADD_TO_CONTEXT: "Roo Code: Add to Context",
 } as const
 
 const COMMAND_IDS = {
 	EXPLAIN: "roo-cline.explainCode",
 	FIX: "roo-cline.fixCode",
 	IMPROVE: "roo-cline.improveCode",
+	ADD_TO_CONTEXT: "roo-cline.addToContext",
 } as const
 
 export class CodeActionProvider implements vscode.CodeActionProvider {
@@ -74,6 +76,13 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 						]),
 					)
 				}
+			} else {
+				actions.push(
+					...this.createActionPair(ACTION_NAMES.FIX_LOGIC, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
+						filePath,
+						effectiveRange.text,
+					]),
+				)
 			}
 
 			actions.push(
@@ -81,6 +90,15 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 					ACTION_NAMES.IMPROVE,
 					vscode.CodeActionKind.RefactorRewrite,
 					COMMAND_IDS.IMPROVE,
+					[filePath, effectiveRange.text],
+				),
+			)
+
+			actions.push(
+				this.createAction(
+					ACTION_NAMES.ADD_TO_CONTEXT,
+					vscode.CodeActionKind.QuickFix,
+					COMMAND_IDS.ADD_TO_CONTEXT,
 					[filePath, effectiveRange.text],
 				),
 			)

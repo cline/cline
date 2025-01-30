@@ -172,7 +172,6 @@ export function activate(context: vscode.ExtensionContext) {
 		context: vscode.ExtensionContext,
 		command: string,
 		promptType: keyof typeof ACTION_NAMES,
-		inNewTask: boolean,
 		inputPrompt?: string,
 		inputPlaceholder?: string,
 	) => {
@@ -222,10 +221,10 @@ export function activate(context: vscode.ExtensionContext) {
 		inputPlaceholder?: string,
 	) => {
 		// Register new task version
-		registerCodeAction(context, baseCommand, promptType, true, inputPrompt, inputPlaceholder)
+		registerCodeAction(context, baseCommand, promptType, inputPrompt, inputPlaceholder)
 
 		// Register current task version
-		registerCodeAction(context, `${baseCommand}InCurrentTask`, promptType, false, inputPrompt, inputPlaceholder)
+		registerCodeAction(context, `${baseCommand}InCurrentTask`, promptType, inputPrompt, inputPlaceholder)
 	}
 
 	// Register code action commands
@@ -252,6 +251,8 @@ export function activate(context: vscode.ExtensionContext) {
 		"What would you like Roo to improve?",
 		"E.g. Focus on performance optimization",
 	)
+
+	registerCodeAction(context, "roo-cline.addToContext", "ADD_TO_CONTEXT")
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }
