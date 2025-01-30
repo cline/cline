@@ -4,6 +4,8 @@
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
 		"connor4312.esbuild-problem-matchers",
-		"ms-vscode.extension-test-runner"
+		"ms-vscode.extension-test-runner",
+		"csstools.postcss",
+		"bradlc.vscode-tailwindcss"
 	]
 }
