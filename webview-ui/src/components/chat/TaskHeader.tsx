@@ -117,7 +117,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				<div
 					style={{
 						display: "flex",
-						flexDirection: windowWidth < 320 ? "column" : "row",
+						flexDirection: windowWidth < 270 ? "column" : "row",
 						gap: "4px",
 					}}>
 					<div
@@ -136,19 +136,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "8px",
+							gap: "3px",
 							flex: 1,
 							whiteSpace: "nowrap",
 						}}>
-						<span>
-							{formatLargeNumber(lastApiReqTotalTokens)} (
-							{Math.round((lastApiReqTotalTokens / contextWindow) * 100)}%)
-						</span>
+						<span>{formatLargeNumber(lastApiReqTotalTokens)}</span>
 						<div
 							style={{
 								display: "flex",
 								alignItems: "center",
-								gap: "8px",
+								gap: "3px",
 								flex: 1,
 							}}>
 							<div
