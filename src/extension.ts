@@ -6,6 +6,7 @@ import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
+import { EditorUtils } from "./core/EditorUtils"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
@@ -178,26 +179,37 @@ export function activate(context: vscode.ExtensionContext) {
 		let userInput: string | undefined
 
 		context.subscriptions.push(
-			vscode.commands.registerCommand(
-				command,
-				async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-					if (inputPrompt) {
-						userInput = await vscode.window.showInputBox({
-							prompt: inputPrompt,
-							placeHolder: inputPlaceholder,
-						})
-					}
+			vscode.commands.registerCommand(command, async (...args: any[]) => {
+				if (inputPrompt) {
+					userInput = await vscode.window.showInputBox({
+						prompt: inputPrompt,
+						placeHolder: inputPlaceholder,
+					})
+				}
 
-					const params = {
-						filePath,
-						selectedText,
-						...(diagnostics ? { diagnostics } : {}),
-						...(userInput ? { userInput } : {}),
-					}
+				// Handle both code action and direct command cases
+				let filePath: string
+				let selectedText: string
+				let diagnostics: any[] | undefined
 
-					await ClineProvider.handleCodeAction(command, promptType, params)
-				},
-			),
+				if (args.length > 1) {
+					// Called from code action
+					;[filePath, selectedText, diagnostics] = args
+				} else {
+					// Called directly from command palette
+					const context = EditorUtils.getEditorContext()
+					if (!context) return
+					;({ filePath, selectedText, diagnostics } = context)
+				}
+
+				const params = {
+					...{ filePath, selectedText },
+					...(diagnostics ? { diagnostics } : {}),
+					...(userInput ? { userInput } : {}),
+				}
+
+				await ClineProvider.handleCodeAction(command, promptType, params)
+			}),
 		)
 	}
 
