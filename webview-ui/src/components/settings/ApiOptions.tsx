@@ -571,16 +571,41 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeTextField
 						value={apiConfiguration?.openAiModelId || ""}
 						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
+						onInput={(e: any) => {
+							const modelId = e.target.value
+							const allModels: Record<string, ModelInfo> = {
+								...anthropicModels,
+								...bedrockModels,
+								...vertexModels,
+								...openAiNativeModels,
+								...deepSeekModels,
+								...mistralModels,
+							}
+
+							// Try exact match first
+							let matchingModelId = Object.keys(allModels).find((id) => id === modelId)
+
+							if (!matchingModelId && modelId) {
+								// Try exact match with normalized ID (without prefix)
+								const normalizedModelId = modelId.includes("/") ? modelId.split("/").pop()! : modelId
+								matchingModelId = Object.keys(allModels).find((id) => id === normalizedModelId)
+							}
+
+							const modelInfo =
+								matchingModelId && allModels[matchingModelId]
+									? allModels[matchingModelId]
+									: openAiModelInfoSaneDefaults
+
+							setApiConfiguration({
+								...apiConfiguration,
+								...{
+									openAiModelId: modelId,
+									openAiModelInfo: modelInfo,
+								},
+							})
+						}}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.openAiContextWindow ? apiConfiguration.openAiContextWindow.toString() : ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiContextWindow")}
-						placeholder={"Default: 128000"}>
-						<span style={{ fontWeight: 500 }}>Context Window Size</span>
 					</VSCodeTextField>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
@@ -850,6 +875,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 
+			{selectedProvider === "openai" && showModelOptions && selectedModelId && (
+				<ModelInfoView
+					selectedModelId={selectedModelId}
+					modelInfo={selectedModelInfo}
+					isDescriptionExpanded={isDescriptionExpanded}
+					setIsDescriptionExpanded={setIsDescriptionExpanded}
+					isPopup={isPopup}
+				/>
+			)}
+
 			{modelIdErrorMessage && (
 				<p
 					style={{
@@ -1050,12 +1085,13 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
-		case "openai":
+		case "openai": {
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openAiModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: apiConfiguration?.openAiModelInfo || openAiModelInfoSaneDefaults,
 			}
+		}
 		case "ollama":
 			return {
 				selectedProvider: provider,
