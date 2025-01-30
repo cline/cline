@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { CodeActionProvider, ACTION_NAMES } from "../CodeActionProvider"
+import { EditorUtils } from "../EditorUtils"
 
 // Mock VSCode API
 jest.mock("vscode", () => ({
@@ -16,18 +17,21 @@ jest.mock("vscode", () => ({
 		start: { line: startLine, character: startChar },
 		end: { line: endLine, character: endChar },
 	})),
-	Position: jest.fn().mockImplementation((line, character) => ({
-		line,
-		character,
-	})),
-	workspace: {
-		getWorkspaceFolder: jest.fn(),
-	},
 	DiagnosticSeverity: {
 		Error: 0,
 		Warning: 1,
 		Information: 2,
 		Hint: 3,
+	},
+}))
+
+// Mock EditorUtils
+jest.mock("../EditorUtils", () => ({
+	EditorUtils: {
+		getEffectiveRange: jest.fn(),
+		getFilePath: jest.fn(),
+		hasIntersectingRange: jest.fn(),
+		createDiagnosticData: jest.fn(),
 	},
 }))
 
@@ -55,68 +59,32 @@ describe("CodeActionProvider", () => {
 		mockContext = {
 			diagnostics: [],
 		}
-	})
 
-	describe("getEffectiveRange", () => {
-		it("should return selected text when available", () => {
-			mockDocument.getText.mockReturnValue("selected text")
-
-			const result = (provider as any).getEffectiveRange(mockDocument, mockRange)
-
-			expect(result).toEqual({
-				range: mockRange,
-				text: "selected text",
-			})
+		// Setup default EditorUtils mocks
+		;(EditorUtils.getEffectiveRange as jest.Mock).mockReturnValue({
+			range: mockRange,
+			text: "test code",
 		})
-
-		it("should return null for empty line", () => {
-			mockDocument.getText.mockReturnValue("")
-			mockDocument.lineAt.mockReturnValue({ text: "", lineNumber: 0 })
-
-			const result = (provider as any).getEffectiveRange(mockDocument, mockRange)
-
-			expect(result).toBeNull()
-		})
-	})
-
-	describe("getFilePath", () => {
-		it("should return relative path when in workspace", () => {
-			const mockWorkspaceFolder = {
-				uri: { fsPath: "/test" },
-			}
-			;(vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue(mockWorkspaceFolder)
-
-			const result = (provider as any).getFilePath(mockDocument)
-
-			expect(result).toBe("file.ts")
-		})
-
-		it("should return absolute path when not in workspace", () => {
-			;(vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue(null)
-
-			const result = (provider as any).getFilePath(mockDocument)
-
-			expect(result).toBe("/test/file.ts")
-		})
+		;(EditorUtils.getFilePath as jest.Mock).mockReturnValue("/test/file.ts")
+		;(EditorUtils.hasIntersectingRange as jest.Mock).mockReturnValue(true)
+		;(EditorUtils.createDiagnosticData as jest.Mock).mockImplementation((d) => d)
 	})
 
 	describe("provideCodeActions", () => {
-		beforeEach(() => {
-			mockDocument.getText.mockReturnValue("test code")
-			mockDocument.lineAt.mockReturnValue({ text: "test code", lineNumber: 0 })
-		})
-
-		it("should provide explain and improve actions by default", () => {
+		it("should provide explain, improve, fix logic, and add to context actions by default", () => {
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
-			expect(actions).toHaveLength(4)
+			expect(actions).toHaveLength(7) // 2 explain + 2 fix logic + 2 improve + 1 add to context
 			expect((actions as any)[0].title).toBe(`${ACTION_NAMES.EXPLAIN} in New Task`)
 			expect((actions as any)[1].title).toBe(`${ACTION_NAMES.EXPLAIN} in Current Task`)
-			expect((actions as any)[2].title).toBe(`${ACTION_NAMES.IMPROVE} in New Task`)
-			expect((actions as any)[3].title).toBe(`${ACTION_NAMES.IMPROVE} in Current Task`)
+			expect((actions as any)[2].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in New Task`)
+			expect((actions as any)[3].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in Current Task`)
+			expect((actions as any)[4].title).toBe(`${ACTION_NAMES.IMPROVE} in New Task`)
+			expect((actions as any)[5].title).toBe(`${ACTION_NAMES.IMPROVE} in Current Task`)
+			expect((actions as any)[6].title).toBe(ACTION_NAMES.ADD_TO_CONTEXT)
 		})
 
-		it("should provide fix action when diagnostics exist", () => {
+		it("should provide fix action instead of fix logic when diagnostics exist", () => {
 			mockContext.diagnostics = [
 				{
 					message: "test error",
@@ -127,22 +95,33 @@ describe("CodeActionProvider", () => {
 
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
-			expect(actions).toHaveLength(6)
+			expect(actions).toHaveLength(7) // 2 explain + 2 fix + 2 improve + 1 add to context
 			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX} in New Task`)).toBe(true)
 			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX} in Current Task`)).toBe(true)
+			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX_LOGIC} in New Task`)).toBe(false)
+			expect((actions as any).some((a: any) => a.title === `${ACTION_NAMES.FIX_LOGIC} in Current Task`)).toBe(
+				false,
+			)
 		})
 
-		it("should handle errors gracefully", () => {
-			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {})
-			mockDocument.getText.mockImplementation(() => {
-				throw new Error("Test error")
-			})
-			mockDocument.lineAt.mockReturnValue({ text: "test", lineNumber: 0 })
+		it("should return empty array when no effective range", () => {
+			;(EditorUtils.getEffectiveRange as jest.Mock).mockReturnValue(null)
 
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
 			expect(actions).toEqual([])
-			expect(consoleErrorSpy).toHaveBeenCalledWith("Error getting effective range:", expect.any(Error))
+		})
+
+		it("should handle errors gracefully", () => {
+			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {})
+			;(EditorUtils.getEffectiveRange as jest.Mock).mockImplementation(() => {
+				throw new Error("Test error")
+			})
+
+			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
+
+			expect(actions).toEqual([])
+			expect(consoleErrorSpy).toHaveBeenCalledWith("Error providing code actions:", expect.any(Error))
 
 			consoleErrorSpy.mockRestore()
 		})
