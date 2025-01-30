@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.6
+
+### Patch Changes
+
+- v3.3.6
+- Include keywords per new branding to Roo Code
+
 ## [3.3.5]
 
 - Make information about the conversation's context window usage visible in the task header for humans and in the environment for models (thanks @MuriloFP!)
