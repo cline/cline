@@ -108,7 +108,12 @@ export class TerminalManager {
 			this.disposables.push(disposable)
 		}
 	}
-
+	/**
+	 *  运行命令
+	 * @param terminalInfo 终端信息对象
+	 * @param command 字符串类型的命令
+	 * @returns TerminalProcessResultPromise
+	 */
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
@@ -119,10 +124,10 @@ export class TerminalManager {
 			terminalInfo.busy = false
 		})
 
-		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
+		// 如果shell集成不可用，请删除终端，以免重复使用，因为它可能正在运行长时间运行的进程
 		process.once("no_shell_integration", () => {
 			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
-			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
+			// 删除终端，这样我们就不能重复使用它（以防它正在运行一个长时间运行的进程）
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 			this.terminalIds.delete(terminalInfo.id)
 			this.processes.delete(terminalInfo.id)
@@ -138,12 +143,12 @@ export class TerminalManager {
 			})
 		})
 
-		// if shell integration is already active, run the command immediately
+		// 如果shell集成已经激活，请立即运行命令
 		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
 			process.run(terminalInfo.terminal, command)
 		} else {
-			// docs recommend waiting 3s for shell integration to activate
+			// 文档建议等待3秒以激活shell集成
 			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
@@ -155,16 +160,20 @@ export class TerminalManager {
 
 		return mergePromise(process, promise)
 	}
-
+	/**
+	 * 	获取或创建终端
+	 * @param cwd 当前工作目录
+	 * @returns 
+	 */
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
 
-		// Find available terminal from our pool first (created for this task)
+		// 首先从我们的池中查找可用终端（为此任务创建）
 		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
 				return false
 			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
+			const terminalCwd = t.terminal.shellIntegration?.cwd // cline的一个命令可能改变了终端的cwd
 			if (!terminalCwd) {
 				return false
 			}
@@ -175,16 +184,16 @@ export class TerminalManager {
 			return matchingTerminal
 		}
 
-		// If no matching terminal exists, try to find any non-busy terminal
+		// 如果没有匹配的终端，请尝试找到任何非界限端子
 		const availableTerminal = terminals.find((t) => !t.busy)
 		if (availableTerminal) {
-			// Navigate back to the desired directory
+			// 导航回所需的目录
 			await this.runCommand(availableTerminal, `cd "${cwd}"`)
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
 
-		// If all terminals are busy, create a new one
+		// 如果所有终端都很忙，请创建一个新的终端
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo

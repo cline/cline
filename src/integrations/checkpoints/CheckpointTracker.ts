@@ -27,11 +27,11 @@ class CheckpointTracker {
 				throw new Error("Provider is required to create a checkpoint tracker")
 			}
 
-			// Check if git is installed by attempting to get version
+			// 通过尝试获取版本检查是否安装了git
 			try {
 				await simpleGit().version()
 			} catch (error) {
-				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
+				throw new Error("Git must be installed to use checkpoints.") // FIXME：必须匹配我们在TaskHeader中检查的内容才能显示链接
 			}
 
 			const cwd = await CheckpointTracker.getWorkingDirectory()
@@ -269,13 +269,13 @@ class CheckpointTracker {
 		const gitPath = await this.getShadowGitPath()
 		const git = simpleGit(path.dirname(gitPath))
 
-		// Clean working directory and force reset
-		// This ensures that the operation will succeed regardless of:
-		// - Untracked files in the workspace
-		// - Staged changes
-		// - Unstaged changes
-		// - Partial commits
-		// - Merge conflicts
+		//清理工作目录并强制重置
+		//这确保了操作将成功，无论：
+		//-工作区中未跟踪的文件
+		//-阶段更改
+		//-未暂存的更改
+		//-部分提交
+		//-合并冲突
 		await git.clean("f", ["-d", "-f"]) // Remove untracked files and directories
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 	}

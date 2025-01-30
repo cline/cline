@@ -4,7 +4,7 @@ import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
 
-// TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
+// TODO：实施缓存行为，以避免必须继续分析项目的新任务。
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
 	// check if the path exists
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))

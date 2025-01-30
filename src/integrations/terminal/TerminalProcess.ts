@@ -236,7 +236,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
 
-// Similar to execa's ResultPromise, this lets us create a mixin of both a TerminalProcess and a Promise: https://github.com/sindresorhus/execa/blob/main/lib/methods/promise.js
+// 类似于执行的ResultPromise，这让我们可以创建TerminalProcess和Promise的混合: https://github.com/sindresorhus/execa/blob/main/lib/methods/promise.js
 export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(

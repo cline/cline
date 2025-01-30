@@ -31,7 +31,7 @@ export class DiffViewProvider {
 		const fileExists = this.editType === "modify"
 		const absolutePath = path.resolve(this.cwd, relPath)
 		this.isEditing = true
-		// if the file is already open, ensure it's not dirty before getting its contents
+		// 如果文件已经打开
 		if (fileExists) {
 			const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, absolutePath))
 			if (existingDocument && existingDocument.isDirty) {
@@ -39,7 +39,7 @@ export class DiffViewProvider {
 			}
 		}
 
-		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
+		// 在编辑文件之前获取诊断，我们将在编辑后与Diagnostics进行比较，以查看Cline是否需要修复任何内容
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
@@ -47,15 +47,15 @@ export class DiffViewProvider {
 		} else {
 			this.originalContent = ""
 		}
-		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+		// 对于新文件，创建任何必要的目录，并跟踪新目录以删除如果用户拒绝操作
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
-		// make sure the file exists before we open it
+		// 在打开文件之前，请确保文件存在
 		if (!fileExists) {
 			await fs.writeFile(absolutePath, "")
 		}
-		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+		// 如果文件已经打开，请关闭该文件（必须在显示diff视图后发生，因为它是唯一的选项卡，该列将关闭）
 		this.documentWasOpen = false
-		// close the tab if it's open (it's already saved above)
+		// 如果打开的选项卡（已经保存在上面），请关闭标签
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
@@ -82,7 +82,7 @@ export class DiffViewProvider {
 		this.newContent = accumulatedContent
 		const accumulatedLines = accumulatedContent.split("\n")
 		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
+			accumulatedLines.pop() // 仅当不是最终更新时删除最后一行
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
@@ -92,7 +92,7 @@ export class DiffViewProvider {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		// 将光标放在差异编辑器的开头以使其远离流动画
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
@@ -111,16 +111,16 @@ export class DiffViewProvider {
 			// Scroll to the current line
 			this.scrollEditorToLine(currentLine)
 		}
-		// Update the streamedLines with the new accumulated content
+		// 使用新的累积内容更新流水线
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
-			// Handle any remaining lines if the new content is shorter than the original
+			// 如果新内容比原始内容短，请处理任何剩余的行
 			if (this.streamedLines.length < document.lineCount) {
 				const edit = new vscode.WorkspaceEdit()
 				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
 				await vscode.workspace.applyEdit(edit)
 			}
-			// Add empty last line if original content had one
+			// 如果原始内容有最后一行，则添加空的最后一行
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
 			if (hasEmptyLastLine) {
 				const accumulatedLines = accumulatedContent.split("\n")
@@ -128,7 +128,7 @@ export class DiffViewProvider {
 					accumulatedContent += "\n"
 				}
 			}
-			// Clear all decorations at the end (before applying final edit)
+			// 清除最后的所有装饰（在应用最终编辑之前）
 			this.fadedOverlayController.clear()
 			this.activeLineController.clear()
 		}
