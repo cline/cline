@@ -103,6 +103,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false)
+		const [isFocused, setIsFocused] = useState(false)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -379,6 +380,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!isMouseDownOnMenu) {
 				setShowContextMenu(false)
 			}
+			setIsFocused(false)
 		}, [isMouseDownOnMenu])
 
 		const handlePaste = useCallback(
@@ -537,6 +539,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					backgroundColor: "var(--vscode-input-background)",
 					margin: "10px 15px",
 					padding: "8px",
+					outline: "none",
+					border: "1px solid",
+					borderColor: isFocused ? "var(--vscode-focusBorder)" : "transparent",
+					borderRadius: "2px",
 				}}
 				onDrop={async (e) => {
 					e.preventDefault()
@@ -647,6 +653,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							handleInputChange(e)
 							updateHighlights()
 						}}
+						onFocus={() => setIsFocused(true)}
 						onKeyDown={handleKeyDown}
 						onKeyUp={handleKeyUp}
 						onBlur={handleBlur}
@@ -665,6 +672,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						autoFocus={true}
 						style={{
 							width: "100%",
+							outline: "none",
 							boxSizing: "border-box",
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",

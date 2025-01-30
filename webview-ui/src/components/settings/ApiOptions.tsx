@@ -563,7 +563,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			)}
 
 			{selectedProvider === "openai" && (
-				<div>
+				<div style={{ display: "flex", flexDirection: "column", rowGap: "5px" }}>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						style={{ width: "100%" }}
