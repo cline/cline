@@ -4,7 +4,6 @@ import "./index.css"
 import App from "./App"
 import reportWebVitals from "./reportWebVitals"
 import "../../node_modules/@vscode/codicons/dist/codicon.css"
-import "./i18n"
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 root.render(

@@ -1,4 +1,13 @@
-# Change Log
+# Changelog
+
+## [3.2.6]
+
+- Save last used API/model when switching between Plan and Act, for users that like to use different models for each mode
+- New Context Window progress bar in the task header to understand increased cost/generation degradation as the context increases
+- Localize READMEs and add language selector for English, Spanish, German, Chinese, and Japanese
+- Add Advanced Settings to remove MCP prompts from requests to save tokens, enable/disable checkpoints for users that don't use git (more coming soon!)
+- Add Gemini 2.0 Flash Thinking experimental model
+- Allow new users to subscribe to mailing list to get notified when new Accounts option is available
 
 ## [3.2.5]
 
