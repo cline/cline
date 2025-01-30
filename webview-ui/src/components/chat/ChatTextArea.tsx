@@ -633,7 +633,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							padding: "8px",
+							padding: "2px",
+							paddingRight: "8px",
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
 							zIndex: 1,
 						}}
@@ -667,8 +668,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onHeightChange?.(height)
 						}}
 						placeholder={placeholderText}
-						minRows={2}
-						maxRows={20}
+						minRows={3}
+						maxRows={15}
 						autoFocus={true}
 						style={{
 							width: "100%",
@@ -684,11 +685,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							overflowX: "hidden",
 							overflowY: "auto",
 							border: "none",
-							padding: "8px",
+							padding: "2px",
+							paddingRight: "8px",
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: "0 1 auto",
 							zIndex: 2,
+							scrollbarWidth: "none",
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -704,7 +707,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							bottom: "36px",
 							left: "16px",
 							zIndex: 2,
-							marginBottom: "8px",
+							marginBottom: "4px",
 						}}
 					/>
 				)}
@@ -715,7 +718,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						justifyContent: "space-between",
 						alignItems: "center",
 						marginTop: "auto",
-						paddingTop: "8px",
+						paddingTop: "2px",
 					}}>
 					<div
 						style={{
