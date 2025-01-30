@@ -6,7 +6,6 @@ import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import SettingsButton from "../common/SettingsButton"
 import PreferredLanguagePicker from "./PreferredLanguagePicker"
-import { DEFAULT_LANGUAGE_SETTINGS } from "../../../../src/shared/Languages"
 const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
@@ -46,10 +45,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			onDone()
 		}
 	}
-
-	useEffect(() => {
-		setPreferredLanguage(preferredLanguage || DEFAULT_LANGUAGE_SETTINGS)
-	}, [preferredLanguage])
 
 	useEffect(() => {
 		setApiErrorMessage(undefined)
