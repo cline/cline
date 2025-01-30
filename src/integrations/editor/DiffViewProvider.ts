@@ -51,7 +51,7 @@ export class DiffViewProvider {
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
 		// make sure the file exists before we open it
 		if (!fileExists) {
-			await fs.writeFile(absolutePath, "")
+			await vscode.workspace.fs.writeFile(vscode.Uri.file(absolutePath), new Uint8Array())
 		}
 		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
 		this.documentWasOpen = false
