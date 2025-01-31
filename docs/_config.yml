@@ -3,6 +3,7 @@ description: Documentation for the Roo Code project
 remote_theme: just-the-docs/just-the-docs
 
 url: https://docs.roocode.com
+baseurl: /docs
 
 aux_links:
   "Roo Code on GitHub":
