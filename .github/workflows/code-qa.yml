@@ -56,9 +56,11 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+      - name: Create env.integration file
+        run: echo "OPEN_ROUTER_API_KEY=${{ secrets.OPEN_ROUTER_API_KEY }}" > .env.integration
       - name: Install dependencies
         run: npm run install:all
-      - run: xvfb-run -a npm test:integration
+      - run: xvfb-run -a npm run test:integration
         if: runner.os == 'Linux'
-      - run: npm test:integration
+      - run: npm run test:integration
         if: runner.os != 'Linux'
