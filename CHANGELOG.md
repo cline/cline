@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.2.11]
+
+- Add OpenAI o3-mini model
+
 ## [3.2.10]
 
 - Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
