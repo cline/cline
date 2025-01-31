@@ -42,7 +42,7 @@ const supportPromptConfigs: Record<string, SupportPromptConfig> = {
 	EXPLAIN: {
 		label: "Explain Code",
 		description:
-			"Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
+			"Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code).",
 		template: `Explain the following code from file path @/\${filePath}:
 \${userInput}
 
