@@ -58,6 +58,8 @@ jobs:
           cache: 'npm'
       - name: Create env.integration file
         run: echo "OPEN_ROUTER_API_KEY=${{ secrets.OPEN_ROUTER_API_KEY }}" > .env.integration
+      - name: Check env.integration file
+        run: cat .env.integration
       - name: Install dependencies
         run: npm run install:all
       - run: xvfb-run -a npm run test:integration
