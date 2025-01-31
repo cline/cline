@@ -40,6 +40,10 @@ export class LLMFileAccessController {
 		try {
 			const ignorePath = path.join(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
+				// We need to reset ignore. Otherwise we will be adding duplicate patterns from re-reading the .clineignore
+				// Will be switching to globby in next PR
+				this.ignoreInstance = ignore()
+				this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
 				const content = await fs.readFile(ignorePath, "utf8")
 				const customPatterns = content
 					.split("\n")
