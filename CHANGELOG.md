@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.3.7
+
+### Patch Changes
+
+- Streaming version of o3-mini
+- v3.3.7
+- Use an exponential backoff for API retries
+
 ## [3.3.6]
 
 - Add a "new task" tool that allows Roo to start new tasks with an initial message and mode
