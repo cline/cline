@@ -5,7 +5,7 @@ import simpleGit, { SimpleGit } from "simple-git"
 import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { fileExistsAtPath } from "../../utils/fs"
-import { globby } from "globby"
+import { getLfsPatterns, writeExcludesFile, shouldExcludeFile } from "./CheckpointExclusions"
 
 class CheckpointTracker {
 	private providerRef: WeakRef<ClineProvider>
@@ -114,123 +114,15 @@ class CheckpointTracker {
 			// Disable commit signing for shadow repo
 			await git.addConfig("commit.gpgSign", "false")
 
-			// Get LFS patterns from workspace if they exist
-			let lfsPatterns: string[] = []
-			try {
-				const attributesPath = path.join(this.cwd, ".gitattributes")
-				if (await fileExistsAtPath(attributesPath)) {
-					const attributesContent = await fs.readFile(attributesPath, "utf8")
-					lfsPatterns = attributesContent
-						.split("\n")
-						.filter((line) => line.includes("filter=lfs"))
-						.map((line) => line.split(" ")[0].trim())
-				}
-			} catch (error) {
-				console.warn("Failed to read .gitattributes:", error)
-			}
-
-			// Add basic excludes directly in git config, while respecting any .gitignore in the workspace
-			// .git/info/exclude is local to the shadow git repo, so it's not shared with the main repo - and won't conflict with user's .gitignore
-			// TODO: let user customize these
-			const excludesPath = path.join(gitPath, "info", "exclude")
-			await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
-			await fs.writeFile(
-				excludesPath,
-				[
-					".git/", // ignore the user's .git
-					`.git${GIT_DISABLED_SUFFIX}/`, // ignore the disabled nested git repos
-					".DS_Store",
-					"*.log",
-					"node_modules/",
-					"__pycache__/",
-					"env/",
-					"venv/",
-					"target/dependency/",
-					"build/dependencies/",
-					"dist/",
-					"out/",
-					"bundle/",
-					"vendor/",
-					"tmp/",
-					"temp/",
-					"deps/",
-					"pkg/",
-					"Pods/",
-					// Media files
-					"*.jpg",
-					"*.jpeg",
-					"*.png",
-					"*.gif",
-					"*.bmp",
-					"*.ico",
-					// "*.svg",
-					"*.mp3",
-					"*.mp4",
-					"*.wav",
-					"*.avi",
-					"*.mov",
-					"*.wmv",
-					"*.webm",
-					"*.webp",
-					"*.m4a",
-					"*.flac",
-					// Build and dependency directories
-					"build/",
-					"bin/",
-					"obj/",
-					".gradle/",
-					".idea/",
-					".vscode/",
-					".vs/",
-					"coverage/",
-					".next/",
-					".nuxt/",
-					// Cache and temporary files
-					"*.cache",
-					"*.tmp",
-					"*.temp",
-					"*.swp",
-					"*.swo",
-					"*.pyc",
-					"*.pyo",
-					".pytest_cache/",
-					".eslintcache",
-					// Environment and config files
-					".env*",
-					"*.local",
-					"*.development",
-					"*.production",
-					// Large data files
-					"*.zip",
-					"*.tar",
-					"*.gz",
-					"*.rar",
-					"*.7z",
-					"*.iso",
-					"*.bin",
-					"*.exe",
-					"*.dll",
-					"*.so",
-					"*.dylib",
-					// Database files
-					"*.sqlite",
-					"*.db",
-					"*.sql",
-					// Log files
-					"*.logs",
-					"*.error",
-					"npm-debug.log*",
-					"yarn-debug.log*",
-					"yarn-error.log*",
-					...lfsPatterns,
-				].join("\n"),
-			)
+			// Get LFS patterns and write excludes file
+			const lfsPatterns = await getLfsPatterns(this.cwd)
+			await writeExcludesFile(gitPath, lfsPatterns)
 
 			// Set up git identity (git throws an error if user.name or user.email is not set)
 			await git.addConfig("user.name", "Cline Checkpoint")
 			await git.addConfig("user.email", "noreply@example.com")
 
-			await this.addAllFiles(git)
+			await this.addCheckpointFiles(git)
 			// Initial commit (--allow-empty ensures it works even with no files)
 			await git.commit("initial commit", { "--allow-empty": null })
 
@@ -258,7 +150,7 @@ class CheckpointTracker {
 		try {
 			const gitPath = await this.getShadowGitPath()
 			const git = simpleGit(path.dirname(gitPath))
-			await this.addAllFiles(git)
+			await this.addCheckpointFiles(git)
 			const result = await git.commit("checkpoint", {
 				"--allow-empty": null,
 			})
@@ -321,7 +213,7 @@ class CheckpointTracker {
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
-		await this.addAllFiles(git)
+		await this.addCheckpointFiles(git)
 
 		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
 
@@ -368,27 +260,136 @@ class CheckpointTracker {
 		return result
 	}
 
-	private async addAllFiles(git: SimpleGit) {
-		await this.renameNestedGitRepos(true)
+	/**
+	 * Adds files to the shadow git repository while handling nested git repos and applying exclusion rules.
+	 * Temporarily disables nested git repos, and filters files based on exclusion patterns.
+	 */
+	private async addCheckpointFiles(git: SimpleGit): Promise<void> {
 		try {
-			await git.add(".")
+			await this.renameNestedGitRepos(true)
+			console.log("Starting checkpoint add operation...")
+
+			const { filesToAdd, excludedFiles } = await this.getFilteredFiles()
+			await this.logExcludedFiles(excludedFiles)
+			await this.addFilesToGit(git, filesToAdd)
 		} catch (error) {
-			console.error("Failed to add files to git:", error)
+			console.error("Failed to add files to checkpoint:", error)
+			throw error
 		} finally {
 			await this.renameNestedGitRepos(false)
 		}
 	}
 
+	/**
+	 * Processes all workspace files through exclusion filters and returns arrays of files to add and excluded files.
+	 * Uses CheckpointExclusions rules to determine which files should be tracked.
+	 */
+	private async getFilteredFiles(): Promise<{
+		filesToAdd: string[]
+		excludedFiles: Array<{ path: string; reason: string }>
+	}> {
+		const allFiles = await this.findWorkspaceFiles()
+		console.log(`Found ${allFiles.length} files to check for exclusions`)
+
+		const filesToAdd: string[] = []
+		const excludedFiles: Array<{ path: string; reason: string }> = []
+
+		for (const file of allFiles) {
+			const { relativePath, exclusionResult } = await this.processFile(file)
+
+			if (exclusionResult.excluded && exclusionResult.reason) {
+				excludedFiles.push({
+					path: relativePath,
+					reason: exclusionResult.reason,
+				})
+			} else {
+				filesToAdd.push(relativePath)
+			}
+		}
+
+		return { filesToAdd, excludedFiles }
+	}
+
+	/**
+	 * Finds all files in the workspace while excluding .git directories and disabled git repos.
+	 * Uses VSCode workspace API to efficiently search for files.
+	 */
+	private async findWorkspaceFiles(): Promise<vscode.Uri[]> {
+		return await vscode.workspace.findFiles(
+			new vscode.RelativePattern(this.cwd, "**/*"),
+			new vscode.RelativePattern(this.cwd, `**/{.git,.git${GIT_DISABLED_SUFFIX}}/**`),
+		)
+	}
+
+	/**
+	 * Processes a single file through exclusion rules to determine if it should be tracked.
+	 * Converts absolute paths to relative and checks against exclusion criteria.
+	 */
+	private async processFile(file: vscode.Uri): Promise<{
+		relativePath: string
+		exclusionResult: { excluded: boolean; reason?: string }
+	}> {
+		const fullPath = file.fsPath
+		const relativePath = path.relative(this.cwd, fullPath)
+		const exclusionResult = await shouldExcludeFile(fullPath)
+
+		return { relativePath, exclusionResult }
+	}
+
+	/**
+	 * Logs information about files that were excluded from tracking, including their paths and exclusion reasons.
+	 * Provides visibility into which files are being skipped and why.
+	 */
+	private async logExcludedFiles(excludedFiles: Array<{ path: string; reason: string }>): Promise<void> {
+		if (excludedFiles.length > 0) {
+			console.log(`Excluded ${excludedFiles.length} files`)
+			//for (const { path: filePath, reason } of excludedFiles) {
+			//	console.log(`- ${filePath}: ${reason}`)
+			//}
+		}
+	}
+
+	/**
+	 * Adds the filtered list of files to the shadow git repository.
+	 * Handles the actual git add operation and provides logging for the process.
+	 */
+	private async addFilesToGit(git: SimpleGit, filesToAdd: string[]): Promise<void> {
+		if (filesToAdd.length === 0) {
+			console.log("No files to add to checkpoint")
+			return
+		}
+
+		try {
+			console.log(`Adding ${filesToAdd.length} files to checkpoint...`)
+			await git.add(filesToAdd)
+			console.log("Checkpoint add operation completed successfully")
+		} catch (error) {
+			console.log("Checkpoint add operation failed:", error)
+			throw error
+		}
+	}
+
 	// Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's requirement of using submodules for nested repos.
 	private async renameNestedGitRepos(disable: boolean) {
-		// Find all .git directories that are not at the root level
-		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
-			cwd: this.cwd,
-			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git
-			dot: true,
-			markDirectories: false,
-		})
+		// Find all .git directories that are not at the root level using VS Code API
+		const gitFiles = await vscode.workspace.findFiles(
+			new vscode.RelativePattern(this.cwd, "**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX)),
+			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git
+		)
+		// Filter to only include directories
+		const gitPaths: string[] = []
+		for (const file of gitFiles) {
+			const relativePath = path.relative(this.cwd, file.fsPath)
+			try {
+				const stats = await fs.stat(path.join(this.cwd, relativePath))
+				if (stats.isDirectory()) {
+					gitPaths.push(relativePath)
+				}
+			} catch {
+				// Skip if stat fails
+				continue
+			}
+		}
 
 		// For each nested .git directory, rename it based on operation
 		for (const gitPath of gitPaths) {
@@ -402,9 +403,9 @@ class CheckpointTracker {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
+				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} workspace git repo ${gitPath}`)
 			} catch (error) {
-				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} workspace git repo ${gitPath}:`, error)
 			}
 		}
 	}
@@ -415,6 +416,6 @@ class CheckpointTracker {
 	}
 }
 
-const GIT_DISABLED_SUFFIX = "_disabled"
+export const GIT_DISABLED_SUFFIX = "_disabled"
 
 export default CheckpointTracker
