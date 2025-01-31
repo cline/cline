@@ -6,6 +6,7 @@
 		"connor4312.esbuild-problem-matchers",
 		"ms-vscode.extension-test-runner",
 		"csstools.postcss",
-		"bradlc.vscode-tailwindcss"
+		"bradlc.vscode-tailwindcss",
+		"tobermory.es6-string-html"
 	]
 }
