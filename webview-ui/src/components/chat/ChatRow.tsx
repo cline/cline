@@ -183,26 +183,28 @@ export const ChatRowContent = ({
 					</div>
 				)
 				return [
-					apiReqCancelReason !== null ? (
+					apiReqCancelReason ? (
 						apiReqCancelReason === "user_cancelled" ? (
 							getIconSpan("error", cancelledColor)
 						) : (
 							getIconSpan("error", errorColor)
 						)
-					) : cost !== null ? (
+					) : cost ? (
 						getIconSpan("check", successColor)
 					) : apiRequestFailedMessage ? (
 						getIconSpan("error", errorColor)
 					) : (
 						<ProgressIndicator />
 					),
-					apiReqCancelReason !== null ? (
+					apiReqCancelReason ? (
 						apiReqCancelReason === "user_cancelled" ? (
 							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
 						) : (
-							<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+							<span style={{ color: errorColor, fontWeight: "bold" }}>
+								API Streaming Failed ({JSON.stringify(apiReqCancelReason)})
+							</span>
 						)
-					) : cost !== null ? (
+					) : cost ? (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
@@ -510,9 +512,7 @@ export const ChatRowContent = ({
 								style={{
 									...headerStyle,
 									marginBottom:
-										(cost === null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
-											? 10
-											: 0,
+										(!cost && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
 									justifyContent: "space-between",
 									cursor: "pointer",
 									userSelect: "none",
@@ -530,7 +530,7 @@ export const ChatRowContent = ({
 								</div>
 								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
-							{((cost === null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+							{((!cost && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
 									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
 										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
