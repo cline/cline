@@ -44,9 +44,14 @@ export class LLMFileAccessController {
 
 		// Add default patterns immediately
 		this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
+	}
 
-		// Load custom patterns if they exist
-		this.loadCustomPatterns()
+	/**
+	 * Initialize the controller by loading custom patterns
+	 * This must be called and awaited before using the controller
+	 */
+	async initialize(): Promise<void> {
+		await this.loadCustomPatterns()
 	}
 
 	/**

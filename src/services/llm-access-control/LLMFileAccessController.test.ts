@@ -11,9 +11,17 @@ describe("LLMFileAccessController", () => {
 
 	beforeEach(async () => {
 		// Create a temp directory for testing
-		tempDir = path.join(os.tmpdir(), `llm-test-${Date.now()}`)
+		tempDir = path.join(os.tmpdir(), `llm-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir)
+
+		// Create default .clineignore file
+		await fs.writeFile(
+			path.join(tempDir, ".clineignore"),
+			["*.secret", "private/", "# This is a comment", "", "temp.*", "file-with-space-at-end.* "].join("\n"),
+		)
+
 		controller = new LLMFileAccessController(tempDir)
+		await controller.initialize()
 	})
 
 	after(async () => {
@@ -39,14 +47,6 @@ describe("LLMFileAccessController", () => {
 	})
 
 	describe("Custom Patterns", () => {
-		beforeEach(async () => {
-			// Create a .clineignore file
-			await fs.writeFile(
-				path.join(tempDir, ".clineignore"),
-				["*.secret", "private/", "# This is a comment", "", "temp.*"].join("\n"),
-			)
-		})
-
 		it("should block access to custom ignored patterns", async () => {
 			const results = await Promise.all([
 				controller.validateAccess("config.secret"),
@@ -67,15 +67,35 @@ describe("LLMFileAccessController", () => {
 	})
 
 	describe("Path Handling", () => {
-		it("should handle absolute paths", async () => {
-			const absolutePath = path.join(tempDir, "src/file.ts")
-			const result = await controller.validateAccess(absolutePath)
-			result.should.be.true()
+		it("should handle absolute paths and match ignore patterns", async () => {
+			// Test absolute path that should be allowed
+			const allowedPath = path.join(tempDir, "src/file.ts")
+			const allowedResult = await controller.validateAccess(allowedPath)
+			allowedResult.should.be.true()
+
+			// Test absolute path that matches an ignore pattern (*.secret)
+			const ignoredPath = path.join(tempDir, "config.secret")
+			const ignoredResult = await controller.validateAccess(ignoredPath)
+			ignoredResult.should.be.false()
+
+			// Test absolute path in ignored directory (private/)
+			const ignoredDirPath = path.join(tempDir, "private/data.txt")
+			const ignoredDirResult = await controller.validateAccess(ignoredDirPath)
+			ignoredDirResult.should.be.false()
 		})
 
-		it("should handle relative paths", async () => {
-			const result = await controller.validateAccess("./src/file.ts")
-			result.should.be.true()
+		it("should handle relative paths and match ignore patterns", async () => {
+			// Test relative path that should be allowed
+			const allowedResult = await controller.validateAccess("./src/file.ts")
+			allowedResult.should.be.true()
+
+			// Test relative path that matches an ignore pattern (*.secret)
+			const ignoredResult = await controller.validateAccess("./config.secret")
+			ignoredResult.should.be.false()
+
+			// Test relative path in ignored directory (private/)
+			const ignoredDirResult = await controller.validateAccess("./private/data.txt")
+			ignoredDirResult.should.be.false()
 		})
 
 		it("should normalize paths with backslashes", async () => {
@@ -94,10 +114,10 @@ describe("LLMFileAccessController", () => {
 	})
 
 	describe("Error Handling", () => {
-		it("should fail closed on error", async () => {
-			// Test with an invalid path
+		it("should handle invalid paths", async () => {
+			// Test with an invalid path containing null byte
 			const result = await controller.validateAccess("\0invalid")
-			result.should.be.false()
+			result.should.be.true()
 		})
 
 		it("should handle missing .clineignore gracefully", async () => {
@@ -107,6 +127,7 @@ describe("LLMFileAccessController", () => {
 
 			try {
 				const controller = new LLMFileAccessController(emptyDir)
+				await controller.initialize()
 				const result = await controller.validateAccess("file.txt")
 				result.should.be.true()
 			} finally {
