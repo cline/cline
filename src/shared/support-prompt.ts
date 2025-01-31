@@ -76,7 +76,7 @@ Please:
 	IMPROVE: {
 		label: "Improve Code",
 		description:
-			"Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
+			"Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code).",
 		template: `Improve the following code from file path @/\${filePath}:
 \${userInput}
 
