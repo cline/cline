@@ -275,7 +275,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		} else {
 			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
+			if (lastApiReqStarted && lastApiReqStarted.text && lastApiReqStarted.say === "api_req_started") {
 				const cost = JSON.parse(lastApiReqStarted.text).cost
 				if (cost === undefined) {
 					// api request has not finished yet
@@ -337,56 +337,96 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
-	const handlePrimaryButtonClick = useCallback(() => {
-		switch (clineAsk) {
-			case "api_req_failed":
-			case "command":
-			case "command_output":
-			case "tool":
-			case "browser_action_launch":
-			case "use_mcp_server":
-			case "resume_task":
-			case "mistake_limit_reached":
-				vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
-				break
-			case "completion_result":
-			case "resume_completed_task":
-				// extension waiting for feedback. but we can just present a new task button
-				startNewTask()
-				break
-		}
-		setTextAreaDisabled(true)
-		setClineAsk(undefined)
-		setEnableButtons(false)
-		disableAutoScrollRef.current = false
-	}, [clineAsk, startNewTask])
+	const handlePrimaryButtonClick = useCallback(
+		(text?: string, images?: string[]) => {
+			const trimmedInput = text?.trim()
+			switch (clineAsk) {
+				case "api_req_failed":
+				case "command":
+				case "command_output":
+				case "tool":
+				case "browser_action_launch":
+				case "use_mcp_server":
+				case "resume_task":
+				case "mistake_limit_reached":
+					// Only send text/images if they exist
+					if (trimmedInput || (images && images.length > 0)) {
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "yesButtonClicked",
+							text: trimmedInput,
+							images: images,
+						})
+					} else {
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "yesButtonClicked",
+						})
+					}
+					// Clear input state after sending
+					setInputValue("")
+					setSelectedImages([])
+					break
+				case "completion_result":
+				case "resume_completed_task":
+					// extension waiting for feedback. but we can just present a new task button
+					startNewTask()
+					break
+			}
+			setTextAreaDisabled(true)
+			setClineAsk(undefined)
+			setEnableButtons(false)
+			disableAutoScrollRef.current = false
+		},
+		[clineAsk, startNewTask],
+	)
 
-	const handleSecondaryButtonClick = useCallback(() => {
-		if (isStreaming) {
-			vscode.postMessage({ type: "cancelTask" })
-			setDidClickCancel(true)
-			return
-		}
+	const handleSecondaryButtonClick = useCallback(
+		(text?: string, images?: string[]) => {
+			const trimmedInput = text?.trim()
+			if (isStreaming) {
+				vscode.postMessage({ type: "cancelTask" })
+				setDidClickCancel(true)
+				return
+			}
 
-		switch (clineAsk) {
-			case "api_req_failed":
-			case "mistake_limit_reached":
-			case "resume_task":
-				startNewTask()
-				break
-			case "command":
-			case "tool":
-			case "browser_action_launch":
-			case "use_mcp_server":
-				// responds to the API with a "This operation failed" and lets it try again
-				vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
-				break
-		}
-		setTextAreaDisabled(true)
-		setClineAsk(undefined)
-		setEnableButtons(false)
-		disableAutoScrollRef.current = false
-	}, [clineAsk, startNewTask, isStreaming])
+			switch (clineAsk) {
+				case "api_req_failed":
+				case "mistake_limit_reached":
+				case "resume_task":
+					startNewTask()
+					break
+				case "command":
+				case "tool":
+				case "browser_action_launch":
+				case "use_mcp_server":
+					// Only send text/images if they exist
+					if (trimmedInput || (images && images.length > 0)) {
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "noButtonClicked",
+							text: trimmedInput,
+							images: images,
+						})
+					} else {
+						// responds to the API with a "This operation failed" and lets it try again
+						vscode.postMessage({
+							type: "askResponse",
+							askResponse: "noButtonClicked",
+						})
+					}
+					// Clear input state after sending
+					setInputValue("")
+					setSelectedImages([])
+					break
+			}
+			setTextAreaDisabled(true)
+			setClineAsk(undefined)
+			setEnableButtons(false)
+			disableAutoScrollRef.current = false
+		},
+		[clineAsk, startNewTask, isStreaming],
+	)
 
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -430,10 +470,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							handleSendMessage(message.text ?? "", message.images ?? [])
 							break
 						case "primaryButtonClick":
-							handlePrimaryButtonClick()
+							handlePrimaryButtonClick(message.text ?? "", message.images ?? [])
 							break
 						case "secondaryButtonClick":
-							handleSecondaryButtonClick()
+							handleSecondaryButtonClick(message.text ?? "", message.images ?? [])
 							break
 					}
 			}
@@ -660,9 +700,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				if (message.say === "api_req_started") {
 					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
 					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
-					if (lastApiReqStarted?.text != null) {
+					if (lastApiReqStarted?.text) {
 						const info = JSON.parse(lastApiReqStarted.text)
-						const isCancelled = info.cancelReason != null
+						const isCancelled = info.cancelReason !== null
 						if (isCancelled) {
 							endBrowserSession()
 							result.push(message)
@@ -1038,7 +1078,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: secondaryButtonText ? 1 : 2,
 										marginRight: secondaryButtonText ? "6px" : "0",
 									}}
-									onClick={handlePrimaryButtonClick}>
+									onClick={(e) => handlePrimaryButtonClick(inputValue, selectedImages)}>
 									{primaryButtonText}
 								</VSCodeButton>
 							)}
@@ -1050,7 +1090,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
 									}}
-									onClick={handleSecondaryButtonClick}>
+									onClick={(e) => handleSecondaryButtonClick(inputValue, selectedImages)}>
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
 							)}

@@ -793,7 +793,7 @@ export class Cline {
 		}
 	}
 
-	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
+	async *attemptApiRequest(previousApiReqIndex: number, retryAttempt: number = 0): ApiStream {
 		let mcpHub: McpHub | undefined
 
 		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } =
@@ -887,21 +887,29 @@ export class Cline {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			if (alwaysApproveResubmit) {
 				const errorMsg = error.message ?? "Unknown error"
-				const requestDelay = requestDelaySeconds || 5
-				// Automatically retry with delay
-				// Show countdown timer in error color
-				for (let i = requestDelay; i > 0; i--) {
+				const baseDelay = requestDelaySeconds || 5
+				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt))
+
+				// Show countdown timer with exponential backoff
+				for (let i = exponentialDelay; i > 0; i--) {
 					await this.say(
 						"api_req_retry_delayed",
-						`${errorMsg}\n\nRetrying in ${i} seconds...`,
+						`${errorMsg}\n\nRetry attempt ${retryAttempt + 1}\nRetrying in ${i} seconds...`,
 						undefined,
 						true,
 					)
 					await delay(1000)
 				}
-				await this.say("api_req_retry_delayed", `${errorMsg}\n\nRetrying now...`, undefined, false)
-				// delegate generator output from the recursive call
-				yield* this.attemptApiRequest(previousApiReqIndex)
+
+				await this.say(
+					"api_req_retry_delayed",
+					`${errorMsg}\n\nRetry attempt ${retryAttempt + 1}\nRetrying now...`,
+					undefined,
+					false,
+				)
+
+				// delegate generator output from the recursive call with incremented retry count
+				yield* this.attemptApiRequest(previousApiReqIndex, retryAttempt + 1)
 				return
 			} else {
 				const { response } = await this.ask(
@@ -1085,34 +1093,22 @@ export class Cline {
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
-						if (response === "messageResponse") {
+						// Handle both messageResponse and noButtonClicked with text
+						if (text) {
 							await this.say("user_feedback", text, images)
 							pushToolResult(
 								formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images),
 							)
-							// this.userMessageContent.push({
-							// 	type: "text",
-							// 	text: `${toolDescription()}`,
-							// })
-							// this.toolResults.push({
-							// 	type: "tool_result",
-							// 	tool_use_id: toolUseId,
-							// 	content: this.formatToolResponseWithImages(
-							// 		await this.formatToolDeniedFeedback(text),
-							// 		images
-							// 	),
-							// })
-							this.didRejectTool = true
-							return false
+						} else {
+							pushToolResult(formatResponse.toolDenied())
 						}
-						pushToolResult(formatResponse.toolDenied())
-						// this.toolResults.push({
-						// 	type: "tool_result",
-						// 	tool_use_id: toolUseId,
-						// 	content: await this.formatToolDenied(),
-						// })
 						this.didRejectTool = true
 						return false
+					}
+					// Handle yesButtonClicked with text
+					if (text) {
+						await this.say("user_feedback", text, images)
+						pushToolResult(formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images))
 					}
 					return true
 				}
