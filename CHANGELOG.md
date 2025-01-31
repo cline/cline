@@ -1,4 +1,35 @@
-# Change Log
+# Changelog
+
+## [3.2.10]
+
+- Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
+- Show Reasoning tokens for models that support it
+- Fix issues with switching models between Plan/Act modes
+
+## [3.2.6]
+
+- Save last used API/model when switching between Plan and Act, for users that like to use different models for each mode
+- New Context Window progress bar in the task header to understand increased cost/generation degradation as the context increases
+- Localize READMEs and add language selector for English, Spanish, German, Chinese, and Japanese
+- Add Advanced Settings to remove MCP prompts from requests to save tokens, enable/disable checkpoints for users that don't use git (more coming soon!)
+- Add Gemini 2.0 Flash Thinking experimental model
+- Allow new users to subscribe to mailing list to get notified when new Accounts option is available
+
+## [3.2.5]
+
+- Use yellow textfield outline in Plan mode to better distinguish from Act mode
+
+## [3.2.3]
+
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling (thanks @slavakurilyak!)
+
+## [3.2.0]
+
+- Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
+- Easily switch between API providers and models using a new popup menu under the chat field
+- Add VS Code LM API provider to run models provided by other VS Code extensions (e.g. GitHub Copilot). Shoutout to @julesmons, @RaySinner, and @MrUbens for putting this together!
+- Add on/off toggle for MCP servers to disable them when not in use. Thanks @MrUbens!
+- Add Auto-approve option for individual tools in MCP servers. Thanks @MrUbens!
 
 ## [3.1.10]
 

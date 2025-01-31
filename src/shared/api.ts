@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "openai-native"
 	| "deepseek"
 	| "mistral"
+	| "vscode-lm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -37,6 +38,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
+	vsCodeLmModelSelector?: any
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -241,6 +243,14 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
 export const geminiModels = {
+	"gemini-2.0-flash-thinking-exp-01-21": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-2.0-flash-thinking-exp-1219": {
 		maxTokens: 8192,
 		contextWindow: 32_767,
@@ -374,6 +384,16 @@ export const deepSeekModels = {
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.014,
+	},
+	"deepseek-reasoner": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
 	},
 } as const satisfies Record<string, ModelInfo>
 

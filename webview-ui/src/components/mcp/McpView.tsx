@@ -12,6 +12,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
+
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -100,7 +101,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					style={{
 						color: "var(--vscode-foreground)",
 						fontSize: "13px",
-						marginBottom: "20px",
+						marginBottom: "16px",
 						marginTop: "5px",
 					}}>
 					The{" "}
@@ -118,7 +119,6 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodeLink>
 				</div>
 
-				{/* Server List */}
 				{servers.length > 0 && (
 					<div
 						style={{
@@ -132,7 +132,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</div>
 				)}
 
-				{/* Edit Settings Button */}
+				{/* Server Configuration Button */}
+
 				<div style={{ marginTop: "10px", width: "100%" }}>
 					<VSCodeButton
 						appearance="secondary"
@@ -140,9 +141,23 @@ const McpView = ({ onDone }: McpViewProps) => {
 						onClick={() => {
 							vscode.postMessage({ type: "openMcpSettings" })
 						}}>
-						<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-						Edit MCP Settings
+						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+						Configure MCP Servers
 					</VSCodeButton>
+				</div>
+
+				{/* Advanced Settings Link */}
+				<div style={{ textAlign: "center", marginTop: "5px" }}>
+					<VSCodeLink
+						onClick={() => {
+							vscode.postMessage({
+								type: "openExtensionSettings",
+								text: "cline.mcp",
+							})
+						}}
+						style={{ fontSize: "12px" }}>
+						Advanced MCP Settings
+					</VSCodeLink>
 				</div>
 
 				{/* Bottom padding */}
@@ -190,12 +205,62 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					background: "var(--vscode-textCodeBlock-background)",
 					cursor: server.error ? "default" : "pointer",
 					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
+					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
 				<span style={{ flex: 1 }}>{server.name}</span>
+				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
+					<div
+						role="switch"
+						aria-checked={!server.disabled}
+						tabIndex={0}
+						style={{
+							width: "20px",
+							height: "10px",
+							backgroundColor: server.disabled
+								? "var(--vscode-titleBar-inactiveForeground)"
+								: "var(--vscode-testing-iconPassed)",
+							borderRadius: "5px",
+							position: "relative",
+							cursor: "pointer",
+							transition: "background-color 0.2s",
+							opacity: server.disabled ? 0.5 : 0.9,
+						}}
+						onClick={() => {
+							vscode.postMessage({
+								type: "toggleMcpServer",
+								serverName: server.name,
+								disabled: !server.disabled,
+							})
+						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault()
+								vscode.postMessage({
+									type: "toggleMcpServer",
+									serverName: server.name,
+									disabled: !server.disabled,
+								})
+							}
+						}}>
+						<div
+							style={{
+								width: "6px",
+								height: "6px",
+								backgroundColor: "white",
+								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
+								borderRadius: "50%",
+								position: "absolute",
+								top: "1px",
+								left: server.disabled ? "2px" : "12px",
+								transition: "left 0.2s",
+							}}
+						/>
+					</div>
+				</div>
 				<div
 					style={{
 						width: "8px",
@@ -261,7 +326,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											width: "100%",
 										}}>
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} />
+											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
 										))}
 									</div>
 								) : (

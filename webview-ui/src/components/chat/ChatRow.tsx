@@ -8,8 +8,8 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSayTool,
-	ExtensionMessage,
 	COMPLETION_RESULT_CHANGES_FLAG,
+	ExtensionMessage,
 } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -685,13 +685,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 
 					{useMcpServer.type === "use_mcp_tool" && (
 						<>
-							<McpToolRow
-								tool={{
-									name: useMcpServer.toolName || "",
-									description:
-										server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
-								}}
-							/>
+							<div onClick={(e) => e.stopPropagation()}>
+								<McpToolRow
+									tool={{
+										name: useMcpServer.toolName || "",
+										description:
+											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description || "",
+										autoApprove:
+											server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
+											false,
+									}}
+									serverName={useMcpServer.serverName}
+								/>
+							</div>
 							{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
 								<div style={{ marginTop: "8px" }}>
 									<div
@@ -835,6 +841,62 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div>
 							<Markdown markdown={message.text} />
 						</div>
+					)
+				case "reasoning":
+					return (
+						<>
+							{message.text && (
+								<div
+									onClick={onToggleExpand}
+									style={{
+										// marginBottom: 15,
+										cursor: "pointer",
+										color: "var(--vscode-descriptionForeground)",
+
+										fontStyle: "italic",
+										overflow: "hidden",
+									}}>
+									{isExpanded ? (
+										<div style={{ marginTop: -3 }}>
+											<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
+												Reasoning
+												<span
+													className="codicon codicon-chevron-down"
+													style={{
+														display: "inline-block",
+														transform: "translateY(3px)",
+														marginLeft: "1.5px",
+													}}
+												/>
+											</span>
+											{message.text}
+										</div>
+									) : (
+										<div style={{ display: "flex", alignItems: "center" }}>
+											<span style={{ fontWeight: "bold", marginRight: "4px" }}>Reasoning:</span>
+											<span
+												style={{
+													whiteSpace: "nowrap",
+													overflow: "hidden",
+													textOverflow: "ellipsis",
+													direction: "rtl",
+													textAlign: "left",
+													flex: 1,
+												}}>
+												{message.text + "\u200E"}
+											</span>
+											<span
+												className="codicon codicon-chevron-right"
+												style={{
+													marginLeft: "4px",
+													flexShrink: 0,
+												}}
+											/>
+										</div>
+									)}
+								</div>
+							)}
+						</>
 					)
 				case "user_feedback":
 					return (
@@ -1153,6 +1215,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<Markdown markdown={message.text} />
 							</div>
 						</>
+					)
+				case "plan_mode_response":
+					return (
+						<div style={{}}>
+							<Markdown markdown={message.text} />
+						</div>
 					)
 				default:
 					return null
