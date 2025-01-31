@@ -1,0 +1,121 @@
+@startuml
+
+' Tool Integration Use Case Diagram
+' Requirements mapping:
+' - src/integrations/**/*.ts
+' - src/services/**/*.ts
+
+left to right direction
+
+' Actors
+actor "开发者" as Developer
+actor "VS Code" as VSCode
+actor "终端" as Terminal
+actor "浏览器" as Browser
+actor "文件系统" as FileSystem
+actor "版本控制" as VCS
+
+rectangle "工具集成系统" {
+    package "编辑器集成" {
+        usecase "文件编辑" as FileEdit
+        usecase "代码导航" as CodeNav
+        usecase "差异对比" as DiffView
+        usecase "代码高亮" as Highlight
+        usecase "智能补全" as Completion
+    }
+
+    package "终端集成" {
+        usecase "执行命令" as ExecCmd
+        usecase "管理会话" as ManageSession
+        usecase "捕获输出" as CaptureOutput
+        usecase "错误处理" as HandleError
+    }
+
+    package "浏览器自动化" {
+        usecase "页面导航" as Navigate
+        usecase "内容提取" as Extract
+        usecase "交互模拟" as Simulate
+        usecase "截图保存" as Screenshot
+    }
+
+    package "文件操作" {
+        usecase "读取文件" as ReadFile
+        usecase "写入文件" as WriteFile
+        usecase "搜索文件" as SearchFile
+        usecase "监视变更" as WatchChange
+    }
+
+    package "版本控制集成" {
+        usecase "提交更改" as Commit
+        usecase "分支管理" as Branch
+        usecase "合并代码" as Merge
+        usecase "解决冲突" as Conflict
+    }
+}
+
+' Core relationships
+Developer --> FileEdit
+Developer --> ExecCmd
+Developer --> Navigate
+Developer --> ReadFile
+Developer --> Commit
+
+' Include relationships
+FileEdit <.. DiffView : <<include>>
+FileEdit <.. Highlight : <<include>>
+FileEdit <.. Completion : <<include>>
+
+ExecCmd <.. ManageSession : <<include>>
+ExecCmd <.. CaptureOutput : <<include>>
+
+Navigate <.. Extract : <<include>>
+Navigate <.. Simulate : <<include>>
+
+' Extend relationships
+ReadFile <.. SearchFile : <<extend>>
+ReadFile <.. WatchChange : <<extend>>
+
+Commit <.. Branch : <<extend>>
+Commit <.. Merge : <<extend>>
+
+' External system interactions
+VSCode --> FileEdit : 提供接口
+Terminal --> ExecCmd : 执行
+Browser --> Navigate : 控制
+FileSystem --> ReadFile : 访问
+VCS --> Commit : 管理
+
+' Detailed notes
+note right of FileEdit
+  编辑功能：
+  1. 智能编辑建议
+  2. 实时语法检查
+  3. 自动格式化
+  4. 重构支持
+end note
+
+note right of ExecCmd
+  终端功能：
+  1. 命令执行
+  2. 输出解析
+  3. 环境管理
+  4. 错误处理
+end note
+
+note right of Navigate
+  浏览器功能：
+  1. 页面控制
+  2. 元素定位
+  3. 事件模拟
+  4. 数据提取
+end note
+
+note right of ReadFile
+  文件功能：
+  1. 异步操作
+  2. 缓存管理
+  3. 权限控制
+  4. 变更通知
+end note
+
+@enduml 

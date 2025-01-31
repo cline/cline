@@ -1,0 +1,48 @@
+@startuml
+
+' Core Classes
+class Cline {
+  - taskId: string
+  - api: ApiHandler
+  - terminalManager: TerminalManager
+  - urlContentFetcher: UrlContentFetcher
+  - browserSession: BrowserSession
+  - didEditFile: boolean
+  - customInstructions: string
+  - autoApprovalSettings: AutoApprovalSettings
+  - browserSettings: BrowserSettings
+  - apiConversationHistory: MessageParam[]
+  - clineMessages: ClineMessage[]
+  + ask(type: ClineAsk, text?: string, partial?: boolean): Promise<ClineAskResponse>
+  + say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<void>
+  + abortTask(): Promise<void>
+  + executeCommandTool(command: string): Promise<[boolean, ToolResponse]>
+}
+
+class ApiHandler {
+  + handleRequest()
+  + transformResponse()
+}
+
+class TerminalManager {
+  + executeCommand()
+  + handleOutput()
+}
+
+class BrowserSession {
+  + navigate()
+  + fetchContent()
+}
+
+class AutoApprovalSettings {
+  + shouldAutoApprove()
+  + getSettings()
+}
+
+' Relationships
+Cline "1" *-- "1" ApiHandler
+Cline "1" *-- "1" TerminalManager
+Cline "1" *-- "1" BrowserSession
+Cline "1" *-- "1" AutoApprovalSettings
+
+@enduml 

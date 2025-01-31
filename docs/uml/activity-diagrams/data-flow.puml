@@ -1,0 +1,65 @@
+@startuml
+
+' System Data Flow Diagram
+' Source files mapping:
+' - src/**/*.ts
+
+|输入层|
+start
+:用户输入;
+:工作区状态;
+:配置信息;
+
+|处理层|
+fork
+    :文本处理;
+    :上下文分析;
+    :代码解析;
+fork again
+    :配置加载;
+    :验证检查;
+end fork
+
+|API交互层|
+if (需要AI处理?) then (yes)
+    :准备API请求;
+    :发送到LLM服务;
+    :接收LLM响应;
+    :响应解析;
+else (no)
+    :本地处理;
+endif
+
+|工具执行层|
+fork
+    :终端操作;
+    :命令执行;
+    :输出捕获;
+fork again
+    :文件操作;
+    :读写处理;
+    :状态更新;
+fork again
+    :浏览器操作;
+    :页面交互;
+    :内容获取;
+end fork
+
+|输出层|
+:结果整合;
+:格式化输出;
+:状态更新;
+:历史记录;
+
+|存储层|
+fork
+    :配置存储;
+fork again
+    :历史记录;
+fork again
+    :缓存数据;
+end fork
+
+stop
+
+@enduml 

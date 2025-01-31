@@ -1,0 +1,141 @@
+@startuml services-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "Services" {
+    package "Browser" {
+        ' Implementation: src/services/browser/
+        class BrowserSession {
+            - browser: Object
+            - page: Object
+            - config: Object
+            + constructor(config: Object)
+            + navigate(url: string)
+            + evaluate(script: string)
+            + screenshot()
+            + close()
+            - initBrowser()
+            - setupPage()
+        }
+
+        class BrowserAutomation {
+            - session: BrowserSession
+            + click(selector: string)
+            + type(selector: string, text: string)
+            + waitForSelector(selector: string)
+            + extractContent(selector: string)
+        }
+    }
+
+    package "TreeSitter" {
+        ' Implementation: src/services/tree-sitter/
+        class TreeSitterService {
+            - parser: Object
+            - query: Object
+            + parseFile(file: string)
+            + findDefinitions(tree: Object)
+            + findReferences(tree: Object, name: string)
+            - buildQuery(pattern: string)
+        }
+
+        class AstAnalyzer {
+            - tree: Object
+            + analyze()
+            + findPatterns(pattern: string)
+            + traverse(callback: Function)
+        }
+    }
+
+    package "Ripgrep" {
+        ' Implementation: src/services/ripgrep/
+        class RipgrepService {
+            - config: Object
+            + search(pattern: string)
+            + searchFiles(files: string[])
+            - parseOutput(output: string)
+            - buildCommand(pattern: string)
+        }
+
+        class SearchResult {
+            + file: string
+            + line: number
+            + content: string
+            + matches: Object[]
+        }
+    }
+
+    package "Glob" {
+        ' Implementation: src/services/glob/
+        class GlobService {
+            + findFiles(pattern: string)
+            + watchPattern(pattern: string)
+            - parsePattern(pattern: string)
+            - matchFile(file: string, pattern: Object)
+        }
+
+        class FileWatcher {
+            - pattern: string
+            - watcher: Object
+            + watch(callback: Function)
+            + close()
+        }
+    }
+
+    package "MCP" {
+        ' Implementation: src/services/mcp/
+        class McpService {
+            - connection: Object
+            - handlers: Map
+            + connect()
+            + sendRequest(req: Object)
+            + registerHandler(type: string, handler: Function)
+            - handleMessage(message: Object)
+        }
+
+        class McpRequest {
+            + type: string
+            + payload: Object
+            + id: string
+        }
+
+        class McpResponse {
+            + type: string
+            + payload: Object
+            + error: Object
+        }
+    }
+}
+
+' 关系定义
+BrowserSession --> BrowserAutomation : creates
+TreeSitterService --> AstAnalyzer : uses
+RipgrepService --> SearchResult : produces
+GlobService --> FileWatcher : creates
+McpService --> McpRequest : sends
+McpService --> McpResponse : receives
+
+' 注释
+note right of BrowserSession
+  管理浏览器自动化会话
+  实现页面控制和交互
+  File: src/services/browser/BrowserSession.ts
+end note
+
+note right of TreeSitterService
+  提供代码解析和分析
+  使用tree-sitter生成AST
+  File: src/services/tree-sitter/index.ts
+end note
+
+note right of RipgrepService
+  快速文件内容搜索
+  封装ripgrep功能
+  File: src/services/ripgrep/index.ts
+end note
+
+@enduml 

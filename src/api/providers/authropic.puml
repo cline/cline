@@ -1,0 +1,18 @@
+@startuml
+
+class AnthropicHandler {
+    - options: ApiHandlerOptions
+    - client: Anthropic
+    + constructor(options: ApiHandlerOptions)
+    + createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+    + getModel(): { id: AnthropicModelId; info: ModelInfo }
+}
+
+AnthropicHandler --> Anthropic
+AnthropicHandler --> ApiHandlerOptions
+AnthropicHandler --> Anthropic.Messages.MessageParam
+AnthropicHandler --> ApiStream
+AnthropicHandler --> AnthropicModelId
+AnthropicHandler --> ModelInfo
+
+@enduml

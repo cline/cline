@@ -1,0 +1,34 @@
+@startuml
+
+package "Cline Extension" {
+    [Core Module] as Core
+    [API Module] as API
+    [Terminal Integration] as Terminal
+    [Browser Integration] as Browser
+    [WebView UI] as UI
+    
+    database "Conversation History" as History
+    
+    interface "VS Code API" as VSCode
+    interface "External APIs" as ExtAPI
+    interface "File System" as FS
+}
+
+[User Workspace] as Workspace
+[Web Browser] as WebBrowser
+[Command Line] as CMD
+
+Core --> API : uses
+Core --> Terminal : uses
+Core --> Browser : uses
+Core --> UI : updates
+Core --> History : stores
+
+API --> ExtAPI : calls
+Terminal --> CMD : executes
+Browser --> WebBrowser : controls
+Core --> VSCode : integrates
+Core --> FS : reads/writes
+UI --> Workspace : displays
+
+@enduml 

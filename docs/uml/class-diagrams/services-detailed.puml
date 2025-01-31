@@ -1,0 +1,80 @@
+@startuml
+
+' Services Module Class Diagram
+' Source files mapping:
+' - src/services/**/*.ts
+
+package "Browser Services" {
+    ' src/services/browser/
+    class BrowserSession {
+        - page: Page
+        - browser: Browser
+        + navigate(url: string)
+        + fetchContent()
+        + close()
+    }
+
+    class UrlContentFetcher {
+        - session: BrowserSession
+        + fetch(url: string): Promise<string>
+    }
+}
+
+package "File Services" {
+    ' src/services/glob/
+    class GlobService {
+        + listFiles(pattern: string): string[]
+        + findInPath(path: string): string[]
+    }
+
+    ' src/services/ripgrep/
+    class RipGrepService {
+        + search(pattern: string): SearchResult[]
+        + searchInFiles(files: string[]): SearchResult[]
+    }
+}
+
+package "Code Analysis" {
+    ' src/services/tree-sitter/
+    class TreeSitterService {
+        + parseFile(file: string): ASTNode
+        + findDefinitions(node: ASTNode): Definition[]
+    }
+}
+
+package "MCP Services" {
+    ' src/services/mcp/
+    class McpClient {
+        - connection: WebSocket
+        + connect()
+        + sendRequest(req: McpRequest)
+        + onResponse(callback: Function)
+    }
+
+    class McpService {
+        - client: McpClient
+        + handleRequest(req: McpRequest)
+        + processResponse(res: McpResponse)
+    }
+}
+
+' Relationships
+BrowserSession --o UrlContentFetcher
+McpClient --* McpService
+
+note right of BrowserSession
+  Handles browser automation
+  Located in src/services/browser/BrowserSession.ts
+end note
+
+note right of GlobService
+  File system operations
+  Located in src/services/glob/
+end note
+
+note right of TreeSitterService
+  Code parsing and analysis
+  Located in src/services/tree-sitter/
+end note
+
+@enduml 

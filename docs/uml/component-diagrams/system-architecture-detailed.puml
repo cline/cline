@@ -1,0 +1,100 @@
+@startuml
+
+' System Architecture Component Diagram
+' Source files mapping:
+' - src/**/*
+
+package "VSCode Extension" {
+    [Extension Host] as ExtHost
+    [Webview Panel] as WebView
+}
+
+package "Core System" {
+    package "Core Module" {
+        [Task Manager] as TaskMgr
+        [Context Handler] as CtxHandler
+        [Message Router] as MsgRouter
+    }
+    
+    package "API Layer" {
+        [API Client] as ApiClient
+        [Provider Manager] as ProviderMgr
+        [Response Transformer] as Transformer
+        
+        database "Provider Implementations" as Providers {
+            [Anthropic]
+            [OpenAI]
+            [DeepSeek]
+            [Gemini]
+            [Mistral]
+            [Other Providers...]
+        }
+    }
+    
+    package "Tools & Services" {
+        [Command Executor] as CmdExec
+        [File System Handler] as FSHandler
+        [Browser Controller] as Browser
+        [MCP Service] as MCP
+    }
+    
+    package "Integration Layer" {
+        [Checkpoint System] as Checkpoint
+        [Diagnostics Monitor] as Diagnostics
+        [Theme Handler] as Theme
+        [Workspace Manager] as Workspace
+    }
+}
+
+' External Systems
+cloud "LLM Services" {
+    [Claude API]
+    [GPT API]
+    [Other APIs...]
+}
+
+database "Local Storage" {
+    [Config Files]
+    [History]
+    [Checkpoints]
+}
+
+' Relationships
+ExtHost --> TaskMgr : commands
+WebView --> MsgRouter : events
+
+TaskMgr --> CtxHandler : uses
+TaskMgr --> MsgRouter : uses
+CtxHandler --> ApiClient : requests
+MsgRouter --> ApiClient : routes
+
+ApiClient --> ProviderMgr : manages
+ProviderMgr --> Providers : loads
+Providers --> Transformer : uses
+ApiClient --> [LLM Services] : calls
+
+TaskMgr --> CmdExec : executes
+TaskMgr --> FSHandler : manages
+TaskMgr --> Browser : controls
+TaskMgr --> MCP : integrates
+
+CtxHandler --> Checkpoint : manages
+TaskMgr --> Diagnostics : monitors
+WebView --> Theme : applies
+TaskMgr --> Workspace : manages
+
+Checkpoint --> [Local Storage] : persists
+FSHandler --> [Local Storage] : reads/writes
+
+' Interfaces
+interface "VSCode API" as VSCodeAPI
+interface "File System" as FS
+interface "Browser API" as BrowserAPI
+interface "MCP Protocol" as MCPProtocol
+
+ExtHost -- VSCodeAPI
+FSHandler -- FS
+Browser -- BrowserAPI
+MCP -- MCPProtocol
+
+@enduml

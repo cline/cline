@@ -1,0 +1,151 @@
+@startuml core-cline-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "Core" {
+    package "App" #LightGreen {
+        note "src/core/app/" as N1
+        class Application {
+            - config: Object
+            - services: Map
+            + start()
+            + stop()
+            + getService(name: string)
+            - initializeServices()
+        }
+        note right of Application : src/core/app/Application.ts
+
+        class ServiceRegistry {
+            - services: Map
+            + register(name: string, service: Object)
+            + unregister(name: string)
+            + get(name: string)
+            - validateService(service: Object)
+        }
+        note right of ServiceRegistry : src/core/app/ServiceRegistry.ts
+    }
+
+    package "Session" #LightBlue {
+        note "src/core/session/" as N2
+        class SessionManager {
+            - sessions: Map
+            - activeSession: Object
+            + createSession()
+            + switchSession(id: string)
+            + closeSession(id: string)
+            - validateSession(session: Object)
+        }
+        note right of SessionManager : src/core/session/SessionManager.ts
+
+        class Session {
+            + id: string
+            + state: Object
+            + history: Object[]
+            + metadata: Object
+            + save()
+            + restore()
+        }
+        note right of Session : src/core/session/Session.ts
+    }
+
+    package "Command" #LightYellow {
+        note "src/core/command/" as N3
+        class CommandManager {
+            - commands: Map
+            + registerCommand(name: string, handler: Function)
+            + executeCommand(name: string, args: Object)
+            + listCommands()
+            - validateCommand(command: Object)
+        }
+        note right of CommandManager : src/core/command/CommandManager.ts
+
+        class CommandExecutor {
+            - context: Object
+            + execute(command: Object)
+            + rollback(command: Object)
+            - validateExecution(command: Object)
+        }
+        note right of CommandExecutor : src/core/command/CommandExecutor.ts
+    }
+
+    package "Context" #LightPink {
+        note "src/core/context/" as N4
+        class ContextManager {
+            - context: Object
+            - stack: Object[]
+            + pushContext(context: Object)
+            + popContext()
+            + getCurrentContext()
+            - mergeContext(context: Object)
+        }
+        note right of ContextManager : src/core/context/ContextManager.ts
+
+        class Context {
+            + workspace: Object
+            + environment: Object
+            + user: Object
+            + metadata: Object
+        }
+        note right of Context : src/core/context/Context.ts
+    }
+
+    package "Plugin" #LightGray {
+        note "src/core/plugin/" as N5
+        class PluginManager {
+            - plugins: Map
+            + loadPlugin(path: string)
+            + enablePlugin(name: string)
+            + disablePlugin(name: string)
+            - validatePlugin(plugin: Object)
+        }
+        note right of PluginManager : src/core/plugin/PluginManager.ts
+
+        class Plugin {
+            + name: string
+            + version: string
+            + exports: Object
+            + activate()
+            + deactivate()
+        }
+        note right of Plugin : src/core/plugin/Plugin.ts
+    }
+}
+
+' 关系定义
+Application --> ServiceRegistry : uses
+Application --> SessionManager : uses
+Application --> CommandManager : uses
+Application --> ContextManager : uses
+Application --> PluginManager : uses
+SessionManager --> Session : manages
+CommandManager --> CommandExecutor : uses
+ContextManager --> Context : manages
+PluginManager --> Plugin : manages
+
+' 注释
+note right of Application
+  应用程序的主入口
+  管理服务生命周期
+end note
+
+note right of SessionManager
+  管理用户会话
+  处理会话状态和切换
+end note
+
+note right of CommandManager
+  管理命令的注册和执行
+  支持命令回滚
+end note
+
+note right of PluginManager
+  管理插件的加载和生命周期
+  提供插件API
+end note
+
+@enduml 

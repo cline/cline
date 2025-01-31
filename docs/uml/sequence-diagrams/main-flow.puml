@@ -1,0 +1,36 @@
+@startuml
+
+actor User
+participant "Cline" as Cline
+participant "ApiHandler" as API
+participant "TerminalManager" as Terminal
+participant "BrowserSession" as Browser
+
+User -> Cline: ask(type, text)
+activate Cline
+
+Cline -> API: handleRequest()
+activate API
+API --> Cline: response
+deactivate API
+
+alt Tool Execution Required
+    Cline -> Terminal: executeCommand()
+    activate Terminal
+    Terminal --> Cline: commandOutput
+    deactivate Terminal
+end
+
+alt Browser Action Required
+    Cline -> Browser: navigate()
+    activate Browser
+    Browser --> Cline: content
+    deactivate Browser
+end
+
+Cline -> Cline: presentAssistantMessage()
+Cline --> User: response
+
+deactivate Cline
+
+@enduml 

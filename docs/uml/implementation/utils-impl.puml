@@ -1,0 +1,146 @@
+@startuml utils-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "Utils" {
+    package "File" {
+        class FileSystem {
+            - config: FileSystemConfig
+            + readFile(path: string): Promise<string>
+            + writeFile(path: string, content: string): Promise<void>
+            + exists(path: string): Promise<boolean>
+            + delete(path: string): Promise<void>
+            + mkdir(path: string): Promise<void>
+            - ensureDirectory(path: string): Promise<void>
+        }
+
+        class PathUtils {
+            + normalize(path: string): string
+            + join(...paths: string[]): string
+            + relative(from: string, to: string): string
+            + isAbsolute(path: string): boolean
+            + dirname(path: string): string
+            + basename(path: string): string
+        }
+    }
+
+    package "String" {
+        class StringUtils {
+            + capitalize(str: string): string
+            + camelCase(str: string): string
+            + snakeCase(str: string): string
+            + kebabCase(str: string): string
+            + truncate(str: string, length: number): string
+            + template(str: string, data: object): string
+        }
+
+        class TextFormatter {
+            - format: string
+            + format(text: string): string
+            + highlight(text: string, pattern: string): string
+            + wrap(text: string, width: number): string[]
+            + indent(text: string, level: number): string
+        }
+    }
+
+    package "Process" {
+        class ProcessManager {
+            - processes: Map<string, Process>
+            + spawn(command: string, args: string[]): Promise<void>
+            + exec(command: string): Promise<string>
+            + kill(pid: number): Promise<void>
+            - handleExit(process: Process): void
+        }
+
+        class ProcessUtils {
+            + isRunning(pid: number): boolean
+            + getProcessInfo(pid: number): ProcessInfo
+            + waitForExit(pid: number): Promise<void>
+            + setEnv(key: string, value: string): void
+        }
+    }
+
+    package "Network" {
+        class HttpClient {
+            - baseUrl: string
+            - timeout: number
+            + get<T>(url: string): Promise<T>
+            + post<T>(url: string, data: any): Promise<T>
+            + put<T>(url: string, data: any): Promise<T>
+            + delete<T>(url: string): Promise<T>
+        }
+
+        class WebSocket {
+            - url: string
+            - reconnectAttempts: number
+            + connect(): Promise<void>
+            + send(data: any): Promise<void>
+            + close(): void
+            - handleReconnect(): void
+        }
+    }
+
+    package "Security" {
+        class Crypto {
+            + encrypt(data: string, key: string): string
+            + decrypt(data: string, key: string): string
+            + hash(data: string): string
+            + generateKey(length: number): string
+        }
+
+        class TokenManager {
+            - tokens: Map<string, Token>
+            + createToken(data: any): string
+            + validateToken(token: string): boolean
+            + revokeToken(token: string): void
+            - cleanExpiredTokens(): void
+        }
+    }
+
+    package "Data" {
+        class JsonUtils {
+            + parse<T>(json: string): T
+            + stringify(data: any): string
+            + transform(data: any, schema: Schema): any
+            + validate(data: any, schema: Schema): boolean
+        }
+
+        class DataTransformer {
+            - transforms: Map<string, Transform>
+            + register(name: string, transform: Transform): void
+            + apply(name: string, data: any): any
+            + pipe(...transforms: string[]): Transform
+        }
+    }
+}
+
+' 关系定义
+FileSystem --> PathUtils : uses
+StringUtils --> TextFormatter : uses
+ProcessManager --> ProcessUtils : uses
+HttpClient --> WebSocket : uses
+Crypto --> TokenManager : uses
+JsonUtils --> DataTransformer : uses
+
+' 注释
+note right of FileSystem
+  文件系统操作封装
+  处理异步文件操作
+end note
+
+note right of HttpClient
+  HTTP客户端，支持重试和超时
+  实现各种请求方法
+end note
+
+note right of Crypto
+  加密操作封装
+  实现安全的加密/解密功能
+end note
+
+@enduml 

@@ -1,0 +1,147 @@
+@startuml extension-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "Extension" {
+    package "Core" {
+        class ExtensionManager {
+            - context: Object
+            - subscriptions: Object[]
+            + activate()
+            + deactivate()
+            + registerCommand(name: string)
+            - initialize()
+        }
+
+        class CommandRegistry {
+            - commands: Map
+            + register(name: string, callback: Function)
+            + execute(name: string)
+            + dispose()
+            - validateCommand(name: string)
+        }
+    }
+
+    package "Views" {
+        class ViewManager {
+            - views: Map
+            + registerView(id: string, view: Object)
+            + showView(id: string)
+            + hideView(id: string)
+            - createWebviewPanel(id: string)
+        }
+
+        class ChatView {
+            - panel: Object
+            - messages: Object[]
+            + render()
+            + update(message: Object)
+            + clear()
+            - handleMessage(message: Object)
+        }
+
+        class StatusBar {
+            - item: Object
+            + show()
+            + hide()
+            + setText(text: string)
+            + setTooltip(text: string)
+        }
+    }
+
+    package "Providers" {
+        class CompletionProvider {
+            - triggerChars: string[]
+            + provideCompletions(document: Object)
+            + resolveCompletion(item: Object)
+            - getCompletionItems(text: string)
+        }
+
+        class CodeActionProvider {
+            - actions: Map
+            + provideCodeActions(document: Object)
+            + resolveCodeAction(action: Object)
+            - getAvailableActions(context: Object)
+        }
+
+        class HoverProvider {
+            - cache: Map
+            + provideHover(document: Object)
+            + clearCache()
+            - getHoverContent(word: string)
+        }
+    }
+
+    package "Config" {
+        class ConfigurationManager {
+            - config: Object
+            + load()
+            + save()
+            + get(key: string)
+            + set(key: string, value: Object)
+        }
+
+        class WorkspaceConfig {
+            + editor: Object
+            + terminal: Object
+            + api: Object
+            + features: Object
+        }
+    }
+
+    package "Debug" {
+        class DebugManager {
+            - logger: Object
+            + log(message: string)
+            + error(error: Object)
+            + clearLogs()
+            - formatLog(message: string)
+        }
+
+        class Diagnostics {
+            - collection: Object
+            + report(uri: Object, diagnostic: Object)
+            + clear(uri: Object)
+            - validateDiagnostic(diagnostic: Object)
+        }
+    }
+}
+
+' 关系定义
+ExtensionManager --> CommandRegistry : uses
+ExtensionManager --> ViewManager : uses
+ExtensionManager --> ConfigurationManager : uses
+ViewManager --> ChatView : manages
+ViewManager --> StatusBar : manages
+CompletionProvider --> ConfigurationManager : uses
+CodeActionProvider --> ConfigurationManager : uses
+HoverProvider --> ConfigurationManager : uses
+DebugManager --> Diagnostics : uses
+
+' 注释
+note right of ExtensionManager
+  VS Code扩展的主入口
+  管理扩展生命周期
+end note
+
+note right of ViewManager
+  管理UI视图
+  处理Webview面板
+end note
+
+note right of CompletionProvider
+  提供代码补全功能
+  支持智能提示
+end note
+
+note right of DebugManager
+  管理调试和诊断
+  处理错误报告
+end note
+
+@enduml 

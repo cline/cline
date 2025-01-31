@@ -1,0 +1,137 @@
+@startuml integrations-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "Integrations" {
+    package "Editor" {
+        ' Implementation: src/integrations/editor/
+        class EditorManager {
+            - activeEditor: Object
+            - decorations: Map
+            + openFile(path: string)
+            + showDiff(original: string, modified: string)
+            + applyEdit(edit: Object)
+            + highlightRange(range: Object, type: string)
+        }
+
+        class DiffViewProvider {
+            - uri: Object
+            - diffs: Map
+            + provideTextDocumentContent(uri: Object)
+            + updateDiff(path: string, diff: Object)
+            - formatDiff(diff: Object)
+        }
+    }
+
+    package "Terminal" {
+        ' Implementation: src/integrations/terminal/
+        class TerminalManager {
+            - terminals: Map
+            - activeTerminal: Object
+            + createTerminal(name: string)
+            + executeCommand(command: string)
+            + killTerminal(name: string)
+            - handleOutput(output: string)
+        }
+
+        class Terminal {
+            - process: Object
+            - buffer: string[]
+            + write(data: string)
+            + onData(callback: Function)
+            + kill()
+            - handleError(error: Object)
+        }
+    }
+
+    package "Workspace" {
+        ' Implementation: src/integrations/workspace/
+        class WorkspaceManager {
+            - rootPath: string
+            - fileWatchers: Map
+            + findFiles(pattern: string)
+            + createFileWatcher(pattern: string)
+            + readFile(uri: Object)
+            + writeFile(uri: Object, content: string)
+        }
+
+        class FileWatcher {
+            - pattern: string
+            - watcher: Object
+            + onDidChange(callback: Function)
+            + onDidCreate(callback: Function)
+            + onDidDelete(callback: Function)
+            + dispose()
+        }
+    }
+
+    package "Diagnostics" {
+        ' Implementation: src/integrations/diagnostics/
+        class DiagnosticsManager {
+            - collection: Object
+            + addDiagnostic(uri: Object, diagnostic: Object)
+            + clearDiagnostics(uri: Object)
+            + updateDiagnostics(uri: Object, diagnostics: Object[])
+        }
+
+        class Diagnostic {
+            + range: Object
+            + message: string
+            + severity: string
+            + source: string
+            + code: string
+        }
+    }
+
+    package "Checkpoints" {
+        ' Implementation: src/integrations/checkpoints/
+        class CheckpointManager {
+            - checkpoints: Map
+            + createCheckpoint(id: string)
+            + restoreCheckpoint(id: string)
+            + deleteCheckpoint(id: string)
+            - validateCheckpoint(checkpoint: Object)
+        }
+
+        class Checkpoint {
+            + id: string
+            + timestamp: number
+            + files: Map
+            + save()
+            + restore()
+        }
+    }
+}
+
+' 关系定义
+EditorManager --> DiffViewProvider : uses
+TerminalManager --> Terminal : manages
+WorkspaceManager --> FileWatcher : creates
+DiagnosticsManager --> Diagnostic : manages
+CheckpointManager --> Checkpoint : manages
+
+' 注释
+note right of EditorManager
+  管理VS Code编辑器交互
+  处理文件操作和UI更新
+  File: src/integrations/editor/EditorManager.ts
+end note
+
+note right of TerminalManager
+  管理集成终端实例
+  处理命令执行和输出
+  File: src/integrations/terminal/TerminalManager.ts
+end note
+
+note right of WorkspaceManager
+  管理工作区文件操作
+  处理文件监视和修改
+  File: src/integrations/workspace/WorkspaceManager.ts
+end note
+
+@enduml 

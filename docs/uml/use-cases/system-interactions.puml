@@ -1,0 +1,92 @@
+@startuml
+
+' System Use Case Diagram
+' Source files mapping:
+' - src/**/*
+
+left to right direction
+
+actor "VSCode User" as User
+actor "LLM Service" as LLM
+actor "File System" as FS
+actor "Browser" as Browser
+actor "MCP Server" as MCP
+
+rectangle "Cline System" {
+    package "Task Management" {
+        usecase "Start New Task" as UC1
+        usecase "Resume Task" as UC2
+        usecase "Abort Task" as UC3
+        usecase "Save Checkpoint" as UC4
+        usecase "Restore Checkpoint" as UC5
+    }
+    
+    package "AI Interaction" {
+        usecase "Send API Request" as UC6
+        usecase "Process Response" as UC7
+        usecase "Handle Streaming" as UC8
+        usecase "Transform Messages" as UC9
+    }
+    
+    package "Tool Operations" {
+        usecase "Execute Command" as UC10
+        usecase "Read/Write Files" as UC11
+        usecase "Control Browser" as UC12
+        usecase "Use MCP Tools" as UC13
+    }
+    
+    package "Context Management" {
+        usecase "Load Environment" as UC14
+        usecase "Update Context" as UC15
+        usecase "Handle History" as UC16
+        usecase "Manage Config" as UC17
+    }
+}
+
+' User interactions
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+
+' LLM Service interactions
+UC6 --> LLM
+UC7 --> LLM
+UC8 --> LLM
+
+' File System interactions
+UC11 --> FS
+UC14 --> FS
+UC16 --> FS
+UC17 --> FS
+
+' Browser interactions
+UC12 --> Browser
+
+' MCP interactions
+UC13 --> MCP
+
+' Internal relationships
+UC1 ..> UC14 : includes
+UC1 ..> UC6 : includes
+UC2 ..> UC16 : includes
+UC4 ..> UC11 : includes
+UC5 ..> UC11 : includes
+
+UC6 ..> UC8 : includes
+UC7 ..> UC9 : includes
+UC7 ..> UC15 : includes
+
+' Notes
+note "All tasks maintain context\nand can use tools" as N1
+note "API requests support\nstreaming responses" as N2
+note "Tools can be auto-approved\nbased on settings" as N3
+note "Context includes file system\nand environment details" as N4
+
+N1 .. UC1
+N2 .. UC8
+N3 .. UC10
+N4 .. UC14
+
+@enduml

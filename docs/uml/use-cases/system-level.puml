@@ -1,0 +1,101 @@
+@startuml
+
+' System Level Use Case Diagram
+' Requirements mapping:
+' - All core functionalities
+
+left to right direction
+
+' Actors
+actor "开发者" as Developer
+actor "AI服务" as AIService
+actor "VS Code" as VSCode
+actor "终端" as Terminal
+actor "浏览器" as Browser
+actor "文件系统" as FileSystem
+
+' Main package
+rectangle "Cline Extension System" {
+    ' Core functionalities
+    usecase "代码辅助对话" as CodeAssist
+    usecase "代码生成" as CodeGen
+    usecase "代码修改" as CodeMod
+    usecase "代码分析" as CodeAnalysis
+    usecase "代码调试" as Debug
+    usecase "文档生成" as DocGen
+
+    ' Sub-functionalities for Code Assist
+    usecase "上下文理解" as Context
+    usecase "智能提示" as Suggest
+    usecase "代码补全" as Complete
+    usecase "问题解答" as Answer
+
+    ' Sub-functionalities for Code Modification
+    usecase "代码重构" as Refactor
+    usecase "错误修复" as BugFix
+    usecase "格式化" as Format
+    usecase "优化建议" as Optimize
+
+    ' Sub-functionalities for Analysis
+    usecase "语义分析" as Semantic
+    usecase "依赖分析" as Dependency
+    usecase "质量检查" as Quality
+    usecase "安全扫描" as Security
+}
+
+' Relationships
+Developer --> CodeAssist
+Developer --> CodeGen
+Developer --> CodeMod
+Developer --> CodeAnalysis
+Developer --> Debug
+Developer --> DocGen
+
+CodeAssist <.. Context : <<include>>
+CodeAssist <.. Suggest : <<include>>
+CodeAssist <.. Complete : <<include>>
+CodeAssist <.. Answer : <<include>>
+
+CodeMod <.. Refactor : <<include>>
+CodeMod <.. BugFix : <<include>>
+CodeMod <.. Format : <<include>>
+CodeMod <.. Optimize : <<include>>
+
+CodeAnalysis <.. Semantic : <<include>>
+CodeAnalysis <.. Dependency : <<include>>
+CodeAnalysis <.. Quality : <<include>>
+CodeAnalysis <.. Security : <<include>>
+
+' External system interactions
+AIService --> CodeAssist : 提供AI能力
+VSCode --> CodeMod : 集成编辑
+Terminal --> Debug : 执行命令
+Browser --> DocGen : 预览文档
+FileSystem --> CodeAnalysis : 文件访问
+
+' Notes
+note right of CodeAssist
+  核心功能：
+  1. 智能代码补全
+  2. 上下文感知建议
+  3. 实时代码分析
+  4. 自然语言交互
+end note
+
+note right of CodeMod
+  修改功能：
+  1. 自动重构
+  2. 批量修改
+  3. 智能格式化
+  4. 代码优化
+end note
+
+note right of CodeAnalysis
+  分析功能：
+  1. 静态代码分析
+  2. 依赖关系图
+  3. 代码质量报告
+  4. 安全漏洞检测
+end note
+
+@enduml 

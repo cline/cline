@@ -1,0 +1,72 @@
+@startuml core-activity-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam ArrowColor black
+
+' 命令处理流程
+start
+:接收用户命令;
+
+partition "命令验证" {
+    if (命令格式是否有效?) then (yes)
+        :解析命令参数;
+        if (参数验证) then (valid)
+            :加载命令处理器;
+        else (invalid)
+            :记录参数错误;
+            stop
+        endif
+    else (no)
+        :记录格式错误;
+        stop
+    endif
+}
+
+partition "命令执行" {
+    :准备执行环境;
+    fork
+        :加载用户配置;
+    fork again
+        :初始化会话状态;
+    end fork
+    
+    :执行命令处理器;
+    
+    fork
+        :记录执行日志;
+    fork again
+        :更新UI状态;
+    end fork
+}
+
+partition "结果处理" {
+    if (执行成功?) then (yes)
+        :格式化执行结果;
+        :更新历史记录;
+        :显示成功消息;
+    else (no)
+        :捕获错误信息;
+        :记录错误日志;
+        :显示错误提示;
+    endif
+}
+
+partition "清理工作" {
+    :保存会话状态;
+    :清理临时资源;
+    :更新命令统计;
+}
+
+stop
+
+' 注释
+note right
+  实现文件: src/core/command/executor.ts
+  主要处理命令的执行流程
+  包含验证、执行和清理三个主要阶段
+end note
+
+@enduml 

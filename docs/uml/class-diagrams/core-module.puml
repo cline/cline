@@ -1,0 +1,71 @@
+@startuml
+
+' Core Module Class Diagram
+' Source files mapping:
+' - src/core/**/*.ts
+
+package "Core" {
+    class Cline {
+        ' src/core/Cline.ts
+        - taskId: string
+        - api: ApiHandler
+        - terminalManager: TerminalManager
+        - urlContentFetcher: UrlContentFetcher
+        - browserSession: BrowserSession
+        - didEditFile: boolean
+        - customInstructions: string
+        - autoApprovalSettings: AutoApprovalSettings
+        + ask(type: ClineAsk, text?: string): Promise<ClineAskResponse>
+        + say(type: ClineSay, text?: string): Promise<void>
+        + abortTask(): Promise<void>
+        + executeCommandTool(command: string): Promise<ToolResponse>
+    }
+
+    package "Assistant Message" {
+        ' src/core/assistant-message/
+        class AssistantMessageContent {
+            - text: string
+            - tools: ToolUse[]
+            + parse(): ParsedMessage
+            + format(): string
+        }
+
+        class ToolUse {
+            - name: string
+            - params: Map<string, any>
+            + execute(): Promise<any>
+        }
+    }
+
+    package "Prompts" {
+        ' src/core/prompts/
+        class PromptManager {
+            + getSystemPrompt(): string
+            + formatUserPrompt(text: string): string
+            + formatResponse(response: any): string
+        }
+
+        class SystemPrompt {
+            - template: string
+            - variables: Map<string, string>
+            + render(): string
+        }
+    }
+
+    package "Mentions" {
+        ' src/core/mentions/
+        class MentionParser {
+            + parse(text: string): Mention[]
+            + resolve(mentions: Mention[]): ResolvedMention[]
+        }
+    }
+}
+
+' Relationships
+Cline --> AssistantMessageContent: uses
+Cline --> PromptManager: uses
+AssistantMessageContent *-- ToolUse
+PromptManager --> SystemPrompt: uses
+Cline --> MentionParser: uses
+
+@enduml 

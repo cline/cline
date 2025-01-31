@@ -1,0 +1,150 @@
+:root {
+    --primary-blue: #4285f4;
+    --text-gray: #666;
+    --bg-light: #f8f9fa;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+    min-height: 100vh;
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.nav-logo {
+    height: 24px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--text-gray);
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    color: var(--primary-blue);
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.api-link {
+    text-decoration: none;
+    color: var(--primary-blue);
+    font-weight: 500;
+}
+
+.lang-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    color: var(--text-gray);
+}
+
+.announcement {
+    display: block;
+    background: rgba(66, 133, 244, 0.1);
+    color: var(--primary-blue);
+    padding: 0.75rem;
+    text-align: center;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background-color 0.2s;
+}
+
+.announcement:hover {
+    background: rgba(66, 133, 244, 0.15);
+}
+
+.rocket {
+    margin-right: 0.5rem;
+}
+
+.hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.logo-container {
+    margin-bottom: 3rem;
+}
+
+.hero-logo {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-blue);
+    margin-bottom: 1rem;
+}
+
+.hero h1 {
+    color: #333;
+    font-size: 2.5rem;
+    font-weight: 500;
+}
+
+.cards-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.card {
+    background: var(--bg-light);
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+    width: 320px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+}
+
+.card h2 {
+    color: var(--primary-blue);
+    margin-bottom: 1rem;
+}
+
+.card p {
+    color: var(--text-gray);
+    line-height: 1.5;
+    font-size: 0.9rem;
+}

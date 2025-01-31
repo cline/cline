@@ -1,0 +1,76 @@
+@startuml
+
+' UML Update Strategy Diagram
+' Implementation mapping:
+' - tools/uml-sync/strategies/**/*.ts
+
+state "变更检测" as ChangeDetection {
+    state "文件监听" as FileWatch {
+        [*] --> 检测文件变更
+        检测文件变更 --> 过滤相关文件
+        过滤相关文件 --> 确定影响范围
+    }
+    
+    state "AST分析" as ASTAnalysis {
+        [*] --> 解析新AST
+        解析新AST --> 对比旧AST
+        对比旧AST --> 生成变更集
+    }
+}
+
+state "UML更新" as UMLUpdate {
+    state "智能更新" as SmartUpdate {
+        [*] --> 定位更新区域
+        定位更新区域 --> 保留手动注释
+        保留手动注释 --> 合并变更
+    }
+    
+    state "增量更新" as IncrementalUpdate {
+        [*] --> 分析依赖关系
+        分析依赖关系 --> 确定更新顺序
+        确定更新顺序 --> 应用更新
+    }
+}
+
+state "冲突处理" as ConflictResolution {
+    state "冲突检测" as ConflictDetection {
+        [*] --> 检查手动修改
+        检查手动修改 --> 识别冲突
+        识别冲突 --> 生成解决方案
+    }
+    
+    state "交互式解决" as InteractiveResolution {
+        [*] --> 展示冲突
+        展示冲突 --> 等待用户选择
+        等待用户选择 --> 应用选择
+    }
+}
+
+[*] --> ChangeDetection
+ChangeDetection --> UMLUpdate : 检测到变更
+UMLUpdate --> ConflictResolution : 发现冲突
+ConflictResolution --> UMLUpdate : 解决冲突
+UMLUpdate --> [*] : 更新完成
+
+note right of ChangeDetection
+  实现策略：
+  1. 文件系统监听
+  2. Git hooks触发
+  3. IDE保存触发
+end note
+
+note right of UMLUpdate
+  更新原则：
+  1. 最小化更新范围
+  2. 保持手动修改
+  3. 维持图形布局
+end note
+
+note right of ConflictResolution
+  冲突处理：
+  1. 自动解决简单冲突
+  2. 交互式处理复杂冲突
+  3. 记录解决历史
+end note
+
+@enduml 

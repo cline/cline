@@ -1,0 +1,88 @@
+@startuml api-activity-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam ArrowColor black
+
+' API调用流程
+start
+:接收API请求;
+
+partition "请求预处理" {
+    :验证API配置;
+    if (配置有效?) then (yes)
+        :选择API提供者;
+        :准备请求参数;
+    else (no)
+        :记录配置错误;
+        stop
+    endif
+}
+
+partition "请求转换" {
+    fork
+        :转换消息格式;
+    fork again
+        :处理特殊标记;
+    end fork
+    
+    :构建API请求体;
+    
+    if (是否流式请求?) then (yes)
+        :配置流式处理器;
+    else (no)
+        :配置普通处理器;
+    endif
+}
+
+partition "请求发送" {
+    :建立API连接;
+    
+    if (连接成功?) then (yes)
+        if (是否流式?) then (yes)
+            while (有数据流入?) is (yes)
+                :处理数据块;
+                :转换响应格式;
+                :发送到客户端;
+            endwhile (no)
+        else (no)
+            :发送完整请求;
+            :等待响应;
+            :处理响应数据;
+        endif
+    else (no)
+        :记录连接错误;
+        :尝试重连;
+        if (重连成功?) then (yes)
+            :继续处理;
+        else (no)
+            :返回错误;
+            stop
+        endif
+    endif
+}
+
+partition "响应处理" {
+    :验证响应数据;
+    if (数据有效?) then (yes)
+        :转换为标准格式;
+        :更新统计信息;
+    else (no)
+        :记录错误信息;
+        :返回错误响应;
+    endif
+}
+
+:返回处理结果;
+stop
+
+' 注释
+note right
+  实现文件: src/api/providers/base.ts
+  处理API请求的完整流程
+  支持流式和非流式请求
+end note
+
+@enduml 

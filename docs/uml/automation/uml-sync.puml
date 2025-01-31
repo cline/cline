@@ -1,0 +1,56 @@
+@startuml
+
+' UML Synchronization Automation Diagram
+' Implementation mapping:
+' - tools/uml-sync/**/*.ts
+
+package "UML Sync System" {
+    [代码变更监听器] as CodeWatcher
+    [AST分析器] as ASTAnalyzer
+    [UML解析器] as UMLParser
+    [差异检测器] as DiffDetector
+    [UML生成器] as UMLGenerator
+    [版本控制集成] as VCSIntegration
+    
+    database "AST缓存" as ASTCache
+    database "UML缓存" as UMLCache
+    
+    interface "Git Hooks" as GitHooks
+    interface "IDE插件" as IDEPlugin
+}
+
+' 触发流程
+GitHooks --> CodeWatcher : pre-commit
+IDEPlugin --> CodeWatcher : 保存文件
+
+' 主要流程
+CodeWatcher -> ASTAnalyzer : 分析修改的文件
+ASTAnalyzer -> ASTCache : 存储/获取AST
+ASTAnalyzer -> DiffDetector : 对比AST变更
+
+DiffDetector -> UMLParser : 获取相关UML
+UMLParser -> UMLCache : 读取UML缓存
+
+DiffDetector -> UMLGenerator : 生成更新
+UMLGenerator -> VCSIntegration : 提交更新
+
+' 自动化规则
+note right of CodeWatcher
+  1. 监听文件变更
+  2. 过滤相关文件
+  3. 触发分析流程
+end note
+
+note right of ASTAnalyzer
+  1. 解析源代码AST
+  2. 提取类/方法结构
+  3. 识别关系变更
+end note
+
+note right of UMLGenerator
+  1. 智能更新策略
+  2. 保持手动修改
+  3. 增量更新
+end note
+
+@enduml 

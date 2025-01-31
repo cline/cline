@@ -1,0 +1,64 @@
+@startuml
+
+' Utils Module Class Diagram
+' Source files mapping:
+' - src/utils/**/*.ts
+
+package "Utils" {
+    package "File System" {
+        ' src/utils/fs/
+        class FileUtils {
+            + {static} readFile(path: string): Promise<string>
+            + {static} writeFile(path: string, content: string)
+            + {static} fileExists(path: string): boolean
+            + {static} getReadablePath(path: string): string
+        }
+
+        class PathUtils {
+            + {static} normalize(path: string): string
+            + {static} join(...paths: string[]): string
+            + {static} relative(from: string, to: string): string
+        }
+    }
+
+    package "Cost" {
+        ' src/utils/cost/
+        class CostCalculator {
+            + {static} calculateApiCost(tokens: number, model: string): number
+            + {static} estimateTokens(text: string): number
+        }
+    }
+
+    package "Logging" {
+        ' src/utils/logging/
+        class Logger {
+            - level: LogLevel
+            + log(message: string, level: LogLevel)
+            + error(error: Error)
+            + debug(message: string)
+        }
+
+        enum LogLevel {
+            DEBUG
+            INFO
+            WARN
+            ERROR
+        }
+    }
+
+    package "Security" {
+        ' src/utils/security/
+        class SecurityUtils {
+            + {static} sanitizeInput(input: string): string
+            + {static} validateCommand(command: string): boolean
+            + {static} checkPermissions(path: string): boolean
+        }
+    }
+}
+
+' Relationships
+Logger --> LogLevel: uses
+FileUtils --> PathUtils: uses
+SecurityUtils --> FileUtils: uses
+
+@enduml 

@@ -1,0 +1,44 @@
+@startuml
+
+start
+
+:用户发起请求;
+
+if (是否需要上下文?) then (yes)
+  :加载环境详情;
+  :加载相关文件内容;
+endif
+
+:发送API请求;
+
+while (处理响应) is (继续)
+  if (需要执行工具?) then (yes)
+    if (是否自动批准?) then (yes)
+      :自动执行工具;
+    else (no)
+      :请求用户批准;
+      if (用户批准?) then (yes)
+        :执行工具;
+      else (no)
+        :中止操作;
+        stop
+      endif
+    endif
+  endif
+  
+  if (需要浏览器操作?) then (yes)
+    :执行浏览器操作;
+  endif
+  
+  :处理响应内容;
+endwhile (完成)
+
+if (是否有文件修改?) then (yes)
+  :保存文件修改;
+endif
+
+:展示结果给用户;
+
+stop
+
+@enduml 

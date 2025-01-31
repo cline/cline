@@ -1,0 +1,16 @@
+@startuml
+class Person {
+  -name: String
+  -age: int
+  +getName(): String
+  +getAge(): int
+}
+
+class Student {
+  -studentId: String
+  +getStudentId(): String
+}
+
+Person <|-- Student
+
+@enduml

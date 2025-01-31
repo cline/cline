@@ -1,0 +1,107 @@
+@startuml
+
+' System Deployment Diagram
+' Source files mapping:
+' - All project files and their runtime deployment
+
+node "User's Machine" {
+    node "VSCode" {
+        component "VSCode Extension Host" as ExtHost {
+            artifact "Cline Extension" as Extension
+        }
+        
+        component "VSCode Webview" as WebView {
+            artifact "React UI" as UI
+        }
+        
+        database "Extension Storage" {
+            [Config Files]
+            [History Files]
+            [Checkpoints]
+        }
+    }
+    
+    node "Local Services" {
+        component "Browser Instance" as Browser {
+            artifact "Puppeteer" as Puppeteer
+        }
+        
+        component "MCP Servers" as MCP {
+            artifact "Weather Service"
+            artifact "Custom Tools"
+            artifact "API Integrations"
+        }
+        
+        component "Local Development" as DevEnv {
+            artifact "Node.js"
+            artifact "Python"
+            artifact "Other Runtimes"
+        }
+    }
+}
+
+cloud "External Services" {
+    node "AI Providers" {
+        component "OpenAI API" as OpenAI
+        component "Anthropic API" as Anthropic
+        component "Google API" as Google
+        component "Other LLMs" as OtherLLMs
+    }
+    
+    node "External APIs" {
+        component "GitHub API"
+        component "Weather API"
+        component "Custom APIs"
+    }
+}
+
+' Connections
+ExtHost -- WebView : communicates
+Extension -- [Config Files] : reads/writes
+Extension -- Browser : controls
+Extension -- MCP : integrates
+Extension -- DevEnv : executes
+
+Browser -- Puppeteer : uses
+MCP -- [External APIs] : calls
+
+Extension -- OpenAI : requests
+Extension -- Anthropic : requests
+Extension -- Google : requests
+Extension -- OtherLLMs : requests
+
+' Protocols
+interface "HTTP/HTTPS" as HTTP
+interface "WebSocket" as WS
+interface "File System" as FS
+interface "IPC" as IPC
+
+Extension -- HTTP : uses
+Extension -- WS : uses
+Extension -- FS : uses
+Extension -- IPC : uses
+
+' Notes
+note right of ExtHost
+  Main extension process
+  handling core logic
+end note
+
+note right of WebView
+  UI rendered in VSCode
+  using React
+end note
+
+note right of Browser
+  Controlled browser
+  instance for web
+  interactions
+end note
+
+note right of MCP
+  Model Context Protocol
+  servers for extended
+  functionality
+end note
+
+@enduml

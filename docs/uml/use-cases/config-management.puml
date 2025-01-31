@@ -1,0 +1,111 @@
+@startuml
+
+' Configuration and Management Use Case Diagram
+' Requirements mapping:
+' - src/shared/**/*.ts
+' - src/utils/**/*.ts
+
+left to right direction
+
+' Actors
+actor "开发者" as Developer
+actor "管理员" as Admin
+actor "配置系统" as Config
+actor "日志系统" as Logger
+
+rectangle "配置管理系统" {
+    package "用户配置" {
+        usecase "管理API密钥" as ManageKeys
+        usecase "设置模型参数" as SetModel
+        usecase "自定义提示词" as CustomPrompt
+        usecase "配置自动化规则" as AutoRules
+    }
+
+    package "系统配置" {
+        usecase "环境配置" as EnvConfig
+        usecase "性能调优" as Performance
+        usecase "安全策略" as Security
+        usecase "集成设置" as Integration
+    }
+
+    package "会话管理" {
+        usecase "历史记录" as History
+        usecase "上下文管理" as Context
+        usecase "缓存控制" as Cache
+        usecase "会话恢复" as Restore
+    }
+
+    package "监控和日志" {
+        usecase "性能监控" as Monitor
+        usecase "错误追踪" as ErrorTrack
+        usecase "使用统计" as Usage
+        usecase "审计日志" as Audit
+    }
+
+    package "成本管理" {
+        usecase "API成本计算" as CostCalc
+        usecase "配额管理" as Quota
+        usecase "使用报告" as Report
+        usecase "成本优化" as Optimize
+    }
+}
+
+' Core relationships
+Developer --> ManageKeys
+Developer --> CustomPrompt
+Developer --> History
+Admin --> EnvConfig
+Admin --> Security
+
+' Include relationships
+ManageKeys <.. Security : <<include>>
+SetModel <.. Performance : <<include>>
+CustomPrompt <.. AutoRules : <<include>>
+
+' Extend relationships
+History <.. Context : <<extend>>
+History <.. Cache : <<extend>>
+History <.. Restore : <<extend>>
+
+Monitor <.. ErrorTrack : <<extend>>
+Monitor <.. Usage : <<extend>>
+Monitor <.. Audit : <<extend>>
+
+' System interactions
+Config --> EnvConfig : 管理
+Logger --> Monitor : 记录
+
+' Detailed notes
+note right of ManageKeys
+  API密钥管理：
+  1. 安全存储
+  2. 自动轮换
+  3. 访问控制
+  4. 有效期管理
+end note
+
+note right of History
+  历史记录管理：
+  1. 会话保存
+  2. 上下文恢复
+  3. 增量同步
+  4. 垃圾回收
+end note
+
+note right of Monitor
+  监控功能：
+  1. 性能指标
+  2. 错误报告
+  3. 使用统计
+  4. 安全审计
+end note
+
+note right of CostCalc
+  成本管理：
+  1. 使用量统计
+  2. 成本预估
+  3. 配额控制
+  4. 优化建议
+end note
+
+@enduml 

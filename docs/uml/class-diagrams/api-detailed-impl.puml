@@ -1,0 +1,114 @@
+@startuml
+
+' API Module Implementation Class Diagram
+' Source file mapping:
+' - src/api/providers/anthropic.ts
+' - src/api/providers/openai.ts
+' - src/api/transform/stream.ts
+
+package "API.Providers" {
+    interface ApiProvider {
+        + handleRequest(request: ApiRequest): Promise<ApiResponse>
+        + transformResponse(response: any): ApiResponse
+        + validateConfig(config: ApiConfig): boolean
+        + getDefaultConfig(): ApiConfig
+    }
+
+    class AnthropicProvider implements ApiProvider {
+        ' Implementation: src/api/providers/anthropic.ts:15
+        - client: Anthropic
+        - model: string
+        - maxTokens: number
+        - temperature: number
+        - apiKey: string
+        + constructor(config: AnthropicConfig)
+        + handleRequest(request: ApiRequest): Promise<ApiResponse>
+        + transformResponse(response: AnthropicResponse): ApiResponse
+        - formatMessages(messages: Message[]): AnthropicMessage[]
+        - validateApiKey(key: string): boolean
+        - handleStreamResponse(stream: AnthropicStream): AsyncGenerator
+    }
+
+    class OpenAIProvider implements ApiProvider {
+        ' Implementation: src/api/providers/openai.ts:12
+        - client: OpenAI
+        - model: string
+        - maxTokens: number
+        - temperature: number
+        - apiKey: string
+        + constructor(config: OpenAIConfig)
+        + handleRequest(request: ApiRequest): Promise<ApiResponse>
+        + transformResponse(response: OpenAIResponse): ApiResponse
+        - formatMessages(messages: Message[]): OpenAIChatMessage[]
+        - validateApiKey(key: string): boolean
+        - handleStreamResponse(stream: OpenAIStream): AsyncGenerator
+    }
+
+    ' Configuration Types
+    class ApiConfig {
+        + provider: string
+        + model: string
+        + apiKey: string
+        + maxTokens: number
+        + temperature: number
+    }
+
+    class AnthropicConfig extends ApiConfig {
+        + anthropicVersion: string
+        + topK: number
+        + topP: number
+    }
+
+    class OpenAIConfig extends ApiConfig {
+        + organization: string
+        + frequencyPenalty: number
+        + presencePenalty: number
+    }
+}
+
+package "API.Transform" {
+    class ApiStream {
+        ' Implementation: src/api/transform/stream.ts:8
+        - chunks: string[]
+        - encoding: string
+        - maxSize: number
+        + constructor(encoding?: string, maxSize?: number)
+        + append(chunk: string): void
+        + toString(): string
+        + clear(): void
+        + getSize(): number
+        - validateChunk(chunk: string): boolean
+        - truncateIfNeeded(): void
+    }
+
+    class StreamProcessor {
+        ' Implementation: src/api/transform/stream.ts:45
+        - stream: ApiStream
+        - parser: StreamParser
+        + process(input: AsyncIterable<any>): AsyncGenerator
+        + parseChunk(chunk: any): ParsedChunk
+        - handleError(error: Error): void
+    }
+}
+
+' Detailed Relationships
+AnthropicProvider ..> ApiStream: uses
+OpenAIProvider ..> ApiStream: uses
+AnthropicProvider --> AnthropicConfig: configures
+OpenAIProvider --> OpenAIConfig: configures
+StreamProcessor *-- ApiStream
+
+' Implementation Notes
+note right of AnthropicProvider
+  File: src/api/providers/anthropic.ts
+  Main provider for Anthropic's Claude API
+  Handles both streaming and non-streaming responses
+end note
+
+note right of ApiStream
+  File: src/api/transform/stream.ts
+  Manages streaming responses from LLMs
+  Implements backpressure handling
+end note
+
+@enduml 

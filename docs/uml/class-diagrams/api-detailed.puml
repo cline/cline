@@ -1,0 +1,83 @@
+@startuml
+
+' API Module Class Diagram
+' Source files mapping:
+' - src/api/index.ts
+' - src/api/providers/*.ts
+' - src/api/transform/*.ts
+
+package "API Providers" {
+    interface ApiProvider {
+        + handleRequest(request: ApiRequest): Promise<ApiResponse>
+        + transformResponse(response: any): ApiResponse
+    }
+
+    class AnthropicProvider implements ApiProvider {
+        ' src/api/providers/anthropic.ts
+        - client: Anthropic
+        + handleRequest()
+        + transformResponse()
+    }
+
+    class OpenAIProvider implements ApiProvider {
+        ' src/api/providers/openai.ts
+        - client: OpenAI
+        + handleRequest()
+        + transformResponse()
+    }
+
+    class GeminiProvider implements ApiProvider {
+        ' src/api/providers/gemini.ts
+        - client: GoogleGenerativeAI
+        + handleRequest()
+        + transformResponse()
+    }
+
+    class MistralProvider implements ApiProvider {
+        ' src/api/providers/mistral.ts
+        - client: MistralClient
+        + handleRequest()
+        + transformResponse()
+    }
+}
+
+package "API Transform" {
+    class ApiStream {
+        ' src/api/transform/stream.ts
+        - chunks: string[]
+        + append(chunk: string)
+        + toString(): string
+    }
+
+    class ResponseTransformer {
+        ' src/api/transform/index.ts
+        + transform(response: any): ApiResponse
+        - parseStream(stream: any): ApiStream
+    }
+}
+
+class ApiHandler {
+    ' src/api/index.ts
+    - provider: ApiProvider
+    - transformer: ResponseTransformer
+    + handleRequest(request: ApiRequest): Promise<ApiResponse>
+    + setProvider(provider: ApiProvider)
+    + getProvider(): ApiProvider
+}
+
+' Relationships
+ApiHandler o-- ApiProvider
+ApiHandler o-- ResponseTransformer
+ResponseTransformer ..> ApiStream
+
+note right of ApiHandler
+  Main entry point for API handling
+  Located in src/api/index.ts
+end note
+
+note right of ApiProvider
+  Provider interface implemented by all API providers
+  Each provider has its own file in src/api/providers/
+end note
+
+@enduml 

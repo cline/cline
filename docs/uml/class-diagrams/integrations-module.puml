@@ -1,0 +1,68 @@
+@startuml
+
+' Integrations Module Class Diagram
+' Source files mapping:
+' - src/integrations/**/*.ts
+
+package "Integrations" {
+    package "Editor" {
+        ' src/integrations/editor/
+        class DiffViewProvider {
+            - uri: vscode.Uri
+            - diffs: Map<string, Diff>
+            + provideTextDocumentContent(): string
+            + updateDiff(path: string, diff: Diff)
+        }
+
+        class EditorManager {
+            + openFile(path: string)
+            + showDiff(original: string, modified: string)
+            + applyEdit(edit: TextEdit)
+        }
+    }
+
+    package "Terminal" {
+        ' src/integrations/terminal/
+        class TerminalManager {
+            - terminals: Map<string, Terminal>
+            + createTerminal(name: string): Terminal
+            + executeCommand(command: string): Promise<string>
+            + killTerminal(name: string)
+        }
+
+        class Terminal {
+            - process: ChildProcess
+            - buffer: string[]
+            + write(data: string)
+            + onData(callback: Function)
+            + kill()
+        }
+    }
+
+    package "Browser" {
+        ' src/integrations/browser/
+        class BrowserIntegration {
+            - page: Page
+            + navigate(url: string)
+            + evaluate(script: string)
+            + screenshot(): Buffer
+        }
+    }
+
+    package "File System" {
+        ' src/integrations/fs/
+        class FileSystemManager {
+            + readFile(path: string): Promise<string>
+            + writeFile(path: string, content: string)
+            + deleteFile(path: string)
+            + listFiles(pattern: string): string[]
+        }
+    }
+}
+
+' Relationships
+DiffViewProvider --> EditorManager: uses
+TerminalManager *-- Terminal
+BrowserIntegration --> FileSystemManager: uses
+
+@enduml 

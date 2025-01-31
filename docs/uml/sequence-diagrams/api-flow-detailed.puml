@@ -1,0 +1,62 @@
+@startuml
+
+' API Request Flow Sequence Diagram
+' Source files mapping:
+' - src/api/providers/*
+' - src/api/transform/*
+' - src/core/Cline.ts
+
+actor User
+participant "Cline Core" as Core
+participant "Message Parser" as Parser
+participant "API Provider" as Provider
+participant "Response Transform" as Transform
+participant "Tool Executor" as Tools
+
+User -> Core: Submit Task
+activate Core
+
+Core -> Parser: Parse User Input
+activate Parser
+Parser --> Core: Parsed Content
+deactivate Parser
+
+loop Until Task Complete
+    Core -> Provider: Prepare API Request
+    activate Provider
+    
+    Provider -> Provider: Format Request
+    Provider -> "LLM Service": Send Request
+    activate "LLM Service"
+    
+    "LLM Service" --> Provider: Stream Response
+    deactivate "LLM Service"
+    
+    Provider -> Transform: Transform Response
+    activate Transform
+    Transform --> Provider: Formatted Response
+    deactivate Transform
+    
+    Provider --> Core: Processed Response
+    deactivate Provider
+    
+    Core -> Parser: Parse Assistant Message
+    activate Parser
+    
+    alt Contains Tool Use
+        Parser -> Tools: Execute Tool
+        activate Tools
+        Tools --> Parser: Tool Result
+        deactivate Tools
+    end
+    
+    Parser --> Core: Parsed Result
+    deactivate Parser
+    
+    Core -> Core: Update Context
+end
+
+Core --> User: Present Result
+deactivate Core
+
+@enduml

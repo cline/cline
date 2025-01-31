@@ -1,0 +1,54 @@
+@startuml
+
+' Main Workflow Activity Diagram
+' Source files mapping:
+' - src/core/Cline.ts
+' - src/core/prompts/*.ts
+' - src/api/**/*.ts
+' - src/services/**/*.ts
+
+|用户|
+start
+:发起请求;
+
+|Cline Core|
+:初始化上下文;
+:加载配置;
+
+|API Handler|
+if (需要API调用?) then (yes)
+    :选择API提供者;
+    :准备请求;
+    :发送到LLM;
+    :接收响应;
+    :转换响应格式;
+else (no)
+    :使用本地处理;
+endif
+
+|工具执行器|
+while (有工具调用?) is (yes)
+    :解析工具类型;
+    
+    fork
+        :终端命令执行;
+    fork again
+        :文件操作处理;
+    fork again
+        :浏览器自动化;
+    end fork
+    
+    :收集工具输出;
+    :更新执行状态;
+endwhile (no)
+
+|响应处理器|
+:格式化结果;
+:准备响应;
+
+|用户|
+:接收结果;
+
+stop
+
+@enduml 

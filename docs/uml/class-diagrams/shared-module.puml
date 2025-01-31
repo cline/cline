@@ -1,0 +1,68 @@
+@startuml
+
+' Shared Module Class Diagram
+' Source files mapping:
+' - src/shared/**/*.ts
+
+package "Shared" {
+    package "Configuration" {
+        ' src/shared/config/
+        class ApiConfiguration {
+            - provider: string
+            - apiKey: string
+            - model: string
+            + validate(): boolean
+            + getProvider(): ApiProvider
+        }
+
+        class AutoApprovalSettings {
+            - rules: ApprovalRule[]
+            + shouldAutoApprove(command: string): boolean
+            + addRule(rule: ApprovalRule)
+        }
+    }
+
+    package "Types" {
+        ' src/shared/types/
+        interface ClineMessage {
+            type: MessageType
+            content: string
+            timestamp: number
+        }
+
+        interface ClineAsk {
+            text: string
+            type: AskType
+            partial: boolean
+        }
+
+        interface ClineSay {
+            text: string
+            type: SayType
+            images?: string[]
+        }
+    }
+
+    package "Utils" {
+        ' src/shared/utils/
+        class HistoryManager {
+            - items: HistoryItem[]
+            + add(item: HistoryItem)
+            + get(index: number): HistoryItem
+            + clear()
+        }
+
+        class ApiMetrics {
+            - requests: ApiRequest[]
+            + trackRequest(req: ApiRequest)
+            + getMetrics(): Metrics
+        }
+    }
+}
+
+' Relationships
+ApiConfiguration --> AutoApprovalSettings: uses
+HistoryManager --> ClineMessage: contains
+ApiMetrics --> ApiConfiguration: uses
+
+@enduml 

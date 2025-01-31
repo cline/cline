@@ -1,0 +1,84 @@
+@startuml
+
+' API Provider Implementation State Diagram
+' Source files mapping:
+' - src/api/providers/*.ts
+' - src/api/transform/*.ts
+
+[*] --> 初始化
+
+state 初始化 {
+    [*] --> 配置验证
+    配置验证 --> 客户端创建 : 验证通过
+    配置验证 --> 错误状态 : 验证失败
+    
+    state 配置验证 {
+        [*] --> 检查API密钥
+        检查API密钥 --> 检查模型配置
+        检查模型配置 --> 检查参数
+        检查参数 --> [*]
+    }
+    
+    state 客户端创建 {
+        [*] --> 初始化客户端
+        初始化客户端 --> 设置默认参数
+        设置默认参数 --> [*]
+    }
+}
+
+state 请求处理 {
+    [*] --> 消息格式化
+    
+    state 消息格式化 {
+        [*] --> 验证消息
+        验证消息 --> 转换格式
+        转换格式 --> [*]
+    }
+    
+    state 流处理 {
+        [*] --> 创建流
+        创建流 --> 处理数据块
+        处理数据块 --> 检查大小
+        检查大小 --> 处理数据块 : 继续
+        检查大小 --> 完成处理 : 结束
+    }
+    
+    消息格式化 --> API调用
+    API调用 --> 流处理 : 流式响应
+    API调用 --> 响应转换 : 非流式响应
+    流处理 --> 响应转换
+}
+
+state 响应转换 {
+    [*] --> 解析响应
+    解析响应 --> 格式化输出
+    格式化输出 --> [*]
+}
+
+state 错误状态 {
+    [*] --> 记录错误
+    记录错误 --> 清理资源
+    清理资源 --> [*]
+}
+
+初始化 --> 请求处理 : 初始化完成
+请求处理 --> 响应转换 : 处理完成
+响应转换 --> [*] : 完成
+错误状态 --> [*] : 退出
+
+note right of 初始化
+  Implementation: src/api/providers/anthropic.ts
+  Constructor and initialization logic
+end note
+
+note right of 请求处理
+  Implementation: src/api/providers/anthropic.ts
+  handleRequest() method implementation
+end note
+
+note right of 响应转换
+  Implementation: src/api/transform/stream.ts
+  Stream processing and response transformation
+end note
+
+@enduml 

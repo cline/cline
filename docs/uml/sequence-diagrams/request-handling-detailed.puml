@@ -1,0 +1,77 @@
+@startuml
+
+' Detailed Request Handling Sequence Diagram
+' Source files mapping:
+' - src/core/Cline.ts
+' - src/api/**/*.ts
+' - src/services/**/*.ts
+
+actor User
+participant "Cline" as Cline
+participant "ApiHandler" as API
+participant "Provider" as Provider
+participant "ResponseTransformer" as Transformer
+participant "TerminalManager" as Terminal
+participant "BrowserSession" as Browser
+participant "FileSystem" as FS
+participant "TreeSitter" as Parser
+
+== 初始化请求 ==
+User -> Cline: ask(type, text)
+activate Cline
+
+Cline -> FS: 检查工作区状态
+activate FS
+FS --> Cline: 工作区信息
+deactivate FS
+
+Cline -> Parser: 分析相关代码
+activate Parser
+Parser --> Cline: 代码结构信息
+deactivate Parser
+
+== API 处理 ==
+Cline -> API: handleRequest()
+activate API
+
+API -> Provider: 发送请求
+activate Provider
+Provider --> API: 原始响应
+deactivate Provider
+
+API -> Transformer: 转换响应
+activate Transformer
+Transformer --> API: 格式化响应
+deactivate Transformer
+
+API --> Cline: 处理后的响应
+deactivate API
+
+== 工具执行 ==
+loop 对每个工具调用
+    alt 终端命令
+        Cline -> Terminal: executeCommand()
+        activate Terminal
+        Terminal --> Cline: 命令输出
+        deactivate Terminal
+    else 浏览器操作
+        Cline -> Browser: navigate()
+        activate Browser
+        Browser --> Cline: 页面内容
+        deactivate Browser
+    else 文件操作
+        Cline -> FS: 读写文件
+        activate FS
+        FS --> Cline: 操作结果
+        deactivate FS
+    end
+end
+
+== 结果处理 ==
+Cline -> Cline: 处理工具输出
+Cline -> Cline: 格式化响应
+
+Cline --> User: 最终响应
+deactivate Cline
+
+@enduml 

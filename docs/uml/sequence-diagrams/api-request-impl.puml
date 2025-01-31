@@ -1,0 +1,75 @@
+@startuml
+
+' API Request Implementation Sequence Diagram
+' Source files mapping:
+' - src/api/index.ts
+' - src/api/providers/*.ts
+' - src/api/transform/*.ts
+
+participant "Cline\n(src/core/Cline.ts:125)" as Cline
+participant "ApiHandler\n(src/api/index.ts:28)" as Handler
+participant "AnthropicProvider\n(src/api/providers/anthropic.ts:15)" as Provider
+participant "ApiStream\n(src/api/transform/stream.ts:8)" as Stream
+participant "StreamProcessor\n(src/api/transform/stream.ts:45)" as Processor
+participant "Anthropic API" as API
+
+== 初始化阶段 ==
+Cline -> Handler: new ApiHandler(config)
+activate Handler
+Handler -> Provider: new AnthropicProvider(config)
+activate Provider
+Provider --> Handler: provider
+deactivate Provider
+Handler --> Cline: handler
+deactivate Handler
+
+== 请求准备 ==
+Cline -> Handler: handleRequest(request)
+activate Handler
+Handler -> Provider: handleRequest(request)
+activate Provider
+
+Provider -> Provider: formatMessages(request.messages)
+note right: 转换消息格式\n实现: anthropic.ts:78
+
+Provider -> Provider: validateApiKey(config.apiKey)
+note right: 验证API密钥\n实现: anthropic.ts:156
+
+== API调用 ==
+Provider -> API: client.messages.create()
+activate API
+API --> Provider: stream
+deactivate API
+
+== 流处理 ==
+Provider -> Stream: new ApiStream()
+activate Stream
+Stream --> Provider: stream
+deactivate Stream
+
+Provider -> Processor: process(stream)
+activate Processor
+
+loop 对每个数据块
+    Processor -> Stream: append(chunk)
+    activate Stream
+    Stream -> Stream: validateChunk(chunk)
+    Stream -> Stream: truncateIfNeeded()
+    Stream --> Processor: void
+    deactivate Stream
+end
+
+Processor --> Provider: processedStream
+deactivate Processor
+
+== 响应转换 ==
+Provider -> Provider: transformResponse(response)
+note right: 转换响应格式\n实现: anthropic.ts:198
+
+Provider --> Handler: response
+deactivate Provider
+
+Handler --> Cline: formattedResponse
+deactivate Handler
+
+@enduml 

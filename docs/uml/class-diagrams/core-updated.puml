@@ -1,0 +1,121 @@
+@startuml
+
+' Core Module Class Diagram - Updated
+' Source files mapping:
+' - src/core/Cline.ts
+' - src/core/assistant-message/*
+' - src/core/mentions/*
+' - src/core/prompts/*
+' - src/core/sliding-window/*
+' - src/core/webview/*
+
+package "Core Module" {
+    class Cline {
+        - taskDirectory: string
+        - apiConversationHistory: Anthropic.MessageParam[]
+        - clineMessages: ClineMessage[]
+        
+        + constructor()
+        + updateBrowserSettings(browserSettings: BrowserSettings)
+        + restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore)
+        + presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean)
+        + doesLatestTaskCompletionHaveNewChanges()
+        + ask(type: ClineAsk, text?: string, images?: string[])
+        + say(type: ClineSay, text?: string, images?: string[], partial?: boolean)
+        + abortTask()
+        + saveCheckpoint()
+        
+        - ensureTaskDirectoryExists(): Promise<string>
+        - getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]>
+        - addToApiConversationHistory(message: Anthropic.MessageParam)
+        - overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[])
+        - saveApiConversationHistory()
+        - getSavedClineMessages(): Promise<ClineMessage[]>
+        - addToClineMessages(message: ClineMessage)
+        - overwriteClineMessages(newMessages: ClineMessage[])
+        - saveClineMessages()
+        - startTask(task?: string, images?: string[]): Promise<void>
+        - resumeTaskFromHistory()
+        - initiateTaskLoop(userContent: UserContent, isNewTask: boolean): Promise<void>
+        - executeCommandTool(command: string): Promise<[boolean, ToolResponse]>
+        - shouldAutoApproveTool(toolName: ToolUseName): boolean
+        - attemptApiRequest(previousApiReqIndex: number): ApiStream
+        - presentAssistantMessage()
+        - recursivelyMakeClineRequests()
+        - loadContext(userContent: UserContent, includeFileDetails: boolean)
+        - getEnvironmentDetails(includeFileDetails: boolean)
+    }
+
+    package "Assistant Message" {
+        class MessageParser {
+            + parseAssistantMessage(message: string): ParsedMessage
+            + extractToolUse(content: string): ToolUse
+            + validateToolUse(toolUse: ToolUse): boolean
+        }
+
+        class DiffHandler {
+            + generateDiff(oldContent: string, newContent: string): string
+            + applyDiff(content: string, diff: string): string
+        }
+    }
+
+    package "Webview" {
+        class ClineProvider {
+            + createWebviewPanel()
+            + getHtmlForWebview()
+            + handleMessage(message: any)
+        }
+    }
+
+    package "Prompts" {
+        class SystemPrompts {
+            + getBasePrompt(): string
+            + getTaskPrompt(task: string): string
+            + getContextPrompt(): string
+        }
+
+        class ResponseHandler {
+            + formatResponse(response: any): string
+            + validateResponse(response: any): boolean
+        }
+    }
+}
+
+' Relationships
+Cline --> MessageParser: uses
+Cline --> DiffHandler: uses
+Cline --> ClineProvider: creates
+Cline --> SystemPrompts: uses
+Cline --> ResponseHandler: uses
+
+' Interfaces
+interface "ClineMessage" {
+    + type: string
+    + content: string
+    + timestamp: number
+}
+
+interface "UserContent" {
+    + task: string
+    + images?: string[]
+}
+
+interface "ToolResponse" {
+    + success: boolean
+    + message: string
+}
+
+' Enums
+enum "ClineCheckpointRestore" {
+    + FULL
+    + PARTIAL
+}
+
+enum "ToolUseName" {
+    + EXECUTE_COMMAND
+    + READ_FILE
+    + WRITE_FILE
+    + BROWSER_ACTION
+}
+
+@enduml

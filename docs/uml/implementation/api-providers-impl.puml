@@ -1,0 +1,122 @@
+@startuml api-providers-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "API" {
+    package "Core" {
+        interface ApiProvider {
+            + handleRequest(request: ApiRequest): Promise<ApiResponse>
+            + transformResponse(response: any): ApiResponse
+            + validateConfig(config: ApiConfig): boolean
+            + getDefaultConfig(): ApiConfig
+        }
+
+        class ApiHandler {
+            - provider: ApiProvider
+            - config: ApiConfig
+            + constructor(config: ApiConfig)
+            + handleRequest(request: ApiRequest): Promise<ApiResponse>
+            + setProvider(provider: ApiProvider): void
+            - validateProvider(provider: ApiProvider): boolean
+        }
+    }
+
+    package "Providers" {
+        class AnthropicProvider {
+            - client: Anthropic
+            - config: AnthropicConfig
+            + handleRequest(request: ApiRequest): Promise<ApiResponse>
+            + transformResponse(response: AnthropicResponse): ApiResponse
+            - formatMessages(messages: Message[]): AnthropicMessage[]
+            - handleStream(stream: AnthropicStream): AsyncGenerator
+        }
+
+        class OpenAIProvider {
+            - client: OpenAI
+            - config: OpenAIConfig
+            + handleRequest(request: ApiRequest): Promise<ApiResponse>
+            + transformResponse(response: OpenAIResponse): ApiResponse
+            - formatMessages(messages: Message[]): ChatMessage[]
+            - handleStream(stream: OpenAIStream): AsyncGenerator
+        }
+
+        class GeminiProvider {
+            - client: GoogleGenerativeAI
+            - config: GeminiConfig
+            + handleRequest(request: ApiRequest): Promise<ApiResponse>
+            + transformResponse(response: GeminiResponse): ApiResponse
+            - formatPrompt(messages: Message[]): string
+            - handleStream(stream: GeminiStream): AsyncGenerator
+        }
+    }
+
+    package "Transform" {
+        class StreamTransformer {
+            - encoding: string
+            - maxSize: number
+            + transform(stream: any): AsyncGenerator
+            + formatChunk(chunk: any): string
+            - validateChunk(chunk: any): boolean
+        }
+
+        class ResponseTransformer {
+            + transform(response: any): ApiResponse
+            - extractContent(response: any): string
+            - extractMetadata(response: any): Metadata
+            - validateResponse(response: any): boolean
+        }
+    }
+
+    package "Types" {
+        class ApiConfig {
+            + provider: string
+            + model: string
+            + apiKey: string
+            + temperature: number
+            + maxTokens: number
+        }
+
+        class ApiRequest {
+            + messages: Message[]
+            + stream: boolean
+            + metadata: Metadata
+        }
+
+        class ApiResponse {
+            + content: string
+            + usage: TokenUsage
+            + metadata: Metadata
+        }
+    }
+}
+
+' 关系定义
+ApiHandler --> ApiProvider : uses
+AnthropicProvider --|> ApiProvider : implements
+OpenAIProvider --|> ApiProvider : implements
+GeminiProvider --|> ApiProvider : implements
+ApiHandler --> StreamTransformer : uses
+ApiHandler --> ResponseTransformer : uses
+
+' 注释
+note right of ApiHandler
+  API交互的主入口
+  管理提供者选择和请求处理
+end note
+
+note right of AnthropicProvider
+  Anthropic Claude API实现
+  处理流式和非流式请求
+end note
+
+note right of StreamTransformer
+  处理流式响应
+  实现背压和分块
+end note
+
+@enduml 

@@ -1,0 +1,84 @@
+@startuml
+
+' API Provider State Diagram
+' Source files mapping:
+' - src/api/providers/*
+' - src/core/Cline.ts
+
+[*] --> Initialized
+
+state Initialized {
+    [*] --> Configuring
+    Configuring --> Ready : Configuration Valid
+    Configuring --> Error : Configuration Invalid
+    Ready --> [*]
+}
+
+state Ready {
+    [*] --> Idle
+    
+    state "Request Processing" as Processing {
+        [*] --> PreparingRequest
+        PreparingRequest --> SendingRequest : Request Ready
+        SendingRequest --> ReceivingResponse : Request Sent
+        ReceivingResponse --> TransformingResponse : Response Received
+        TransformingResponse --> RequestComplete : Transform Complete
+        
+        PreparingRequest --> Error : Invalid Parameters
+        SendingRequest --> Error : Network Error
+        ReceivingResponse --> Error : Invalid Response
+        TransformingResponse --> Error : Transform Error
+    }
+    
+    Idle --> Processing : New Request
+    Processing --> Idle : Request Complete
+}
+
+state Error {
+    [*] --> ErrorHandling
+    ErrorHandling --> RetryingRequest : Can Retry
+    ErrorHandling --> FailureState : Cannot Retry
+    RetryingRequest --> Processing : Retry
+    FailureState --> Idle : Reset
+}
+
+state "Rate Limited" as RateLimited {
+    [*] --> Waiting
+    Waiting --> Ready : Timeout Complete
+}
+
+Ready --> RateLimited : Rate Limit Hit
+Error --> RateLimited : Rate Limit Error
+
+' Transitions
+Initialized --> Ready : Init Complete
+Ready --> [*] : Shutdown
+Error --> [*] : Fatal Error
+
+' Notes
+note right of Initialized
+  Provider is loaded but
+  not yet configured
+end note
+
+note right of Ready
+  Provider is ready to
+  handle requests
+end note
+
+note right of Processing
+  Active request processing
+  with streaming support
+end note
+
+note right of Error
+  Error states with
+  retry mechanism
+end note
+
+note right of RateLimited
+  Rate limit handling with
+  automatic retry
+end note
+
+@enduml

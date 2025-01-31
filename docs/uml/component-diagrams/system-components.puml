@@ -1,0 +1,66 @@
+@startuml
+
+' System Component Diagram
+' Source files mapping:
+' - src/**/*.ts
+
+package "Cline Extension" {
+    [Core Module] as Core
+    [API Module] as API
+    [Services Module] as Services
+    [Integrations Module] as Integrations
+    [Utils Module] as Utils
+    [Shared Module] as Shared
+    
+    database "History" as History
+    database "Configuration" as Config
+    
+    interface "VS Code API" as VSCode
+    interface "External APIs" as ExtAPI
+    interface "File System" as FS
+    interface "Terminal" as Term
+    interface "Browser" as Web
+}
+
+' Core Dependencies
+Core --> API : uses
+Core --> Services : uses
+Core --> Integrations : uses
+Core --> Utils : uses
+Core --> Shared : uses
+Core --> History : stores
+Core --> Config : reads/writes
+
+' API Dependencies
+API --> ExtAPI : calls
+API --> Utils : uses
+API --> Shared : uses
+
+' Services Dependencies
+Services --> FS : accesses
+Services --> Term : controls
+Services --> Web : automates
+Services --> Utils : uses
+
+' Integration Dependencies
+Integrations --> VSCode : integrates
+Integrations --> FS : accesses
+Integrations --> Term : manages
+Integrations --> Web : controls
+
+' Shared Dependencies
+Shared --> Utils : uses
+Shared --> Config : manages
+
+' External Systems
+[VS Code Editor] as Editor
+[Web Browser] as Browser
+[Command Line] as CMD
+[LLM APIs] as LLM
+
+Editor --> VSCode : provides
+Browser --> Web : implements
+CMD --> Term : provides
+LLM --> ExtAPI : provides
+
+@enduml 

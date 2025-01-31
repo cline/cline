@@ -1,0 +1,69 @@
+@startuml
+
+' System Deployment Diagram
+' Source files mapping:
+' - All source files
+
+node "VS Code" {
+    [VS Code Extension Host] as Host
+    
+    package "Cline Extension" {
+        [Core Runtime] as Core
+        [API Client] as API
+        [Service Handlers] as Services
+        [Integration Modules] as Integrations
+    }
+    
+    database "Local Storage" {
+        [Configuration Files] as Config
+        [History Data] as History
+        [Cache] as Cache
+    }
+}
+
+node "External Services" {
+    cloud "AI Services" {
+        [Anthropic API] as Anthropic
+        [OpenAI API] as OpenAI
+        [Other LLM APIs] as OtherLLM
+    }
+    
+    cloud "Development Tools" {
+        [Git] as Git
+        [Node.js] as Node
+        [Other Tools] as Tools
+    }
+}
+
+node "Browser Automation" {
+    [Puppeteer/Playwright] as Browser
+}
+
+node "Local System" {
+    [File System] as FS
+    [Terminal] as Term
+    [System Commands] as Cmd
+}
+
+' Connections
+Host -- Core
+Core -- API
+Core -- Services
+Core -- Integrations
+
+API -- Anthropic : HTTPS
+API -- OpenAI : HTTPS
+API -- OtherLLM : HTTPS
+
+Services -- Browser : controls
+Services -- FS : accesses
+Services -- Term : executes
+Services -- Git : uses
+Services -- Node : uses
+Services -- Tools : uses
+
+Integrations -- Config : reads/writes
+Integrations -- History : stores
+Integrations -- Cache : uses
+
+@enduml 

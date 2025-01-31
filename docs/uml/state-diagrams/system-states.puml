@@ -1,0 +1,90 @@
+@startuml
+
+' System State Diagram
+' Source files mapping:
+' - src/core/Cline.ts
+' - src/core/prompts/*.ts
+' - src/services/**/*.ts
+
+state "空闲" as Idle {
+    state "等待用户输入" as WaitInput
+    state "处理用户输入" as ProcessInput
+    [*] --> WaitInput
+    WaitInput --> ProcessInput : 收到输入
+    ProcessInput --> WaitInput : 输入无效
+}
+
+state "处理请求" as Processing {
+    state "初始化" as Init {
+        state "加载上下文" as LoadContext
+        state "验证环境" as ValidateEnv
+        [*] --> LoadContext
+        LoadContext --> ValidateEnv
+    }
+    
+    state "API调用" as ApiCall {
+        state "选择提供者" as SelectProvider
+        state "发送请求" as SendRequest
+        state "等待响应" as WaitResponse
+        [*] --> SelectProvider
+        SelectProvider --> SendRequest
+        SendRequest --> WaitResponse
+    }
+    
+    state "工具执行" as ToolExec {
+        state "解析工具调用" as ParseTool
+        state "工具类型" as ToolType <<choice>>
+        state "终端执行" as Terminal
+        state "浏览器操作" as Browser
+        state "文件操作" as FileOp
+        state "等待用户确认" as WaitConfirm
+        state "执行命令" as ExecCmd
+        state "检查结果" as CheckResult
+        state "取消执行" as Cancel
+        
+        [*] --> ParseTool
+        ParseTool --> ToolType
+        
+        ToolType --> Terminal : 终端命令
+        ToolType --> Browser : 浏览器动作
+        ToolType --> FileOp : 文件处理
+        
+        Terminal --> WaitConfirm : 需要确认
+        Browser --> CheckResult
+        FileOp --> CheckResult
+        
+        WaitConfirm --> ExecCmd : 用户同意
+        WaitConfirm --> Cancel : 用户拒绝
+        
+        ExecCmd --> CheckResult
+        CheckResult --> [*]
+        Cancel --> [*]
+    }
+    
+    state "响应处理" as Response {
+        state "格式化输出" as Format
+        state "更新状态" as UpdateState
+        [*] --> Format
+        Format --> UpdateState
+    }
+    
+    [*] --> Init
+    Init --> ApiCall
+    ApiCall --> ToolExec
+    ToolExec --> Response
+}
+
+state "错误处理" as Error {
+    state "记录错误" as LogError
+    state "清理资源" as Cleanup
+    [*] --> LogError
+    LogError --> Cleanup
+}
+
+[*] --> Idle
+Idle --> Processing : 有效请求
+Processing --> Idle : 完成
+Processing --> Error : 发生错误
+Error --> Idle
+
+@enduml 

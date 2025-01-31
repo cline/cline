@@ -1,0 +1,104 @@
+@startuml
+
+' AI Interaction Use Case Diagram
+' Requirements mapping:
+' - src/api/**/*.ts
+' - src/core/prompts/*.ts
+
+left to right direction
+
+' Actors
+actor "开发者" as Developer
+actor "Anthropic API" as Anthropic
+actor "OpenAI API" as OpenAI
+actor "其他LLM服务" as OtherLLM
+
+' Main package
+rectangle "AI交互系统" {
+    package "对话管理" {
+        usecase "发起对话" as StartChat
+        usecase "继续对话" as ContinueChat
+        usecase "管理上下文" as ManageContext
+        usecase "结束对话" as EndChat
+    }
+
+    package "提示词处理" {
+        usecase "生成系统提示" as GenSystemPrompt
+        usecase "处理用户输入" as ProcessUserInput
+        usecase "格式化响应" as FormatResponse
+        usecase "注入自定义指令" as InjectCustom
+    }
+
+    package "API调用" {
+        usecase "选择API提供者" as SelectProvider
+        usecase "发送API请求" as SendRequest
+        usecase "处理流式响应" as HandleStream
+        usecase "错误重试" as RetryError
+    }
+
+    package "响应处理" {
+        usecase "解析响应" as ParseResponse
+        usecase "执行工具调用" as ExecuteTool
+        usecase "生成代码" as GenerateCode
+        usecase "验证输出" as ValidateOutput
+    }
+}
+
+' Core relationships
+Developer --> StartChat
+Developer --> ContinueChat
+Developer --> EndChat
+
+' Include relationships
+StartChat <.. GenSystemPrompt : <<include>>
+StartChat <.. SelectProvider : <<include>>
+
+ContinueChat <.. ManageContext : <<include>>
+ContinueChat <.. ProcessUserInput : <<include>>
+
+' Extend relationships
+SendRequest <.. HandleStream : <<extend>>
+SendRequest <.. RetryError : <<extend>>
+
+ParseResponse <.. ExecuteTool : <<extend>>
+ParseResponse <.. GenerateCode : <<extend>>
+
+' API Provider interactions
+Anthropic --> SendRequest : 处理请求
+OpenAI --> SendRequest : 处理请求
+OtherLLM --> SendRequest : 处理请求
+
+' Detailed notes
+note right of ManageContext
+  上下文管理：
+  1. 维护对话历史
+  2. 管理令牌限制
+  3. 滑动窗口机制
+  4. 上下文压缩
+end note
+
+note right of ProcessUserInput
+  输入处理：
+  1. 提取代码片段
+  2. 分析文件引用
+  3. 解析特殊命令
+  4. 格式化提示词
+end note
+
+note right of ExecuteTool
+  工具执行：
+  1. 文件操作
+  2. 终端命令
+  3. 代码分析
+  4. 浏览器自动化
+end note
+
+note right of HandleStream
+  流处理：
+  1. 增量响应
+  2. 背压处理
+  3. 错误恢复
+  4. 状态同步
+end note
+
+@enduml 

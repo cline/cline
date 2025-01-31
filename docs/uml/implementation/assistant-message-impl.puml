@@ -1,0 +1,127 @@
+@startuml assistant-message-implementation
+
+' 设置主题和样式
+skinparam backgroundColor transparent
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 100
+
+' 包定义
+package "AssistantMessage" {
+    package "Core" {
+        class MessageManager {
+            - messages: Map
+            - currentMessage: Object
+            + createMessage(content: string)
+            + updateMessage(id: string, content: string)
+            + deleteMessage(id: string)
+            - validateMessage(message: Object)
+        }
+
+        class MessageFormatter {
+            - format: string
+            + formatMarkdown(text: string)
+            + formatCode(code: string, language: string)
+            + formatTable(data: Object)
+            - sanitizeText(text: string)
+        }
+    }
+
+    package "Parser" {
+        class MessageParser {
+            - rules: Object[]
+            + parse(content: string)
+            + extractCodeBlocks(content: string)
+            + extractLinks(content: string)
+            - applyRules(content: string)
+        }
+
+        class CodeBlockParser {
+            - languages: string[]
+            + parseBlock(block: string)
+            + detectLanguage(code: string)
+            - extractMetadata(block: string)
+        }
+    }
+
+    package "Renderer" {
+        class MessageRenderer {
+            - theme: Object
+            + render(message: Object)
+            + renderMarkdown(content: string)
+            + renderCode(block: Object)
+            - applyTheme(element: Object)
+        }
+
+        class CodeHighlighter {
+            - highlighter: Object
+            + highlight(code: string, language: string)
+            + getLanguageDefinition(language: string)
+            - loadLanguage(language: string)
+        }
+    }
+
+    package "Storage" {
+        class MessageStore {
+            - store: Map
+            + saveMessage(message: Object)
+            + loadMessage(id: string)
+            + listMessages()
+            - cleanupOldMessages()
+        }
+
+        class MessageCache {
+            - cache: Map
+            - maxSize: number
+            + get(id: string)
+            + set(id: string, message: Object)
+            - evictOld()
+        }
+    }
+
+    package "Types" {
+        class Message {
+            + id: string
+            + content: string
+            + timestamp: number
+            + metadata: Object
+            + attachments: Object[]
+        }
+
+        class CodeBlock {
+            + language: string
+            + code: string
+            + metadata: Object
+            + lineNumbers: boolean
+        }
+    }
+}
+
+' 关系定义
+MessageManager --> MessageFormatter : uses
+MessageManager --> MessageParser : uses
+MessageManager --> MessageRenderer : uses
+MessageManager --> MessageStore : uses
+MessageParser --> CodeBlockParser : uses
+MessageRenderer --> CodeHighlighter : uses
+MessageStore --> MessageCache : uses
+MessageStore --> Message : manages
+CodeBlockParser --> CodeBlock : produces
+
+' 注释
+note right of MessageManager
+  管理助手消息的核心组件
+  处理消息的创建、更新和删除
+end note
+
+note right of MessageParser
+  解析消息内容
+  提取代码块和链接
+end note
+
+note right of MessageRenderer
+  渲染消息内容
+  支持Markdown和代码高亮
+end note
+
+@enduml 
