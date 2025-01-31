@@ -256,38 +256,3 @@ describe("LLMFileAccessController", () => {
 		})
 	})
 })
-
-/**
- * Manual Testing Guide:
- *
- * 1. Create a test directory:
- *    mkdir llm-test
- *    cd llm-test
- *
- * 2. Create some test files:
- *    touch regular.txt
- *    touch .env
- *    touch config.secret
- *    mkdir private
- *    touch private/data.txt
- *    mkdir src
- *    touch src/index.ts
- *
- * 3. Create a .clineignore:
- *    echo "*.secret\nprivate/" > .clineignore
- *
- * 4. Use the controller in a test script:
- *    ```typescript
- *    const controller = new LLMFileAccessController(process.cwd())
- *
- *    async function test() {
- *        console.log(await controller.validateAccess("regular.txt"))     // true
- *        console.log(await controller.validateAccess(".env"))            // false (default pattern)
- *        console.log(await controller.validateAccess("config.secret"))   // false (custom pattern)
- *        console.log(await controller.validateAccess("private/data.txt")) // false (custom pattern)
- *        console.log(await controller.validateAccess("src/index.ts"))    // true
- *    }
- *
- *    test()
- *    ```
- */
