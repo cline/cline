@@ -122,6 +122,17 @@ class CheckpointTracker {
 			// Disable commit signing for shadow repo
 			await git.addConfig("commit.gpgSign", "false")
 
+			// Copy the project's .gitignore to the shadow repo if it exists
+			try {
+				const projectGitignorePath = path.join(this.cwd, ".gitignore")
+				if (await fileExistsAtPath(projectGitignorePath)) {
+					const gitignoreContent = await fs.readFile(projectGitignorePath, "utf8")
+					await fs.writeFile(path.join(checkpointsDir, ".gitignore"), gitignoreContent)
+				}
+			} catch (error) {
+				console.warn("Failed to copy .gitignore:", error)
+			}
+
 			// Get LFS patterns and write excludes file
 			const lfsPatterns = await getLfsPatterns(this.cwd)
 			await writeExcludesFile(gitPath, lfsPatterns)
@@ -369,7 +380,7 @@ class CheckpointTracker {
 
 		try {
 			console.log(`Adding ${filesToAdd.length} files to checkpoint...`)
-			await git.add(filesToAdd)
+			await git.add(["-f", ...filesToAdd])
 			console.log("Checkpoint add operation completed successfully")
 		} catch (error) {
 			console.log("Checkpoint add operation failed:", error)
