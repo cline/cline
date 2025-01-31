@@ -1,12 +1,15 @@
 # Roo Code Changelog
 
-## 3.3.7
+## [3.3.7]
 
-### Patch Changes
-
-- Streaming version of o3-mini
-- v3.3.7
-- Use an exponential backoff for API retries
+- Support for o3-mini (thanks @shpigunov!)
+- Code Action improvements to allow selecting code and adding it to context, plus bug fixes (thanks @samhvw8!)
+- Ability to include a message when approving or rejecting tool use (thanks @napter!)
+- Improvements to chat input box styling (thanks @psv2522!)
+- Capture reasoning from more variants of DeepSeek R1 (thanks @Szpadel!)
+- Use an exponential backoff for API retries (if delay after first error is 5s, delay after second consecutive error will be 10s, then 20s, etc)
+- Add a slider in advanced settings to enable rate limiting requests to avoid overloading providers (i.e. wait at least 10 seconds between API requests)
+- Prompt tweaks to make Roo better at creating new custom modes for you
 
 ## [3.3.6]
 
