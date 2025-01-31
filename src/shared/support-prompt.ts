@@ -58,7 +58,7 @@ Please provide a clear and concise explanation of what this code does, including
 	FIX: {
 		label: "Fix Issues",
 		description:
-			"Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
+			"Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code).",
 		template: `Fix any issues in the following code from file path @/\${filePath}
 \${diagnosticText}
 \${userInput}
