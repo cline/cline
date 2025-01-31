@@ -564,10 +564,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										await this.updateGlobalState("lmStudioModelId", newModelId)
 										break
 								}
+
+								if (this.cline) {
+									const { apiConfiguration: updatedApiConfiguration } = await this.getState()
+									this.cline.api = buildApiHandler(updatedApiConfiguration)
+								}
 							}
 
 							await this.updateGlobalState("chatSettings", message.chatSettings)
 							await this.postStateToWebview()
+							// console.log("chatSettings", message.chatSettings)
 							if (this.cline) {
 								this.cline.updateChatSettings(message.chatSettings)
 								if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
