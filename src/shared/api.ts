@@ -510,6 +510,14 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
 	// don't support tool use yet
+	"o3-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+	},
 	o1: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,

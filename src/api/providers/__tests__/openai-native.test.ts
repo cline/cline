@@ -289,6 +289,20 @@ describe("OpenAiNativeHandler", () => {
 			})
 		})
 
+		it("should complete prompt successfully with o3-mini model", async () => {
+			handler = new OpenAiNativeHandler({
+				apiModelId: "o3-mini",
+				openAiNativeApiKey: "test-api-key",
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("Test response")
+			expect(mockCreate).toHaveBeenCalledWith({
+				model: "o3-mini",
+				messages: [{ role: "user", content: "Test prompt" }],
+			})
+		})
+
 		it("should handle API errors", async () => {
 			mockCreate.mockRejectedValueOnce(new Error("API Error"))
 			await expect(handler.completePrompt("Test prompt")).rejects.toThrow(
