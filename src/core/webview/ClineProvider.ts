@@ -269,7 +269,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enableScripts: true,
 			localResourceRoots: [this.context.extensionUri],
 		}
-		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
+
+		webviewView.webview.html =
+			this.context.extensionMode === vscode.ExtensionMode.Production
+				? this.getHtmlContent(webviewView.webview)
+				: this.getHMRHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is recieved
@@ -391,6 +395,64 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	public async postMessageToWebview(message: ExtensionMessage) {
 		await this.view?.webview.postMessage(message)
+	}
+
+	private getHMRHtmlContent(webview: vscode.Webview): string {
+		const nonce = getNonce()
+
+		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
+		const codiconsUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"@vscode",
+			"codicons",
+			"dist",
+			"codicon.css",
+		])
+
+		const file = "src/index.tsx"
+		const localPort = "5173"
+		const localServerUrl = `localhost:${localPort}`
+		const scriptUri = `http://${localServerUrl}/${file}`
+
+		const reactRefreshHash = "sha256-YmMpkm5ow6h+lfI3ZRp0uys+EUCt6FOyLkJERkfVnTY="
+
+		const reactRefresh = /*html*/ `
+			<script sha256="${reactRefreshHash}" nonce="${nonce}" type="module">
+				import RefreshRuntime from "http://localhost:${localPort}/@react-refresh"
+				RefreshRuntime.injectIntoGlobalHook(window)
+				window.$RefreshReg$ = () => {}
+				window.$RefreshSig$ = () => (type) => type
+				window.__vite_plugin_react_preamble_installed__ = true
+			</script>
+		`
+
+		const csp = [
+			"default-src 'none'",
+			`font-src ${webview.cspSource}`,
+			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			`img-src ${webview.cspSource} data:`,
+			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} '${reactRefreshHash}' 'nonce-${nonce}'`,
+			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+		]
+
+		return /*html*/ `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+					<meta charset="utf-8">
+					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+					<link rel="stylesheet" type="text/css" href="${stylesUri}">
+					<link href="${codiconsUri}" rel="stylesheet" />
+					<title>Roo Code</title>
+				</head>
+				<body>
+					<div id="root"></div>
+					${reactRefresh}
+					<script type="module" src="${scriptUri}"></script>
+				</body>
+			</html>
+		`
 	}
 
 	/**
@@ -548,7 +610,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									}
 								}
 
-								let currentConfigName = (await this.getGlobalState("currentApiConfigName")) as string
+								const currentConfigName = (await this.getGlobalState("currentApiConfigName")) as string
 
 								if (currentConfigName) {
 									if (!(await this.configManager.hasConfig(currentConfigName))) {
@@ -1124,7 +1186,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.text && message.apiConfiguration) {
 							try {
 								await this.configManager.saveConfig(message.text, message.apiConfiguration)
-								let listApiConfig = await this.configManager.listConfig()
+								const listApiConfig = await this.configManager.listConfig()
 
 								await Promise.all([
 									this.updateGlobalState("listApiConfigMeta", listApiConfig),
@@ -1149,7 +1211,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								await this.configManager.saveConfig(newName, message.apiConfiguration)
 								await this.configManager.deleteConfig(oldName)
 
-								let listApiConfig = await this.configManager.listConfig()
+								const listApiConfig = await this.configManager.listConfig()
 								const config = listApiConfig?.find((c) => c.name === newName)
 
 								// Update listApiConfigMeta first to ensure UI has latest data
@@ -1207,7 +1269,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 
 								// If this was the current config, switch to first available
-								let currentApiConfigName = await this.getGlobalState("currentApiConfigName")
+								const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 								if (message.text === currentApiConfigName && listApiConfig?.[0]?.name) {
 									const apiConfig = await this.configManager.loadConfig(listApiConfig[0].name)
 									await Promise.all([
@@ -1227,7 +1289,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "getListApiConfiguration":
 						try {
-							let listApiConfig = await this.configManager.listConfig()
+							const listApiConfig = await this.configManager.listConfig()
 							await this.updateGlobalState("listApiConfigMeta", listApiConfig)
 							this.postMessageToWebview({ type: "listApiConfig", listApiConfig })
 						} catch (error) {
@@ -1267,7 +1329,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.outputChannel.appendLine(
 									`Failed to update timeout for ${message.serverName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 								)
-								vscode.window.showErrorMessage(`Failed to update server timeout`)
+								vscode.window.showErrorMessage("Failed to update server timeout")
 							}
 						}
 						break
@@ -1620,7 +1682,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async refreshGlamaModels() {
 		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
 
-		let models: Record<string, ModelInfo> = {}
+		const models: Record<string, ModelInfo> = {}
 		try {
 			const response = await axios.get("https://glama.ai/api/gateway/v1/models")
 			/*
@@ -1710,7 +1772,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			GlobalFileNames.openRouterModels,
 		)
 
-		let models: Record<string, ModelInfo> = {}
+		const models: Record<string, ModelInfo> = {}
 		try {
 			const response = await axios.get("https://openrouter.ai/api/v1/models")
 			/*
