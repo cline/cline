@@ -118,8 +118,6 @@ export class OpenRouterHandler implements ApiHandler {
 			shouldApplyMiddleOutTransform = true
 		}
 
-		const isDeepSeekR1 = model.id === "deepseek/deepseek-r1" || model.id.startsWith("deepseek/deepseek-r1:")
-
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
