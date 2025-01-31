@@ -15,3 +15,6 @@ roo-cline-*.vsix
 # Test environment
 .test_env
 .vscode-test/
+
+# Docs
+docs/_site/
