@@ -7,6 +7,14 @@ import { ClineProvider } from "../../core/webview/ClineProvider"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile, shouldExcludeFile } from "./CheckpointExclusions"
 
+// This module implements the CheckpointTracker class, a core part of Cline's Checkpoints
+// system for tracking and managing file states using Git. It creates and manages shadow Git
+// repositories, allowing users to make checkpoints of their work, view changes, and reset to
+// previous states without affecting the main repository. The tracker applies exclusion rules,
+// handles nested Git repositories, and automatically configures Git settings. With features
+// like file filtering, commit management, and workspace validation, it ensures reliable tracking
+// of development progress while seamlessly integrating into Cline’s workflow.
+
 class CheckpointTracker {
 	private providerRef: WeakRef<ClineProvider>
 	private taskId: string
@@ -374,8 +382,9 @@ class CheckpointTracker {
 		// Find all .git directories that are not at the root level using VS Code API
 		const gitFiles = await vscode.workspace.findFiles(
 			new vscode.RelativePattern(this.cwd, "**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX)),
-			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git
+			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git (note trailing comma)
 		)
+
 		// Filter to only include directories
 		const gitPaths: string[] = []
 		for (const file of gitFiles) {
@@ -391,7 +400,7 @@ class CheckpointTracker {
 			}
 		}
 
-		// For each nested .git directory, rename it based on operation
+		// For each nested .git directory, rename it based on the disable flag
 		for (const gitPath of gitPaths) {
 			const fullPath = path.join(this.cwd, gitPath)
 			let newPath: string
@@ -403,9 +412,9 @@ class CheckpointTracker {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} workspace git repo ${gitPath}`)
+				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
-				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} workspace git repo ${gitPath}:`, error)
+				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
 	}
