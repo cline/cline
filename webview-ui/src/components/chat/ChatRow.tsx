@@ -89,7 +89,7 @@ export const ChatRowContent = ({
 		}
 	}, [isLast, message.say])
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
-		if (message.text != null && message.say === "api_req_started") {
+		if (message.text && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
 			return [info.cost, info.cancelReason, info.streamingFailedMessage]
 		}
@@ -183,26 +183,26 @@ export const ChatRowContent = ({
 					</div>
 				)
 				return [
-					apiReqCancelReason != null ? (
+					apiReqCancelReason !== null ? (
 						apiReqCancelReason === "user_cancelled" ? (
 							getIconSpan("error", cancelledColor)
 						) : (
 							getIconSpan("error", errorColor)
 						)
-					) : cost != null ? (
+					) : cost !== null ? (
 						getIconSpan("check", successColor)
 					) : apiRequestFailedMessage ? (
 						getIconSpan("error", errorColor)
 					) : (
 						<ProgressIndicator />
 					),
-					apiReqCancelReason != null ? (
+					apiReqCancelReason !== null ? (
 						apiReqCancelReason === "user_cancelled" ? (
 							<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
 						) : (
 							<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
 						)
-					) : cost != null ? (
+					) : cost !== null ? (
 						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
 					) : apiRequestFailedMessage ? (
 						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
@@ -510,7 +510,7 @@ export const ChatRowContent = ({
 								style={{
 									...headerStyle,
 									marginBottom:
-										(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
+										(cost === null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
 											? 10
 											: 0,
 									justifyContent: "space-between",
@@ -524,13 +524,13 @@ export const ChatRowContent = ({
 								<div style={{ display: "flex", alignItems: "center", gap: "10px", flexGrow: 1 }}>
 									{icon}
 									{title}
-									<VSCodeBadge style={{ opacity: cost != null && cost > 0 ? 1 : 0 }}>
+									<VSCodeBadge style={{ opacity: cost ? 1 : 0 }}>
 										${Number(cost || 0)?.toFixed(4)}
 									</VSCodeBadge>
 								</div>
 								<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 							</div>
-							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+							{((cost === null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
 									<p style={{ ...pStyle, color: "var(--vscode-errorForeground)" }}>
 										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
