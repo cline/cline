@@ -36,6 +36,20 @@ export class LLMFileAccessController {
 		"**/*.jks", // Java keystore files
 		"**/secrets.*", // Secret files
 		"**/credentials.*", // Credential files
+		"**/__pycache__/**", // Python bytecode cache
+		"**/env/**", // Python virtual environment
+		"**/venv/**", // Virtual environment
+		"**/target/dependency/**", // Dependency folder in Java/Maven projects
+		"**/out/**", // Output directories (common in various build systems)
+		"**/bundle/**", // Bundled files for deployment
+		"**/vendor/**", // Vendor dependencies (used in PHP, Go, etc.)
+		"**/tmp/**", // Temporary files
+		"**/temp/**", // Temporary files
+		"**/deps/**", // Dependencies folder (various ecosystems)
+		"**/pkg/**", // Package files (common in Go, Rust, etc.)
+		"**/Pods/**", // CocoaPods dependencies (iOS/macOS development)
+		"**/build/dependencies/**", // Dependencies within build folders
+		"**/.*", // Hidden directories
 	]
 
 	constructor(cwd: string) {
@@ -85,6 +99,11 @@ export class LLMFileAccessController {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
 			const relativePath = path.relative(this.cwd, absolutePath).replace(/\\/g, "/")
+
+			// Block access to paths outside cwd (those starting with '..')
+			if (relativePath.startsWith("..")) {
+				return false
+			}
 
 			// Use ignore library to check if path should be ignored
 			return !this.ignoreInstance.ignores(relativePath)

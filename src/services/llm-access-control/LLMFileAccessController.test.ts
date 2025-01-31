@@ -30,19 +30,22 @@ describe("LLMFileAccessController", () => {
 	})
 
 	describe("Default Patterns", () => {
-		it("should block access to .env files", async () => {
-			const result = await controller.validateAccess(".env")
-			result.should.be.false()
-		})
-
-		it("should block access to .git directory", async () => {
-			const result = await controller.validateAccess(".git/config")
-			result.should.be.false()
+		it("should block access to common ignored files", async () => {
+			const results = await Promise.all([
+				controller.validateAccess(".env"),
+				controller.validateAccess(".git/config"),
+				controller.validateAccess("node_modules/package.json"),
+			])
+			results.forEach((result) => result.should.be.false())
 		})
 
 		it("should allow access to regular files", async () => {
-			const result = await controller.validateAccess("src/index.ts")
-			result.should.be.true()
+			const results = await Promise.all([
+				controller.validateAccess("src/index.ts"),
+				controller.validateAccess("README.md"),
+				controller.validateAccess("package.json"),
+			])
+			results.forEach((result) => result.should.be.true())
 		})
 	})
 
@@ -52,6 +55,8 @@ describe("LLMFileAccessController", () => {
 				controller.validateAccess("config.secret"),
 				controller.validateAccess("private/data.txt"),
 				controller.validateAccess("temp.json"),
+				controller.validateAccess("nested/deep/file.secret"),
+				controller.validateAccess("private/nested/deep/file.txt"),
 			])
 			results.forEach((result) => result.should.be.false())
 		})
@@ -60,9 +65,95 @@ describe("LLMFileAccessController", () => {
 			const results = await Promise.all([
 				controller.validateAccess("public/data.txt"),
 				controller.validateAccess("config.json"),
-				controller.validateAccess("src/temp/file.ts"),
+				controller.validateAccess("src/non-temp/file.ts"),
+				controller.validateAccess("nested/deep/file.txt"),
+				controller.validateAccess("not-private/data.txt"),
 			])
 			results.forEach((result) => result.should.be.true())
+		})
+
+		it("should handle pattern edge cases", async () => {
+			await fs.writeFile(
+				path.join(tempDir, ".clineignore"),
+				["*.secret", "private/", "*.tmp", "data-*.json", "temp/*"].join("\n"),
+			)
+
+			controller = new LLMFileAccessController(tempDir)
+			await controller.initialize()
+
+			const results = await Promise.all([
+				controller.validateAccess("data-123.json"), // Should be false (wildcard)
+				controller.validateAccess("data.json"), // Should be true (doesn't match pattern)
+				controller.validateAccess("script.tmp"), // Should be false (extension match)
+			])
+
+			results[0].should.be.false() // data-123.json
+			results[1].should.be.true() // data.json
+			results[2].should.be.false() // script.tmp
+		})
+
+		// ToDo: handle negation patterns successfully
+
+		// it("should handle negation patterns", async () => {
+		// 	await fs.writeFile(
+		// 		path.join(tempDir, ".clineignore"),
+		// 		[
+		// 			"temp/*", // Ignore everything in temp
+		// 			"!temp/allowed/*", // But allow files in temp/allowed
+		// 			"docs/**/*.md", // Ignore all markdown files in docs
+		// 			"!docs/README.md", // Except README.md
+		// 			"!docs/CONTRIBUTING.md", // And CONTRIBUTING.md
+		// 			"assets/", // Ignore all assets
+		// 			"!assets/public/", // Except public assets
+		// 			"!assets/public/*.png", // Specifically allow PNGs in public assets
+		// 		].join("\n"),
+		// 	)
+
+		// 	controller = new LLMFileAccessController(tempDir)
+		// 	await controller.initialize()
+
+		// 	const results = await Promise.all([
+		// 		// Basic negation
+		// 		controller.validateAccess("temp/file.txt"), // Should be false (in temp/)
+		// 		controller.validateAccess("temp/allowed/file.txt"), // Should be true (negated)
+		// 		controller.validateAccess("temp/allowed/nested/file.txt"), // Should be true (negated with nested)
+
+		// 		// Multiple negations in same path
+		// 		controller.validateAccess("docs/guide.md"), // Should be false (matches docs/**/*.md)
+		// 		controller.validateAccess("docs/README.md"), // Should be true (negated)
+		// 		controller.validateAccess("docs/CONTRIBUTING.md"), // Should be true (negated)
+		// 		controller.validateAccess("docs/api/guide.md"), // Should be false (nested markdown)
+
+		// 		// Nested negations
+		// 		controller.validateAccess("assets/logo.png"), // Should be false (in assets/)
+		// 		controller.validateAccess("assets/public/logo.png"), // Should be true (negated and matches *.png)
+		// 		controller.validateAccess("assets/public/data.json"), // Should be true (in negated public/)
+		// 	])
+
+		// 	results[0].should.be.false() // temp/file.txt
+		// 	results[1].should.be.true() // temp/allowed/file.txt
+		// 	results[2].should.be.true() // temp/allowed/nested/file.txt
+		// 	results[3].should.be.false() // docs/guide.md
+		// 	results[4].should.be.true() // docs/README.md
+		// 	results[5].should.be.true() // docs/CONTRIBUTING.md
+		// 	results[6].should.be.false() // docs/api/guide.md
+		// 	results[7].should.be.false() // assets/logo.png
+		// 	results[8].should.be.true() // assets/public/logo.png
+		// 	results[9].should.be.true() // assets/public/data.json
+		// })
+
+		it("should handle comments in .clineignore", async () => {
+			// Create a new .clineignore with comments
+			await fs.writeFile(
+				path.join(tempDir, ".clineignore"),
+				["# Comment line", "*.secret", "private/", "temp.*"].join("\n"),
+			)
+
+			controller = new LLMFileAccessController(tempDir)
+			await controller.initialize()
+
+			const result = await controller.validateAccess("test.secret")
+			result.should.be.false()
 		})
 	})
 
@@ -102,6 +193,25 @@ describe("LLMFileAccessController", () => {
 			const result = await controller.validateAccess("src\\file.ts")
 			result.should.be.true()
 		})
+
+		it("should handle paths outside cwd", async () => {
+			// Create a path that points to parent directory of cwd
+			const outsidePath = path.join(path.dirname(tempDir), "outside.txt")
+			const result = await controller.validateAccess(outsidePath)
+
+			// Should return false for security since path is outside cwd
+			result.should.be.false()
+
+			// Test with a deeply nested path outside cwd
+			const deepOutsidePath = path.join(path.dirname(tempDir), "deep", "nested", "outside.secret")
+			const deepResult = await controller.validateAccess(deepOutsidePath)
+			deepResult.should.be.false()
+
+			// Test with a path that tries to escape using ../
+			const escapeAttemptPath = path.join(tempDir, "..", "escape-attempt.txt")
+			const escapeResult = await controller.validateAccess(escapeAttemptPath)
+			escapeResult.should.be.false()
+		})
 	})
 
 	describe("Batch Filtering", () => {
@@ -133,6 +243,16 @@ describe("LLMFileAccessController", () => {
 			} finally {
 				await fs.rm(emptyDir, { recursive: true, force: true })
 			}
+		})
+
+		it("should handle empty .clineignore", async () => {
+			await fs.writeFile(path.join(tempDir, ".clineignore"), "")
+
+			controller = new LLMFileAccessController(tempDir)
+			await controller.initialize()
+
+			const result = await controller.validateAccess("regular-file.txt")
+			result.should.be.true()
 		})
 	})
 })
