@@ -29,10 +29,10 @@ suite("Roo Code Task", () => {
 
 		await provider.updateGlobalState("apiProvider", "openrouter")
 		await provider.updateGlobalState("openRouterModelId", "anthropic/claude-3.5-sonnet")
-		const apiKey = process.env.OPEN_ROUTER_API_KEY
+		const apiKey = process.env.OPENROUTER_API_KEY
 
 		if (!apiKey) {
-			assert.fail("OPEN_ROUTER_API_KEY environment variable is not set")
+			assert.fail("OPENROUTER_API_KEY environment variable is not set")
 		}
 
 		await provider.storeSecret("openRouterApiKey", apiKey)

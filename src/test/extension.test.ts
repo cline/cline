@@ -2,9 +2,9 @@ import * as assert from "assert"
 import * as vscode from "vscode"
 
 suite("Roo Code Extension", () => {
-	test("OPEN_ROUTER_API_KEY environment variable is set", () => {
-		if (!process.env.OPEN_ROUTER_API_KEY) {
-			assert.fail("OPEN_ROUTER_API_KEY environment variable is not set")
+	test("OPENROUTER_API_KEY environment variable is set", () => {
+		if (!process.env.OPENROUTER_API_KEY) {
+			assert.fail("OPENROUTER_API_KEY environment variable is not set")
 		}
 	})
 

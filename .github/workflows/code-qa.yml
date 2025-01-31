@@ -57,7 +57,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Create env.integration file
-        run: echo "OPEN_ROUTER_API_KEY=${{ secrets.OPEN_ROUTER_API_KEY }}" > .env.integration
+        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
       - name: Check env.integration file
         run: cat .env.integration
       - name: Install dependencies
