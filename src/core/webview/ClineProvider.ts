@@ -238,6 +238,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
 
+		if (command.endsWith("addToContext")) {
+			await visibleProvider.postMessageToWebview({
+				type: "invoke",
+				invoke: "setChatBoxMessage",
+				text: prompt,
+			})
+
+			return
+		}
+
 		if (visibleProvider.cline && command.endsWith("InCurrentTask")) {
 			await visibleProvider.postMessageToWebview({
 				type: "invoke",
