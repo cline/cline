@@ -1,6 +1,7 @@
 name: Code QA Roo Code
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -13,33 +14,51 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm run install:all
-
-      - name: Compile TypeScript
+      - name: Compile
         run: npm run compile
+      - name: Check types
+        run: npm run check-types
+      - name: Lint
+        run: npm run lint
 
   unit-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm run install:all
-
       - name: Run unit tests
         run: npm test
+
+  integration-test:
+    strategy:
+      matrix:
+        os: [macos-latest] # ubuntu-latest, windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm run install:all
+      - run: xvfb-run -a npm test:integration
+        if: runner.os == 'Linux'
+      - run: npm test:integration
+        if: runner.os != 'Linux'
