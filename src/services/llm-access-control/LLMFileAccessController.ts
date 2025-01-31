@@ -16,11 +16,8 @@ export class LLMFileAccessController {
 	 * Default patterns that are always ignored for security
 	 */
 	private static readonly DEFAULT_PATTERNS = [
-		"**/.env*", // Environment files
 		"**/.git/**", // Git directory
 		"**/node_modules/**", // Dependencies
-		"**/.vscode/**", // VSCode settings
-		"**/.idea/**", // IntelliJ settings
 		"**/.DS_Store", // macOS files
 		"**/dist/**", // Build output
 		"**/build/**", // Build output
@@ -43,13 +40,10 @@ export class LLMFileAccessController {
 		"**/out/**", // Output directories (common in various build systems)
 		"**/bundle/**", // Bundled files for deployment
 		"**/vendor/**", // Vendor dependencies (used in PHP, Go, etc.)
-		"**/tmp/**", // Temporary files
-		"**/temp/**", // Temporary files
 		"**/deps/**", // Dependencies folder (various ecosystems)
 		"**/pkg/**", // Package files (common in Go, Rust, etc.)
 		"**/Pods/**", // CocoaPods dependencies (iOS/macOS development)
 		"**/build/dependencies/**", // Dependencies within build folders
-		"**/.*", // Hidden directories
 	]
 
 	constructor(cwd: string) {

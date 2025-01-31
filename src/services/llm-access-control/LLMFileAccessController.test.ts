@@ -17,7 +17,7 @@ describe("LLMFileAccessController", () => {
 		// Create default .clineignore file
 		await fs.writeFile(
 			path.join(tempDir, ".clineignore"),
-			["*.secret", "private/", "# This is a comment", "", "temp.*", "file-with-space-at-end.* "].join("\n"),
+			[".env", "*.secret", "private/", "# This is a comment", "", "temp.*", "file-with-space-at-end.* "].join("\n"),
 		)
 
 		controller = new LLMFileAccessController(tempDir)
@@ -65,7 +65,7 @@ describe("LLMFileAccessController", () => {
 			const results = await Promise.all([
 				controller.validateAccess("public/data.txt"),
 				controller.validateAccess("config.json"),
-				controller.validateAccess("src/non-temp/file.ts"),
+				controller.validateAccess("src/temp/file.ts"),
 				controller.validateAccess("nested/deep/file.txt"),
 				controller.validateAccess("not-private/data.txt"),
 			])
