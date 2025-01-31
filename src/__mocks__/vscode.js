@@ -52,6 +52,11 @@ const vscode = {
 			this.id = id
 		}
 	},
+	ExtensionMode: {
+		Production: 1,
+		Development: 2,
+		Test: 3,
+	},
 }
 
 module.exports = vscode
