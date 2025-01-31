@@ -1,0 +1,15 @@
+title: Roo Documentation
+description: Documentation for the Roo project
+theme: just-the-docs
+
+url: https://yourusername.github.io/repo-name
+
+aux_links:
+  "Roo on GitHub":
+    - "//github.com/yourusername/repo-name"
+
+# Enable search
+search_enabled: true
+
+# Enable dark mode
+color_scheme: dark
