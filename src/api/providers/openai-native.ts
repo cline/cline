@@ -27,7 +27,8 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 		switch (modelId) {
 			case "o1":
 			case "o1-preview":
-			case "o1-mini": {
+			case "o1-mini":
+			case "o3-mini": {
 				// o1-preview and o1-mini don't support streaming, non-1 temp, or system prompt
 				// o1 doesnt support streaming or non-1 temp but does support a developer prompt
 				const response = await this.client.chat.completions.create({
