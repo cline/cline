@@ -4,6 +4,7 @@
 
 - Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
 - Show Reasoning tokens for models that support it
+- Fix issues with switching models between Plan/Act modes
 
 ## [3.2.6]
 
