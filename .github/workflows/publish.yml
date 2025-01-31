@@ -70,8 +70,10 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
             - name: Create Git Tag
+              id: create_tag
               run: |
                   VERSION=v${{ steps.get_version.outputs.version }}
+                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
                   echo "Tagging with $VERSION"
                   git tag "$VERSION"
                   git push origin "$VERSION"
@@ -104,6 +106,7 @@ jobs:
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
+                  tag_name: ${{ steps.create_tag.outputs.tag }}
                   files: "*.vsix"
                   # body: ${{ steps.changelog.outputs.content }}
                   generate_release_notes: true
