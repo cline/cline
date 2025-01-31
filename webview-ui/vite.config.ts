@@ -27,5 +27,10 @@ export default defineConfig({
 			host: "localhost",
 			protocol: "ws",
 		},
+		cors: {
+			origin: "*",
+			methods: "*",
+			allowedHeaders: "*",
+		},
 	},
 })
