@@ -32,8 +32,8 @@ jobs:
         run: |
           cd docs
           bundle init
-          echo 'gem "jekyll"' >> Gemfile
-          echo 'gem "just-the-docs"' >> Gemfile
+          echo 'source "https://rubygems.org"' >> Gemfile
+          echo 'gem "github-pages", group: :jekyll_plugins' >> Gemfile
           bundle install
           bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
         env:

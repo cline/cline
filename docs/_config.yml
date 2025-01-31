@@ -1,6 +1,6 @@
 title: Roo Documentation
 description: Documentation for the Roo project
-theme: just-the-docs
+remote_theme: just-the-docs/just-the-docs
 
 url: https://yourusername.github.io/repo-name
 
