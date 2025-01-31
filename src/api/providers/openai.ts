@@ -4,6 +4,7 @@ import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModel
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -27,12 +28,20 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const modelId = this.options.openAiModelId ?? ""
+		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
+
+		if (isDeepseekReasoner) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
 		const stream = await this.client.chat.completions.create({
-			model: this.options.openAiModelId ?? "",
+			model: modelId,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
@@ -46,6 +55,14 @@ export class OpenAiHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
+
+			if ("reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
+				}
+			}
+
 			if (chunk.usage) {
 				yield {
 					type: "usage",

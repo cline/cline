@@ -2986,9 +2986,14 @@ export class Cline {
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
+			let reasoningMessage = ""
 			this.isStreaming = true
 			try {
 				for await (const chunk of stream) {
+					if (!chunk) {
+						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
+						continue
+					}
 					switch (chunk.type) {
 						case "usage":
 							inputTokens += chunk.inputTokens
@@ -2997,7 +3002,16 @@ export class Cline {
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
+						case "reasoning":
+							// reasoning will always come before assistant message
+							reasoningMessage += chunk.reasoning
+							await this.say("reasoning", reasoningMessage, undefined, true)
+							break
 						case "text":
+							if (reasoningMessage && assistantMessage.length === 0) {
+								// complete reasoning message
+								await this.say("reasoning", reasoningMessage, undefined, false)
+							}
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length

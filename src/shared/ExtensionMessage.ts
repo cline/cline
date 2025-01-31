@@ -75,6 +75,7 @@ export interface ClineMessage {
 	ask?: ClineAsk
 	say?: ClineSay
 	text?: string
+	reasoning?: string
 	images?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
@@ -103,6 +104,7 @@ export type ClineSay =
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
+	| "reasoning"
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"
