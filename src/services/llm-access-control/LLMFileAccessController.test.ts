@@ -17,7 +17,9 @@ describe("LLMFileAccessController", () => {
 		// Create default .clineignore file
 		await fs.writeFile(
 			path.join(tempDir, ".clineignore"),
-			[".env", "*.secret", "private/", "# This is a comment", "", "temp.*", "file-with-space-at-end.* "].join("\n"),
+			[".env", "*.secret", "private/", "# This is a comment", "", "temp.*", "file-with-space-at-end.* ", "**/.git/**"].join(
+				"\n",
+			),
 		)
 
 		controller = new LLMFileAccessController(tempDir)
@@ -30,14 +32,14 @@ describe("LLMFileAccessController", () => {
 	})
 
 	describe("Default Patterns", () => {
-		it("should block access to common ignored files", async () => {
-			const results = await Promise.all([
-				controller.validateAccess(".env"),
-				controller.validateAccess(".git/config"),
-				controller.validateAccess("node_modules/package.json"),
-			])
-			results.forEach((result) => result.should.be.false())
-		})
+		// it("should block access to common ignored files", async () => {
+		// 	const results = await Promise.all([
+		// 		controller.validateAccess(".env"),
+		// 		controller.validateAccess(".git/config"),
+		// 		controller.validateAccess("node_modules/package.json"),
+		// 	])
+		// 	results.forEach((result) => result.should.be.false())
+		// })
 
 		it("should allow access to regular files", async () => {
 			const results = await Promise.all([
@@ -218,8 +220,8 @@ describe("LLMFileAccessController", () => {
 		it("should filter an array of paths", async () => {
 			const paths = ["src/index.ts", ".env", "lib/utils.ts", ".git/config", "dist/bundle.js"]
 
-			const filtered = await controller.filterPaths(paths)
-			filtered.should.deepEqual(["src/index.ts", "lib/utils.ts"])
+			const filtered = controller.filterPaths(paths)
+			filtered.should.deepEqual(["src/index.ts", "lib/utils.ts", "dist/bundle.js"])
 		})
 	})
 

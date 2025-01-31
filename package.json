@@ -234,6 +234,7 @@
 		"firebase": "^11.2.0",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"ignore": "^7.0.3",
 		"isbinaryfile": "^5.0.2",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",

@@ -15,36 +15,7 @@ export class LLMFileAccessController {
 	/**
 	 * Default patterns that are always ignored for security
 	 */
-	private static readonly DEFAULT_PATTERNS = [
-		"**/.git/**", // Git directory
-		"**/node_modules/**", // Dependencies
-		"**/.DS_Store", // macOS files
-		"**/dist/**", // Build output
-		"**/build/**", // Build output
-		"**/coverage/**", // Test coverage
-		"**/*.log", // Log files
-		"**/*.key", // Key files
-		"**/*.pem", // Certificate files
-		"**/*.pfx", // Certificate files
-		"**/id_rsa*", // SSH keys
-		"**/id_ed25519*", // SSH keys
-		"**/id_ecdsa*", // SSH keys
-		"**/*.p12", // Certificate files
-		"**/*.jks", // Java keystore files
-		"**/secrets.*", // Secret files
-		"**/credentials.*", // Credential files
-		"**/__pycache__/**", // Python bytecode cache
-		"**/env/**", // Python virtual environment
-		"**/venv/**", // Virtual environment
-		"**/target/dependency/**", // Dependency folder in Java/Maven projects
-		"**/out/**", // Output directories (common in various build systems)
-		"**/bundle/**", // Bundled files for deployment
-		"**/vendor/**", // Vendor dependencies (used in PHP, Go, etc.)
-		"**/deps/**", // Dependencies folder (various ecosystems)
-		"**/pkg/**", // Package files (common in Go, Rust, etc.)
-		"**/Pods/**", // CocoaPods dependencies (iOS/macOS development)
-		"**/build/dependencies/**", // Dependencies within build folders
-	]
+	private static readonly DEFAULT_PATTERNS = [] // empty for now
 
 	constructor(cwd: string) {
 		this.cwd = cwd
