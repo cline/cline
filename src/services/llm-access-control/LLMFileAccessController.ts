@@ -92,9 +92,9 @@ export class LLMFileAccessController {
 	/**
 	 * Check if a file should be accessible to the LLM
 	 * @param filePath - Path to check (relative to cwd)
-	 * @returns Promise resolving to true if file is accessible, false if ignored
+	 * @returns true if file is accessible, false if ignored
 	 */
-	async validateAccess(filePath: string): Promise<boolean> {
+	validateAccess(filePath: string): boolean {
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
@@ -116,18 +116,17 @@ export class LLMFileAccessController {
 	/**
 	 * Filter an array of paths, removing those that should be ignored
 	 * @param paths - Array of paths to filter (relative to cwd)
-	 * @returns Promise resolving to array of allowed paths
+	 * @returns Array of allowed paths
 	 */
-	async filterPaths(paths: string[]): Promise<string[]> {
+	filterPaths(paths: string[]): string[] {
 		try {
-			const results = await Promise.all(
-				paths.map(async (p) => ({
+			return paths
+				.map((p) => ({
 					path: p,
-					allowed: await this.validateAccess(p),
-				})),
-			)
-
-			return results.filter((x) => x.allowed).map((x) => x.path)
+					allowed: this.validateAccess(p),
+				}))
+				.filter((x) => x.allowed)
+				.map((x) => x.path)
 		} catch (error) {
 			console.error("Error filtering paths:", error)
 			return [] // Fail closed for security
