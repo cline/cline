@@ -94,6 +94,7 @@ export interface ExtensionState {
 	alwaysApproveResubmit?: boolean
 	alwaysAllowModeSwitch?: boolean
 	requestDelaySeconds: number
+	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean

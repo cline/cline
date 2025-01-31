@@ -324,6 +324,7 @@ describe("ClineProvider", () => {
 			fuzzyMatchThreshold: 1.0,
 			mcpEnabled: true,
 			requestDelaySeconds: 5,
+			rateLimitSeconds: 0,
 			mode: defaultModeSlug,
 			customModes: [],
 			experiments: experimentDefault,

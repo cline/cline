@@ -66,6 +66,7 @@ export interface WebviewMessage {
 		| "refreshGlamaModels"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
+		| "rateLimitSeconds"
 		| "setApiConfigPassword"
 		| "requestVsCodeLmModels"
 		| "mode"
