@@ -20,12 +20,27 @@ function estimateTokensFromBytes(byteLength: number): number {
 }
 
 function estimateInputTextTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): number {
-	let combinedInputText = systemPrompt + "\n" // Start with system prompt
-	for (const message of messages) {
-		combinedInputText += `${message.role}: ${message.content}\n` // Add role and content for each message
+	let combinedInputText = systemPrompt + "\n"
+
+	// Convert messages to OpenAI format to handle complex content types
+	const openAiMessages = convertToOpenAiMessages(messages)
+
+	for (const message of openAiMessages) {
+		if (typeof message.content === "string") {
+			combinedInputText += `${message.role}: ${message.content}\n`
+		} else if (Array.isArray(message.content)) {
+			const textContent = message.content
+				.filter((item) => item.type === "text")
+				.map((item) => item.text)
+				.join("")
+			combinedInputText += `${message.role}: ${textContent}\n`
+		}
 	}
+
 	const byteLength = getUtf8ByteLength(combinedInputText)
-	return estimateTokensFromBytes(byteLength)
+	const tokenLength = estimateTokensFromBytes(byteLength)
+
+	return tokenLength
 }
 
 export class OpenAiHandler implements ApiHandler {
