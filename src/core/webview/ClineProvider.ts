@@ -112,6 +112,7 @@ type GlobalStateKey =
 	| "mcpEnabled"
 	| "alwaysApproveResubmit"
 	| "requestDelaySeconds"
+	| "rateLimitSeconds"
 	| "currentApiConfigName"
 	| "listApiConfigMeta"
 	| "vsCodeLmModelSelector"
@@ -884,6 +885,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "requestDelaySeconds":
 						await this.updateGlobalState("requestDelaySeconds", message.value ?? 5)
+						await this.postStateToWebview()
+						break
+					case "rateLimitSeconds":
+						await this.updateGlobalState("rateLimitSeconds", message.value ?? 0)
 						await this.postStateToWebview()
 						break
 					case "preferredLanguage":
@@ -1997,6 +2002,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpEnabled,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
+			rateLimitSeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
 			mode,
@@ -2038,6 +2044,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpEnabled: mcpEnabled ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: requestDelaySeconds ?? 10,
+			rateLimitSeconds: rateLimitSeconds ?? 0,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			mode: mode ?? defaultModeSlug,
@@ -2161,6 +2168,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpEnabled,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
+			rateLimitSeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
 			vsCodeLmModelSelector,
@@ -2233,6 +2241,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysApproveResubmit") as Promise<boolean | undefined>,
 			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
+			this.getGlobalState("rateLimitSeconds") as Promise<number | undefined>,
 			this.getGlobalState("currentApiConfigName") as Promise<string | undefined>,
 			this.getGlobalState("listApiConfigMeta") as Promise<ApiConfigMeta[] | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
@@ -2355,6 +2364,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpEnabled: mcpEnabled ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: Math.max(5, requestDelaySeconds ?? 10),
+			rateLimitSeconds: rateLimitSeconds ?? 0,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			modeApiConfigs: modeApiConfigs ?? ({} as Record<Mode, string>),
