@@ -210,7 +210,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
+		const { filePaths, openedTabs, activeSelection, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -236,16 +236,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const prevShowModelSelector = useRef(showModelSelector)
 
 		const queryItems = useMemo(() => {
-			return [
+			const items = [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
+				// Add opened tabs
+				...openedTabs
+					.filter((tab) => tab.path)
+					.map((tab) => ({
+						type: ContextMenuOptionType.OpenedFile,
+						value: "/" + tab.path,
+					})),
+
+				// Add regular file paths
 				...filePaths
 					.map((file) => "/" + file)
+					.filter((path) => !openedTabs.some((tab) => tab.path && "/" + tab.path === path)) // Filter out paths that are already in openedTabs
 					.map((path) => ({
 						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
 						value: path,
 					})),
 			]
-		}, [filePaths])
+
+			if (activeSelection) {
+				items.unshift({
+					type: ContextMenuOptionType.OpenedFile,
+					value: `/${activeSelection.file}:${activeSelection.selection.startLine + 1}-${activeSelection.selection.endLine + 1}`,
+				})
+			}
+
+			return items
+		}, [filePaths, openedTabs, activeSelection])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {

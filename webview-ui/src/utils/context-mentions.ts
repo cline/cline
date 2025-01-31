@@ -43,6 +43,7 @@ export function removeMention(text: string, position: number): { newText: string
 }
 
 export enum ContextMenuOptionType {
+	OpenedFile = "openedFile",
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
@@ -63,9 +64,9 @@ export function getContextMenuOptions(
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.File)
+				.filter((item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.OpenedFile)
 				.map((item) => ({
-					type: ContextMenuOptionType.File,
+					type: item.type,
 					value: item.value,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
@@ -94,7 +95,9 @@ export function getContextMenuOptions(
 	if (query.startsWith("http")) {
 		return [{ type: ContextMenuOptionType.URL, value: query }]
 	} else {
-		const matchingItems = queryItems.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
+		const matchingItems = queryItems
+			.filter((item) => item.type !== ContextMenuOptionType.OpenedFile)
+			.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
 
 		if (matchingItems.length > 0) {
 			return matchingItems.map((item) => ({

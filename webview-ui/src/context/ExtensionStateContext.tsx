@@ -18,6 +18,11 @@ interface ExtensionStateContextType extends ExtensionState {
 	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
+	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
+	activeSelection: {
+		file: string
+		selection: { startLine: number; endLine: number }
+	} | null
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setShowAnnouncement: (value: boolean) => void
@@ -42,6 +47,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
+	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
+	const [activeSelection, setActiveSelection] = useState<{
+		file: string
+		selection: { startLine: number; endLine: number }
+	} | null>(null)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -82,7 +92,13 @@ export const ExtensionStateContextProvider: React.FC<{
 				break
 			}
 			case "workspaceUpdated": {
-				setFilePaths(message.filePaths ?? [])
+				const paths = message.filePaths ?? []
+				const tabs = message.openedTabs ?? []
+				const selection = message.activeSelection ?? null
+
+				setFilePaths(paths)
+				setOpenedTabs(tabs)
+				setActiveSelection(selection)
 				break
 			}
 			case "partialMessage": {
@@ -134,6 +150,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		openAiModels,
 		mcpServers,
 		filePaths,
+		openedTabs,
+		activeSelection,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

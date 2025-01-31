@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
+import { toRelativePath } from "../../utils/path"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
@@ -36,6 +37,13 @@ class WorkspaceTracker {
 
 		// Listen for file renaming
 		this.disposables.push(vscode.workspace.onDidRenameFiles(this.onFilesRenamed.bind(this)))
+
+		// Listen for tab changes
+		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(() => this.workspaceDidUpdate()))
+
+		// Listen for editor/selection changes
+		this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.workspaceDidUpdate()))
+		this.disposables.push(vscode.window.onDidChangeTextEditorSelection(() => this.workspaceDidUpdate()))
 
 		/*
 		 An event that is emitted when a workspace folder is added or removed.
@@ -81,16 +89,45 @@ class WorkspaceTracker {
 		this.workspaceDidUpdate()
 	}
 
+	private getOpenedTabsInfo() {
+		return vscode.window.tabGroups.all.flatMap((group) =>
+			group.tabs
+				.filter((tab) => tab.input instanceof vscode.TabInputText)
+				.map((tab) => {
+					const path = (tab.input as vscode.TabInputText).uri.fsPath
+					return {
+						label: tab.label,
+						isActive: tab.isActive,
+						path: toRelativePath(path, cwd || ""),
+					}
+				}),
+		)
+	}
+
+	private getActiveSelectionInfo() {
+		const editor = vscode.window.activeTextEditor
+		if (!editor) return null
+		if (editor.selection.isEmpty) return null
+
+		return {
+			file: toRelativePath(editor.document.uri.fsPath, cwd || ""),
+			selection: {
+				startLine: editor.selection.start.line,
+				endLine: editor.selection.end.line,
+			},
+		}
+	}
+
 	private workspaceDidUpdate() {
 		if (!cwd) {
 			return
 		}
+		const relativeFilePaths = Array.from(this.filePaths).map((file) => toRelativePath(file, cwd))
 		this.providerRef.deref()?.postMessageToWebview({
 			type: "workspaceUpdated",
-			filePaths: Array.from(this.filePaths).map((file) => {
-				const relativePath = path.relative(cwd, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
-			}),
+			filePaths: relativeFilePaths,
+			openedTabs: this.getOpenedTabsInfo(),
+			activeSelection: this.getActiveSelectionInfo(),
 		})
 	}
 
