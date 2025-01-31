@@ -1,15 +1,24 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (6.1.7.10)
-      concurrent-ruby (~> 1.0, >= 1.0.2)
+    activesupport (8.0.1)
+      base64
+      benchmark (>= 0.3)
+      bigdecimal
+      concurrent-ruby (~> 1.0, >= 1.3.1)
+      connection_pool (>= 2.2.5)
+      drb
       i18n (>= 1.6, < 2)
+      logger (>= 1.4.2)
       minitest (>= 5.1)
-      tzinfo (~> 2.0)
-      zeitwerk (~> 2.3)
+      securerandom (>= 0.3)
+      tzinfo (~> 2.0, >= 2.0.5)
+      uri (>= 0.13.1)
     addressable (2.8.7)
       public_suffix (>= 2.0.2, < 7.0)
     base64 (0.2.0)
+    benchmark (0.4.0)
+    bigdecimal (3.1.9)
     coffee-script (2.4.1)
       coffee-script-source
       execjs
@@ -17,9 +26,12 @@ GEM
     colorator (1.1.0)
     commonmarker (0.23.11)
     concurrent-ruby (1.3.5)
+    connection_pool (2.5.0)
+    csv (3.3.2)
     dnsruby (1.72.3)
       base64 (~> 0.2.0)
       simpleidn (~> 0.2.1)
+    drb (2.2.1)
     em-websocket (0.5.3)
       eventmachine (>= 0.12.9)
       http_parser.rb (~> 0)
@@ -27,20 +39,28 @@ GEM
       ffi (>= 1.15.0)
     eventmachine (1.2.7)
     execjs (2.10.0)
-    faraday (2.8.1)
-      base64
-      faraday-net_http (>= 2.0, < 3.1)
-      ruby2_keywords (>= 0.0.4)
-    faraday-net_http (3.0.2)
-    ffi (1.17.1)
+    faraday (2.12.2)
+      faraday-net_http (>= 2.0, < 3.5)
+      json
+      logger
+    faraday-net_http (3.4.0)
+      net-http (>= 0.5.0)
+    ffi (1.17.1-aarch64-linux-gnu)
+    ffi (1.17.1-aarch64-linux-musl)
+    ffi (1.17.1-arm-linux-gnu)
+    ffi (1.17.1-arm-linux-musl)
+    ffi (1.17.1-arm64-darwin)
+    ffi (1.17.1-x86_64-darwin)
+    ffi (1.17.1-x86_64-linux-gnu)
+    ffi (1.17.1-x86_64-linux-musl)
     forwardable-extended (2.6.0)
     gemoji (4.1.0)
-    github-pages (231)
+    github-pages (232)
       github-pages-health-check (= 1.18.2)
-      jekyll (= 3.9.5)
+      jekyll (= 3.10.0)
       jekyll-avatar (= 0.8.0)
       jekyll-coffeescript (= 1.2.2)
-      jekyll-commonmark-ghpages (= 0.4.0)
+      jekyll-commonmark-ghpages (= 0.5.1)
       jekyll-default-layout (= 0.1.5)
       jekyll-feed (= 0.17.0)
       jekyll-gist (= 1.5.0)
@@ -77,9 +97,10 @@ GEM
       liquid (= 4.0.4)
       mercenary (~> 0.3)
       minima (= 2.5.1)
-      nokogiri (>= 1.13.6, < 2.0)
+      nokogiri (>= 1.16.2, < 2.0)
       rouge (= 3.30.0)
       terminal-table (~> 1.4)
+      webrick (~> 1.8)
     github-pages-health-check (1.18.2)
       addressable (~> 2.3)
       dnsruby (~> 1.60)
@@ -92,9 +113,10 @@ GEM
     http_parser.rb (0.8.0)
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
-    jekyll (3.9.5)
+    jekyll (3.10.0)
       addressable (~> 2.4)
       colorator (~> 1.0)
+      csv (~> 3.0)
       em-websocket (~> 0.5)
       i18n (>= 0.7, < 2)
       jekyll-sass-converter (~> 1.0)
@@ -105,6 +127,7 @@ GEM
       pathutil (~> 0.9)
       rouge (>= 1.7, < 4)
       safe_yaml (~> 1.0)
+      webrick (>= 1.0)
     jekyll-avatar (0.8.0)
       jekyll (>= 3.0, < 5.0)
     jekyll-coffeescript (1.2.2)
@@ -112,9 +135,9 @@ GEM
       coffee-script-source (~> 1.12)
     jekyll-commonmark (1.4.0)
       commonmarker (~> 0.22)
-    jekyll-commonmark-ghpages (0.4.0)
-      commonmarker (~> 0.23.7)
-      jekyll (~> 3.9.0)
+    jekyll-commonmark-ghpages (0.5.1)
+      commonmarker (>= 0.23.7, < 1.1.0)
+      jekyll (>= 3.9, < 4.0)
       jekyll-commonmark (~> 1.4.0)
       rouge (>= 2.0, < 5.0)
     jekyll-default-layout (0.1.5)
@@ -200,6 +223,7 @@ GEM
       gemoji (>= 3, < 5)
       html-pipeline (~> 2.2)
       jekyll (>= 3.0, < 5.0)
+    json (2.9.1)
     kramdown (2.4.0)
       rexml
     kramdown-parser-gfm (1.1.0)
@@ -208,15 +232,30 @@ GEM
     listen (3.9.0)
       rb-fsevent (~> 0.10, >= 0.10.3)
       rb-inotify (~> 0.9, >= 0.9.10)
+    logger (1.6.5)
     mercenary (0.3.6)
-    mini_portile2 (2.8.8)
     minima (2.5.1)
       jekyll (>= 3.5, < 5.0)
       jekyll-feed (~> 0.9)
       jekyll-seo-tag (~> 2.1)
     minitest (5.25.4)
-    nokogiri (1.13.10)
-      mini_portile2 (~> 2.8.0)
+    net-http (0.6.0)
+      uri
+    nokogiri (1.18.2-aarch64-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.18.2-aarch64-linux-musl)
+      racc (~> 1.4)
+    nokogiri (1.18.2-arm-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.18.2-arm-linux-musl)
+      racc (~> 1.4)
+    nokogiri (1.18.2-arm64-darwin)
+      racc (~> 1.4)
+    nokogiri (1.18.2-x86_64-darwin)
+      racc (~> 1.4)
+    nokogiri (1.18.2-x86_64-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.18.2-x86_64-linux-musl)
       racc (~> 1.4)
     octokit (4.25.1)
       faraday (>= 1, < 3)
@@ -230,7 +269,6 @@ GEM
       ffi (~> 1.0)
     rexml (3.4.0)
     rouge (3.30.0)
-    ruby2_keywords (0.0.5)
     rubyzip (2.4.1)
     safe_yaml (1.0.5)
     sass (3.7.4)
@@ -241,6 +279,7 @@ GEM
     sawyer (0.9.2)
       addressable (>= 2.3.5)
       faraday (>= 0.17.3, < 3)
+    securerandom (0.4.1)
     simpleidn (0.2.3)
     terminal-table (1.8.0)
       unicode-display_width (~> 1.1, >= 1.1.1)
@@ -249,13 +288,21 @@ GEM
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (1.8.0)
-    zeitwerk (2.6.18)
+    uri (1.0.2)
+    webrick (1.9.1)
 
 PLATFORMS
-  ruby
+  aarch64-linux-gnu
+  aarch64-linux-musl
+  arm-linux-gnu
+  arm-linux-musl
+  arm64-darwin
+  x86_64-darwin
+  x86_64-linux-gnu
+  x86_64-linux-musl
 
 DEPENDENCIES
   github-pages
 
 BUNDLED WITH
-   1.17.2
+   2.5.18

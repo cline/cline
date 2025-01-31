@@ -1,12 +1,12 @@
-title: Roo Documentation
-description: Documentation for the Roo project
+title: Roo Code Documentation
+description: Documentation for the Roo Code project
 remote_theme: just-the-docs/just-the-docs
 
-url: https://shanemmattner.github.io/roo-code
+url: https://docs.roocode.com
 
 aux_links:
-  "Roo on GitHub":
-    - "//github.com/shanemmattner/roo-code"
+  "Roo Code on GitHub":
+    - "//github.com/RooVetGit/Roo-Code"
 
 # Enable search
 search_enabled: true
