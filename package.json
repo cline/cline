@@ -230,7 +230,7 @@
 		"dev": "cd webview-ui && npm run dev",
 		"test": "jest && npm run test:webview",
 		"test:webview": "cd webview-ui && npm run test",
-		"test:extension": "npm run build && npm run compile:integration && npx dotenvx run -f .env.integration -- vscode-test",
+		"test:integration": "npm run build && npm run compile:integration && npx dotenvx run -f .env.integration -- vscode-test",
 		"prepare": "husky",
 		"publish:marketplace": "vsce publish && ovsx publish",
 		"publish": "npm run build && changeset publish && npm install --package-lock-only",
