@@ -281,9 +281,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		webviewView.webview.html =
-			this.context.extensionMode === vscode.ExtensionMode.Production
-				? this.getHtmlContent(webviewView.webview)
-				: this.getHMRHtmlContent(webviewView.webview)
+			this.context.extensionMode === vscode.ExtensionMode.Development
+				? this.getHMRHtmlContent(webviewView.webview)
+				: this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is recieved
@@ -424,10 +424,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const localServerUrl = `localhost:${localPort}`
 		const scriptUri = `http://${localServerUrl}/${file}`
 
-		const reactRefreshHash = "sha256-YmMpkm5ow6h+lfI3ZRp0uys+EUCt6FOyLkJERkfVnTY="
-
 		const reactRefresh = /*html*/ `
-			<script sha256="${reactRefreshHash}" nonce="${nonce}" type="module">
+			<script nonce="${nonce}" type="module">
 				import RefreshRuntime from "http://localhost:${localPort}/@react-refresh"
 				RefreshRuntime.injectIntoGlobalHook(window)
 				window.$RefreshReg$ = () => {}
@@ -441,7 +439,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			`font-src ${webview.cspSource}`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${webview.cspSource} data:`,
-			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} '${reactRefreshHash}' 'nonce-${nonce}'`,
+			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
 		]
 

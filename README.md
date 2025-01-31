@@ -255,8 +255,14 @@ Roo Code is available on:
     ```bash
     code --install-extension bin/roo-code-4.0.0.vsix
     ```
-5. **Debug**:
+5. **Start the webview (Vite/React app with HMR)**:
+    ```bash
+    npm run dev
+    ```
+6. **Debug**:
     - Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
+
+Changes to the webview will appear immediately. Changes to the core extension will require a restart of the extension host.
 
 We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check our `CHANGELOG.md` for release notes.
 

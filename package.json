@@ -227,7 +227,7 @@
 		"lint": "eslint src --ext ts && npm run lint --prefix webview-ui",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
-		"start:webview": "cd webview-ui && npm run start",
+		"dev": "cd webview-ui && npm run dev",
 		"test": "jest && npm run test:webview",
 		"test:webview": "cd webview-ui && npm run test",
 		"test:extension": "vscode-test",
