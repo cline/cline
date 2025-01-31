@@ -57,6 +57,18 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
+	openedTabs?: Array<{
+		label: string
+		isActive: boolean
+		path?: string
+	}>
+	activeSelection?: {
+		file: string
+		selection: {
+			startLine: number
+			endLine: number
+		}
+	} | null
 	partialMessage?: ClineMessage
 	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
