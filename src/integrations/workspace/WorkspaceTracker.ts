@@ -106,8 +106,12 @@ class WorkspaceTracker {
 
 	private getActiveSelectionInfo() {
 		const editor = vscode.window.activeTextEditor
-		if (!editor) return null
-		if (editor.selection.isEmpty) return null
+		if (!editor) {
+			return null
+		}
+		if (editor.selection.isEmpty) {
+			return null
+		}
 
 		return {
 			file: toRelativePath(editor.document.uri.fsPath, cwd || ""),
