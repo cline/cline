@@ -4,6 +4,7 @@ import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
+import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -128,7 +129,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				padding: "0 15px",
 				userSelect: "none",
 				borderTop: isExpanded
-					? `0.5px solid color-mix(in srgb, var(--vscode-titleBar-inactiveForeground) 20%, transparent)`
+					? `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 					: "none",
 				overflowY: "auto",
 				...style,
@@ -186,7 +187,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					}}>
 					<span
 						style={{
-							color: "var(--vscode-foreground)",
+							color: getAsVar(VSC_FOREGROUND),
 							whiteSpace: "nowrap",
 						}}>
 						Auto-approve:
@@ -213,7 +214,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<div
 						style={{
 							marginBottom: "10px",
-							color: "var(--vscode-descriptionForeground)",
+							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
 						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
@@ -232,7 +233,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<div
 								style={{
 									marginLeft: "28px",
-									color: "var(--vscode-descriptionForeground)",
+									color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 									fontSize: "12px",
 								}}>
 								{action.description}
@@ -242,7 +243,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<div
 						style={{
 							height: "0.5px",
-							background: "var(--vscode-titleBar-inactiveForeground)",
+							background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
 							margin: "15px 0",
 							opacity: 0.2,
 						}}
@@ -254,7 +255,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							gap: "8px",
 							marginTop: "10px",
 							marginBottom: "8px",
-							color: "var(--vscode-foreground)",
+							color: getAsVar(VSC_FOREGROUND),
 						}}>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
@@ -280,7 +281,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					</div>
 					<div
 						style={{
-							color: "var(--vscode-descriptionForeground)",
+							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 							marginBottom: "10px",
 						}}>
@@ -298,7 +299,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						<div
 							style={{
 								marginLeft: "28px",
-								color: "var(--vscode-descriptionForeground)",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 								fontSize: "12px",
 							}}>
 							Receive system notifications when Cline requires approval to proceed or when a task is completed.
@@ -314,12 +315,12 @@ const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	color: ${(props) => (props.isHovered ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	color: ${(props) => (props.isHovered ? getAsVar(VSC_FOREGROUND) : getAsVar(VSC_DESCRIPTION_FOREGROUND))};
 	flex: 1;
 	min-width: 0;
 
 	&:hover {
-		color: var(--vscode-foreground);
+		color: ${getAsVar(VSC_FOREGROUND)};
 	}
 `
 

@@ -56,7 +56,9 @@ export class DebugConsoleManager {
 	 */
 	getUnretrievedOutput(sessionId: string): string | undefined {
 		const session = this.sessions.get(sessionId)
-		if (!session) return undefined
+		if (!session) {
+			return undefined
+		}
 
 		const newOutput = session.output.slice(session.lastRetrievedIndex + 1).join("")
 		session.lastRetrievedIndex = session.output.length - 1
