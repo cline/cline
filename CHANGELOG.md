@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.2.10]
+
+- Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
+- Show Reasoning tokens for models that support it
+
 ## [3.2.6]
 
 - Save last used API/model when switching between Plan and Act, for users that like to use different models for each mode
