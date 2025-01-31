@@ -50,7 +50,7 @@ export interface ExtensionMessage {
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
 		| "didBecomeVisible"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]

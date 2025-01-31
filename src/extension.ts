@@ -6,6 +6,7 @@ import { ClineProvider } from "./core/webview/ClineProvider"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
+import { EditorUtils } from "./core/EditorUtils"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 
 /*
@@ -171,33 +172,43 @@ export function activate(context: vscode.ExtensionContext) {
 		context: vscode.ExtensionContext,
 		command: string,
 		promptType: keyof typeof ACTION_NAMES,
-		inNewTask: boolean,
 		inputPrompt?: string,
 		inputPlaceholder?: string,
 	) => {
 		let userInput: string | undefined
 
 		context.subscriptions.push(
-			vscode.commands.registerCommand(
-				command,
-				async (filePath: string, selectedText: string, diagnostics?: any[]) => {
-					if (inputPrompt) {
-						userInput = await vscode.window.showInputBox({
-							prompt: inputPrompt,
-							placeHolder: inputPlaceholder,
-						})
-					}
+			vscode.commands.registerCommand(command, async (...args: any[]) => {
+				if (inputPrompt) {
+					userInput = await vscode.window.showInputBox({
+						prompt: inputPrompt,
+						placeHolder: inputPlaceholder,
+					})
+				}
 
-					const params = {
-						filePath,
-						selectedText,
-						...(diagnostics ? { diagnostics } : {}),
-						...(userInput ? { userInput } : {}),
-					}
+				// Handle both code action and direct command cases
+				let filePath: string
+				let selectedText: string
+				let diagnostics: any[] | undefined
 
-					await ClineProvider.handleCodeAction(command, promptType, params)
-				},
-			),
+				if (args.length > 1) {
+					// Called from code action
+					;[filePath, selectedText, diagnostics] = args
+				} else {
+					// Called directly from command palette
+					const context = EditorUtils.getEditorContext()
+					if (!context) return
+					;({ filePath, selectedText, diagnostics } = context)
+				}
+
+				const params = {
+					...{ filePath, selectedText },
+					...(diagnostics ? { diagnostics } : {}),
+					...(userInput ? { userInput } : {}),
+				}
+
+				await ClineProvider.handleCodeAction(command, promptType, params)
+			}),
 		)
 	}
 
@@ -210,10 +221,10 @@ export function activate(context: vscode.ExtensionContext) {
 		inputPlaceholder?: string,
 	) => {
 		// Register new task version
-		registerCodeAction(context, baseCommand, promptType, true, inputPrompt, inputPlaceholder)
+		registerCodeAction(context, baseCommand, promptType, inputPrompt, inputPlaceholder)
 
 		// Register current task version
-		registerCodeAction(context, `${baseCommand}InCurrentTask`, promptType, false, inputPrompt, inputPlaceholder)
+		registerCodeAction(context, `${baseCommand}InCurrentTask`, promptType, inputPrompt, inputPlaceholder)
 	}
 
 	// Register code action commands
@@ -240,6 +251,8 @@ export function activate(context: vscode.ExtensionContext) {
 		"What would you like Roo to improve?",
 		"E.g. Focus on performance optimization",
 	)
+
+	registerCodeAction(context, "roo-cline.addToContext", "ADD_TO_CONTEXT")
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

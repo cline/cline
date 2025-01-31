@@ -330,6 +330,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[messages.length, clineAsk],
 	)
 
+	const handleSetChatBoxMessage = useCallback(
+		(text: string, images: string[]) => {
+			// Avoid nested template literals by breaking down the logic
+			let newValue = text
+			if (inputValue !== "") {
+				newValue = inputValue + " " + text
+			}
+
+			setInputValue(newValue)
+			setSelectedImages([...selectedImages, ...images])
+		},
+		[inputValue, selectedImages],
+	)
+
 	const startNewTask = useCallback(() => {
 		vscode.postMessage({ type: "clearTask" })
 	}, [])
@@ -469,6 +483,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "sendMessage":
 							handleSendMessage(message.text ?? "", message.images ?? [])
 							break
+						case "setChatBoxMessage":
+							handleSetChatBoxMessage(message.text ?? "", message.images ?? [])
+							break
 						case "primaryButtonClick":
 							handlePrimaryButtonClick(message.text ?? "", message.images ?? [])
 							break
@@ -484,6 +501,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			textAreaDisabled,
 			enableButtons,
 			handleSendMessage,
+			handleSetChatBoxMessage,
 			handlePrimaryButtonClick,
 			handleSecondaryButtonClick,
 		],

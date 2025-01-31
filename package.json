@@ -118,6 +118,11 @@
 				"command": "roo-cline.improveCode",
 				"title": "Roo Code: Improve Code",
 				"category": "Roo Code"
+			},
+			{
+				"command": "roo-cline.addToContext",
+				"title": "Roo Code: Add To Context",
+				"category": "Roo Code"
 			}
 		],
 		"menus": {
@@ -136,6 +141,11 @@
 					"command": "roo-cline.improveCode",
 					"when": "editorHasSelection",
 					"group": "Roo Code@3"
+				},
+				{
+					"command": "roo-cline.addToContext",
+					"when": "editorHasSelection",
+					"group": "Roo Code@4"
 				}
 			],
 			"view/title": [
