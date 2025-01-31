@@ -158,7 +158,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								}}>
 								<div
 									style={{
-										width: `${(lastApiReqTotalTokens || 0 / contextWindow) * 100}%`,
+										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
 										height: "100%",
 										backgroundColor: "var(--vscode-badge-foreground)",
 										borderRadius: "2px",
