@@ -9,7 +9,7 @@ export const ACTION_NAMES = {
 	ADD_TO_CONTEXT: "Roo Code: Add to Context",
 } as const
 
-const COMMAND_IDS = {
+export const COMMAND_IDS = {
 	EXPLAIN: "roo-cline.explainCode",
 	FIX: "roo-cline.fixCode",
 	IMPROVE: "roo-cline.improveCode",
