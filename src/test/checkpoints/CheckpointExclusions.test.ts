@@ -7,18 +7,12 @@ import {
 	getDefaultExclusions,
 	getLfsPatterns,
 	shouldExcludeFile,
-	initializeCache,
 	writeExcludesFile,
 } from "../../integrations/checkpoints/CheckpointExclusions"
 import { GIT_DISABLED_SUFFIX } from "../../integrations/checkpoints/CheckpointTracker"
 import { fileExistsAtPath } from "../../utils/fs"
 
 describe("CheckpointExclusions", () => {
-	beforeEach(() => {
-		// Reset cache before each test
-		initializeCache(getDefaultExclusions())
-	})
-
 	describe("getDefaultExclusions", () => {
 		it("should return an array of categorized exclusion patterns", () => {
 			const exclusions = getDefaultExclusions()
