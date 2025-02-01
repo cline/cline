@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -17,26 +17,30 @@ minWidth: "max-content",
 
 interface CodeBlockProps {
 	source?: string
-	forceWrap?: boolean
+	language?: string
+	preStyle?: React.CSSProperties
 }
 
-const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
-	${({ forceWrap }) =>
-		forceWrap &&
-		`
-    pre, code {
-      white-space: pre-wrap;
-      word-break: break-all;
-      overflow-wrap: anywhere;
-    }
-  `}
+const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties }>`
+	overflow-x: auto;
+	width: 100%;
 
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 5px;
 		margin: 0;
-		min-width: ${({ forceWrap }) => (forceWrap ? "auto" : "max-content")};
 		padding: 10px 10px;
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+		${({ preStyle }) => preStyle && { ...preStyle }}
+	}
+
+	pre,
+	code {
+		white-space: pre-wrap;
+		word-break: normal;
+		overflow-wrap: break-word;
 	}
 
 	pre > code {
@@ -93,7 +97,7 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 	}
 `
 
-const StyledPre = styled.pre<{ theme: any }>`
+export const StyledPre = styled.pre<{ theme: any }>`
 	& .hljs {
 		color: var(--vscode-editor-foreground, #fff);
 	}
@@ -110,7 +114,8 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
-const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
+const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
+	const codeBlockRef = useRef<HTMLDivElement>(null)
 	const { theme } = useExtensionState()
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
@@ -141,17 +146,19 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 	})
 
 	useEffect(() => {
-		setMarkdownSource(source || "")
-	}, [source, setMarkdownSource, theme])
+		const markdown = language ? `\`\`\`${language}\n${source || ""}\`\`\`` : source || ""
+		setMarkdownSource(markdown)
+	}, [source, language, setMarkdownSource, theme])
 
 	return (
 		<div
+			ref={codeBlockRef}
 			style={{
-				overflowY: forceWrap ? "visible" : "auto",
-				maxHeight: forceWrap ? "none" : "100%",
+				position: "relative",
+				overflow: "hidden",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown forceWrap={forceWrap}>{reactContent}</StyledMarkdown>
+			<StyledMarkdown preStyle={preStyle}>{reactContent}</StyledMarkdown>
 		</div>
 	)
 })
