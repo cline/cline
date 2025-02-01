@@ -132,12 +132,6 @@ export function getContextMenuOptions(
 	}
 	if (query.startsWith("http")) {
 		suggestions.push({ type: ContextMenuOptionType.URL, value: query })
-	} else {
-		suggestions.push(
-			...queryItems
-				.filter((item) => item.type !== ContextMenuOptionType.OpenedFile)
-				.filter((item) => item.value?.toLowerCase().includes(lowerQuery)),
-		)
 	}
 
 	// Add exact SHA matches to suggestions
@@ -175,12 +169,16 @@ export function getContextMenuOptions(
 
 	// Separate matches by type
 	const fileMatches = matchingItems.filter(
-		(item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.Folder,
+		(item) =>
+			item.type === ContextMenuOptionType.File ||
+			item.type === ContextMenuOptionType.OpenedFile ||
+			item.type === ContextMenuOptionType.Folder,
 	)
 	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
 	const otherMatches = matchingItems.filter(
 		(item) =>
 			item.type !== ContextMenuOptionType.File &&
+			item.type !== ContextMenuOptionType.OpenedFile &&
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)

@@ -89,7 +89,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return () => window.removeEventListener("message", messageHandler)
 		}, [setInputValue])
 
-		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -136,18 +135,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [inputValue, textAreaDisabled, setInputValue])
 
 		const queryItems = useMemo(() => {
-			const items = [
+			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				...gitCommits,
-				// Add opened tabs
 				...openedTabs
 					.filter((tab) => tab.path)
 					.map((tab) => ({
 						type: ContextMenuOptionType.OpenedFile,
 						value: "/" + tab.path,
 					})),
-
-				// Add regular file paths
 				...filePaths
 					.map((file) => "/" + file)
 					.filter((path) => !openedTabs.some((tab) => tab.path && "/" + tab.path === path)) // Filter out paths that are already in openedTabs
@@ -156,9 +152,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value: path,
 					})),
 			]
-
-			return items
-		}, [filePaths, openedTabs])
+		}, [filePaths, gitCommits, openedTabs])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {

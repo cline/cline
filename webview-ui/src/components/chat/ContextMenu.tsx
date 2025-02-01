@@ -102,7 +102,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	const getIconForOption = (option: ContextMenuQueryItem): string => {
 		switch (option.type) {
 			case ContextMenuOptionType.OpenedFile:
-				return "star-full"
+				return "window"
 			case ContextMenuOptionType.File:
 				return "file"
 			case ContextMenuOptionType.Folder:
