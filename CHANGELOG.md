@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.8
+
+### Patch Changes
+
+- v3.3.8
+
 ## [3.3.7]
 
 - Support for o3-mini (thanks @shpigunov!)
