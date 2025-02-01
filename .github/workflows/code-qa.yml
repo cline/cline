@@ -52,7 +52,7 @@ jobs:
         id: openrouter-api-key-check
         shell: bash
         run: |
-          if [ "${{ secrets.XOPENROUTER_API_KEY }}" != '' ]; then
+          if [ "${{ secrets.OPENROUTER_API_KEY }}" != '' ]; then
             echo "defined=true" >> $GITHUB_OUTPUT;
           else
             echo "defined=false" >> $GITHUB_OUTPUT;
