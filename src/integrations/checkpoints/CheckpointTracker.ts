@@ -9,30 +9,30 @@ import { getLfsPatterns, writeExcludesFile, shouldExcludeFile } from "./Checkpoi
 
 /**
  * CheckpointTracker Module
- * 
+ *
  * Core implementation of Cline's Checkpoints system that provides version control
  * capabilities without interfering with the user's main Git repository. Key features:
- * 
+ *
  * Shadow Git Repository:
  * - Creates and manages an isolated Git repository for tracking checkpoints
  * - Handles nested Git repositories by temporarily disabling them
  * - Configures Git settings automatically (identity, LFS, etc.)
- * 
+ *
  * File Management:
  * - Integrates with CheckpointExclusions for file filtering
  * - Handles workspace validation and path resolution
  * - Manages Git worktree configuration
- * 
+ *
  * Checkpoint Operations:
  * - Creates checkpoints (commits) of the current state
  * - Provides diff capabilities between checkpoints
  * - Supports resetting to previous checkpoints
- * 
+ *
  * Safety Features:
  * - Prevents usage in sensitive directories (home, desktop, etc.)
  * - Validates workspace configuration
  * - Handles cleanup and resource disposal
- * 
+ *
  * The module serves as the backbone of Cline's checkpoint system, enabling
  * reliable progress tracking while maintaining isolation from the user's
  * primary version control.

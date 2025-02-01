@@ -4,25 +4,24 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointTracker"
 
 //*
-// CheckpointExclusions 
-// 
+// CheckpointExclusions
+//
 // A specialized module within Cline's Checkpoints system that manages file exclusion rules
 // for the checkpoint tracking process. It provides:
-// 
+//
 // - File filtering based on multiple criteria:
 //   - Size limits (default 5MB)
 //   - File types (build artifacts, media, cache files, etc.)
 //   - Git LFS patterns
 //   - Environment and configuration files
-// 
+//
 // - Extensible pattern management
 // - Integration with Git's exclude mechanism
 // - Support for workspace-specific LFS pattern detection
-// 
+//
 // The module ensures efficient checkpoint creation by preventing unnecessary tracking
 // of large files and temporary files while maintaining a clean and organized
 // checkpoint history.
-
 
 // Interfaces
 // ===================
