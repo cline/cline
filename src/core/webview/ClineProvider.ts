@@ -132,6 +132,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
+	private isViewLaunched = false
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
@@ -396,7 +397,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
-	public async postMessageToWebview(message: ExtensionMessage | WebviewMessage) {
+	public async postMessageToWebview(message: ExtensionMessage) {
 		await this.view?.webview.postMessage(message)
 	}
 
@@ -644,6 +645,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								),
 							)
 
+						this.isViewLaunched = true
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -2470,6 +2472,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	// integration tests
+
+	get viewLaunched() {
+		return this.isViewLaunched
+	}
 
 	get messages() {
 		return this.cline?.clineMessages || []
