@@ -45,6 +45,7 @@ describe("AutoApproveMenu", () => {
 		filePaths: [],
 		experiments: experimentDefault,
 		customModes: [],
+		enableMcpServerCreation: false,
 
 		// Auto-approve specific properties
 		alwaysAllowReadOnly: false,
@@ -91,6 +92,7 @@ describe("AutoApproveMenu", () => {
 		setExperimentEnabled: jest.fn(),
 		handleInputChange: jest.fn(),
 		setCustomModes: jest.fn(),
+		setEnableMcpServerCreation: jest.fn(),
 	}
 
 	beforeEach(() => {

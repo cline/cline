@@ -62,6 +62,7 @@ export interface WebviewMessage {
 		| "deleteMessage"
 		| "terminalOutputLineLimit"
 		| "mcpEnabled"
+		| "enableMcpServerCreation"
 		| "searchCommits"
 		| "refreshGlamaModels"
 		| "alwaysApproveResubmit"
