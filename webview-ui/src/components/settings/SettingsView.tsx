@@ -367,7 +367,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							<span style={{ fontWeight: "500" }}>Enable MCP Server Creation</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-							This option allow user to enable and disable MCP server creation for saved tokens usage
+							When enabled, Roo can help you create new MCP servers via commands like "add a new tool to...". If you don't need to create MCP servers you can disable this to reduce Roo's token usage.
 						</p>
 					</div>
 
