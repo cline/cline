@@ -2,14 +2,12 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+import { fileExistsAtPath } from "../../utils/fs"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Promise<string> {
 	// check if the path exists
-	const dirExists = await fs
-		.access(path.resolve(dirPath))
-		.then(() => true)
-		.catch(() => false)
+	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
 	if (!dirExists) {
 		return "This directory does not exist or you do not have permission to access it."
 	}
@@ -52,7 +50,10 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	return result ? result : "No source code definitions found."
 }
 
-function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingFiles: string[] } {
+function separateFiles(allFiles: string[]): {
+	filesToParse: string[]
+	remainingFiles: string[]
+} {
 	const extensions = [
 		"js",
 		"jsx",

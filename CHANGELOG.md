@@ -1,8 +1,235 @@
-# Change Log
+# Changelog
 
-All notable changes to the "claude-dev" extension will be documented in this file.
+## [3.2.11]
 
-<!-- Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file. -->
+- Add OpenAI o3-mini model
+
+## [3.2.10]
+
+- Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
+- Show Reasoning tokens for models that support it
+- Fix issues with switching models between Plan/Act modes
+
+## [3.2.6]
+
+- Save last used API/model when switching between Plan and Act, for users that like to use different models for each mode
+- New Context Window progress bar in the task header to understand increased cost/generation degradation as the context increases
+- Localize READMEs and add language selector for English, Spanish, German, Chinese, and Japanese
+- Add Advanced Settings to remove MCP prompts from requests to save tokens, enable/disable checkpoints for users that don't use git (more coming soon!)
+- Add Gemini 2.0 Flash Thinking experimental model
+- Allow new users to subscribe to mailing list to get notified when new Accounts option is available
+
+## [3.2.5]
+
+- Use yellow textfield outline in Plan mode to better distinguish from Act mode
+
+## [3.2.3]
+
+- Add DeepSeek-R1 (deepseek-reasoner) model support with proper parameter handling (thanks @slavakurilyak!)
+
+## [3.2.0]
+
+- Add Plan/Act mode toggle to let you plan tasks with Cline before letting him get to work
+- Easily switch between API providers and models using a new popup menu under the chat field
+- Add VS Code LM API provider to run models provided by other VS Code extensions (e.g. GitHub Copilot). Shoutout to @julesmons, @RaySinner, and @MrUbens for putting this together!
+- Add on/off toggle for MCP servers to disable them when not in use. Thanks @MrUbens!
+- Add Auto-approve option for individual tools in MCP servers. Thanks @MrUbens!
+
+## [3.1.10]
+
+- New icon!
+
+## [3.1.9]
+
+- Add Mistral API provider with codestral-latest model
+
+## [3.1.7]
+
+- Add ability to change viewport size and headless mode when Cline asks to launch the browser
+
+## [3.1.6]
+
+- Fix bug where filepaths with Chinese characters would not show up in context mention menu (thanks @chi-chat!)
+- Update Anthropic model prices (thanks @timoteostewart!)
+
+## [3.1.5]
+
+- Fix bug where Cline couldn't read "@/" import path aliases from tool results
+
+## [3.1.4]
+
+- Fix issue where checkpoints would not work for users with git commit signing enabled globally
+
+## [3.1.2]
+
+- Fix issue where LFS files would be not be ignored when creating checkpoints
+
+## [3.1.0]
+
+- Added checkpoints: Snapshots of workspace are automatically created whenever Cline uses a tool
+  - Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
+  - Restore options: Choose to restore just the task state, just the workspace files, or both
+- New 'See new changes' button appears after task completion, providing an overview of all workspace changes
+- Task header now shows disk space usage with a delete button to help manage snapshot storage
+
+## [3.0.12]
+
+- Fix DeepSeek API cost reporting (input price is 0 since it's all either a cache read or write, different than how Anthropic reports cache usage)
+
+## [3.0.11]
+
+- Emphasize auto-formatting done by the editor in file edit responses for more reliable diff editing
+
+## [3.0.10]
+
+- Add DeepSeek provider to API Provider options
+- Fix context window limit errors for DeepSeek v3
+
+## [3.0.9]
+
+- Fix bug where DeepSeek v3 would incorrectly escape HTML entities in diff edits
+
+## [3.0.8]
+
+- Mitigate DeepSeek v3 diff edit errors by adding 'auto-formatting considerations' to system prompt, encouraging model to use updated file contents as reference point for SEARCH blocks
+
+## [3.0.7]
+
+- Revert to using batched file watcher to fix crash when many files would be created at once
+
+## [3.0.6]
+
+- Fix bug where some files would be missing in the `@` context mention menu
+- Add Bedrock support in additional regions
+- Diff edit improvements
+- Add OpenRouter's middle-out transform for models that don't use prompt caching (prevents context window limit errors, but cannot be applied to models like Claude since it would continuously break the cache)
+
+## [3.0.4]
+
+- Fix bug where gemini models would add code block artifacts to the end of text content
+- Fix context mention menu visual issues on light themes
+
+## [3.0.2]
+
+- Adds block anchor matching for more reliable diff edits (if 3+ lines, first and last line are used as anchors to search for)
+- Add instruction to system prompt to use complete lines in diff edits to work properly with fallback strategies
+- Improves diff edit error handling
+- Adds new Gemini models
+
+## [3.0.0]
+
+- Cline now uses a search & replace diff based approach when editing large files to prevent code deletion issues.
+- Adds support for a more comprehensive auto-approve configuration, allowing you to specify which tools require approval and which don't.
+- Adds ability to enable system notifications for when Cline needs approval or completes a task.
+- Adds support for a root-level `.clinerules` file that can be used to specify custom instructions for the project.
+
+## [2.2.0]
+
+- Add support for Model Context Protocol (MCP), enabling Cline to use custom tools like web-search tool or GitHub tool
+- Add MCP server management tab accessible via the server icon in the menu bar
+- Add ability for Cline to dynamically create new MCP servers based on user requests (e.g., "add a tool that gets the latest npm docs")
+
+## [2.1.6]
+
+- Add LM Studio as an API provider option (make sure to start the LM Studio server to use it with the extension!)
+
+## [2.1.5]
+
+- Add support for prompt caching for new Claude model IDs on OpenRouter (e.g. `anthropic/claude-3.5-sonnet-20240620`)
+
+## [2.1.4]
+
+- AWS Bedrock fixes (add missing regions, support for cross-region inference, and older Sonnet model for regions where new model is not available)
+
+## [2.1.3]
+
+- Add support for Claude 3.5 Haiku, 66% cheaper than Sonnet with similar intelligence
+
+## [2.1.2]
+
+- Misc. bug fixes
+- Update README with new browser feature
+
+## [2.1.1]
+
+- Add stricter prompt to prevent Cline from editing files during a browser session without first closing the browser
+
+## [2.1.0]
+
+- Cline now uses Anthropic's new "Computer Use" feature to launch a browser, click, type, and scroll. This gives him more autonomy in runtime debugging, end-to-end testing, and even general web use. Try asking "Look up the weather in Colorado" to see it in action! (Available with Claude 3.5 Sonnet v2)
+
+## [2.0.19]
+
+- Fix model info for Claude 3.5 Sonnet v1 on OpenRouter
+
+## [2.0.18]
+
+- Add support for both v1 and v2 of Claude 3.5 Sonnet for GCP Vertex and AWS Bedrock (for cases where the new model is not enabled yet or unavailable in your region)
+
+## [2.0.17]
+
+- Update Anthropic model IDs
+
+## [2.0.16]
+
+- Adjustments to system prompt
+
+## [2.0.15]
+
+- Fix bug where modifying Cline's edits would lead him to try to re-apply the edits
+- Fix bug where weaker models would display file contents before using the write_to_file tool
+- Fix o1-mini and o1-preview errors when using OpenAI native
+
+## [2.0.14]
+
+- Gracefully cancel requests while stream could be hanging
+
+## [2.0.13]
+
+- Detect code omission and show warning with troubleshooting link
+
+## [2.0.12]
+
+- Keep cursor out of the way during file edit streaming animation
+
+## [2.0.11]
+
+- Adjust prompts around read_file to prevent re-reading files unnecessarily
+
+## [2.0.10]
+
+- More adjustments to system prompt to prevent lazy coding
+
+## [2.0.9]
+
+- Update system prompt to try to prevent Cline from lazy coding (`// rest of code here...`)
+
+## [2.0.8]
+
+- Fix o1-mini and o1-preview for OpenAI
+- Fix diff editor not opening sometimes in slow environments like project idx
+
+## [2.0.7]
+
+- Misc. bug fixes
+
+## [2.0.6]
+
+- Update URLs to https://github.com/cline/cline
+
+## [2.0.5]
+
+- Fixed bug where Cline's edits would stream into the active tab when switching tabs during a write_to_file
+- Added explanation in task continuation prompt that an interrupted write_to_file reverts the file to its original contents, preventing unnecessary re-reads
+- Fixed non-first chunk error handling in case stream fails mid-way through
+
+## [2.0.0]
+
+- New name! Meet Cline, an AI assistant that can use your CLI and Editor
+- Responses are now streamed with a yellow text decoration animation to keep track of Cline's progress as he edits files
+- New Cancel button to give Cline feedback if he goes off in the wrong direction, giving you more control over tasks
+- Re-imagined tool calling prompt resulting in ~40% fewer requests to accomplish tasks + better performance with other models
+- Search and use any model with OpenRouter
 
 ## [1.9.7]
 

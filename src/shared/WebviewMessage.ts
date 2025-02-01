@@ -1,10 +1,12 @@
-import { ApiConfiguration, ApiProvider } from "./api"
+import { ApiConfiguration } from "./api"
+import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { BrowserSettings } from "./BrowserSettings"
+import { ChatSettings } from "./ChatSettings"
 
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "customInstructions"
-		| "alwaysAllowReadOnly"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -17,14 +19,47 @@ export interface WebviewMessage {
 		| "exportTaskWithId"
 		| "resetState"
 		| "requestOllamaModels"
+		| "requestLmStudioModels"
 		| "openImage"
 		| "openFile"
 		| "openMention"
+		| "cancelTask"
+		| "refreshOpenRouterModels"
+		| "refreshOpenAiModels"
+		| "openMcpSettings"
+		| "restartMcpServer"
+		| "autoApprovalSettings"
+		| "browserSettings"
+		| "chatSettings"
+		| "checkpointDiff"
+		| "checkpointRestore"
+		| "taskCompletionViewChanges"
+		| "openExtensionSettings"
+		| "requestVsCodeLmModels"
+		| "toggleToolAutoApprove"
+		| "toggleMcpServer"
+		| "getLatestState"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
+		| "subscribeEmail"
+	// | "relaunchChromeDebugMode"
 	text?: string
-	askResponse?: ClaudeAskResponse
+	disabled?: boolean
+	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
+	number?: number
+	autoApprovalSettings?: AutoApprovalSettings
+	browserSettings?: BrowserSettings
+	chatSettings?: ChatSettings
+
+	// For toggleToolAutoApprove
+	serverName?: string
+	toolName?: string
+	autoApprove?: boolean
 }
 
-export type ClaudeAskResponse = "yesButtonTapped" | "noButtonTapped" | "messageResponse"
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
+
+export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"

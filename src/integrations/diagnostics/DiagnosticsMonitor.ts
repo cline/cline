@@ -29,7 +29,7 @@ Diagnostics update in real-time as you edit code, helping identify issues quickl
 
 Notes on diagnostics:
 - linter diagnostics are only captured for open editors
-- this works great for us since when claude edits/creates files its through vscode's textedit api's and we get those diagnostics for free
+- this works great for us since when cline edits/creates files its through vscode's textedit api's and we get those diagnostics for free
 - some tools might require you to save the file or manually refresh to clear the problem from the list.
 
 System Prompt
@@ -63,7 +63,7 @@ class DiagnosticsMonitor {
 
 		let timeout = 300 // only way this happens is if theres no errors
 
-		// if diagnostics contain existing errors (since the check above didn't trigger) then it's likely claude just did something that should have fixed the error, so we'll give a longer grace period for diagnostics to catch up
+		// if diagnostics contain existing errors (since the check above didn't trigger) then it's likely cline just did something that should have fixed the error, so we'll give a longer grace period for diagnostics to catch up
 		const hasErrors = currentDiagnostics.some(([_, diagnostics]) =>
 			diagnostics.some((d) => d.severity === vscode.DiagnosticSeverity.Error)
 		)

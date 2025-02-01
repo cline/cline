@@ -1,10 +1,10 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../../utils/validate"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
-
+import SettingsButton from "../common/SettingsButton"
 const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
@@ -12,31 +12,30 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const {
-		apiConfiguration,
-		version,
-		customInstructions,
-		setCustomInstructions,
-		alwaysAllowReadOnly,
-		setAlwaysAllowReadOnly,
-	} = useExtensionState()
+	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
+	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
+		setModelIdErrorMessage(modelIdValidationResult)
 
-		if (!apiValidationResult) {
+		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({ type: "customInstructions", text: customInstructions })
-			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({
+				type: "customInstructions",
+				text: customInstructions,
+			})
 			onDone()
 		}
 	}
 
 	useEffect(() => {
 		setApiErrorMessage(undefined)
+		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
 
 	// validate as soon as the component is mounted
@@ -80,19 +79,28 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
 			</div>
 			<div
-				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
+				style={{
+					flexGrow: 1,
+					overflowY: "scroll",
+					paddingRight: 8,
+					display: "flex",
+					flexDirection: "column",
+				}}>
 				<div style={{ marginBottom: 5 }}>
-					<ApiOptions showModelOptions={true} apiErrorMessage={apiErrorMessage} />
+					<ApiOptions
+						showModelOptions={true}
+						apiErrorMessage={apiErrorMessage}
+						modelIdErrorMessage={modelIdErrorMessage}
+					/>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}
+						resize="vertical"
 						rows={4}
-						placeholder={
-							'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-						}
+						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
 					</VSCodeTextArea>
@@ -103,23 +111,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
-						<span style={{ fontWeight: "500" }}>Always allow read-only operations</span>
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						When enabled, Claude will automatically read files, view directories, and inspect sites without
-						requiring you to click the Allow button.
 					</p>
 				</div>
 
@@ -142,20 +133,47 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				<div
 					style={{
+						marginTop: "auto",
+						paddingRight: 8,
+						display: "flex",
+						justifyContent: "center",
+					}}>
+					<SettingsButton
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						style={{
+							margin: "0 0 16px 0",
+						}}>
+						<i className="codicon codicon-settings-gear" />
+						Advanced Settings
+					</SettingsButton>
+				</div>
+				<div
+					style={{
 						textAlign: "center",
 						color: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 						lineHeight: "1.2",
-						marginTop: "auto",
-						padding: "10px 8px 15px 0px",
+						padding: "0 8px 15px 0",
 					}}>
-					<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
+					<p
+						style={{
+							wordWrap: "break-word",
+							margin: 0,
+							padding: 0,
+						}}>
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/saoudrizwan/claude-dev" style={{ display: "inline" }}>
-							https://github.com/saoudrizwan/claude-dev
+						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
-					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0 }}>v{version}</p>
+					<p
+						style={{
+							fontStyle: "italic",
+							margin: "10px 0 0 0",
+							padding: 0,
+						}}>
+						v{version}
+					</p>
 				</div>
 			</div>
 		</div>

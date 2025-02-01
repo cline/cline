@@ -11,6 +11,7 @@ interface CodeAccordianProps {
 	isConsoleLogs?: boolean
 	isExpanded: boolean
 	onToggleExpand: () => void
+	isLoading?: boolean
 }
 
 /*
@@ -19,7 +20,7 @@ We need to remove leading non-alphanumeric characters from the path in order for
 [^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
 The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
 */
-export const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+export const cleanPathPrefix = (path: string): string => path.replace(/^[^\u4e00-\u9fa5a-zA-Z0-9]+/, "")
 
 const CodeAccordian = ({
 	code,
@@ -30,10 +31,11 @@ const CodeAccordian = ({
 	isConsoleLogs,
 	isExpanded,
 	onToggleExpand,
+	isLoading,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
-		[path, language, code]
+		[path, language, code],
 	)
 
 	return (
@@ -51,13 +53,15 @@ const CodeAccordian = ({
 						display: "flex",
 						alignItems: "center",
 						padding: "9px 10px",
-						cursor: "pointer",
+						cursor: isLoading ? "wait" : "pointer",
+						opacity: isLoading ? 0.7 : 1,
+						// pointerEvents: isLoading ? "none" : "auto",
 						userSelect: "none",
 						WebkitUserSelect: "none",
 						MozUserSelect: "none",
 						msUserSelect: "none",
 					}}
-					onClick={onToggleExpand}>
+					onClick={isLoading ? undefined : onToggleExpand}>
 					{isFeedback || isConsoleLogs ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<span
@@ -86,7 +90,7 @@ const CodeAccordian = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
+								{cleanPathPrefix(path ?? "") + "\u200E"}
 							</span>
 						</>
 					)}

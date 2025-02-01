@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "../"
+import { ApiHandler } from "../"
 import {
 	ApiHandlerOptions,
 	ModelInfo,
@@ -8,8 +8,8 @@ import {
 	OpenAiNativeModelId,
 	openAiNativeModels,
 } from "../../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../transform/o1-format"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -22,65 +22,82 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
-		const openAiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((tool) => ({
-			type: "function",
-			function: {
-				name: tool.name,
-				description: tool.description,
-				parameters: tool.input_schema,
-			},
-		}))
-
-		let createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
-
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.getModel().id) {
+			case "o1":
 			case "o1-preview":
-			case "o1-mini":
-				createParams = {
+			case "o1-mini": {
+				// o1 doesnt support streaming, non-1 temp, or system prompt
+				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
-					max_completion_tokens: this.getModel().info.maxTokens,
-					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
+					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				})
+				yield {
+					type: "text",
+					text: response.choices[0]?.message.content || "",
+				}
+				yield {
+					type: "usage",
+					inputTokens: response.usage?.prompt_tokens || 0,
+					outputTokens: response.usage?.completion_tokens || 0,
 				}
 				break
-			default:
-				createParams = {
+			}
+			case "o3-mini": {
+				const stream = await this.client.chat.completions.create({
 					model: this.getModel().id,
-					max_completion_tokens: this.getModel().info.maxTokens,
-					temperature: 0.2,
-					messages: openAiMessages,
-					tools: openAiTools,
-					tool_choice: "auto",
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+				})
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
 				}
 				break
-		}
+			}
+			default: {
+				const stream = await this.client.chat.completions.create({
+					model: this.getModel().id,
+					// max_completion_tokens: this.getModel().info.maxTokens,
+					temperature: 0,
+					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+				})
 
-		const completion = await this.client.chat.completions.create(createParams)
-		const errorMessage = (completion as any).error?.message
-		if (errorMessage) {
-			throw new Error(errorMessage)
-		}
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
 
-		let anthropicMessage: Anthropic.Messages.Message
-		switch (this.getModel().id) {
-			case "o1-preview":
-			case "o1-mini":
-				anthropicMessage = convertO1ResponseToAnthropicMessage(completion)
-				break
-			default:
-				anthropicMessage = convertToAnthropicMessage(completion)
-				break
+					// contains a null value except for the last chunk which contains the token usage statistics for the entire request
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
+				}
+			}
 		}
-
-		return { message: anthropicMessage }
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
@@ -89,6 +106,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			const id = modelId as OpenAiNativeModelId
 			return { id, info: openAiNativeModels[id] }
 		}
-		return { id: openAiNativeDefaultModelId, info: openAiNativeModels[openAiNativeDefaultModelId] }
+		return {
+			id: openAiNativeDefaultModelId,
+			info: openAiNativeModels[openAiNativeDefaultModelId],
+		}
 	}
 }

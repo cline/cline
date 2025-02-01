@@ -1,12 +1,9 @@
 import * as vscode from "vscode"
-import { ClaudeDevProvider } from "../core/webview/ClaudeDevProvider"
-import { ClaudeDevAPI } from "./claude-dev"
+import { ClineProvider } from "../core/webview/ClineProvider"
+import { ClineAPI } from "./cline"
 
-export function createClaudeDevAPI(
-	outputChannel: vscode.OutputChannel,
-	sidebarProvider: ClaudeDevProvider
-): ClaudeDevAPI {
-	const api: ClaudeDevAPI = {
+export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClineAPI {
+	const api: ClineAPI = {
 		setCustomInstructions: async (value: string) => {
 			await sidebarProvider.updateCustomInstructions(value)
 			outputChannel.appendLine("Custom instructions set")
@@ -20,7 +17,10 @@ export function createClaudeDevAPI(
 			outputChannel.appendLine("Starting new task")
 			await sidebarProvider.clearTask()
 			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonTapped" })
+			await sidebarProvider.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",
@@ -28,13 +28,13 @@ export function createClaudeDevAPI(
 				images: images,
 			})
 			outputChannel.appendLine(
-				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`
+				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
 			)
 		},
 
 		sendMessage: async (message?: string, images?: string[]) => {
 			outputChannel.appendLine(
-				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`
+				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",

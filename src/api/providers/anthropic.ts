@@ -1,12 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse } from "../index"
-import {
-	anthropicDefaultModelId,
-	AnthropicModelId,
-	anthropicModels,
-	ApiHandlerOptions,
-	ModelInfo,
-} from "../../shared/api"
+import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import { ApiHandler } from "../index"
+import { ApiStream } from "../transform/stream"
 
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -20,14 +16,14 @@ export class AnthropicHandler implements ApiHandler {
 		})
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
-		const modelId = this.getModel().id
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		const modelId = model.id
 		switch (modelId) {
-			case "claude-3-5-sonnet-20240620":
+			// 'latest' alias does not support cache_control
+			case "claude-3-5-sonnet-20241022":
+			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/*
@@ -35,16 +31,22 @@ export class AnthropicHandler implements ApiHandler {
 				*/
 				const userMsgIndices = messages.reduce(
 					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[]
+					[] as number[],
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				const message = await this.client.beta.promptCaching.messages.create(
+				stream = await this.client.beta.promptCaching.messages.create(
 					{
 						model: modelId,
-						max_tokens: this.getModel().info.maxTokens,
-						temperature: 0.2,
-						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }], // setting cache breakpoint for system prompt so new tasks can reuse it
+						max_tokens: model.info.maxTokens || 8192,
+						temperature: 0,
+						system: [
+							{
+								text: systemPrompt,
+								type: "text",
+								cache_control: { type: "ephemeral" },
+							},
+						], // setting cache breakpoint for system prompt so new tasks can reuse it
 						messages: messages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
 								return {
@@ -55,54 +57,120 @@ export class AnthropicHandler implements ApiHandler {
 													{
 														type: "text",
 														text: message.content,
-														cache_control: { type: "ephemeral" },
+														cache_control: {
+															type: "ephemeral",
+														},
 													},
-											  ]
+												]
 											: message.content.map((content, contentIndex) =>
 													contentIndex === message.content.length - 1
-														? { ...content, cache_control: { type: "ephemeral" } }
-														: content
-											  ),
+														? {
+																...content,
+																cache_control: {
+																	type: "ephemeral",
+																},
+															}
+														: content,
+												),
 								}
 							}
 							return message
 						}),
-						tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						tool_choice: { type: "auto" },
+						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
+						// tool_choice: { type: "auto" },
+						// tools: tools,
+						stream: true,
 					},
 					(() => {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
-							case "claude-3-5-sonnet-20240620":
+							case "claude-3-5-sonnet-20241022":
+							case "claude-3-5-haiku-20241022":
+							case "claude-3-opus-20240229":
+							case "claude-3-haiku-20240307":
 								return {
 									headers: {
 										"anthropic-beta": "prompt-caching-2024-07-31",
 									},
 								}
-							case "claude-3-haiku-20240307":
-								return {
-									headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
-								}
 							default:
 								return undefined
 						}
-					})()
+					})(),
 				)
-				return { message }
+				break
 			}
 			default: {
-				const message = await this.client.messages.create({
+				stream = (await this.client.messages.create({
 					model: modelId,
-					max_tokens: this.getModel().info.maxTokens,
-					temperature: 0.2,
+					max_tokens: model.info.maxTokens || 8192,
+					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
-					tools,
-					tool_choice: { type: "auto" },
-				})
-				return { message }
+					// tools,
+					// tool_choice: { type: "auto" },
+					stream: true,
+				})) as any
+				break
+			}
+		}
+
+		for await (const chunk of stream) {
+			switch (chunk.type) {
+				case "message_start":
+					// tells us cache reads/writes/input/output
+					const usage = chunk.message.usage
+					yield {
+						type: "usage",
+						inputTokens: usage.input_tokens || 0,
+						outputTokens: usage.output_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
+					}
+					break
+				case "message_delta":
+					// tells us stop_reason, stop_sequence, and output tokens along the way and at the end of the message
+
+					yield {
+						type: "usage",
+						inputTokens: 0,
+						outputTokens: chunk.usage.output_tokens || 0,
+					}
+					break
+				case "message_stop":
+					// no usage data, just an indicator that the message is done
+					break
+				case "content_block_start":
+					switch (chunk.content_block.type) {
+						case "text":
+							// we may receive multiple text blocks, in which case just insert a line break between them
+							if (chunk.index > 0) {
+								yield {
+									type: "text",
+									text: "\n",
+								}
+							}
+							yield {
+								type: "text",
+								text: chunk.content_block.text,
+							}
+							break
+					}
+					break
+				case "content_block_delta":
+					switch (chunk.delta.type) {
+						case "text_delta":
+							yield {
+								type: "text",
+								text: chunk.delta.text,
+							}
+							break
+					}
+					break
+				case "content_block_stop":
+					break
 			}
 		}
 	}
@@ -113,6 +181,9 @@ export class AnthropicHandler implements ApiHandler {
 			const id = modelId as AnthropicModelId
 			return { id, info: anthropicModels[id] }
 		}
-		return { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
+		return {
+			id: anthropicDefaultModelId,
+			info: anthropicModels[anthropicDefaultModelId],
+		}
 	}
 }

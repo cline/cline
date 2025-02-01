@@ -1,12 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler, ApiHandlerMessageResponse } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	SapAiCoreModelId,
-	sapAiCoreModels,
-	sapAiCoreDefaultModelId,
-} from "../../shared/api"
+import { ApiHandler } from "../"
+import { ApiHandlerOptions, ModelInfo, SapAiCoreModelId, sapAiCoreModels, sapAiCoreDefaultModelId } from "../../shared/api"
+import { ApiStream } from "../transform/stream"
 import axios from "axios"
 
 interface Deployment {
@@ -72,10 +67,17 @@ export class SapAiCoreHandler implements ApiHandler {
 
 			return deployments
 				.filter((deployment: any) => deployment.targetStatus === "RUNNING")
-				.map((deployment: any) => ({
-					id: deployment.id,
-					name: `${deployment.details.resources.backend_details.model.name}:${deployment.details.resources.backend_details.model.version}`,
-				}))
+				.map((deployment: any) => {
+					const model = deployment.details?.resources?.backend_details?.model
+					if (!model?.name || !model?.version) {
+						return null // Skip this row
+					}
+					return {
+						id: deployment.id,
+						name: `${model.name}:${model.version}`,
+					}
+				})
+				.filter((deployment: any) => deployment !== null)
 		} catch (error) {
 			console.error("Error fetching deployments:", error)
 			throw new Error("Failed to fetch deployments")
@@ -100,11 +102,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.deployments?.some((d) => d.name.toLowerCase().includes(modelId.toLowerCase())) ? true : false
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
@@ -119,8 +117,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			max_tokens: model.info.maxTokens,
 			system: systemPrompt,
 			messages,
-			tools,
-			tool_choice: { type: "auto" },
 			anthropic_version: "bedrock-2023-05-31",
 		}
 
@@ -132,99 +128,52 @@ export class SapAiCoreHandler implements ApiHandler {
 				responseType: "stream",
 			})
 
-			const message = await this.streamCompletion(response.data, model)
-			return { message }
+			yield* this.streamCompletion(response.data, model)
 		} catch (error) {
 			console.error("Error creating message:", error)
 			throw new Error("Failed to create message")
 		}
 	}
 
-	private async streamCompletion(
+	private async *streamCompletion(
 		stream: any,
-		model: { id: SapAiCoreModelId; info: ModelInfo }
-	): Promise<Anthropic.Messages.Message> {
-		let textContent: string = ""
-		let toolCalls: Anthropic.ToolUseBlock[] = []
-		let messageId: string | undefined
-		let usage: { input_tokens: number; output_tokens: number } = { input_tokens: 0, output_tokens: 0 }
-		let currentToolCall: (Anthropic.ToolUseBlock & { input: Record<string, unknown> }) | null = null
-		let finishReason: string | null = null
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
 			for await (const chunk of stream) {
 				const lines = chunk.toString().split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
-						const jsonData = line.slice(6) // Remove ' prefix
+						const jsonData = line.slice(6)
 						try {
 							const data = JSON.parse(jsonData)
-							console.log("Received data:", data) // Log the received data for debugging
+							console.log("Received data:", data)
 							if (data.type === "message_start") {
-								messageId = data.message.id
 								usage.input_tokens = data.message.usage.input_tokens
+								yield {
+									type: "usage",
+									inputTokens: usage.input_tokens,
+									outputTokens: usage.output_tokens,
+								}
 							} else if (data.type === "content_block_start" || data.type === "content_block_delta") {
-								const contentBlock =
-									data.type === "content_block_start" ? data.content_block : data.delta
+								const contentBlock = data.type === "content_block_start" ? data.content_block : data.delta
 
 								if (contentBlock.type === "text" || contentBlock.type === "text_delta") {
-									textContent += contentBlock.text || ""
-								} else if (contentBlock.type === "tool_use") {
-									if (data.type === "content_block_start") {
-										currentToolCall = {
-											type: "tool_use",
-											id: contentBlock.id,
-											name: contentBlock.name,
-											input: contentBlock.input || {},
-										}
+									yield {
+										type: "text",
+										text: contentBlock.text || "",
 									}
-								} else if (contentBlock.type === "input_json_delta") {
-									if (currentToolCall) {
-										if (!currentToolCall.input._partial) {
-											currentToolCall.input._partial = ""
-										}
-										currentToolCall.input._partial += contentBlock.partial_json
-
-										// Always try to parse, but don't discard partial data if it fails
-										try {
-											const parsedJson = JSON.parse(`{${currentToolCall.input._partial}}`)
-											// If parsing succeeds, update the input
-											Object.assign(currentToolCall.input, parsedJson)
-											// Clear the partial data
-											delete currentToolCall.input._partial
-										} catch (error) {
-											// If parsing fails, it's incomplete. We'll keep accumulating.
-											console.log("Accumulated partial JSON:", currentToolCall.input._partial)
-										}
-									}
-								}
-							} else if (data.type === "content_block_stop") {
-								if (currentToolCall) {
-									if (currentToolCall.input._partial) {
-										try {
-											const inputString = `${currentToolCall.input._partial}`
-											const finalJson = JSON.parse(inputString)
-											Object.assign(currentToolCall.input, finalJson)
-											delete currentToolCall.input._partial
-										} catch (error) {
-											console.error(
-												"Failed to parse final JSON for tool call:",
-												currentToolCall.input._partial
-											)
-
-											currentToolCall.input.unparsedJson = currentToolCall.input._partial
-											delete currentToolCall.input._partial
-										}
-									}
-									toolCalls.push(currentToolCall)
-									currentToolCall = null
 								}
 							} else if (data.type === "message_delta") {
 								if (data.usage) {
 									usage.output_tokens = data.usage.output_tokens
-								}
-								if (data.stop_reason) {
-									finishReason = data.stop_reason
+									yield {
+										type: "usage",
+										inputTokens: 0,
+										outputTokens: data.usage.output_tokens,
+									}
 								}
 							}
 						} catch (error) {
@@ -237,27 +186,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			console.error("Error streaming completion:", error)
 			throw error
 		}
-
-		const anthropicMessage: Anthropic.Messages.Message = {
-			id: messageId || `sap-ai-core-${Date.now()}`,
-			type: "message",
-			role: "assistant",
-			content: [
-				{
-					type: "text",
-					text: textContent,
-				},
-				...toolCalls,
-			],
-			model: model.id,
-			stop_reason: this.mapStopReason(finishReason) || (toolCalls.length > 0 ? "tool_use" : "end_turn"),
-			stop_sequence: null,
-			usage: usage,
-		}
-
-		return anthropicMessage
 	}
-
 	private mapStopReason(reason: string | null): Anthropic.Messages.Message["stop_reason"] {
 		switch (reason) {
 			case "max_tokens":
@@ -276,11 +205,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	createUserReadableRequest(
 		userContent: Array<
-			| Anthropic.TextBlockParam
-			| Anthropic.ImageBlockParam
-			| Anthropic.ToolUseBlockParam
-			| Anthropic.ToolResultBlockParam
-		>
+			Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
+		>,
 	): any {
 		return {
 			model: this.getModel().id,

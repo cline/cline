@@ -1,16 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { ApiHandler, ApiHandlerMessageResponse } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	openRouterDefaultModelId,
-	OpenRouterModelId,
-	openRouterModels,
-} from "../../shared/api"
-import { convertToAnthropicMessage, convertToOpenAiMessages } from "../transform/openai-format"
 import axios from "axios"
-import { convertO1ResponseToAnthropicMessage, convertToO1Messages } from "../transform/o1-format"
+import delay from "delay"
+import OpenAI from "openai"
+import { ApiHandler } from "../"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -22,27 +18,35 @@ export class OpenRouterHandler implements ApiHandler {
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
 			defaultHeaders: {
-				"HTTP-Referer": "https://github.com/saoudrizwan/claude-dev", // Optional, for including your app on openrouter.ai rankings.
-				"X-Title": "claude-dev", // Optional. Shows in rankings on openrouter.ai.
+				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
+				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 			},
 		})
 	}
 
-	async createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse> {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
 		// Convert Anthropic messages to OpenAI format
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
-		switch (this.getModel().id) {
+		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
+		switch (model.id) {
+			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
+			case "anthropic/claude-3-haiku":
 			case "anthropic/claude-3-haiku:beta":
+			case "anthropic/claude-3-opus":
 			case "anthropic/claude-3-opus:beta":
 				openAiMessages[0] = {
 					role: "system",
@@ -56,12 +60,14 @@ export class OpenRouterHandler implements ApiHandler {
 					],
 				}
 				// Add cache_control to the last two user messages
+				// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
 				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
 				lastTwoUserMessages.forEach((msg) => {
 					if (typeof msg.content === "string") {
 						msg.content = [{ type: "text", text: msg.content }]
 					}
 					if (Array.isArray(msg.content)) {
+						// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
 						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
 						if (!lastTextPart) {
@@ -77,214 +83,147 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 
-		// Convert Anthropic tools to OpenAI tools
-		const openAiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((tool) => ({
-			type: "function",
-			function: {
-				name: tool.name,
-				description: tool.description,
-				parameters: tool.input_schema, // matches anthropic tool input schema (see https://platform.openai.com/docs/guides/function-calling)
-			},
-		}))
+		// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
+		// (models usually default to max tokens allowed)
+		let maxTokens: number | undefined
+		switch (model.id) {
+			case "anthropic/claude-3.5-sonnet":
+			case "anthropic/claude-3.5-sonnet:beta":
+			case "anthropic/claude-3.5-sonnet-20240620":
+			case "anthropic/claude-3.5-sonnet-20240620:beta":
+			case "anthropic/claude-3-5-haiku":
+			case "anthropic/claude-3-5-haiku:beta":
+			case "anthropic/claude-3-5-haiku-20241022":
+			case "anthropic/claude-3-5-haiku-20241022:beta":
+				maxTokens = 8_192
+				break
+		}
 
-		let createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+		let temperature = 0
+		let topP: number | undefined = undefined
+		// Handle models based on deepseek-r1
+		if (this.getModel().id.startsWith("deepseek/deepseek-r1") || this.getModel().id === "perplexity/sonar-reasoning") {
+			// Recommended temperature for DeepSeek reasoning models
+			temperature = 0.6
+			// DeepSeek highly recommends using user instead of system role
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+			topP = 0.95
+		}
 
-		switch (this.getModel().id) {
-			case "openai/o1-preview":
-			case "openai/o1-mini":
-				createParams = {
-					model: this.getModel().id,
-					max_tokens: this.getModel().info.maxTokens,
-					temperature: 0.2,
-					messages: convertToO1Messages(convertToOpenAiMessages(messages), systemPrompt),
+		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
+		let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
+		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
+		if (model.id === "deepseek/deepseek-chat") {
+			shouldApplyMiddleOutTransform = true
+		}
+
+		// @ts-ignore-next-line
+		const stream = await this.client.chat.completions.create({
+			model: model.id,
+			max_tokens: maxTokens,
+			temperature: temperature,
+			top_p: topP,
+			messages: openAiMessages,
+			stream: true,
+			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
+			include_reasoning: true,
+		})
+
+		let genId: string | undefined
+
+		for await (const chunk of stream) {
+			// openrouter returns an error object instead of the openai sdk throwing an error
+			if ("error" in chunk) {
+				const error = chunk.error as { message?: string; code?: number }
+				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
+				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+			}
+
+			if (!genId && chunk.id) {
+				genId = chunk.id
+			}
+
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
 				}
-				break
-			default:
-				createParams = {
-					model: this.getModel().id,
-					max_tokens: this.getModel().info.maxTokens,
-					temperature: 0.2,
-					messages: openAiMessages,
-					tools: openAiTools,
-					tool_choice: "auto",
+			}
+
+			// Reasoning tokens are returned separately from the content
+			if ("reasoning" in delta && delta.reasoning) {
+				// console.log("reasoning", delta.reasoning)
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning,
 				}
-				break
+
+				// if (didStreamThinkTagInReasoning) {
+				// 	yield {
+				// 		type: "text",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+				// } else {
+				// 	yield {
+				// 		type: "reasoning",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+
+				// 	// @ts-ignore-next-line
+				// 	reasoningResponse += delta.reasoning
+				// 	if (reasoningResponse.includes("</think>")) {
+				// 		didStreamThinkTagInReasoning = true
+				// 		console.log("did hit think tag", reasoningResponse)
+				// 	}
+				// }
+			}
+			// if (chunk.usage) {
+			// 	yield {
+			// 		type: "usage",
+			// 		inputTokens: chunk.usage.prompt_tokens || 0,
+			// 		outputTokens: chunk.usage.completion_tokens || 0,
+			// 	}
+			// }
 		}
 
-		let completion: OpenAI.Chat.Completions.ChatCompletion
-		try {
-			completion = await this.client.chat.completions.create(createParams)
-		} catch (error) {
-			console.error("Error creating message from normal request. Using streaming fallback...", error)
-			completion = await this.streamCompletion(createParams)
-		}
+		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 
-		const errorMessage = (completion as any).error?.message // openrouter returns an error object instead of the openai sdk throwing an error
-		if (errorMessage) {
-			throw new Error(errorMessage)
-		}
-
-		let anthropicMessage: Anthropic.Messages.Message
-		switch (this.getModel().id) {
-			case "openai/o1-preview":
-			case "openai/o1-mini":
-				anthropicMessage = convertO1ResponseToAnthropicMessage(completion)
-				break
-			default:
-				anthropicMessage = convertToAnthropicMessage(completion)
-				break
-		}
-
-		// Check if the model is Gemini Flash and remove extra escapes in tool result args
-		// switch (this.getModel().id) {
-		// 	case "google/gemini-pro-1.5":
-		// 	case "google/gemini-flash-1.5":
-		// 		const content = anthropicMessage.content
-		// 		for (const block of content) {
-		// 			if (
-		// 				block.type === "tool_use" &&
-		// 				typeof block.input === "object" &&
-		// 				block.input !== null &&
-		// 				"content" in block.input &&
-		// 				typeof block.input.content === "string"
-		// 			) {
-		// 				block.input.content = unescapeGeminiContent(block.input.content)
-		// 			}
-		// 		}
-		// 		break
-		// 	default:
-		// 		break
-		// }
-
-		const genId = completion.id
-		// Log the generation details from OpenRouter API
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
+				timeout: 5_000, // this request hangs sometimes
 			})
-			// @ts-ignore-next-line
-			anthropicMessage.usage.total_cost = response.data?.data?.total_cost
+
+			const generation = response.data?.data
 			console.log("OpenRouter generation details:", response.data)
+			yield {
+				type: "usage",
+				// cacheWriteTokens: 0,
+				// cacheReadTokens: 0,
+				// openrouter generation endpoint fails often
+				inputTokens: generation?.native_tokens_prompt || 0,
+				outputTokens: generation?.native_tokens_completion || 0,
+				totalCost: generation?.total_cost || 0,
+			}
 		} catch (error) {
+			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
 		}
-
-		return { message: anthropicMessage }
 	}
 
-	/*
-	Streaming the completion is a fallback behavior for when a normal request responds with an invalid JSON object ("Unexpected end of JSON input"). This would usually happen in cases where the model makes tool calls with large arguments. After talking with OpenRouter folks, streaming mitigates this issue for now until they fix the underlying problem ("some weird data from anthropic got decoded wrongly and crashed the buffer")
-	*/
-	async streamCompletion(
-		createParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
-	): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-		const stream = await this.client.chat.completions.create({
-			...createParams,
-			stream: true,
-		})
-
-		let textContent: string = ""
-		let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
-
-		try {
-			let currentToolCall: (OpenAI.Chat.ChatCompletionMessageToolCall & { index?: number }) | null = null
-			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta
-				if (delta?.content) {
-					textContent += delta.content
-				}
-				if (delta?.tool_calls) {
-					for (const toolCallDelta of delta.tool_calls) {
-						if (toolCallDelta.index === undefined) {
-							continue
-						}
-						if (!currentToolCall || currentToolCall.index !== toolCallDelta.index) {
-							// new index means new tool call, so add the previous one to the list
-							if (currentToolCall) {
-								toolCalls.push(currentToolCall)
-							}
-							currentToolCall = {
-								index: toolCallDelta.index,
-								id: toolCallDelta.id || "",
-								type: "function",
-								function: { name: "", arguments: "" },
-							}
-						}
-						if (toolCallDelta.id) {
-							currentToolCall.id = toolCallDelta.id
-						}
-						if (toolCallDelta.type) {
-							currentToolCall.type = toolCallDelta.type
-						}
-						if (toolCallDelta.function) {
-							if (toolCallDelta.function.name) {
-								currentToolCall.function.name = toolCallDelta.function.name
-							}
-							if (toolCallDelta.function.arguments) {
-								currentToolCall.function.arguments =
-									(currentToolCall.function.arguments || "") + toolCallDelta.function.arguments
-							}
-						}
-					}
-				}
-			}
-			if (currentToolCall) {
-				toolCalls.push(currentToolCall)
-			}
-		} catch (error) {
-			console.error("Error streaming completion:", error)
-			throw error
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.openRouterModelId
+		const modelInfo = this.options.openRouterModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
 		}
-
-		// Usage information is not available in streaming responses, so we need to estimate token counts
-		function approximateTokenCount(text: string): number {
-			return Math.ceil(new TextEncoder().encode(text).length / 4)
-		}
-		const promptTokens = approximateTokenCount(
-			createParams.messages
-				.map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
-				.join(" ")
-		)
-		const completionTokens = approximateTokenCount(
-			textContent + toolCalls.map((toolCall) => toolCall.function.arguments || "").join(" ")
-		)
-
-		const completion: OpenAI.Chat.Completions.ChatCompletion = {
-			created: Date.now(),
-			object: "chat.completion",
-			id: `openrouter-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`, // this ID won't be traceable back to OpenRouter's systems if you need to debug issues
-			choices: [
-				{
-					message: {
-						role: "assistant",
-						content: textContent,
-						tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-						refusal: null,
-					},
-					finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop",
-					index: 0,
-					logprobs: null,
-				},
-			],
-			model: this.getModel().id,
-			usage: {
-				prompt_tokens: promptTokens,
-				completion_tokens: completionTokens,
-				total_tokens: promptTokens + completionTokens,
-			},
-		}
-
-		return completion
-	}
-
-	getModel(): { id: OpenRouterModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in openRouterModels) {
-			const id = modelId as OpenRouterModelId
-			return { id, info: openRouterModels[id] }
-		}
-		return { id: openRouterDefaultModelId, info: openRouterModels[openRouterDefaultModelId] }
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

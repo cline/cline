@@ -7,22 +7,21 @@ import { SapAiCoreHandler } from "./providers/sapaicore"
 import { VertexHandler } from "./providers/vertex"
 import { OpenAiHandler } from "./providers/openai"
 import { OllamaHandler } from "./providers/ollama"
+import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
-
-export interface ApiHandlerMessageResponse {
-	message: Anthropic.Messages.Message
-	userCredits?: number
-}
+import { ApiStream } from "./transform/stream"
+import { DeepSeekHandler } from "./providers/deepseek"
+import { MistralHandler } from "./providers/mistral"
+import { VsCodeLmHandler } from "./providers/vscode-lm"
 
 export interface ApiHandler {
-	createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools: Anthropic.Messages.Tool[]
-	): Promise<ApiHandlerMessageResponse>
-
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
+}
+
+export interface SingleCompletionHandler {
+	completePrompt(prompt: string): Promise<string>
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
@@ -40,10 +39,18 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiHandler(options)
 		case "ollama":
 			return new OllamaHandler(options)
+		case "lmstudio":
+			return new LmStudioHandler(options)
 		case "gemini":
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "deepseek":
+			return new DeepSeekHandler(options)
+		case "mistral":
+			return new MistralHandler(options)
+		case "vscode-lm":
+			return new VsCodeLmHandler(options)
 		case "sapaicore":
 			return new SapAiCoreHandler(options)
 		default:

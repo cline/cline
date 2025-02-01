@@ -5,8 +5,12 @@ export type ApiProvider =
 	| "vertex"
 	| "openai"
 	| "ollama"
+	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "deepseek"
+	| "mistral"
+	| "vscode-lm"
 	| "sapaicore"
 
 export interface ApiHandlerOptions {
@@ -14,10 +18,13 @@ export interface ApiHandlerOptions {
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
 	awsRegion?: string
+	awsUseCrossRegionInference?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -25,9 +32,14 @@ export interface ApiHandlerOptions {
 	openAiModelId?: string
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	lmStudioModelId?: string
+	lmStudioBaseUrl?: string
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
+	deepSeekApiKey?: string
+	mistralApiKey?: string
 	azureApiVersion?: string
+	vsCodeLmModelSelector?: any
 	sapAiCoreClientId?: string
 	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string
@@ -42,32 +54,43 @@ export type ApiConfiguration = ApiHandlerOptions & {
 // Models
 
 export interface ModelInfo {
-	maxTokens: number
-	contextWindow: number
-	supportsImages: boolean
-	supportsPromptCache: boolean
-	inputPrice: number
-	outputPrice: number
+	maxTokens?: number
+	contextWindow?: number
+	supportsImages?: boolean
+	supportsComputerUse?: boolean
+	supportsPromptCache: boolean // this value is hardcoded for now
+	inputPrice?: number
+	outputPrice?: number
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
+	description?: string
 }
 
-export type ApiModelId = AnthropicModelId | OpenRouterModelId | BedrockModelId | VertexModelId | SapAiCoreModelId
-
 // Anthropic
-// https://docs.anthropic.com/en/docs/about-claude/models
+// https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20240620"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-3-5-sonnet-20241022"
 export const anthropicModels = {
-	"claude-3-5-sonnet-20240620": {
+	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
+		supportsComputerUse: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
 		cacheWritesPrice: 3.75, // $3.75 per million tokens
 		cacheReadsPrice: 0.3, // $0.30 per million tokens
+	},
+	"claude-3-5-haiku-20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.8,
+		outputPrice: 4.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
 	},
 	"claude-3-opus-20240229": {
 		maxTokens: 4096,
@@ -94,8 +117,25 @@ export const anthropicModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 export const bedrockModels = {
+	"anthropic.claude-3-5-sonnet-20241022-v2:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"anthropic.claude-3-5-haiku-20241022-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -112,6 +152,14 @@ export const bedrockModels = {
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 	},
+	"anthropic.claude-3-sonnet-20240229-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	"anthropic.claude-3-haiku-20240307-v1:0": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
@@ -124,168 +172,35 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export type OpenRouterModelId = keyof typeof openRouterModels
-export const openRouterDefaultModelId: OpenRouterModelId = "anthropic/claude-3.5-sonnet:beta"
-export const openRouterModels = {
-	"anthropic/claude-3.5-sonnet:beta": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"anthropic/claude-3-opus:beta": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 15,
-		outputPrice: 75,
-		cacheWritesPrice: 18.75,
-		cacheReadsPrice: 1.5,
-	},
-	"anthropic/claude-3-haiku:beta": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.25,
-		outputPrice: 1.25,
-		cacheWritesPrice: 0.3,
-		cacheReadsPrice: 0.03,
-	},
-	// Doesn't support tool use (yet)
-	"openai/o1-preview": {
-		maxTokens: 32_768,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 15,
-		outputPrice: 60,
-	},
-	"openai/o1-mini": {
-		maxTokens: 65_536,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
-	},
-	"openai/gpt-4o-2024-08-06": {
-		maxTokens: 16384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 2.5,
-		outputPrice: 10,
-	},
-	"openai/gpt-4o-mini-2024-07-18": {
-		maxTokens: 16384,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0.15,
-		outputPrice: 0.6,
-	},
-	"openai/gpt-4-turbo": {
-		maxTokens: 4096,
-		contextWindow: 128_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 10,
-		outputPrice: 30,
-	},
-	// llama 3.1 models cannot use tools yet
-	// "meta-llama/llama-3.1-405b-instruct": {
-	// 	maxTokens: 2048,
-	// 	supportsImages: false,
-	// 	inputPrice: 2.7,
-	// 	outputPrice: 2.7,
-	// },
-	// "meta-llama/llama-3.1-70b-instruct": {
-	// 	maxTokens: 2048,
-	// 	supportsImages: false,
-	// 	inputPrice: 0.52,
-	// 	outputPrice: 0.75,
-	// },
-	// "meta-llama/llama-3.1-8b-instruct": {
-	// 	maxTokens: 2048,
-	// 	supportsImages: false,
-	// 	inputPrice: 0.06,
-	// 	outputPrice: 0.06,
-	// },
-	// OpenRouter needs to fix mapping gemini 1.5 responses for tool calls properly, they return content with line breaks formatted wrong (too many escapes), and throw errors for being in the wrong order when they're not. They also cannot handle feedback given to a request with multiple tools. Giving feedback to one tool use requests works fine. ("Please ensure that function response turn comes immediately after a function call turn. And the number of function response parts should be equal to number of function call parts of the function call turn.")
-	// UPDATE: I keep getting "400: Please ensure that function call turn comes immediately after a user turn or after a function response turn.", which gets fixed as soon as i switch to openrouter/claude, so it's obviously an error on openrouters end transforming the message structure. This is likely the culprit behind the tool order error people have seen with gpt4o.
-	// "google/gemini-pro-1.5": {
-	// 	maxTokens: 8192,
-	// 	contextWindow: 2_097_152,
-	// 	supportsImages: true, // "Function Calling is not supported with non-text input"
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 2.5,
-	// 	outputPrice: 7.5,
-	// },
-	// "google/gemini-flash-1.5": {
-	// 	maxTokens: 8192,
-	// 	contextWindow: 1_048_576,
-	// 	supportsImages: true, // "Function Calling is not supported with non-text input"
-	// 	supportsPromptCache: false,
-	// 	inputPrice: 0.0375,
-	// 	outputPrice: 0.15,
-	// },
-	// "google/gemini-pro": {
-	// 	maxTokens: 8192,
-	// 	supportsImages: false, // "Function Calling is not supported with non-text input"
-	// 	inputPrice: 0.125,
-	// 	outputPrice: 0.375,
-	// },
-	// while deepseek coder can use tools, it may sometimes send tool invocation as a text block
-	"deepseek/deepseek-coder": {
-		maxTokens: 4096,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.14,
-		outputPrice: 0.28,
-	},
-	// mistral models can use tools but aren't great at going step-by-step and proceeding to the next step
-	"mistralai/mistral-large": {
-		maxTokens: 8192,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 9,
-	},
-	// This model is not capable of complex system/tool prompts
-	// "mistralai/mistral-7b-instruct-v0.1": {
-	// 	maxTokens: 4096,
-	// 	supportsImages: false,
-	// 	inputPrice: 0.06,
-	// 	outputPrice: 0.06,
-	// },
-	// cohere models are not capable of complex system/tool prompts
-	// "cohere/command-r-plus": {
-	// 	maxTokens: 4000,
-	// 	supportsImages: false,
-	// 	inputPrice: 3,
-	// 	outputPrice: 15,
-	// },
-	// "cohere/command-r": {
-	// 	maxTokens: 4000,
-	// 	supportsImages: false,
-	// 	inputPrice: 0.5,
-	// 	outputPrice: 1.5,
-	// },
-} as const satisfies Record<string, ModelInfo>
+export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet:beta" // will always exist in openRouterModels
+export const openRouterDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsComputerUse: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description:
+		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/anthropic/claude-3.5-sonnet) variant._",
+}
 
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet@20240620"
+export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet-v2@20241022"
 export const vertexModels = {
+	"claude-3-5-sonnet-v2@20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
 	"claude-3-5-sonnet@20240620": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -293,6 +208,14 @@ export const vertexModels = {
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+	},
+	"claude-3-5-haiku@20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
 	},
 	"claude-3-opus@20240229": {
 		maxTokens: 4096,
@@ -324,8 +247,40 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-1.5-flash-002"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
 export const geminiModels = {
+	"gemini-2.0-flash-thinking-exp-01-21": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-thinking-exp-1219": {
+		maxTokens: 8192,
+		contextWindow: 32_767,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-exp": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-1.5-flash-002": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -373,7 +328,23 @@ export const geminiModels = {
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
+	"o3-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+	},
 	// don't support tool use yet
+	o1: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 15,
+		outputPrice: 60,
+	},
 	"o1-preview": {
 		maxTokens: 32_768,
 		contextWindow: 128_000,
@@ -412,6 +383,48 @@ export const openAiNativeModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
+
+// DeepSeek
+// https://api-docs.deepseek.com/quick_start/pricing
+export type DeepSeekModelId = keyof typeof deepSeekModels
+export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
+export const deepSeekModels = {
+	"deepseek-chat": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.014,
+	},
+	"deepseek-reasoner": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Mistral
+// https://docs.mistral.ai/getting-started/models/models_overview/
+export type MistralModelId = keyof typeof mistralModels
+export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralModels = {
+	"codestral-latest": {
+		maxTokens: 32_768,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // SAP AI Core
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels

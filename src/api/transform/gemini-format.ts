@@ -19,7 +19,7 @@ export function convertAnthropicContentToGemini(
 				| Anthropic.Messages.ImageBlockParam
 				| Anthropic.Messages.ToolUseBlockParam
 				| Anthropic.Messages.ToolResultBlockParam
-		  >
+		  >,
 ): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content } as TextPart]
@@ -83,7 +83,7 @@ export function convertAnthropicContentToGemini(
 										data: part.source.data,
 										mimeType: part.source.media_type,
 									},
-								} as InlineDataPart)
+								}) as InlineDataPart,
 						),
 					]
 				}
@@ -113,7 +113,7 @@ export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): Fun
 						type: (value as any).type.toUpperCase(),
 						description: (value as any).description || "",
 					},
-				])
+				]),
 			),
 			required: (tool.input_schema.required as string[]) || [],
 		},
@@ -124,17 +124,10 @@ export function convertAnthropicToolToGemini(tool: Anthropic.Messages.Tool): Fun
 It looks like gemini likes to double escape certain characters when writing file contents: https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
 */
 export function unescapeGeminiContent(content: string) {
-	return content
-		.replace(/\\n/g, "\n")
-		.replace(/\\'/g, "'")
-		.replace(/\\"/g, '"')
-		.replace(/\\r/g, "\r")
-		.replace(/\\t/g, "\t")
+	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
 }
 
-export function convertGeminiResponseToAnthropic(
-	response: EnhancedGenerateContentResponse
-): Anthropic.Messages.Message {
+export function convertGeminiResponseToAnthropic(response: EnhancedGenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 
 	// Add the main text response
