@@ -43,11 +43,25 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+  check-openrouter-api-key:
+    runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.openrouter-api-key-check.outputs.defined }}
+    steps:
+      - name: Check if OpenRouter API key exists
+        id: openrouter-api-key-check
+        shell: bash
+        run: |
+          if [ "${{ secrets.OPENROUTER_API_KEY }}" != '' ]; then
+            echo "defined=true" >> $GITHUB_OUTPUT;
+          else
+            echo "defined=false" >> $GITHUB_OUTPUT;
+          fi
+
   integration-test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest] # macos-latest, windows-latest
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    needs: [check-openrouter-api-key]
+    if: needs.check-openrouter-api-key.outputs.exists == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,11 +72,7 @@ jobs:
           cache: 'npm'
       - name: Create env.integration file
         run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
-      - name: Check env.integration file
-        run: cat .env.integration
       - name: Install dependencies
         run: npm run install:all
-      - run: xvfb-run -a npm run test:integration
-        if: runner.os == 'Linux'
-      - run: npm run test:integration
-        if: runner.os != 'Linux'
+      - name: Run integration tests
+        run: xvfb-run -a npm run test:integration
