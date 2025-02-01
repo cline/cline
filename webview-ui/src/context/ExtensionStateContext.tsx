@@ -27,6 +27,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
+	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
@@ -116,6 +117,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [glamaModels, setGlamaModels] = useState<Record<string, ModelInfo>>({
 		[glamaDefaultModelId]: glamaDefaultModelInfo,
 	})
+	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -176,7 +178,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					break
 				}
 				case "workspaceUpdated": {
-					setFilePaths(message.filePaths ?? [])
+					const paths = message.filePaths ?? []
+					const tabs = message.openedTabs ?? []
+
+					setFilePaths(paths)
+					setOpenedTabs(tabs)
 					break
 				}
 				case "partialMessage": {
@@ -243,6 +249,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		openAiModels,
 		mcpServers,
 		filePaths,
+		openedTabs,
 		soundVolume: state.soundVolume,
 		fuzzyMatchThreshold: state.fuzzyMatchThreshold,
 		writeDelayMs: state.writeDelayMs,
