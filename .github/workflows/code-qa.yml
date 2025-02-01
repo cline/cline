@@ -44,6 +44,7 @@ jobs:
         run: npm test
 
   integration-test:
+    if: "${{ secrets.OPENROUTER_API_KEY != '' }}"
     strategy:
       matrix:
         os: [ubuntu-latest] # macos-latest, windows-latest
