@@ -48,6 +48,37 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 				}
 				break
 			}
+			case "o3-mini":
+			case "o3-mini-low":
+			case "o3-mini-high": {
+				const stream = await this.client.chat.completions.create({
+					model: "o3-mini",
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+					reasoning_effort: this.getModel().info.reasoningEffort,
+				})
+
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+
+					// contains a null value except for the last chunk which contains the token usage statistics for the entire request
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
+				}
+				break
+			}
 			default: {
 				const stream = await this.client.chat.completions.create({
 					model: this.getModel().id,
@@ -102,6 +133,16 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 					requestOptions = {
 						model: modelId,
 						messages: [{ role: "user", content: prompt }],
+					}
+					break
+				case "o3-mini":
+				case "o3-mini-low":
+				case "o3-mini-high":
+					// o3 doesn't support non-1 temp
+					requestOptions = {
+						model: "o3-mini",
+						messages: [{ role: "user", content: prompt }],
+						reasoning_effort: this.getModel().info.reasoningEffort,
 					}
 					break
 				default:

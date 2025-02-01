@@ -128,6 +128,7 @@ jest.mock("vscode", () => {
 			visibleTextEditors: [mockTextEditor],
 			tabGroups: {
 				all: [mockTabGroup],
+				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
 		},
 		workspace: {
@@ -730,25 +731,19 @@ describe("Cline", () => {
 				const iterator = cline.attemptApiRequest(0)
 				await iterator.next()
 
+				// Calculate expected delay for first retry
+				const baseDelay = 3 // from requestDelaySeconds
+
 				// Verify countdown messages
-				expect(saySpy).toHaveBeenCalledWith(
-					"api_req_retry_delayed",
-					expect.stringContaining("Retrying in 3 seconds"),
-					undefined,
-					true,
-				)
-				expect(saySpy).toHaveBeenCalledWith(
-					"api_req_retry_delayed",
-					expect.stringContaining("Retrying in 2 seconds"),
-					undefined,
-					true,
-				)
-				expect(saySpy).toHaveBeenCalledWith(
-					"api_req_retry_delayed",
-					expect.stringContaining("Retrying in 1 seconds"),
-					undefined,
-					true,
-				)
+				for (let i = baseDelay; i > 0; i--) {
+					expect(saySpy).toHaveBeenCalledWith(
+						"api_req_retry_delayed",
+						expect.stringContaining(`Retrying in ${i} seconds`),
+						undefined,
+						true,
+					)
+				}
+
 				expect(saySpy).toHaveBeenCalledWith(
 					"api_req_retry_delayed",
 					expect.stringContaining("Retrying now"),
@@ -756,13 +751,18 @@ describe("Cline", () => {
 					false,
 				)
 
-				// Verify delay was called correctly
-				expect(mockDelay).toHaveBeenCalledTimes(3)
+				// Calculate expected delay calls based on exponential backoff
+				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, 1)) // retryAttempt = 1
+				const rateLimitDelay = baseDelay // Initial rate limit delay
+				const totalExpectedDelays = exponentialDelay + rateLimitDelay
+				expect(mockDelay).toHaveBeenCalledTimes(totalExpectedDelays)
 				expect(mockDelay).toHaveBeenCalledWith(1000)
 
 				// Verify error message content
 				const errorMessage = saySpy.mock.calls.find((call) => call[1]?.includes(mockError.message))?.[1]
-				expect(errorMessage).toBe(`${mockError.message}\n\nRetrying in 3 seconds...`)
+				expect(errorMessage).toBe(
+					`${mockError.message}\n\nRetry attempt 1\nRetrying in ${baseDelay} seconds...`,
+				)
 			})
 
 			describe("loadContext", () => {

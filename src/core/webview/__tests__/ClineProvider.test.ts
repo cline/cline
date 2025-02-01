@@ -108,6 +108,11 @@ jest.mock("vscode", () => ({
 		uriScheme: "vscode",
 		language: "en",
 	},
+	ExtensionMode: {
+		Production: 1,
+		Development: 2,
+		Test: 3,
+	},
 }))
 
 // Mock sound utility
@@ -318,7 +323,9 @@ describe("ClineProvider", () => {
 			browserViewportSize: "900x600",
 			fuzzyMatchThreshold: 1.0,
 			mcpEnabled: true,
+			enableMcpServerCreation: false,
 			requestDelaySeconds: 5,
+			rateLimitSeconds: 0,
 			mode: defaultModeSlug,
 			customModes: [],
 			experiments: experimentDefault,
@@ -889,6 +896,7 @@ describe("ClineProvider", () => {
 					},
 				},
 				mcpEnabled: true,
+				enableMcpServerCreation: false,
 				mode: "code" as const,
 				experiments: experimentDefault,
 			} as any)
@@ -921,6 +929,7 @@ describe("ClineProvider", () => {
 					},
 				},
 				mcpEnabled: false,
+				enableMcpServerCreation: false,
 				mode: "code" as const,
 				experiments: experimentDefault,
 			} as any)
@@ -985,6 +994,7 @@ describe("ClineProvider", () => {
 				},
 				customModePrompts: {},
 				mode: "code",
+				enableMcpServerCreation: true,
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
 				experimentalDiffStrategy: true,
@@ -1019,6 +1029,7 @@ describe("ClineProvider", () => {
 				undefined, // preferredLanguage
 				true, // diffEnabled
 				experimentDefault,
+				true,
 			)
 
 			// Run the test again to verify it's consistent
@@ -1042,6 +1053,7 @@ describe("ClineProvider", () => {
 				diffEnabled: false,
 				fuzzyMatchThreshold: 0.8,
 				experiments: experimentDefault,
+				enableMcpServerCreation: true,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffEnabled is passed as false
@@ -1070,6 +1082,7 @@ describe("ClineProvider", () => {
 				undefined, // preferredLanguage
 				false, // diffEnabled
 				experimentDefault,
+				true,
 			)
 		})
 
@@ -1084,6 +1097,7 @@ describe("ClineProvider", () => {
 					architect: { customInstructions: "Architect mode instructions" },
 				},
 				mode: "architect",
+				enableMcpServerCreation: false,
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
 				experiments: experimentDefault,

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import PromptsView from "../PromptsView"
 import { ExtensionStateContext } from "../../../context/ExtensionStateContext"
@@ -98,20 +98,14 @@ describe("PromptsView", () => {
 		expect(codeTab).toHaveAttribute("data-active", "false")
 	})
 
-	it("handles prompt changes correctly", () => {
+	it("handles prompt changes correctly", async () => {
 		renderPromptsView()
 
-		const textarea = screen.getByTestId("code-prompt-textarea")
-		fireEvent(
-			textarea,
-			new CustomEvent("change", {
-				detail: {
-					target: {
-						value: "New prompt value",
-					},
-				},
-			}),
-		)
+		// Get the textarea
+		const textarea = await waitFor(() => screen.getByTestId("code-prompt-textarea"))
+		fireEvent.change(textarea, {
+			target: { value: "New prompt value" },
+		})
 
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "updatePrompt",
@@ -163,24 +157,18 @@ describe("PromptsView", () => {
 		expect(screen.queryByTestId("role-definition-reset")).not.toBeInTheDocument()
 	})
 
-	it("handles API configuration selection", () => {
+	it("handles API configuration selection", async () => {
 		renderPromptsView()
 
 		// Click the ENHANCE tab first to show the API config dropdown
 		const enhanceTab = screen.getByTestId("ENHANCE-tab")
 		fireEvent.click(enhanceTab)
 
-		const dropdown = screen.getByTestId("api-config-dropdown")
-		fireEvent(
-			dropdown,
-			new CustomEvent("change", {
-				detail: {
-					target: {
-						value: "config1",
-					},
-				},
-			}),
-		)
+		// Wait for the ENHANCE tab click to take effect
+		const dropdown = await waitFor(() => screen.getByTestId("api-config-dropdown"))
+		fireEvent.change(dropdown, {
+			target: { value: "config1" },
+		})
 
 		expect(mockExtensionState.setEnhancementApiConfigId).toHaveBeenCalledWith("config1")
 		expect(vscode.postMessage).toHaveBeenCalledWith({
@@ -198,13 +186,9 @@ describe("PromptsView", () => {
 		})
 
 		const textarea = screen.getByTestId("global-custom-instructions-textarea")
-		const changeEvent = new CustomEvent("change", {
-			detail: { target: { value: "" } },
+		fireEvent.change(textarea, {
+			target: { value: "" },
 		})
-		Object.defineProperty(changeEvent, "target", {
-			value: { value: "" },
-		})
-		await fireEvent(textarea, changeEvent)
 
 		expect(setCustomInstructions).toHaveBeenCalledWith(undefined)
 		expect(vscode.postMessage).toHaveBeenCalledWith({

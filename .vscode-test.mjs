@@ -1,11 +1,16 @@
+/**
+ * See: https://code.visualstudio.com/api/working-with-extensions/testing-extension
+ */
+
 import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig({
-	files: 'src/test/extension.test.ts',
+	label: 'integrationTest',
+	files: 'out-integration/test/**/*.test.js',
 	workspaceFolder: '.',
 	mocha: {
+		ui: 'tdd',
 		timeout: 60000,
-		ui: 'tdd'
 	},
 	launchArgs: [
 		'--enable-proposed-api=RooVeterinaryInc.roo-cline',

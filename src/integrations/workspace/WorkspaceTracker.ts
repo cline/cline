@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
+import { toRelativePath } from "../../utils/path"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 const MAX_INITIAL_FILES = 1_000
@@ -48,6 +49,23 @@ class WorkspaceTracker {
 		)
 
 		this.disposables.push(watcher)
+
+		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(() => this.workspaceDidUpdate()))
+	}
+
+	private getOpenedTabsInfo() {
+		return vscode.window.tabGroups.all.flatMap((group) =>
+			group.tabs
+				.filter((tab) => tab.input instanceof vscode.TabInputText)
+				.map((tab) => {
+					const path = (tab.input as vscode.TabInputText).uri.fsPath
+					return {
+						label: tab.label,
+						isActive: tab.isActive,
+						path: toRelativePath(path, cwd || ""),
+					}
+				}),
+		)
 	}
 
 	private workspaceDidUpdate() {
@@ -59,12 +77,12 @@ class WorkspaceTracker {
 			if (!cwd) {
 				return
 			}
+
+			const relativeFilePaths = Array.from(this.filePaths).map((file) => toRelativePath(file, cwd))
 			this.providerRef.deref()?.postMessageToWebview({
 				type: "workspaceUpdated",
-				filePaths: Array.from(this.filePaths).map((file) => {
-					const relativePath = path.relative(cwd, file).toPosix()
-					return file.endsWith("/") ? relativePath + "/" : relativePath
-				}),
+				filePaths: relativeFilePaths,
+				openedTabs: this.getOpenedTabsInfo(),
 			})
 			this.updateTimer = null
 		}, 300) // Debounce for 300ms

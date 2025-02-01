@@ -50,7 +50,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
+		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 
@@ -103,6 +103,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false)
+		const [isFocused, setIsFocused] = useState(false)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -137,14 +138,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				...gitCommits,
+				...openedTabs
+					.filter((tab) => tab.path)
+					.map((tab) => ({
+						type: ContextMenuOptionType.OpenedFile,
+						value: "/" + tab.path,
+					})),
 				...filePaths
 					.map((file) => "/" + file)
+					.filter((path) => !openedTabs.some((tab) => tab.path && "/" + tab.path === path)) // Filter out paths that are already in openedTabs
 					.map((path) => ({
 						type: path.endsWith("/") ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
 						value: path,
 					})),
 			]
-		}, [filePaths, gitCommits])
+		}, [filePaths, gitCommits, openedTabs])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -379,6 +387,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!isMouseDownOnMenu) {
 				setShowContextMenu(false)
 			}
+			setIsFocused(false)
 		}, [isMouseDownOnMenu])
 
 		const handlePaste = useCallback(
@@ -537,6 +546,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					backgroundColor: "var(--vscode-input-background)",
 					margin: "10px 15px",
 					padding: "8px",
+					outline: "none",
+					border: "1px solid",
+					borderColor: isFocused ? "var(--vscode-focusBorder)" : "transparent",
+					borderRadius: "2px",
 				}}
 				onDrop={async (e) => {
 					e.preventDefault()
@@ -627,7 +640,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							padding: "8px",
+							padding: "2px",
+							paddingRight: "8px",
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
 							zIndex: 1,
 						}}
@@ -647,6 +661,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							handleInputChange(e)
 							updateHighlights()
 						}}
+						onFocus={() => setIsFocused(true)}
 						onKeyDown={handleKeyDown}
 						onKeyUp={handleKeyUp}
 						onBlur={handleBlur}
@@ -660,11 +675,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onHeightChange?.(height)
 						}}
 						placeholder={placeholderText}
-						minRows={2}
-						maxRows={20}
+						minRows={3}
+						maxRows={15}
 						autoFocus={true}
 						style={{
 							width: "100%",
+							outline: "none",
 							boxSizing: "border-box",
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",
@@ -676,11 +692,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							overflowX: "hidden",
 							overflowY: "auto",
 							border: "none",
-							padding: "8px",
+							padding: "2px",
+							paddingRight: "8px",
 							marginBottom: thumbnailsHeight > 0 ? `${thumbnailsHeight + 16}px` : 0,
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: "0 1 auto",
 							zIndex: 2,
+							scrollbarWidth: "none",
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -696,7 +714,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							bottom: "36px",
 							left: "16px",
 							zIndex: 2,
-							marginBottom: "8px",
+							marginBottom: "4px",
 						}}
 					/>
 				)}
@@ -707,7 +725,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						justifyContent: "space-between",
 						alignItems: "center",
 						marginTop: "auto",
-						paddingTop: "8px",
+						paddingTop: "2px",
 					}}>
 					<div
 						style={{

@@ -1,0 +1,32 @@
+/**
+ * Use `Developer: Generate Color Theme From Current Settings` to generate themes
+ * using your current VSCode settings.
+ *
+ * See: https://code.visualstudio.com/docs/getstarted/themes
+ */
+
+:root {
+	--vscode-editor-background: #1f1f1f; /* "editor.background" */
+	--vscode-editor-foreground: #cccccc; /* "editor.foreground" */
+	--vscode-menu-background: #1f1f1f; /* "menu.background" */
+	--vscode-menu-foreground: #cccccc; /* "menu.foreground" */
+	--vscode-button-background: #0078d4; /* "button.background" */
+	--vscode-button-foreground: #ffffff; /* "button.foreground" */
+	--vscode-button-secondaryBackground: #313131; /* "button.secondaryBackground" */
+	--vscode-button-secondaryForeground: #cccccc; /* "button.secondaryForeground" */
+	--vscode-disabledForeground: red; /* "disabledForeground" */
+	--vscode-descriptionForeground: #9d9d9d; /* "descriptionForeground" */
+	--vscode-focusBorder: #0078d4; /* "focusBorder" */
+	--vscode-errorForeground: #f85149; /* "errorForeground" */
+	--vscode-widget-border: #313131; /* "widget.border" */
+	--vscode-input-background: #313131; /* "input.background" */
+	--vscode-input-foreground: #cccccc; /* "input.foreground" */
+	--vscode-input-border: #3c3c3c; /* "input.border" */
+
+	/* I can't find these in the output of `Developer: Generate Color Theme From Current Settings` */
+	--vscode-charts-red: red;
+	--vscode-charts-blue: blue;
+	--vscode-charts-yellow: yellow;
+	--vscode-charts-orange: orange;
+	--vscode-charts-green: green;
+}

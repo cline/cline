@@ -53,6 +53,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setAlwaysApproveResubmit,
 		requestDelaySeconds,
 		setRequestDelaySeconds,
+		rateLimitSeconds,
+		setRateLimitSeconds,
 		currentApiConfigName,
 		listApiConfigMeta,
 		experiments,
@@ -92,6 +94,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
+			vscode.postMessage({ type: "rateLimitSeconds", value: rateLimitSeconds })
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
 			vscode.postMessage({
 				type: "upsertApiConfiguration",
@@ -137,6 +140,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				commands: newCommands,
 			})
 		}
+	}
+
+	const sliderLabelStyle = {
+		minWidth: "45px",
+		textAlign: "right" as const,
+		lineHeight: "20px",
+		paddingBottom: "2px",
+	}
+
+	const sliderStyle = {
+		flexGrow: 1,
+		maxWidth: "80%",
+		accentColor: "var(--vscode-button-background)",
+		height: "2px",
 	}
 
 	return (
@@ -481,22 +498,22 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</div>
 
 					<div style={{ marginBottom: 15 }}>
-						<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-							<span style={{ fontWeight: "500", minWidth: "100px" }}>Screenshot quality</span>
-							<input
-								type="range"
-								min="1"
-								max="100"
-								step="1"
-								value={screenshotQuality ?? 75}
-								onChange={(e) => setScreenshotQuality(parseInt(e.target.value))}
-								style={{
-									flexGrow: 1,
-									accentColor: "var(--vscode-button-background)",
-									height: "2px",
-								}}
-							/>
-							<span style={{ minWidth: "35px", textAlign: "left" }}>{screenshotQuality ?? 75}%</span>
+						<div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+							<span style={{ fontWeight: "500" }}>Screenshot quality</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+								<input
+									type="range"
+									min="1"
+									max="100"
+									step="1"
+									value={screenshotQuality ?? 75}
+									onChange={(e) => setScreenshotQuality(parseInt(e.target.value))}
+									style={{
+										...sliderStyle,
+									}}
+								/>
+								<span style={{ ...sliderLabelStyle }}>{screenshotQuality ?? 75}%</span>
+							</div>
 						</div>
 						<p
 							style={{
@@ -559,24 +576,40 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div style={{ marginBottom: 40 }}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 15px 0" }}>Advanced Settings</h3>
 					<div style={{ marginBottom: 15 }}>
-						<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-							<span style={{ fontWeight: "500", minWidth: "150px" }}>Terminal output limit</span>
-							<input
-								type="range"
-								min="100"
-								max="5000"
-								step="100"
-								value={terminalOutputLineLimit ?? 500}
-								onChange={(e) => setTerminalOutputLineLimit(parseInt(e.target.value))}
-								style={{
-									flexGrow: 1,
-									accentColor: "var(--vscode-button-background)",
-									height: "2px",
-								}}
-							/>
-							<span style={{ minWidth: "45px", textAlign: "left" }}>
-								{terminalOutputLineLimit ?? 500}
-							</span>
+						<div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+							<span style={{ fontWeight: "500" }}>Rate limit</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+								<input
+									type="range"
+									min="0"
+									max="60"
+									step="1"
+									value={rateLimitSeconds}
+									onChange={(e) => setRateLimitSeconds(parseInt(e.target.value))}
+									style={{ ...sliderStyle }}
+								/>
+								<span style={{ ...sliderLabelStyle }}>{rateLimitSeconds}s</span>
+							</div>
+						</div>
+						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+							Minimum time between API requests.
+						</p>
+					</div>
+					<div style={{ marginBottom: 15 }}>
+						<div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+							<span style={{ fontWeight: "500" }}>Terminal output limit</span>
+							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+								<input
+									type="range"
+									min="100"
+									max="5000"
+									step="100"
+									value={terminalOutputLineLimit ?? 500}
+									onChange={(e) => setTerminalOutputLineLimit(parseInt(e.target.value))}
+									style={{ ...sliderStyle }}
+								/>
+								<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
+							</div>
 						</div>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
 							Maximum number of lines to include in terminal output when executing commands. When exceeded
@@ -614,26 +647,27 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									enabled={experiments[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false}
 									onChange={(enabled) => setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, enabled)}
 								/>
-								<div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "15px" }}>
-									<span style={{ fontWeight: "500", minWidth: "100px" }}>Match precision</span>
-									<input
-										type="range"
-										min="0.8"
-										max="1"
-										step="0.005"
-										value={fuzzyMatchThreshold ?? 1.0}
-										onChange={(e) => {
-											setFuzzyMatchThreshold(parseFloat(e.target.value))
-										}}
-										style={{
-											flexGrow: 1,
-											accentColor: "var(--vscode-button-background)",
-											height: "2px",
-										}}
-									/>
-									<span style={{ minWidth: "35px", textAlign: "left" }}>
-										{Math.round((fuzzyMatchThreshold || 1) * 100)}%
-									</span>
+								<div
+									style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "15px" }}>
+									<span style={{ fontWeight: "500" }}>Match precision</span>
+									<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+										<input
+											type="range"
+											min="0.8"
+											max="1"
+											step="0.005"
+											value={fuzzyMatchThreshold ?? 1.0}
+											onChange={(e) => {
+												setFuzzyMatchThreshold(parseFloat(e.target.value))
+											}}
+											style={{
+												...sliderStyle,
+											}}
+										/>
+										<span style={{ ...sliderLabelStyle }}>
+											{Math.round((fuzzyMatchThreshold || 1) * 100)}%
+										</span>
+									</div>
 								</div>
 								<p
 									style={{
