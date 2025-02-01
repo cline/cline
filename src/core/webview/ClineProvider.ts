@@ -102,6 +102,7 @@ type GlobalStateKey =
 	| "writeDelayMs"
 	| "terminalOutputLineLimit"
 	| "mcpEnabled"
+	| "enableMcpServerCreation"
 	| "alwaysApproveResubmit"
 	| "requestDelaySeconds"
 	| "rateLimitSeconds"
@@ -841,6 +842,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("mcpEnabled", mcpEnabled)
 						await this.postStateToWebview()
 						break
+					case "enableMcpServerCreation":
+						await this.updateGlobalState("enableMcpServerCreation", message.bool ?? true)
+						await this.postStateToWebview()
+						break
 					case "playSound":
 						if (message.audioType) {
 							const soundPath = path.join(this.context.extensionPath, "audio", `${message.audioType}.wav`)
@@ -1129,6 +1134,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								mcpEnabled,
 								fuzzyMatchThreshold,
 								experiments,
+								enableMcpServerCreation,
 							} = await this.getState()
 
 							// Create diffStrategy based on current model and settings
@@ -1157,6 +1163,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								preferredLanguage,
 								diffEnabled,
 								experiments,
+								enableMcpServerCreation,
 							)
 
 							await this.postMessageToWebview({
@@ -1994,6 +2001,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit,
 			fuzzyMatchThreshold,
 			mcpEnabled,
+			enableMcpServerCreation,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
 			rateLimitSeconds,
@@ -2036,6 +2044,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
+			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: requestDelaySeconds ?? 10,
 			rateLimitSeconds: rateLimitSeconds ?? 0,
@@ -2160,6 +2169,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality,
 			terminalOutputLineLimit,
 			mcpEnabled,
+			enableMcpServerCreation,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
 			rateLimitSeconds,
@@ -2233,6 +2243,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
 			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
 			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("enableMcpServerCreation") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysApproveResubmit") as Promise<boolean | undefined>,
 			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
 			this.getGlobalState("rateLimitSeconds") as Promise<number | undefined>,
@@ -2356,6 +2367,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					return langMap[vscodeLang.split("-")[0]] ?? "English"
 				})(),
 			mcpEnabled: mcpEnabled ?? true,
+			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: Math.max(5, requestDelaySeconds ?? 10),
 			rateLimitSeconds: rateLimitSeconds ?? 0,

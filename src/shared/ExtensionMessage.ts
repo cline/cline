@@ -107,6 +107,7 @@ export interface ExtensionState {
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean
+	enableMcpServerCreation: boolean
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string

@@ -61,6 +61,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setExperimentEnabled,
 		alwaysAllowModeSwitch,
 		setAlwaysAllowModeSwitch,
+		enableMcpServerCreation,
+		setEnableMcpServerCreation,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -108,6 +110,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			})
 
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
+			vscode.postMessage({ type: "enableMcpServerCreation", bool: enableMcpServerCreation })
 			onDone()
 		}
 	}
@@ -354,6 +357,17 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
 							Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this
 							setting and the tool's individual "Always allow" checkbox)
+						</p>
+					</div>
+
+					<div style={{ marginBottom: 5 }}>
+						<VSCodeCheckbox
+							checked={enableMcpServerCreation}
+							onChange={(e: any) => setEnableMcpServerCreation(e.target.checked)}>
+							<span style={{ fontWeight: "500" }}>Enable MCP Server Creation</span>
+						</VSCodeCheckbox>
+						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+							This option allow user to enable and disable MCP server creation for saved tokens usage
 						</p>
 					</div>
 

@@ -1,7 +1,11 @@
 import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
 
-export async function getMcpServersSection(mcpHub?: McpHub, diffStrategy?: DiffStrategy): Promise<string> {
+export async function getMcpServersSection(
+	mcpHub?: McpHub,
+	diffStrategy?: DiffStrategy,
+	enableMcpServerCreation?: boolean,
+): Promise<string> {
 	if (!mcpHub) {
 		return ""
 	}
@@ -43,7 +47,7 @@ export async function getMcpServersSection(mcpHub?: McpHub, diffStrategy?: DiffS
 					.join("\n\n")}`
 			: "(No MCP servers currently connected)"
 
-	return `MCP SERVERS
+	const baseSection = `MCP SERVERS
 
 The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
 
@@ -51,7 +55,15 @@ The Model Context Protocol (MCP) enables communication between the system and lo
 
 When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
 
-${connectedServers}
+${connectedServers}`
+
+	if (!enableMcpServerCreation) {
+		return baseSection
+	}
+
+	return (
+		baseSection +
+		`
 
 ## Creating an MCP Server
 
@@ -86,7 +98,7 @@ weather-server/
         ...
         "type": "module", // added by default, uses ES module syntax (import/export) rather than CommonJS (require/module.exports) (Important to know if you create additional scripts in this server repository like a get-refresh-token.js script)
         "scripts": {
-          "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+          "build": "tsc && node -e "require('fs').chmodSync('build/index.js', '755')"",
           ...
         }
         ...
@@ -398,11 +410,11 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
 ## Editing MCP Servers
 
 The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${
-		mcpHub
-			.getServers()
-			.map((server) => server.name)
-			.join(", ") || "(None running currently)"
-	}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
+			mcpHub
+				.getServers()
+				.map((server) => server.name)
+				.join(", ") || "(None running currently)"
+		}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
 
 However some MCP servers may be running from installed packages rather than a local repository, in which case it may make more sense to create a new MCP server.
 
@@ -411,4 +423,5 @@ However some MCP servers may be running from installed packages rather than a lo
 The user may not always request the use or creation of MCP servers. Instead, they might provide tasks that can be completed with existing tools. While using the MCP SDK to extend your capabilities can be useful, it's important to understand that this is just one specialized type of task you can accomplish. You should only implement MCP servers when the user explicitly requests it (e.g., "add a tool that...").
 
 Remember: The MCP documentation and example provided above are to help you understand and work with existing MCP servers or create new ones when requested by the user. You already have access to tools and capabilities that can be used to accomplish a wide range of tasks.`
+	)
 }

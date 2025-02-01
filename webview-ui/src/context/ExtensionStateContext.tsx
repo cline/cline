@@ -51,6 +51,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTerminalOutputLineLimit: (value: number) => void
 	mcpEnabled: boolean
 	setMcpEnabled: (value: boolean) => void
+	enableMcpServerCreation: boolean
+	setEnableMcpServerCreation: (value: boolean) => void
 	alwaysApproveResubmit?: boolean
 	setAlwaysApproveResubmit: (value: boolean) => void
 	requestDelaySeconds: number
@@ -92,6 +94,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		screenshotQuality: 75,
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
+		enableMcpServerCreation: true,
 		alwaysApproveResubmit: false,
 		requestDelaySeconds: 5,
 		rateLimitSeconds: 0, // Minimum time between successive requests (0 = disabled)
@@ -272,6 +275,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setTerminalOutputLineLimit: (value) =>
 			setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
+		setEnableMcpServerCreation: (value) =>
+			setState((prevState) => ({ ...prevState, enableMcpServerCreation: value })),
 		setAlwaysApproveResubmit: (value) => setState((prevState) => ({ ...prevState, alwaysApproveResubmit: value })),
 		setRequestDelaySeconds: (value) => setState((prevState) => ({ ...prevState, requestDelaySeconds: value })),
 		setRateLimitSeconds: (value) => setState((prevState) => ({ ...prevState, rateLimitSeconds: value })),
