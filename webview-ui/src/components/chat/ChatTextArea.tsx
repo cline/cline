@@ -50,8 +50,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, openedTabs, activeSelection, currentApiConfigName, listApiConfigMeta, customModes } =
-			useExtensionState()
+		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 
@@ -158,15 +157,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					})),
 			]
 
-			if (activeSelection) {
-				items.unshift({
-					type: ContextMenuOptionType.OpenedFile,
-					value: `/${activeSelection.file}:${activeSelection.selection.startLine + 1}-${activeSelection.selection.endLine + 1}`,
-				})
-			}
-
 			return items
-		}, [filePaths, openedTabs, activeSelection])
+		}, [filePaths, openedTabs])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {

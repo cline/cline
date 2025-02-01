@@ -62,13 +62,6 @@ export interface ExtensionMessage {
 		isActive: boolean
 		path?: string
 	}>
-	activeSelection?: {
-		file: string
-		selection: {
-			startLine: number
-			endLine: number
-		}
-	} | null
 	partialMessage?: ClineMessage
 	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>

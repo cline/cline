@@ -28,10 +28,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
-	activeSelection: {
-		file: string
-		selection: { startLine: number; endLine: number }
-	} | null
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
@@ -122,10 +118,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		[glamaDefaultModelId]: glamaDefaultModelInfo,
 	})
 	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
-	const [activeSelection, setActiveSelection] = useState<{
-		file: string
-		selection: { startLine: number; endLine: number }
-	} | null>(null)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -188,11 +180,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				case "workspaceUpdated": {
 					const paths = message.filePaths ?? []
 					const tabs = message.openedTabs ?? []
-					const selection = message.activeSelection ?? null
 
 					setFilePaths(paths)
 					setOpenedTabs(tabs)
-					setActiveSelection(selection)
 					break
 				}
 				case "partialMessage": {
@@ -260,7 +250,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		mcpServers,
 		filePaths,
 		openedTabs,
-		activeSelection,
 		soundVolume: state.soundVolume,
 		fuzzyMatchThreshold: state.fuzzyMatchThreshold,
 		writeDelayMs: state.writeDelayMs,

@@ -50,22 +50,7 @@ class WorkspaceTracker {
 
 		this.disposables.push(watcher)
 
-		// Listen for tab changes
 		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(() => this.workspaceDidUpdate()))
-
-		// Listen for editor/selection changes
-		this.disposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.workspaceDidUpdate()))
-		this.disposables.push(vscode.window.onDidChangeTextEditorSelection(() => this.workspaceDidUpdate()))
-
-		/*
-		 An event that is emitted when a workspace folder is added or removed.
-		 **Note:** this event will not fire if the first workspace folder is added, removed or changed,
-		 because in that case the currently executing extensions (including the one that listens to this
-		 event) will be terminated and restarted so that the (deprecated) `rootPath` property is updated
-		 to point to the first workspace folder.
-		 */
-		// In other words, we don't have to worry about the root workspace folder ([0]) changing since the extension will be restarted and our cwd will be updated to reflect the new workspace folder. (We don't care about non root workspace folders, since cline will only be working within the root folder cwd)
-		// this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged.bind(this)))
 	}
 
 	private getOpenedTabsInfo() {
@@ -83,20 +68,6 @@ class WorkspaceTracker {
 		)
 	}
 
-	private getActiveSelectionInfo() {
-		const editor = vscode.window.activeTextEditor
-		if (!editor) return null
-		if (editor.selection.isEmpty) return null
-
-		return {
-			file: toRelativePath(editor.document.uri.fsPath, cwd || ""),
-			selection: {
-				startLine: editor.selection.start.line,
-				endLine: editor.selection.end.line,
-			},
-		}
-	}
-
 	private workspaceDidUpdate() {
 		if (this.updateTimer) {
 			clearTimeout(this.updateTimer)
@@ -112,7 +83,6 @@ class WorkspaceTracker {
 				type: "workspaceUpdated",
 				filePaths: relativeFilePaths,
 				openedTabs: this.getOpenedTabsInfo(),
-				activeSelection: this.getActiveSelectionInfo(),
 			})
 			this.updateTimer = null
 		}, 300) // Debounce for 300ms
