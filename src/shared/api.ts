@@ -559,8 +559,8 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
