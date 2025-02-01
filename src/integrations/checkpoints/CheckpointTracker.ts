@@ -13,7 +13,7 @@ import { getLfsPatterns, writeExcludesFile, shouldExcludeFile } from "./Checkpoi
 // previous states without affecting the main repository. The tracker applies exclusion rules,
 // handles nested Git repositories, and automatically configures Git settings. With features
 // like file filtering, commit management, and workspace validation, it ensures reliable tracking
-// of development progress while seamlessly integrating into Cline’s workflow.
+// of development progress while seamlessly integrating into Cline's workflow.
 
 class CheckpointTracker {
 	private providerRef: WeakRef<ClineProvider>
@@ -122,17 +122,6 @@ class CheckpointTracker {
 			// Disable commit signing for shadow repo
 			await git.addConfig("commit.gpgSign", "false")
 
-			// Copy the project's .gitignore to the shadow repo if it exists
-			try {
-				const projectGitignorePath = path.join(this.cwd, ".gitignore")
-				if (await fileExistsAtPath(projectGitignorePath)) {
-					const gitignoreContent = await fs.readFile(projectGitignorePath, "utf8")
-					await fs.writeFile(path.join(checkpointsDir, ".gitignore"), gitignoreContent)
-				}
-			} catch (error) {
-				console.warn("Failed to copy .gitignore:", error)
-			}
-
 			// Get LFS patterns and write excludes file
 			const lfsPatterns = await getLfsPatterns(this.cwd)
 			await writeExcludesFile(gitPath, lfsPatterns)
@@ -193,7 +182,7 @@ class CheckpointTracker {
 		// - Unstaged changes
 		// - Partial commits
 		// - Merge conflicts
-		await git.clean("f", ["-d", "-f"]) // Remove untracked files and directories
+		//  await git.clean("f", ["-d", "-f"]) // Remove untracked files and directories - This has been commented out as it can cause files to be removed from workspace when restoring a checkpoint
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 	}
 
@@ -281,110 +270,64 @@ class CheckpointTracker {
 
 	/**
 	 * Adds files to the shadow git repository while handling nested git repos and applying exclusion rules.
-	 * Temporarily disables nested git repos, and filters files based on exclusion patterns.
+	 * Uses git commands to list files, then applies our custom exclusions.
 	 */
 	private async addCheckpointFiles(git: SimpleGit): Promise<void> {
 		try {
 			await this.renameNestedGitRepos(true)
 			console.log("Starting checkpoint add operation...")
 
-			const { filesToAdd, excludedFiles } = await this.getFilteredFiles()
-			await this.logExcludedFiles(excludedFiles)
-			await this.addFilesToGit(git, filesToAdd)
+			// Get list of all files git would track (respects .gitignore)
+			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
+				.split("\n")
+				.filter(Boolean)
+			console.log(`Found ${gitFiles.length} files from git to check for exclusions`)
+
+			const filesToAdd: string[] = []
+			const excludedFiles: Array<{ path: string; reason: string }> = []
+
+			// Apply our custom exclusions
+			for (const relativePath of gitFiles) {
+				const fullPath = path.join(this.cwd, relativePath)
+				const exclusionResult = await shouldExcludeFile(fullPath)
+
+				if (exclusionResult.excluded && exclusionResult.reason) {
+					excludedFiles.push({
+						path: relativePath,
+						reason: exclusionResult.reason,
+					})
+				} else {
+					filesToAdd.push(relativePath)
+				}
+			}
+
+			// Log exclusions
+			if (excludedFiles.length > 0) {
+				console.log(`Excluded ${excludedFiles.length} files:`)
+				excludedFiles.forEach(({ path, reason }) => {
+					console.log(`  ${path}: ${reason}`)
+				})
+			}
+
+			// Add filtered files
+			if (filesToAdd.length === 0) {
+				console.log("No files to add to checkpoint")
+				return
+			}
+
+			try {
+				console.log(`Adding ${filesToAdd.length} files to checkpoint...`)
+				await git.add(filesToAdd)
+				console.log("Checkpoint add operation completed successfully")
+			} catch (error) {
+				console.error("Checkpoint add operation failed:", error)
+				throw error
+			}
 		} catch (error) {
 			console.error("Failed to add files to checkpoint:", error)
 			throw error
 		} finally {
 			await this.renameNestedGitRepos(false)
-		}
-	}
-
-	/**
-	 * Processes all workspace files through exclusion filters and returns arrays of files to add and excluded files.
-	 * Uses CheckpointExclusions rules to determine which files should be tracked.
-	 */
-	private async getFilteredFiles(): Promise<{
-		filesToAdd: string[]
-		excludedFiles: Array<{ path: string; reason: string }>
-	}> {
-		const allFiles = await this.findWorkspaceFiles()
-		console.log(`Found ${allFiles.length} files to check for exclusions`)
-
-		const filesToAdd: string[] = []
-		const excludedFiles: Array<{ path: string; reason: string }> = []
-
-		for (const file of allFiles) {
-			const { relativePath, exclusionResult } = await this.processFile(file)
-
-			if (exclusionResult.excluded && exclusionResult.reason) {
-				excludedFiles.push({
-					path: relativePath,
-					reason: exclusionResult.reason,
-				})
-			} else {
-				filesToAdd.push(relativePath)
-			}
-		}
-
-		return { filesToAdd, excludedFiles }
-	}
-
-	/**
-	 * Finds all files in the workspace while excluding .git directories and disabled git repos.
-	 * Uses VSCode workspace API to efficiently search for files.
-	 */
-	private async findWorkspaceFiles(): Promise<vscode.Uri[]> {
-		return await vscode.workspace.findFiles(
-			new vscode.RelativePattern(this.cwd, "**/*"),
-			new vscode.RelativePattern(this.cwd, `**/{.git,.git${GIT_DISABLED_SUFFIX}}/**`),
-		)
-	}
-
-	/**
-	 * Processes a single file through exclusion rules to determine if it should be tracked.
-	 * Converts absolute paths to relative and checks against exclusion criteria.
-	 */
-	private async processFile(file: vscode.Uri): Promise<{
-		relativePath: string
-		exclusionResult: { excluded: boolean; reason?: string }
-	}> {
-		const fullPath = file.fsPath
-		const relativePath = path.relative(this.cwd, fullPath)
-		const exclusionResult = await shouldExcludeFile(fullPath)
-
-		return { relativePath, exclusionResult }
-	}
-
-	/**
-	 * Logs information about files that were excluded from tracking, including their paths and exclusion reasons.
-	 * Provides visibility into which files are being skipped and why.
-	 */
-	private async logExcludedFiles(excludedFiles: Array<{ path: string; reason: string }>): Promise<void> {
-		if (excludedFiles.length > 0) {
-			console.log(`Excluded ${excludedFiles.length} files`)
-			//for (const { path: filePath, reason } of excludedFiles) {
-			//	console.log(`- ${filePath}: ${reason}`)
-			//}
-		}
-	}
-
-	/**
-	 * Adds the filtered list of files to the shadow git repository.
-	 * Handles the actual git add operation and provides logging for the process.
-	 */
-	private async addFilesToGit(git: SimpleGit, filesToAdd: string[]): Promise<void> {
-		if (filesToAdd.length === 0) {
-			console.log("No files to add to checkpoint")
-			return
-		}
-
-		try {
-			console.log(`Adding ${filesToAdd.length} files to checkpoint...`)
-			await git.add(["-f", ...filesToAdd])
-			console.log("Checkpoint add operation completed successfully")
-		} catch (error) {
-			console.log("Checkpoint add operation failed:", error)
-			throw error
 		}
 	}
 

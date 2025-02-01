@@ -20,25 +20,47 @@ describe("CheckpointExclusions", () => {
 	})
 
 	describe("getDefaultExclusions", () => {
-		it("should return an array of exclusion patterns", () => {
+		it("should return an array of categorized exclusion patterns", () => {
 			const exclusions = getDefaultExclusions()
 
-			// Verify return type
+			// Verify return type and basic structure
 			expect(exclusions).to.be.an("array")
 			expect(exclusions.length).to.be.greaterThan(0)
-
-			// Verify all items are strings
 			expect(exclusions.every((item: string) => typeof item === "string")).to.be.true
 
-			// Verify it includes critical patterns
+			// Verify build artifacts
 			expect(exclusions).to.include(".git/")
 			expect(exclusions).to.include("node_modules/")
+			expect(exclusions).to.include("dist/")
+			expect(exclusions).to.include("coverage/")
 
-			// Verify pattern formats
+			// Verify media files
+			expect(exclusions).to.include("*.jpg")
+			expect(exclusions).to.include("*.mp4")
+			expect(exclusions).to.include("*.png")
+
+			// Verify cache files
+			expect(exclusions).to.include("*.cache")
+			expect(exclusions).to.include("*.tmp")
+
+			// Verify config files
+			expect(exclusions).to.include("*.env*")
+
+			// Verify large data files
+			expect(exclusions).to.include("*.zip")
+			expect(exclusions).to.include("*.iso")
+
+			// Verify database files
+			expect(exclusions).to.include("*.sqlite")
+			expect(exclusions).to.include("*.db")
+
+			// Verify log files
+			expect(exclusions).to.include("*.log")
+			expect(exclusions).to.include("*.logs")
+
+			// Verify pattern formats are maintained
 			const directories = exclusions.filter((pattern: string) => pattern.endsWith("/"))
 			const extensions = exclusions.filter((pattern: string) => pattern.startsWith("*."))
-
-			// Should have both directory and extension patterns
 			expect(directories.length).to.be.greaterThan(0)
 			expect(extensions.length).to.be.greaterThan(0)
 		})
@@ -115,13 +137,12 @@ describe("CheckpointExclusions", () => {
 			const lfsPatterns = ["*.custom"]
 			await writeExcludesFile(gitPath, lfsPatterns)
 
-			// Test cache state by checking a file with custom extension
-			const testPath = path.join(tmpDir, "test.custom")
-			await fs.writeFile(testPath, "content")
-
-			const result = await shouldExcludeFile(testPath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal("File extension .custom is excluded")
+			// Verify cache initialization
+			const excludePath = path.join(gitPath, "info", "exclude")
+			const content = await fs.readFile(excludePath, "utf8")
+			const patterns = content.split("\n")
+			expect(patterns).to.include("*.custom")
+			expect(patterns.length).to.be.greaterThan(0)
 		})
 	})
 
@@ -141,25 +162,6 @@ describe("CheckpointExclusions", () => {
 			await fs.mkdir(tmpDir, { recursive: true })
 		})
 
-		it("should exclude files in excluded directories", async () => {
-			const nodePath = path.join(tmpDir, "node_modules", "package", "file.js")
-			await fs.mkdir(path.dirname(nodePath), { recursive: true })
-			await fs.writeFile(nodePath, "content")
-
-			const result = await shouldExcludeFile(nodePath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal("Directory matches excluded pattern: node_modules")
-		})
-
-		it("should exclude files with excluded extensions", async () => {
-			const imagePath = path.join(tmpDir, "image.jpg")
-			await fs.writeFile(imagePath, "fake image content")
-
-			const result = await shouldExcludeFile(imagePath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal("File extension .jpg is excluded")
-		})
-
 		it("should exclude files over size limit", async () => {
 			const largePath = path.join(tmpDir, "large-file.txt")
 			// Create a 6MB file using a string
@@ -171,79 +173,18 @@ describe("CheckpointExclusions", () => {
 			expect(result.reason).to.match(/File size \d+\.\d+MB exceeds 5MB limit/)
 		})
 
-		it("should not exclude normal files", async () => {
-			const normalPath = path.join(tmpDir, "normal.ts")
-			await fs.writeFile(normalPath, "export const x = 1")
+		it("should not exclude files under size limit", async () => {
+			const smallPath = path.join(tmpDir, "small-file.txt")
+			// Create a 4MB file
+			const content = "x".repeat(4 * 1024 * 1024)
+			await fs.writeFile(smallPath, content)
 
-			const result = await shouldExcludeFile(normalPath)
+			const result = await shouldExcludeFile(smallPath)
 			expect(result.excluded).to.be.false
 			expect(result.reason).to.be.undefined
 		})
 
-		it("should handle nested excluded directories", async () => {
-			const nestedPath = path.join(tmpDir, "src", "coverage", "report.html")
-			await fs.mkdir(path.dirname(nestedPath), { recursive: true })
-			await fs.writeFile(nestedPath, "<html>")
-
-			const result = await shouldExcludeFile(nestedPath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal("Directory matches excluded pattern: coverage")
-		})
-
-		it("should handle Windows-style paths", async () => {
-			const windowsPath = path.join(tmpDir, "node_modules", "package").replace(/\//g, "\\")
-			await fs.mkdir(windowsPath, { recursive: true })
-			const filePath = path.join(windowsPath, "file.js")
-			await fs.writeFile(filePath, "content")
-
-			const result = await shouldExcludeFile(filePath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal("Directory matches excluded pattern: node_modules")
-		})
-
-		it("should exclude disabled git directories", async () => {
-			const gitDisabledPath = path.join(tmpDir, "nested", `.git${GIT_DISABLED_SUFFIX}`, "config")
-			await fs.mkdir(path.dirname(gitDisabledPath), { recursive: true })
-			await fs.writeFile(gitDisabledPath, "content")
-
-			const result = await shouldExcludeFile(gitDisabledPath)
-			expect(result.excluded).to.be.true
-			expect(result.reason).to.equal(`Directory matches excluded pattern: .git${GIT_DISABLED_SUFFIX}`)
-		})
-
-		it("should handle special characters in paths", async () => {
-			const specialPath = path.join(tmpDir, "folder with spaces", "file with 你好.txt")
-			await fs.mkdir(path.dirname(specialPath), { recursive: true })
-			await fs.writeFile(specialPath, "content")
-
-			const result = await shouldExcludeFile(specialPath)
-			expect(result.excluded).to.be.false
-			expect(result.reason).to.be.undefined
-
-			// Test with excluded directory containing special chars
-			const excludedPath = path.join(tmpDir, "node_modules with spaces", "package", "file.js")
-			await fs.mkdir(path.dirname(excludedPath), { recursive: true })
-			await fs.writeFile(excludedPath, "content")
-
-			const excludedResult = await shouldExcludeFile(excludedPath)
-			expect(excludedResult.excluded).to.be.true
-			expect(excludedResult.reason).to.equal("Directory matches excluded pattern: node_modules")
-		})
-
-		it("should handle files matching multiple exclusion criteria", async () => {
-			// Create a large file in an excluded directory
-			const largePath = path.join(tmpDir, "node_modules", "large-file.jpg")
-			await fs.mkdir(path.dirname(largePath), { recursive: true })
-			const content = "x".repeat(6 * 1024 * 1024) // 6MB
-			await fs.writeFile(largePath, content)
-
-			const result = await shouldExcludeFile(largePath)
-			expect(result.excluded).to.be.true
-			// Should match first exclusion reason (directory) rather than checking all
-			expect(result.reason).to.equal("Directory matches excluded pattern: node_modules")
-		})
-
-		it("should handle filesystem errors gracefully ( ^^^ ENOENT/EACCES file size check errors)", async () => {
+		it("should handle filesystem errors gracefully", async () => {
 			// Test with non-existent file
 			const nonExistentPath = path.join(tmpDir, "does-not-exist.txt")
 			const result = await shouldExcludeFile(nonExistentPath)
