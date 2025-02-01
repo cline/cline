@@ -128,6 +128,7 @@ jest.mock("vscode", () => {
 			visibleTextEditors: [mockTextEditor],
 			tabGroups: {
 				all: [mockTabGroup],
+				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
 		},
 		workspace: {
