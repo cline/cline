@@ -1,6 +1,6 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "cline-for-sap-ai-core",
+	"displayName": "Cline for SAP AI Core",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.2.11",
 	"icon": "assets/icons/icon.png",
@@ -15,12 +15,12 @@
 		"name": "Cline Bot Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "schardosin",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/schardosin/cline-sap-ai-core"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://github.com/schardosin/cline-sap-ai-core",
 	"categories": [
 		"AI",
 		"Chat",
@@ -49,17 +49,17 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"id": "cline-for-sap-ai-core-ActivityBar",
+					"title": "Cline for SAP AI Core",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"cline-for-sap-ai-core-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "cline-for-sap-ai-core.SidebarProvider",
 					"name": ""
 				}
 			]
@@ -101,32 +101,32 @@
 				{
 					"command": "cline.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-for-sap-ai-core.SidebarProvider"
 				},
 				{
 					"command": "cline.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-for-sap-ai-core.SidebarProvider"
 				},
 				{
 					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-for-sap-ai-core.SidebarProvider"
 				},
 				{
 					"command": "cline.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-for-sap-ai-core.SidebarProvider"
 				},
 				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-for-sap-ai-core.SidebarProvider"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Cline for SAP AI Core",
 			"properties": {
 				"cline.vsCodeLmModelSelector": {
 					"type": "object",

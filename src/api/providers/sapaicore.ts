@@ -2,6 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, SapAiCoreModelId, sapAiCoreModels, sapAiCoreDefaultModelId } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
+import { convertToOpenAiMessages } from "../transform/openai-format"
+import OpenAI from "openai"
 import axios from "axios"
 
 interface Deployment {
@@ -90,7 +92,12 @@ export class SapAiCoreHandler implements ApiHandler {
 			this.deployments = await this.getAiCoreDeployments()
 		}
 
-		const deployment = this.deployments.find((d) => d.name.toLowerCase().includes(modelId.toLowerCase()))
+		const deployment = this.deployments.find((d) => {
+			const deploymentBaseName = d.name.split(":")[0].toLowerCase()
+			const modelBaseName = modelId.split(":")[0].toLowerCase()
+			return deploymentBaseName === modelBaseName
+		})
+
 		if (!deployment) {
 			throw new Error(`No running deployment found for model ${modelId}`)
 		}
@@ -99,7 +106,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	private hasDeploymentForModel(modelId: string): boolean {
-		return this.deployments?.some((d) => d.name.toLowerCase().includes(modelId.toLowerCase())) ? true : false
+		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
@@ -113,14 +120,46 @@ export class SapAiCoreHandler implements ApiHandler {
 		const model = this.getModel()
 		const deploymentId = await this.getDeploymentForModel(model.id)
 
-		const payload = {
-			max_tokens: model.info.maxTokens,
-			system: systemPrompt,
-			messages,
-			anthropic_version: "bedrock-2023-05-31",
-		}
+		const anthropicModels = [
+			"anthropic--claude-3.5-sonnet",
+			"anthropic--claude-3-sonnet",
+			"anthropic--claude-3-haiku",
+			"anthropic--claude-3-opus",
+		]
 
-		const url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/invoke-with-response-stream`
+		const openAIModels = ["gpt-4o", "gpt-4", "gpt-4o-mini"]
+
+		let url: string
+		let payload: any
+
+		if (anthropicModels.includes(model.id)) {
+			url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/invoke-with-response-stream`
+			payload = {
+				max_tokens: model.info.maxTokens,
+				system: systemPrompt,
+				messages,
+				anthropic_version: "bedrock-2023-05-31",
+			}
+		} else if (openAIModels.includes(model.id)) {
+			let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+				{ role: "system", content: systemPrompt },
+				...convertToOpenAiMessages(messages),
+			]
+
+			url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/chat/completions?api-version=2023-05-15`
+			payload = {
+				stream: true,
+				messages: openAiMessages,
+				max_tokens: model.info.maxTokens,
+				temperature: 0.0,
+				frequency_penalty: 0,
+				presence_penalty: 0,
+				stop: null,
+				stream_options: { include_usage: true },
+			}
+		} else {
+			throw new Error(`Unsupported model: ${model.id}`)
+		}
 
 		try {
 			const response = await axios.post(url, JSON.stringify(payload, null, 2), {
@@ -128,7 +167,11 @@ export class SapAiCoreHandler implements ApiHandler {
 				responseType: "stream",
 			})
 
-			yield* this.streamCompletion(response.data, model)
+			if (openAIModels.includes(model.id)) {
+				yield* this.streamCompletionGPT(response.data, model)
+			} else {
+				yield* this.streamCompletion(response.data, model)
+			}
 		} catch (error) {
 			console.error("Error creating message:", error)
 			throw new Error("Failed to create message")
@@ -187,19 +230,76 @@ export class SapAiCoreHandler implements ApiHandler {
 			throw error
 		}
 	}
-	private mapStopReason(reason: string | null): Anthropic.Messages.Message["stop_reason"] {
-		switch (reason) {
-			case "max_tokens":
-				return "max_tokens"
-			case "stop_sequence":
-				return "stop_sequence"
-			case "tool_use":
-				return "tool_use"
-			case "end_turn":
-			case "stop":
-				return "end_turn"
-			default:
-				return null
+
+	private async *streamCompletionGPT(
+		stream: any,
+		model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let currentContent = ""
+		let inputTokens = 0
+		let outputTokens = 0
+
+		try {
+			for await (const chunk of stream) {
+				const lines = chunk.toString().split("\n").filter(Boolean)
+				for (const line of lines) {
+					if (line.trim() === "data: [DONE]") {
+						// End of stream, yield final usage
+						yield {
+							type: "usage",
+							inputTokens,
+							outputTokens,
+						}
+						return
+					}
+
+					if (line.startsWith("data: ")) {
+						const jsonData = line.slice(6)
+						try {
+							const data = JSON.parse(jsonData)
+							console.log("Received GPT data:", data)
+
+							if (data.choices && data.choices.length > 0) {
+								const choice = data.choices[0]
+								if (choice.delta && choice.delta.content) {
+									yield {
+										type: "text",
+										text: choice.delta.content,
+									}
+									currentContent += choice.delta.content
+								}
+							}
+
+							// Handle usage information
+							if (data.usage) {
+								inputTokens = data.usage.prompt_tokens || inputTokens
+								outputTokens = data.usage.completion_tokens || outputTokens
+								yield {
+									type: "usage",
+									inputTokens,
+									outputTokens,
+								}
+							}
+
+							if (data.choices && data.choices[0].finish_reason === "stop") {
+								// Final usage yield, if not already provided
+								if (!data.usage) {
+									yield {
+										type: "usage",
+										inputTokens,
+										outputTokens,
+									}
+								}
+							}
+						} catch (error) {
+							console.error("Failed to parse GPT JSON data:", error)
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error streaming GPT completion:", error)
+			throw error
 		}
 	}
 
