@@ -7,13 +7,36 @@ import { ClineProvider } from "../../core/webview/ClineProvider"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile, shouldExcludeFile } from "./CheckpointExclusions"
 
-// This module implements the CheckpointTracker class, a core part of Cline's Checkpoints
-// system for tracking and managing file states using Git. It creates and manages shadow Git
-// repositories, allowing users to make checkpoints of their work, view changes, and reset to
-// previous states without affecting the main repository. The tracker applies exclusion rules,
-// handles nested Git repositories, and automatically configures Git settings. With features
-// like file filtering, commit management, and workspace validation, it ensures reliable tracking
-// of development progress while seamlessly integrating into Cline's workflow.
+/**
+ * CheckpointTracker Module
+ * 
+ * Core implementation of Cline's Checkpoints system that provides version control
+ * capabilities without interfering with the user's main Git repository. Key features:
+ * 
+ * Shadow Git Repository:
+ * - Creates and manages an isolated Git repository for tracking checkpoints
+ * - Handles nested Git repositories by temporarily disabling them
+ * - Configures Git settings automatically (identity, LFS, etc.)
+ * 
+ * File Management:
+ * - Integrates with CheckpointExclusions for file filtering
+ * - Handles workspace validation and path resolution
+ * - Manages Git worktree configuration
+ * 
+ * Checkpoint Operations:
+ * - Creates checkpoints (commits) of the current state
+ * - Provides diff capabilities between checkpoints
+ * - Supports resetting to previous checkpoints
+ * 
+ * Safety Features:
+ * - Prevents usage in sensitive directories (home, desktop, etc.)
+ * - Validates workspace configuration
+ * - Handles cleanup and resource disposal
+ * 
+ * The module serves as the backbone of Cline's checkpoint system, enabling
+ * reliable progress tracking while maintaining isolation from the user's
+ * primary version control.
+ */
 
 class CheckpointTracker {
 	private providerRef: WeakRef<ClineProvider>
@@ -82,6 +105,7 @@ class CheckpointTracker {
 		}
 	}
 
+	// Get path to shadow Git in globalStorage
 	private async getShadowGitPath(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
@@ -93,6 +117,7 @@ class CheckpointTracker {
 		return gitPath
 	}
 
+	// Check to see if shadow Git already exists
 	public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
 		const globalStoragePath = provider?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
@@ -102,6 +127,7 @@ class CheckpointTracker {
 		return await fileExistsAtPath(gitPath)
 	}
 
+	// Initialize new shadow Git
 	public async initShadowGit(): Promise<string> {
 		const gitPath = await this.getShadowGitPath()
 		if (await fileExistsAtPath(gitPath)) {
@@ -174,15 +200,6 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		const gitPath = await this.getShadowGitPath()
 		const git = simpleGit(path.dirname(gitPath))
-
-		// Clean working directory and force reset
-		// This ensures that the operation will succeed regardless of:
-		// - Untracked files in the workspace
-		// - Staged changes
-		// - Unstaged changes
-		// - Partial commits
-		// - Merge conflicts
-		//  await git.clean("f", ["-d", "-f"]) // Remove untracked files and directories - This has been commented out as it can cause files to be removed from workspace when restoring a checkpoint
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 	}
 
@@ -303,10 +320,7 @@ class CheckpointTracker {
 
 			// Log exclusions
 			if (excludedFiles.length > 0) {
-				console.log(`Excluded ${excludedFiles.length} files:`)
-				excludedFiles.forEach(({ path, reason }) => {
-					console.log(`  ${path}: ${reason}`)
-				})
+				console.log(`Excluded ${excludedFiles.length} files`)
 			}
 
 			// Add filtered files
