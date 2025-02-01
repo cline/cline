@@ -48,12 +48,15 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 				}
 				break
 			}
-			case "o3-mini": {
+			case "o3-mini":
+			case "o3-mini-low":
+			case "o3-mini-high": {
 				const stream = await this.client.chat.completions.create({
-					model: this.getModel().id,
+					model: "o3-mini",
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
+					reasoning_effort: this.getModel().info.reasoningEffort,
 				})
 
 				for await (const chunk of stream) {
@@ -130,6 +133,16 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 					requestOptions = {
 						model: modelId,
 						messages: [{ role: "user", content: prompt }],
+					}
+					break
+				case "o3-mini":
+				case "o3-mini-low":
+				case "o3-mini-high":
+					// o3 doesn't support non-1 temp
+					requestOptions = {
+						model: "o3-mini",
+						messages: [{ role: "user", content: prompt }],
+						reasoning_effort: this.getModel().info.reasoningEffort,
 					}
 					break
 				default:
