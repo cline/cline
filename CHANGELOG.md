@@ -2,7 +2,9 @@
 
 ## [3.3.8]
 
-- v3.3.8
+- Fix o3-mini in the Glama provider (thanks @Punkpeye!)
+- Add the option to omit instructions for creating MCP servers from the system prompt (thanks @samhvw8!)
+- Fix a bug where renaming API profiles without actually changing the name would delete them (thanks @samhvw8!)
 
 ## [3.3.7]
 
