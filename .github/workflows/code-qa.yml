@@ -44,7 +44,10 @@ jobs:
         run: npm test
 
   integration-test:
-    if: "${{ secrets.OPENROUTER_API_KEY != '' }}"
+    # https://stackoverflow.com/questions/72925899/github-actions-detect-if-secret-exists
+    env: 
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    if: ${{ env.OPENROUTER_API_KEY != '' }}
     strategy:
       matrix:
         os: [ubuntu-latest] # macos-latest, windows-latest
@@ -59,8 +62,6 @@ jobs:
           cache: 'npm'
       - name: Create env.integration file
         run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
-      - name: Check env.integration file
-        run: cat .env.integration
       - name: Install dependencies
         run: npm run install:all
       - run: xvfb-run -a npm run test:integration
