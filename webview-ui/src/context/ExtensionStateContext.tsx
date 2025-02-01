@@ -71,7 +71,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setEnhancementApiConfigId: (value: string) => void
 	setExperimentEnabled: (id: ExperimentId, enabled: boolean) => void
 	setAutoApprovalEnabled: (value: boolean) => void
-	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
+	handleInputChange: (field: keyof ApiConfiguration, softUpdate?: boolean) => (event: any) => void
 	customModes: ModeConfig[]
 	setCustomModes: (value: ModeConfig[]) => void
 }
@@ -142,7 +142,16 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	}, [])
 
 	const handleInputChange = useCallback(
-		(field: keyof ApiConfiguration) => (event: any) => {
+		(field: keyof ApiConfiguration, softUpdate?: boolean) => (event: any) => {
+			if (softUpdate === true) {
+				setState((currentState) => {
+					return {
+						...currentState,
+						apiConfiguration: { ...currentState.apiConfiguration, [field]: event.target.value },
+					}
+				})
+				return
+			}
 			setState((currentState) => {
 				vscode.postMessage({
 					type: "upsertApiConfiguration",
