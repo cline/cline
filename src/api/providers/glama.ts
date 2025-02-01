@@ -151,7 +151,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	private supportsTemperature(): boolean {
-		return this.getModel().id !== "openai/o3-mini"
+		return !this.getModel().id.startsWith("openai/o3-mini")
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
