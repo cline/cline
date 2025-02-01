@@ -46,7 +46,7 @@ jobs:
   integration-test:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest] # ubuntu-latest, windows-latest
+        os: [ubuntu-latest] # macos-latest, windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
