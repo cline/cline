@@ -2,6 +2,7 @@ import path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
+import * as vscode from "vscode"
 
 /**
  * Controls LLM access to files by enforcing ignore patterns.
@@ -11,6 +12,8 @@ import ignore, { Ignore } from "ignore"
 export class LLMFileAccessController {
 	private cwd: string
 	private ignoreInstance: Ignore
+	private fileWatcher: vscode.FileSystemWatcher | undefined
+	private disposables: vscode.Disposable[] = []
 
 	/**
 	 * Default patterns that are always ignored for security
@@ -20,9 +23,13 @@ export class LLMFileAccessController {
 	constructor(cwd: string) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
-
-		// Add default patterns immediately
 		this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
+
+		// Set up file watcher for .clineignore
+		this.setupFileWatcher()
+
+		// Load initial patterns
+		this.loadCustomPatterns()
 	}
 
 	/**
