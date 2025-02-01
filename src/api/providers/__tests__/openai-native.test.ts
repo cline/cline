@@ -300,7 +300,7 @@ describe("OpenAiNativeHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: "o3-mini",
 				messages: [{ role: "user", content: "Test prompt" }],
-				temperature: 0,
+				reasoning_effort: "medium",
 			})
 		})
 
