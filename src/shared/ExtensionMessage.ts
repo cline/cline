@@ -30,6 +30,7 @@ export interface ExtensionMessage {
 		| "glamaModels"
 		| "openRouterModels"
 		| "openAiModels"
+		| "requestyModels"
 		| "mcpServers"
 		| "enhancedPrompt"
 		| "commitSearchResults"
@@ -67,6 +68,7 @@ export interface ExtensionMessage {
 	}>
 	partialMessage?: ClineMessage
 	glamaModels?: Record<string, ModelInfo>
+	requestyModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	unboundModels?: Record<string, ModelInfo>
