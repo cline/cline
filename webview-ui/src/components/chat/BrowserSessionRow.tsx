@@ -473,7 +473,7 @@ const BrowserSessionRowContent = ({
 						overflow: "hidden",
 						backgroundColor: CODE_BLOCK_BG_COLOR,
 					}}>
-					<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
+					<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} />
 				</div>
 			</>
 		)
