@@ -303,8 +303,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					let insertValue = value || ""
 					if (type === ContextMenuOptionType.URL) {
 						insertValue = value || ""
-					} else if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+					} else if (
+						type === ContextMenuOptionType.File ||
+						type === ContextMenuOptionType.Folder ||
+						type === ContextMenuOptionType.OpenedFile
+					) {
 						insertValue = value || ""
+						if (insertValue.includes(":")) {
+							const [filePath, lineRange] = insertValue.split(":")
+							insertValue = `${filePath} (lines ${lineRange})`
+						}
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
 					}
