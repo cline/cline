@@ -1,1 +1,1 @@
-# OG Boost – \#1 on OpenRouter
+# OG Boost

@@ -3,16 +3,6 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
-import {
-	anthropicDefaultModelId,
-	bedrockDefaultModelId,
-	deepSeekDefaultModelId,
-	geminiDefaultModelId,
-	mistralDefaultModelId,
-	openAiNativeDefaultModelId,
-	openRouterDefaultModelId,
-	vertexDefaultModelId,
-} from "../../../../src/shared/api"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
@@ -26,7 +16,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import Thumbnails from "../common/Thumbnails"
-import ApiOptions from "../settings/ApiOptions"
+import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 
@@ -594,20 +584,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
+		// Separate the API config submission logic
+		const submitApiConfig = useCallback(() => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+
+			if (!apiValidationResult && !modelIdValidationResult) {
+				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			} else {
+				vscode.postMessage({ type: "getLatestState" })
+			}
+		}, [apiConfiguration, openRouterModels])
+
 		const onModeToggle = useCallback(() => {
-			if (textAreaDisabled) return
-			const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-			vscode.postMessage({
-				type: "chatSettings",
-				chatSettings: {
-					mode: newMode,
-				},
-			})
-			// Focus the textarea after mode toggle with slight delay
+			// if (textAreaDisabled) return
+			let changeModeDelay = 0
+			if (showModelSelector) {
+				// user has model selector open, so we should save it before switching modes
+				submitApiConfig()
+				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+			}
 			setTimeout(() => {
-				textAreaRef.current?.focus()
-			}, 100)
-		}, [chatSettings.mode, textAreaDisabled])
+				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
+				vscode.postMessage({
+					type: "chatSettings",
+					chatSettings: {
+						mode: newMode,
+					},
+				})
+				// Focus the textarea after mode toggle with slight delay
+				setTimeout(() => {
+					textAreaRef.current?.focus()
+				}, 100)
+			}, changeModeDelay)
+		}, [chatSettings.mode, showModelSelector, submitApiConfig])
 
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
@@ -652,18 +662,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
 
-		// Separate the API config submission logic
-		const submitApiConfig = useCallback(() => {
-			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-
-			if (!apiValidationResult && !modelIdValidationResult) {
-				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			} else {
-				vscode.postMessage({ type: "getLatestState" })
-			}
-		}, [apiConfiguration, openRouterModels])
-
 		// Use an effect to detect menu close
 		useEffect(() => {
 			if (prevShowModelSelector.current && !showModelSelector) {
@@ -686,35 +684,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
+			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
-			switch (apiConfiguration.apiProvider) {
+			switch (selectedProvider) {
 				case "anthropic":
-					return `anthropic:${apiConfiguration.apiModelId || anthropicDefaultModelId}`
-				case "openai":
-					return `openai:${apiConfiguration.openAiModelId || unknownModel}`
 				case "openrouter":
-					return `openrouter:${apiConfiguration.openRouterModelId || openRouterDefaultModelId}`
-				case "bedrock":
-					return `bedrock:${apiConfiguration.apiModelId || bedrockDefaultModelId}`
-				case "vertex":
-					return `vertex:${apiConfiguration.apiModelId || vertexDefaultModelId}`
-				case "ollama":
-					return `ollama:${apiConfiguration.ollamaModelId || unknownModel}`
-				case "lmstudio":
-					return `lmstudio:${apiConfiguration.lmStudioModelId || unknownModel}`
-				case "gemini":
-					return `gemini:${apiConfiguration.apiModelId || geminiDefaultModelId}`
-				case "openai-native":
-					return `openai-native:${apiConfiguration.apiModelId || openAiNativeDefaultModelId}`
-				case "deepseek":
-					return `deepseek:${apiConfiguration.apiModelId || deepSeekDefaultModelId}`
-				case "mistral":
-					return `mistral:${apiConfiguration.apiModelId || mistralDefaultModelId}`
+					return `${selectedProvider}:${selectedModelId}`
+				case "openai":
+					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				default:
-					return unknownModel
+					return `${selectedProvider}:${selectedModelId}`
 			}
 		}, [apiConfiguration])
 
@@ -746,6 +728,93 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
+		/**
+		 * Handles the drag over event to allow dropping.
+		 * Prevents the default behavior to enable drop.
+		 *
+		 * @param {React.DragEvent} e - The drag event.
+		 */
+		const onDragOver = (e: React.DragEvent) => {
+			e.preventDefault()
+		}
+
+		/**
+		 * Handles the drop event for files and text.
+		 * Processes dropped images and text, updating the state accordingly.
+		 *
+		 * @param {React.DragEvent} e - The drop event.
+		 */
+		const onDrop = async (e: React.DragEvent) => {
+			e.preventDefault()
+
+			const files = Array.from(e.dataTransfer.files)
+			const text = e.dataTransfer.getData("text")
+
+			if (text) {
+				handleTextDrop(text)
+				return
+			}
+
+			const acceptedTypes = ["png", "jpeg", "webp"]
+			const imageFiles = files.filter((file) => {
+				const [type, subtype] = file.type.split("/")
+				return type === "image" && acceptedTypes.includes(subtype)
+			})
+
+			if (shouldDisableImages || imageFiles.length === 0) return
+
+			const imageDataArray = await readImageFiles(imageFiles)
+			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+
+			if (dataUrls.length > 0) {
+				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+			} else {
+				console.warn("No valid images were processed")
+			}
+		}
+
+		/**
+		 * Handles the drop event for text.
+		 * Inserts the dropped text at the current cursor position.
+		 *
+		 * @param {string} text - The dropped text.
+		 */
+		const handleTextDrop = (text: string) => {
+			const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+			setInputValue(newValue)
+			const newCursorPosition = cursorPosition + text.length
+			setCursorPosition(newCursorPosition)
+			setIntendedCursorPosition(newCursorPosition)
+		}
+
+		/**
+		 * Reads image files and returns their data URLs.
+		 * Uses FileReader to read the files as data URLs.
+		 *
+		 * @param {File[]} imageFiles - The image files to read.
+		 * @returns {Promise<(string | null)[]>} - A promise that resolves to an array of data URLs or null values.
+		 */
+		const readImageFiles = (imageFiles: File[]): Promise<(string | null)[]> => {
+			return Promise.all(
+				imageFiles.map(
+					(file) =>
+						new Promise<string | null>((resolve) => {
+							const reader = new FileReader()
+							reader.onloadend = () => {
+								if (reader.error) {
+									console.error("Error reading file:", reader.error)
+									resolve(null)
+								} else {
+									const result = reader.result
+									resolve(typeof result === "string" ? result : null)
+								}
+							}
+							reader.readAsDataURL(file)
+						}),
+				),
+			)
+		}
+
 		return (
 			<div>
 				<div
@@ -754,7 +823,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						opacity: textAreaDisabled ? 0.5 : 1,
 						position: "relative",
 						display: "flex",
-					}}>
+					}}
+					onDrop={onDrop}
+					onDragOver={onDragOver}>
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
@@ -967,7 +1038,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
-									disabled={textAreaDisabled}
+									disabled={false}
 									onClick={handleModelButtonClick}
 									// onKeyDown={(e) => {
 									// 	if (e.key === "Enter" || e.key === " ") {
@@ -997,7 +1068,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ModelContainer>
 					</ButtonGroup>
 
-					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
+					<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>

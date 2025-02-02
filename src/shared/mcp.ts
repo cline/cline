@@ -1,3 +1,5 @@
+export type McpMode = "full" | "server-use-only" | "off"
+
 export type McpServer = {
 	name: string
 	config: string
