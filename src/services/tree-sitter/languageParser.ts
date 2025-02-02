@@ -13,6 +13,7 @@ import {
 	javaQuery,
 	phpQuery,
 	swiftQuery,
+	kotlinQuery,
 } from "./queries"
 
 export interface LanguageParser {
@@ -119,6 +120,11 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 			case "swift":
 				language = await loadLanguage("swift")
 				query = language.query(swiftQuery)
+				break
+			case "kt":
+			case "kts":
+				language = await loadLanguage("kotlin")
+				query = language.query(kotlinQuery)
 				break
 			default:
 				throw new Error(`Unsupported language: ${ext}`)

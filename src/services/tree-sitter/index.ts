@@ -73,6 +73,9 @@ function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingF
 		"java",
 		"php",
 		"swift",
+		// Kotlin
+		"kt",
+		"kts",
 	].map((e) => `.${e}`)
 	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
 	const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))

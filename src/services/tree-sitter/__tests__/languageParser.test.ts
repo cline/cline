@@ -92,6 +92,17 @@ describe("Language Parser", () => {
 			expect(parsers.hpp).toBeDefined()
 		})
 
+		it("should handle Kotlin files correctly", async () => {
+			const files = ["test.kt", "test.kts"]
+			const parsers = await loadRequiredLanguageParsers(files)
+
+			expect(ParserMock.Language.load).toHaveBeenCalledWith(expect.stringContaining("tree-sitter-kotlin.wasm"))
+			expect(parsers.kt).toBeDefined()
+			expect(parsers.kts).toBeDefined()
+			expect(parsers.kt.query).toBeDefined()
+			expect(parsers.kts.query).toBeDefined()
+		})
+
 		it("should throw error for unsupported file extensions", async () => {
 			const files = ["test.unsupported"]
 
