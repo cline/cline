@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo } from "../../shared/api"
-import { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 export function truncateConversation(
 	messages: Anthropic.Messages.MessageParam[],
@@ -16,10 +15,10 @@ export function truncateConversation(
 }
 
 export function truncateConversationIfNeeded(
-	messages: MessageParam[],
+	messages: Anthropic.Messages.MessageParam[],
 	totalTokens: number,
 	modelInfo: ModelInfo,
-): MessageParam[] {
+): Anthropic.Messages.MessageParam[] {
 	if (modelInfo.supportsPromptCache) {
 		return totalTokens < getMaxTokensForPromptCachingModels(modelInfo)
 			? messages
