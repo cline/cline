@@ -1271,10 +1271,16 @@ export class Cline {
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
+					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
+					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
+					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
+					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					this.conversationHistoryDeletedRange = getNextTruncationRange(
 						this.apiConversationHistory,
 						this.conversationHistoryDeletedRange,
+						keep,
 					)
 					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
 					// await this.overwriteApiConversationHistory(truncatedMessages)
@@ -1605,6 +1611,13 @@ export class Cline {
 									diff = fixModelHtmlEscaping(diff)
 									diff = removeInvalidChars(diff)
 								}
+
+								// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
+								// because file is not open.
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+
 								try {
 									newContent = await constructNewFileContent(
 										diff,
@@ -3117,9 +3130,14 @@ export class Cline {
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
+			let reasoningMessage = ""
 			this.isStreaming = true
 			try {
 				for await (const chunk of stream) {
+					if (!chunk) {
+						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
+						continue
+					}
 					switch (chunk.type) {
 						case "usage":
 							inputTokens += chunk.inputTokens
@@ -3128,7 +3146,16 @@ export class Cline {
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
+						case "reasoning":
+							// reasoning will always come before assistant message
+							reasoningMessage += chunk.reasoning
+							await this.say("reasoning", reasoningMessage, undefined, true)
+							break
 						case "text":
+							if (reasoningMessage && assistantMessage.length === 0) {
+								// complete reasoning message
+								await this.say("reasoning", reasoningMessage, undefined, false)
+							}
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length

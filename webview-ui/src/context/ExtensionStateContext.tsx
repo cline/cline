@@ -15,6 +15,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	showWelcome: boolean
 	theme: any
 	openRouterModels: Record<string, ModelInfo>
+	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -35,6 +36,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		isLoggedIn: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -43,6 +45,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+
+	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -103,6 +107,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+			case "openAiModels": {
+				const updatedModels = message.openAiModels ?? []
+				setOpenAiModels(updatedModels)
+				break
+			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
 				break
@@ -122,6 +131,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showWelcome,
 		theme,
 		openRouterModels,
+		openAiModels,
 		mcpServers,
 		filePaths,
 		setApiConfiguration: (value) =>

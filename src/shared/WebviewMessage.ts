@@ -25,6 +25,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "autoApprovalSettings"
@@ -33,10 +34,14 @@ export interface WebviewMessage {
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
+		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
 		| "toggleMcpServer"
 		| "getLatestState"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
+		| "subscribeEmail"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

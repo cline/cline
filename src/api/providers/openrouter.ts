@@ -1,11 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import delay from "delay"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import delay from "delay"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -27,7 +28,7 @@ export class OpenRouterHandler implements ApiHandler {
 		const model = this.getModel()
 
 		// Convert Anthropic messages to OpenAI format
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
@@ -98,6 +99,18 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 
+		let temperature = 0
+		let topP: number | undefined = undefined
+		// Handle models based on deepseek-r1
+		if (this.getModel().id.startsWith("deepseek/deepseek-r1") || this.getModel().id === "perplexity/sonar-reasoning") {
+			// Recommended temperature for DeepSeek reasoning models
+			temperature = 0.6
+			// DeepSeek highly recommends using user instead of system role
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+			topP = 0.95
+		}
+
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
 		let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
 		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
@@ -109,10 +122,12 @@ export class OpenRouterHandler implements ApiHandler {
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
 			max_tokens: maxTokens,
-			temperature: 0,
+			temperature: temperature,
+			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
 			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
+			include_reasoning: true,
 		})
 
 		let genId: string | undefined
@@ -135,6 +150,37 @@ export class OpenRouterHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			// Reasoning tokens are returned separately from the content
+			if ("reasoning" in delta && delta.reasoning) {
+				// console.log("reasoning", delta.reasoning)
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning,
+				}
+
+				// if (didStreamThinkTagInReasoning) {
+				// 	yield {
+				// 		type: "text",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+				// } else {
+				// 	yield {
+				// 		type: "reasoning",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+
+				// 	// @ts-ignore-next-line
+				// 	reasoningResponse += delta.reasoning
+				// 	if (reasoningResponse.includes("</think>")) {
+				// 		didStreamThinkTagInReasoning = true
+				// 		console.log("did hit think tag", reasoningResponse)
+				// 	}
+				// }
 			}
 			// if (chunk.usage) {
 			// 	yield {
@@ -178,9 +224,6 @@ export class OpenRouterHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		return {
-			id: openRouterDefaultModelId,
-			info: openRouterDefaultModelInfo,
-		}
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }
