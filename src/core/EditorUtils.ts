@@ -1,29 +1,63 @@
 import * as vscode from "vscode"
 import * as path from "path"
 
+/**
+ * Represents an effective range in a document along with the corresponding text.
+ */
 export interface EffectiveRange {
+	/** The range within the document. */
 	range: vscode.Range
+	/** The text within the specified range. */
 	text: string
 }
 
+/**
+ * Represents diagnostic information extracted from a VSCode diagnostic.
+ */
 export interface DiagnosticData {
+	/** The diagnostic message. */
 	message: string
+	/** The severity level of the diagnostic. */
 	severity: vscode.DiagnosticSeverity
+	/**
+	 * Optional diagnostic code.
+	 * Can be a string, number, or an object with value and target.
+	 */
 	code?: string | number | { value: string | number; target: vscode.Uri }
+	/** Optional source identifier for the diagnostic (e.g., the extension name). */
 	source?: string
+	/** The range within the document where the diagnostic applies. */
 	range: vscode.Range
 }
 
+/**
+ * Contextual information for a VSCode text editor.
+ */
 export interface EditorContext {
+	/** The file path of the current document. */
 	filePath: string
+	/** The effective text selected or derived from the document. */
 	selectedText: string
+	/** Optional list of diagnostics associated with the effective range. */
 	diagnostics?: DiagnosticData[]
 }
 
+/**
+ * Utility class providing helper methods for working with VSCode editors and documents.
+ */
 export class EditorUtils {
-	// Cache file paths for performance
+	/** Cache mapping text documents to their computed file paths. */
 	private static readonly filePathCache = new WeakMap<vscode.TextDocument, string>()
 
+	/**
+	 * Computes the effective range of text from the given document based on the user's selection.
+	 * If the selection is non-empty, returns that directly.
+	 * Otherwise, if the current line is non-empty, expands the range to include the adjacent lines.
+	 *
+	 * @param document - The text document to extract text from.
+	 * @param range - The user selected range or selection.
+	 * @returns An EffectiveRange object containing the effective range and its text, or null if no valid text is found.
+	 */
 	static getEffectiveRange(
 		document: vscode.TextDocument,
 		range: vscode.Range | vscode.Selection,
@@ -39,8 +73,6 @@ export class EditorUtils {
 				return null
 			}
 
-			// Always expand an empty selection to include full lines,
-			// using the full previous and next lines where available.
 			const startLineIndex = Math.max(0, currentLine.lineNumber - 1)
 			const endLineIndex = Math.min(document.lineCount - 1, currentLine.lineNumber + 1)
 
@@ -59,8 +91,15 @@ export class EditorUtils {
 		}
 	}
 
+	/**
+	 * Retrieves the file path of a given text document.
+	 * Utilizes an internal cache to avoid redundant computations.
+	 * If the document belongs to a workspace, attempts to compute a relative path; otherwise, returns the absolute fsPath.
+	 *
+	 * @param document - The text document for which to retrieve the file path.
+	 * @returns The file path as a string.
+	 */
 	static getFilePath(document: vscode.TextDocument): string {
-		// Check cache first
 		let filePath = this.filePathCache.get(document)
 		if (filePath) {
 			return filePath
@@ -75,7 +114,6 @@ export class EditorUtils {
 				filePath = !relativePath || relativePath.startsWith("..") ? document.uri.fsPath : relativePath
 			}
 
-			// Cache the result
 			this.filePathCache.set(document, filePath)
 			return filePath
 		} catch (error) {
@@ -84,6 +122,12 @@ export class EditorUtils {
 		}
 	}
 
+	/**
+	 * Converts a VSCode Diagnostic object to a local DiagnosticData instance.
+	 *
+	 * @param diagnostic - The VSCode diagnostic to convert.
+	 * @returns The corresponding DiagnosticData object.
+	 */
 	static createDiagnosticData(diagnostic: vscode.Diagnostic): DiagnosticData {
 		return {
 			message: diagnostic.message,
@@ -94,9 +138,14 @@ export class EditorUtils {
 		}
 	}
 
+	/**
+	 * Determines whether two VSCode ranges intersect.
+	 *
+	 * @param range1 - The first range.
+	 * @param range2 - The second range.
+	 * @returns True if the ranges intersect; otherwise, false.
+	 */
 	static hasIntersectingRange(range1: vscode.Range, range2: vscode.Range): boolean {
-		// Use half-open interval semantics:
-		// If one range ends at or before the other's start, there's no intersection.
 		if (
 			range1.end.line < range2.start.line ||
 			(range1.end.line === range2.start.line && range1.end.character <= range2.start.character)
@@ -112,6 +161,13 @@ export class EditorUtils {
 		return true
 	}
 
+	/**
+	 * Builds the editor context from the provided text editor or from the active text editor.
+	 * The context includes file path, effective selected text, and any diagnostics that intersect with the effective range.
+	 *
+	 * @param editor - (Optional) A specific text editor instance. If not provided, the active text editor is used.
+	 * @returns An EditorContext object if successful; otherwise, null.
+	 */
 	static getEditorContext(editor?: vscode.TextEditor): EditorContext | null {
 		try {
 			if (!editor) {
