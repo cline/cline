@@ -60,6 +60,7 @@ import { SYSTEM_PROMPT } from "./prompts/system"
 import { addUserInstructions } from "./prompts/system"
 import { OpenAiHandler } from "../api/providers/openai"
 import { ApiStream } from "../api/transform/stream"
+import { Logger } from "../services/logging/Logger"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -125,7 +126,14 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
+		Logger.log("initializing LLMAC")
 		this.llmAccessController = new LLMFileAccessController(cwd)
+		this.llmAccessController
+			.initialize()
+			.then(() => Logger.log("initialized"))
+			.catch((error) => {
+				console.error("Failed to initialize LLMFileAccessController:", error)
+			})
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
@@ -751,8 +759,6 @@ export class Cline {
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
 		this.apiConversationHistory = []
-		// Initialize the LLM access controller
-		await this.llmAccessController.initialize()
 
 		await this.providerRef.deref()?.postStateToWebview()
 
@@ -779,9 +785,6 @@ export class Cline {
 		// if (!doesShadowGitExist) {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
-
-		// Initialize the LLM access controller
-		await this.llmAccessController.initialize()
 
 		const modifiedClineMessages = await this.getSavedClineMessages()
 
@@ -1059,6 +1062,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
+		this.llmAccessController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 

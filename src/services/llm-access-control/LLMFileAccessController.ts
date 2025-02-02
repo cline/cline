@@ -3,6 +3,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import * as vscode from "vscode"
+import { Logger } from "../logging/Logger"
 
 /**
  * Controls LLM access to files by enforcing ignore patterns.
@@ -27,17 +28,41 @@ export class LLMFileAccessController {
 
 		// Set up file watcher for .clineignore
 		this.setupFileWatcher()
-
-		// Load initial patterns
-		this.loadCustomPatterns()
 	}
 
 	/**
 	 * Initialize the controller by loading custom patterns
-	 * This must be called and awaited before using the controller
+	 * Must be called after construction
 	 */
 	async initialize(): Promise<void> {
 		await this.loadCustomPatterns()
+	}
+
+	/**
+	 * Set up the file watcher for .clineignore changes
+	 */
+	private setupFileWatcher(): void {
+		const clineignorePattern = new vscode.RelativePattern(this.cwd, ".clineignore")
+		this.fileWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
+
+		// Watch for changes and updates
+		this.disposables.push(
+			this.fileWatcher.onDidChange(() => {
+				Logger.log("[LLMFileAccessController] .clineignore changed - loading custom patterns")
+				this.loadCustomPatterns()
+			}),
+			this.fileWatcher.onDidCreate(() => {
+				Logger.log("[LLMFileAccessController] .clineignore created - loading custom patterns")
+				this.loadCustomPatterns()
+			}),
+			this.fileWatcher.onDidDelete(() => {
+				Logger.log("[LLMFileAccessController] .clineignore deleted - resetting to default patterns")
+				this.resetToDefaultPatterns()
+			}),
+		)
+
+		// Add fileWatcher itself to disposables
+		this.disposables.push(this.fileWatcher)
 	}
 
 	/**
@@ -45,24 +70,33 @@ export class LLMFileAccessController {
 	 */
 	private async loadCustomPatterns(): Promise<void> {
 		try {
+			Logger.log("loading custom patterns.")
 			const ignorePath = path.join(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
-				// We need to reset ignore. Otherwise we will be adding duplicate patterns from re-reading the .clineignore
-				// Will be switching to globby in next PR
-				this.ignoreInstance = ignore()
-				this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
+				// Reset ignore instance to prevent duplicate patterns
+				this.resetToDefaultPatterns()
 				const content = await fs.readFile(ignorePath, "utf8")
 				const customPatterns = content
 					.split("\n")
 					.map((line) => line.trim())
 					.filter((line) => line && !line.startsWith("#"))
 
+				Logger.log(`[LLMFileAccessController] Loading custom patterns: ${JSON.stringify(customPatterns)}`)
 				this.ignoreInstance.add(customPatterns)
 			}
 		} catch (error) {
-			console.error("Failed to load .clineignore:", error)
+			Logger.log(`[LLMFileAccessController] Error loading .clineignore: ${error}`)
 			// Continue with default patterns
 		}
+	}
+
+	/**
+	 * Reset ignore patterns to defaults
+	 */
+	private resetToDefaultPatterns(): void {
+		Logger.log("[LLMFileAccessController] Resetting to default patterns")
+		this.ignoreInstance = ignore()
+		this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
 	}
 
 	/**
@@ -107,5 +141,14 @@ export class LLMFileAccessController {
 			console.error("Error filtering paths:", error)
 			return [] // Fail closed for security
 		}
+	}
+
+	/**
+	 * Clean up resources when the controller is no longer needed
+	 */
+	dispose(): void {
+		this.disposables.forEach((d) => d.dispose())
+		this.disposables = []
+		this.fileWatcher = undefined
 	}
 }
