@@ -8,6 +8,7 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
+    if: github.head_ref != 'changeset-release/main'
     steps:
       - name: Send Discord Notification
         uses: Ilshidur/action-discord@master
