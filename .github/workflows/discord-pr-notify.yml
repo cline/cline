@@ -1,3 +1,5 @@
+name: Discord PR Notifier
+
 on:
   pull_request:
     types: [opened]
@@ -11,7 +13,8 @@ jobs:
         with:
           args: |
             🚀 **New Pull Request Opened!**
-            🔗 [${{ github.event.pull_request.title }}](${{ github.event.pull_request.html_url }})
+            📝 **Title:** ${{ github.event.pull_request.title }}
+            🔗 <${{ github.event.pull_request.html_url }}>
             👤 **Author:** ${{ github.event.pull_request.user.login }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
