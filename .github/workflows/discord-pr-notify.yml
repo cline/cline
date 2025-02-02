@@ -1,6 +1,7 @@
 name: Discord PR Notifier
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened]
 
