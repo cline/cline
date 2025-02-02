@@ -11,10 +11,14 @@ jobs:
     if: github.head_ref != 'changeset-release/main'
     steps:
       - name: Send Discord Notification
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_USER: ${{ github.event.pull_request.user.login }}
         run: |
           curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
           -H "Content-Type: application/json" \
           -d '{
-            "content": "🚀 **New PR:** ${{ github.event.pull_request.title }}\n🔗 <${{ github.event.pull_request.html_url }}>\n👤 **Author:** ${{ github.event.pull_request.user.login }}",
-            "thread_name": "${{ github.event.pull_request.title }} by ${{ github.event.pull_request.user.login }}"
+            "content": "🚀 **New PR:** $PR_TITLE\n🔗 <$PR_URL>\n👤 **Author:** $PR_USER",
+            "thread_name": "$PR_TITLE by $PR_USER"
           }'
