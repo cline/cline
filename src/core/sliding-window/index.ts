@@ -1,21 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-<<<<<<< HEAD
-
-/*
-We can't implement a dynamically updating sliding window as it would break prompt cache
-every time. To maintain the benefits of caching, we need to keep conversation history
-static. This operation should be performed as infrequently as possible. If a user reaches
-a 200k context, we can assume that the first half is likely irrelevant to their current task.
-Therefore, this function should only be called when absolutely necessary to fit within
-context limits, not as a continuous process.
-*/
-export function truncateHalfConversation(
-=======
 import { ModelInfo } from "../../shared/api"
 import { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 export function truncateConversation(
->>>>>>> 455d850c (Enable separate config for truncation for models without context caching)
 	messages: Anthropic.Messages.MessageParam[],
 	fracToRemove: number,
 ): Anthropic.Messages.MessageParam[] {
