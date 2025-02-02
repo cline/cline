@@ -264,3 +264,11 @@ vscode-dropdown::part(listbox) {
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }
+
+/**
+ * vscrui Overrides / Hacks
+ */
+
+.vscrui-checkbox__listbox > ul {
+	max-height: unset !important;
+}
