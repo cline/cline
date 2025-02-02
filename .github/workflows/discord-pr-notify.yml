@@ -1,0 +1,17 @@
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification
+        uses: Ilshidur/action-discord@master
+        with:
+          args: |
+            🚀 **New Pull Request Opened!**
+            🔗 [${{ github.event.pull_request.title }}](${{ github.event.pull_request.html_url }})
+            👤 **Author:** ${{ github.event.pull_request.user.login }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
