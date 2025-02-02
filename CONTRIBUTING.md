@@ -25,7 +25,7 @@
     - 如果您关闭了提示，则可以从“扩展”面板手动安装它们
 
 2. **本地开发**
-    - 运行 npm run install：all' 以安装依赖项
+    - 运行 npm run install:all' 以安装依赖项
     - 运行 'npm run test' 在本地运行测试
     - 在提交 PR 之前，请运行 npm run format：fix' 来格式化你的代码
 

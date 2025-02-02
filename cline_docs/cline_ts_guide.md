@@ -130,18 +130,25 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Cline
-    participant TaskManager
-    participant ToolManager
     participant AI
-    
-    User->>Cline: startTask()
-    Cline->>TaskManager: createTask()
-    TaskManager-->>Cline: taskId
-    Cline->>ToolManager: init()
-    Cline->>AI: sendRequest()
-    AI-->>Cline: response
-    Cline->>Cline: startTaskLoop()
-    Cline-->>User: taskStarted
+    participant Tools
+    participant FileSystem
+    participant Browser
+
+    User->>Cline: 创建任务
+    Cline->>Cline: startTask()
+    Cline->>AI: 发送任务描述
+    loop 任务执行
+        AI->>Cline: 响应消息
+        Cline->>Tools: 执行工具操作
+        Tools->>FileSystem: 文件操作
+        FileSystem-->>Tools: 返回结果
+        Tools->>Browser: 浏览器操作
+        Browser-->>Tools: 返回结果
+        Tools->>Cline: 返回结果
+        Cline->>AI: 发送结果
+    end
+    Cline->>User: 完成任务
 ```
 
 ### 2. `executeCommandTool()`
