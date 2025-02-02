@@ -23,7 +23,6 @@ export const toolUseNames = [
 	"plan_mode_response",
 	"attempt_completion",
 	"fetch_user_stories",
-	"fetch_technical_design",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -125,10 +124,5 @@ export interface AttemptCompletionToolUse extends ToolUse {
 
 export interface FetchUserStoriesToolUse extends ToolUse {
 	name: "fetch_user_stories"
-	params: Partial<Pick<Record<ToolParamName, string>, "project_name">>
-}
-
-export interface FetchTechnicalDesignToolUse extends ToolUse {
-	name: "fetch_technical_design"
 	params: Partial<Pick<Record<ToolParamName, string>, "project_name">>
 }

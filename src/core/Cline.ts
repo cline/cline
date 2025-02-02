@@ -1193,7 +1193,6 @@ export class Cline {
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
 				case "fetch_user_stories":
-				case "fetch_technical_design":
 					return true
 			}
 		}
@@ -1447,8 +1446,6 @@ export class Cline {
 						case "attempt_completion":
 							return `[${block.name}]`
 						case "fetch_user_stories":
-							return `[${block.name} for '${block.params.project_name}']`
-						case "fetch_technical_design":
 							return `[${block.name} for '${block.params.project_name}']`
 					}
 				}
@@ -2848,71 +2845,6 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("fetching user stories", error)
-							await this.saveCheckpoint()
-							break
-						}
-					}
-					case "fetch_technical_design": {
-						const projectName: string | undefined = block.params.project_name
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									tool: "fetchTechnicalDesign",
-									projectName: removeClosingTag("project_name", projectName),
-								})
-								if (this.shouldAutoApproveTool(block.name)) {
-									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
-								break
-							} else {
-								if (!projectName) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("fetch_technical_design", "project_name"),
-									)
-									await this.saveCheckpoint()
-									break
-								}
-								this.consecutiveMistakeCount = 0
-
-								const completeMessage = JSON.stringify({
-									tool: "fetchTechnicalDesign",
-									projectName,
-								})
-
-								if (this.shouldAutoApproveTool(block.name)) {
-									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-									await this.say("tool", completeMessage, undefined, false)
-									this.consecutiveAutoApprovedRequestsCount++
-								} else {
-									showNotificationForApprovalIfAutoApprovalEnabled(
-										`OG assistant wants to fetch technical design for project: ${projectName}`,
-									)
-									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										await this.saveCheckpoint()
-										break
-									}
-								}
-
-								const ogTools = new OgTools("ldbrkfioyfsxvxuf")
-								const result = await ogTools.fetchTechnicalDesign(projectName)
-
-								if (!result.success) {
-									pushToolResult(`Error fetching technical design: ${result.error}`)
-								} else {
-									pushToolResult(JSON.stringify(result.data, null, 2))
-								}
-								await this.saveCheckpoint()
-								break
-							}
-						} catch (error) {
-							await handleError("fetching technical design", error)
 							await this.saveCheckpoint()
 							break
 						}

@@ -141,17 +141,6 @@ Usage:
 <project_name>Project name here</project_name>
 </fetch_user_stories>
 
-## fetch_technical_design
-Description: Request to fetch technical design documentation for a specific project. This includes architecture pages which is frontend pages and API endpoints which are backend apis
-if project name is not provided then fetch from .clinerules(if exists) or tell user to provide project name.
-if technical design not found or gives error then tell user that technical design not found.
-Parameters:
-- project_name: (required) The name of the project to fetch technical design for
-Usage:
-<fetch_technical_design>
-<project_name>Project name here</project_name>
-</fetch_technical_design>
-
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
