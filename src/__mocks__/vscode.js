@@ -5,9 +5,25 @@ const vscode = {
 		createTextEditorDecorationType: jest.fn().mockReturnValue({
 			dispose: jest.fn(),
 		}),
+		tabGroups: {
+			onDidChangeTabs: jest.fn(() => {
+				return {
+					dispose: jest.fn(),
+				}
+			}),
+			all: [],
+		},
 	},
 	workspace: {
 		onDidSaveTextDocument: jest.fn(),
+		createFileSystemWatcher: jest.fn().mockReturnValue({
+			onDidCreate: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+			onDidDelete: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+			dispose: jest.fn(),
+		}),
+		fs: {
+			stat: jest.fn(),
+		},
 	},
 	Disposable: class {
 		dispose() {}
@@ -56,6 +72,17 @@ const vscode = {
 		Production: 1,
 		Development: 2,
 		Test: 3,
+	},
+	FileType: {
+		Unknown: 0,
+		File: 1,
+		Directory: 2,
+		SymbolicLink: 64,
+	},
+	TabInputText: class {
+		constructor(uri) {
+			this.uri = uri
+		}
 	},
 }
 

@@ -10,7 +10,7 @@ const WelcomeView = () => {
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
-	const disableLetsGoButton = !!apiErrorMessage
+	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleSubmit = () => {
 		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })

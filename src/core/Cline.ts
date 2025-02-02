@@ -96,6 +96,7 @@ export class Cline {
 	didFinishAborting = false
 	abandoned = false
 	private diffViewProvider: DiffViewProvider
+	private lastApiRequestTime?: number
 
 	// streaming
 	private currentStreamingContentIndex = 0
@@ -796,8 +797,39 @@ export class Cline {
 	async *attemptApiRequest(previousApiReqIndex: number, retryAttempt: number = 0): ApiStream {
 		let mcpHub: McpHub | undefined
 
-		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } =
+		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds, rateLimitSeconds } =
 			(await this.providerRef.deref()?.getState()) ?? {}
+
+		let finalDelay = 0
+
+		// Only apply rate limiting if this isn't the first request
+		if (this.lastApiRequestTime) {
+			const now = Date.now()
+			const timeSinceLastRequest = now - this.lastApiRequestTime
+			const rateLimit = rateLimitSeconds || 0
+			const rateLimitDelay = Math.max(0, rateLimit * 1000 - timeSinceLastRequest)
+			finalDelay = rateLimitDelay
+		}
+
+		// Add exponential backoff delay for retries
+		if (retryAttempt > 0) {
+			const baseDelay = requestDelaySeconds || 5
+			const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt)) * 1000
+			finalDelay = Math.max(finalDelay, exponentialDelay)
+		}
+
+		if (finalDelay > 0) {
+			// Show countdown timer
+			for (let i = Math.ceil(finalDelay / 1000); i > 0; i--) {
+				const delayMessage =
+					retryAttempt > 0 ? `Retrying in ${i} seconds...` : `Rate limiting for ${i} seconds...`
+				await this.say("api_req_retry_delayed", delayMessage, undefined, true)
+				await delay(1000)
+			}
+		}
+
+		// Update last request time before making the request
+		this.lastApiRequestTime = Date.now()
 
 		if (mcpEnabled ?? true) {
 			mcpHub = this.providerRef.deref()?.mcpHub
@@ -810,8 +842,14 @@ export class Cline {
 			})
 		}
 
-		const { browserViewportSize, mode, customModePrompts, preferredLanguage, experiments } =
-			(await this.providerRef.deref()?.getState()) ?? {}
+		const {
+			browserViewportSize,
+			mode,
+			customModePrompts,
+			preferredLanguage,
+			experiments,
+			enableMcpServerCreation,
+		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
 			const provider = this.providerRef.deref()
@@ -832,6 +870,7 @@ export class Cline {
 				preferredLanguage,
 				this.diffEnabled,
 				experiments,
+				enableMcpServerCreation,
 			)
 		})()
 

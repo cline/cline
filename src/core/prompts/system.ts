@@ -40,6 +40,7 @@ async function generatePrompt(
 	preferredLanguage?: string,
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
+	enableMcpServerCreation?: boolean,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -49,7 +50,7 @@ async function generatePrompt(
 	const effectiveDiffStrategy = diffEnabled ? diffStrategy : undefined
 
 	const [mcpServersSection, modesSection] = await Promise.all([
-		getMcpServersSection(mcpHub, effectiveDiffStrategy),
+		getMcpServersSection(mcpHub, effectiveDiffStrategy, enableMcpServerCreation),
 		getModesSection(context),
 	])
 
@@ -105,6 +106,7 @@ export const SYSTEM_PROMPT = async (
 	preferredLanguage?: string,
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
+	enableMcpServerCreation?: boolean,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -139,5 +141,6 @@ export const SYSTEM_PROMPT = async (
 		preferredLanguage,
 		diffEnabled,
 		experiments,
+		enableMcpServerCreation,
 	)
 }

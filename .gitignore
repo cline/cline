@@ -1,5 +1,6 @@
-out
 dist
+out
+out-integration
 node_modules
 coverage/
 
@@ -15,3 +16,9 @@ roo-cline-*.vsix
 # Test environment
 .test_env
 .vscode-test/
+
+# Docs
+docs/_site/
+
+# Dotenv
+.env.integration
