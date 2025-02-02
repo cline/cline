@@ -43,9 +43,62 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 				break
 			}
-			case "o3-mini": {
+			case "o3-mini-low": {
 				const stream = await this.client.chat.completions.create({
-					model: this.getModel().id,
+					model: "o3-mini",
+					reasoning_effort: "low",
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+				})
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
+				}
+				break
+			}
+			case "o3-mini-medium": {
+				const stream = await this.client.chat.completions.create({
+					model: "o3-mini",
+					reasoning_effort: "medium",
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					stream: true,
+					stream_options: { include_usage: true },
+				})
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta
+					if (delta?.content) {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
+					if (chunk.usage) {
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
+					}
+				}
+				break
+			}
+			case "o3-mini-high": {
+				const stream = await this.client.chat.completions.create({
+					model: "o3-mini",
+					reasoning_effort: "high",
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
