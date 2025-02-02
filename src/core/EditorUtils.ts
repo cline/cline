@@ -39,16 +39,14 @@ export class EditorUtils {
 				return null
 			}
 
-			// Optimize range creation by checking bounds first
-			const startLine = Math.max(0, currentLine.lineNumber - 1)
-			const endLine = Math.min(document.lineCount - 1, currentLine.lineNumber + 1)
+			// Always expand an empty selection to include full lines,
+			// using the full previous and next lines where available.
+			const startLineIndex = Math.max(0, currentLine.lineNumber - 1)
+			const endLineIndex = Math.min(document.lineCount - 1, currentLine.lineNumber + 1)
 
-			// Only create new positions if needed
 			const effectiveRange = new vscode.Range(
-				startLine === currentLine.lineNumber ? range.start : new vscode.Position(startLine, 0),
-				endLine === currentLine.lineNumber
-					? range.end
-					: new vscode.Position(endLine, document.lineAt(endLine).text.length),
+				new vscode.Position(startLineIndex, 0),
+				new vscode.Position(endLineIndex, document.lineAt(endLineIndex).text.length),
 			)
 
 			return {
@@ -97,12 +95,21 @@ export class EditorUtils {
 	}
 
 	static hasIntersectingRange(range1: vscode.Range, range2: vscode.Range): boolean {
-		return !(
+		// Use half-open interval semantics:
+		// If one range ends at or before the other's start, there's no intersection.
+		if (
+			range1.end.line < range2.start.line ||
+			(range1.end.line === range2.start.line && range1.end.character <= range2.start.character)
+		) {
+			return false
+		}
+		if (
 			range2.end.line < range1.start.line ||
-			range2.start.line > range1.end.line ||
-			(range2.end.line === range1.start.line && range2.end.character < range1.start.character) ||
-			(range2.start.line === range1.end.line && range2.start.character > range1.end.character)
-		)
+			(range2.end.line === range1.start.line && range2.end.character <= range1.start.character)
+		) {
+			return false
+		}
+		return true
 	}
 
 	static getEditorContext(editor?: vscode.TextEditor): EditorContext | null {
