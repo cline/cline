@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.2.12]
+
+- Fix command chaining for Windows users
+- Fix reasoning_content error for OpenAI providers
+
 ## [3.2.11]
 
 - Add OpenAI o3-mini model
