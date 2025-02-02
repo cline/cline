@@ -13,7 +13,7 @@ import { isBinaryFile } from "isbinaryfile"
  * 如果不是二进制文件，则使用 fs.readFile 读取文件内容并以 utf8 编码返回文本，
  * 否则抛出错误表示无法读取该文件类型的文本内容。
  * @param filePath 文件路径
- * @returns 
+ * @returns
  */
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {

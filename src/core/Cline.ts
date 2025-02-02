@@ -69,7 +69,7 @@ type UserContent = Array<
 
 /**
  * Cline 核心类，负责处理与 AI 的交互、工具使用、文件操作等核心功能
- * 
+ *
  * 主要职责：
  * 1. 管理任务生命周期（创建、恢复、检查点等）
  * 2. 处理与 AI 的对话流
@@ -78,7 +78,6 @@ type UserContent = Array<
  * 5. 处理用户反馈和自动批准设置
  */
 export class Cline {
-
 	readonly taskId: string // 当前任务的唯一标识符
 	api: ApiHandler // API 处理器，用于与 AI 模型交互
 	private terminalManager: TerminalManager // 终端管理器，用于执行命令
@@ -144,11 +143,13 @@ export class Cline {
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
-		if (historyItem) {// 历史任务
+		if (historyItem) {
+			// 历史任务
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			this.resumeTaskFromHistory()
-		} else if (task || images) { // 新建任务
+		} else if (task || images) {
+			// 新建任务
 			this.taskId = Date.now().toString()
 			this.startTask(task, images)
 		} else {
@@ -693,7 +694,7 @@ export class Cline {
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
-					 // 更新现有的部分消息
+					// 更新现有的部分消息
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
@@ -718,7 +719,7 @@ export class Cline {
 			} else {
 				// partial = false表示其以前部分消息的完整版本
 				if (isUpdatingPreviousPartial) {
-					 // 替换为完整版本的部分消息
+					// 替换为完整版本的部分消息
 					this.lastMessageTs = lastMessage.ts
 					// lastMessage.ts = sayTs
 					lastMessage.text = text
@@ -784,7 +785,7 @@ export class Cline {
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory（对于 API）和 clineMessages（对于 webview）需要同步
-		// 如果扩展进程被终止，那么在重新启动时 clineMessages 可能不为空，因此我们需要在创建新的 
+		// 如果扩展进程被终止，那么在重新启动时 clineMessages 可能不为空，因此我们需要在创建新的
 		// Cline 客户端时将其设置为 [] （否则 webview 将显示上一个会话的过时消息）
 		this.clineMessages = []
 		this.apiConversationHistory = []
@@ -1068,7 +1069,7 @@ export class Cline {
 	 * 该函数负责启动一个任务循环，持续调用递归请求，直到任务完成或用户中止。
 	 * 循环中首次请求时会包含文件详情，后续请求则不再包含。若在循环中未调用完成尝试，
 	 * 系统将强制继续任务，直到达到最大请求次数或用户确认任务完成。
-	 * 
+	 *
 	 * @param userContent 用户上下文信息
 	 * @param isNewTask  是否是新任务
 	 */
@@ -1283,7 +1284,7 @@ export class Cline {
 			mcpHub,
 			this.browserSettings,
 		)
-		
+
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1366,9 +1367,9 @@ export class Cline {
 				await delay(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
-				// request failed after retrying automatically once, ask user if they want to retry again 
+				// request failed after retrying automatically once, ask user if they want to retry again
 				// 自动重试一次后请求失败，询问用户是否要重试一次
-				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely. 
+				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 				// 请注意，这个api_req_failed询问是独一无二的，因为我们只在api还没有流式传输任何内容时才提供这个选项（即它在第一个到期块上失败），因为它允许他们点击重试按钮。然而，如果api在中途失败，它可能处于某些工具可能已经执行的任何任意状态，因此错误处理方式不同，需要完全取消任务。
 				const { response } = await this.ask(
 					"api_req_failed",
@@ -3077,7 +3078,7 @@ export class Cline {
 			this.presentAssistantMessageHasPendingUpdates = false
 			this.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-			
+
 			// 处理一个从API请求返回的流数据，实时更新助手的消息并管理流的状态。
 			// 具体来说，它主要处理来自API的不同类型的chunk（数据块），并根据这些数据块更新内部状态和用户界面。
 			const stream = this.attemptApiRequest(previousApiReqIndex) // 仅当第一个 chunk 成功时才产生，否则将允许用户重试请求（很可能是由于速率限制错误，该错误在第一个 chunk 上抛出）
@@ -3172,10 +3173,6 @@ export class Cline {
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
 				await this.addToApiConversationHistory({
-
-
-
-
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
@@ -3242,8 +3239,8 @@ export class Cline {
 			// （参见 formatToolDeniedFeedback、attemptCompletion、executeCommand 和 consecutiveMistakeCount >= 3）
 			//  或 “<answer>”（参见 askFollowupQuestion），我们将所有用户生成的内容放在这些标签中，
 			// 以便它们可以有效地用作何时应该解析提及的标记）。但是，如果我们将来允许多个工具响应，
-			// 我们将需要专门解析用户内容标签中的提及。	
-			//  （注意：这会导致 @/ import 别名错误，其中文件内容也被解析，因为 v2 将工具结果转换为文本块）			
+			// 我们将需要专门解析用户内容标签中的提及。
+			//  （注意：这会导致 @/ import 别名错误，其中文件内容也被解析，因为 v2 将工具结果转换为文本块）
 			Promise.all(
 				userContent.map(async (block) => {
 					if (block.type === "text") {
@@ -3277,7 +3274,7 @@ export class Cline {
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
-		// cline 知道用户在消息之间是否从一个文件转到另一个文件可能很有用，因此我们始终包含此上下文	
+		// cline 知道用户在消息之间是否从一个文件转到另一个文件可能很有用，因此我们始终包含此上下文
 		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)

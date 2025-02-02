@@ -163,7 +163,7 @@ export class TerminalManager {
 	/**
 	 * 	获取或创建终端
 	 * @param cwd 当前工作目录
-	 * @returns 
+	 * @returns
 	 */
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
