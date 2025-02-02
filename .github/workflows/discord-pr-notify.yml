@@ -14,8 +14,7 @@ jobs:
         uses: Ilshidur/action-discord@master
         with:
           args: |
-            🚀 **New Pull Request Opened!**
-            📝 **Title:** ${{ github.event.pull_request.title }}
+            🚀 **New PR:** ${{ github.event.pull_request.title }}
             🔗 <${{ github.event.pull_request.html_url }}>
             👤 **Author:** ${{ github.event.pull_request.user.login }}
         env:
