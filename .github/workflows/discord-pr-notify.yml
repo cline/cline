@@ -2,12 +2,13 @@ name: Discord PR Notifier
 
 on:
   workflow_dispatch:
-  pull_request:
+  pull_request_target:
     types: [opened]
 
 jobs:
   notify:
     runs-on: ubuntu-latest
+    if: github.head_ref != 'changeset-release/main'
     steps:
       - name: Send Discord Notification
         uses: Ilshidur/action-discord@master
