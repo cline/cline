@@ -176,7 +176,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
-		// and executes code based on the message that is recieved
+		// and executes code based on the message that is received
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
@@ -247,7 +247,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
-		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, preferredLanguage, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -363,7 +363,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	/**
 	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is recieved.
+	 * executes code based on the message that is received.
 	 *
 	 * @param webview A reference to the extension webview
 	 */
@@ -571,10 +571,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										await this.updateGlobalState("lmStudioModelId", newModelId)
 										break
 								}
+
+								if (this.cline) {
+									const { apiConfiguration: updatedApiConfiguration } = await this.getState()
+									this.cline.api = buildApiHandler(updatedApiConfiguration)
+								}
 							}
 
 							await this.updateGlobalState("chatSettings", message.chatSettings)
 							await this.postStateToWebview()
+							// console.log("chatSettings", message.chatSettings)
 							if (this.cline) {
 								this.cline.updateChatSettings(message.chatSettings)
 								if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
@@ -1301,7 +1307,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
 
 	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
-	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
+	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notify the other instances that the API key has changed.
 
 	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 

@@ -377,7 +377,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
-					// checks if char before cusor is whitespace after a mention
+					// checks if char before cursor is whitespace after a mention
 					if (
 						charBeforeIsWhitespace &&
 						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
@@ -597,7 +597,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [apiConfiguration, openRouterModels])
 
 		const onModeToggle = useCallback(() => {
-			if (textAreaDisabled) return
+			// if (textAreaDisabled) return
 			let changeModeDelay = 0
 			if (showModelSelector) {
 				// user has model selector open, so we should save it before switching modes
@@ -617,7 +617,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, textAreaDisabled, showModelSelector, submitApiConfig])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig])
 
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
@@ -1038,7 +1038,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
-									disabled={textAreaDisabled}
+									disabled={false}
 									onClick={handleModelButtonClick}
 									// onKeyDown={(e) => {
 									// 	if (e.key === "Enter" || e.key === " ") {
@@ -1068,7 +1068,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ModelContainer>
 					</ButtonGroup>
 
-					<SwitchContainer data-testid="mode-switch" disabled={textAreaDisabled} onClick={onModeToggle}>
+					<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
 						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
