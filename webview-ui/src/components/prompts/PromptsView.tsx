@@ -26,8 +26,8 @@ import {
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
 
-// Get all available groups from GROUP_DISPLAY_NAMES (excluding 'modes')
-const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => group !== "modes")
+// Get all available groups that should show in prompts view
+const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)
 
 type PromptsViewProps = {
 	onDone: () => void

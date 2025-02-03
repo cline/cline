@@ -59,7 +59,8 @@ export function getToolsForMode(groups: readonly GroupEntry[]): string[] {
 	// Add tools from each group
 	groups.forEach((group) => {
 		const groupName = getGroupName(group)
-		TOOL_GROUPS[groupName].forEach((tool) => tools.add(tool))
+		const groupConfig = TOOL_GROUPS[groupName]
+		groupConfig.tools.forEach((tool: string) => tools.add(tool))
 	})
 
 	// Always add required tools
@@ -190,8 +191,10 @@ export function isToolAllowedForMode(
 		const groupName = getGroupName(group)
 		const options = getGroupOptions(group)
 
-		// If the tool isn't in this group, continue to next group
-		if (!TOOL_GROUPS[groupName].includes(tool)) {
+		const groupConfig = TOOL_GROUPS[groupName]
+
+		// If the tool isn't in this group's tools, continue to next group
+		if (!groupConfig.tools.includes(tool)) {
 			continue
 		}
 

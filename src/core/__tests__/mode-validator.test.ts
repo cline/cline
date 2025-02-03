@@ -9,8 +9,8 @@ describe("mode-validator", () => {
 			it("allows all code mode tools", () => {
 				const mode = getModeConfig(codeMode)
 				// Code mode has all groups
-				Object.entries(TOOL_GROUPS).forEach(([_, tools]) => {
-					tools.forEach((tool) => {
+				Object.entries(TOOL_GROUPS).forEach(([_, config]) => {
+					config.tools.forEach((tool: string) => {
 						expect(isToolAllowedForMode(tool, codeMode, [])).toBe(true)
 					})
 				})
@@ -25,7 +25,11 @@ describe("mode-validator", () => {
 			it("allows configured tools", () => {
 				const mode = getModeConfig(architectMode)
 				// Architect mode has read, browser, and mcp groups
-				const architectTools = [...TOOL_GROUPS.read, ...TOOL_GROUPS.browser, ...TOOL_GROUPS.mcp]
+				const architectTools = [
+					...TOOL_GROUPS.read.tools,
+					...TOOL_GROUPS.browser.tools,
+					...TOOL_GROUPS.mcp.tools,
+				]
 				architectTools.forEach((tool) => {
 					expect(isToolAllowedForMode(tool, architectMode, [])).toBe(true)
 				})
@@ -36,7 +40,7 @@ describe("mode-validator", () => {
 			it("allows configured tools", () => {
 				const mode = getModeConfig(askMode)
 				// Ask mode has read, browser, and mcp groups
-				const askTools = [...TOOL_GROUPS.read, ...TOOL_GROUPS.browser, ...TOOL_GROUPS.mcp]
+				const askTools = [...TOOL_GROUPS.read.tools, ...TOOL_GROUPS.browser.tools, ...TOOL_GROUPS.mcp.tools]
 				askTools.forEach((tool) => {
 					expect(isToolAllowedForMode(tool, askMode, [])).toBe(true)
 				})
