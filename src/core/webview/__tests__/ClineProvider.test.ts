@@ -1252,4 +1252,129 @@ describe("ClineProvider", () => {
 			)
 		})
 	})
+
+	describe("upsertApiConfiguration", () => {
+		test("handles error in upsertApiConfiguration gracefully", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock ConfigManager methods to simulate error
+			provider.configManager = {
+				setModeConfig: jest.fn().mockRejectedValue(new Error("Failed to update mode config")),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			// Mock getState to provide necessary data
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				mode: "code",
+				currentApiConfigName: "test-config",
+			} as any)
+
+			// Trigger updateApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiKey: "test-key",
+				},
+			})
+
+			// Verify error was logged and user was notified
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Error create new api configuration"),
+			)
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to create api configuration")
+		})
+
+		test("handles successful upsertApiConfiguration", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock ConfigManager methods
+			provider.configManager = {
+				saveConfig: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			const testApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "test-key",
+			}
+
+			// Trigger upsertApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: testApiConfig,
+			})
+
+			// Verify config was saved
+			expect(provider.configManager.saveConfig).toHaveBeenCalledWith("test-config", testApiConfig)
+
+			// Verify state updates
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+
+			// Verify state was posted to webview
+			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
+		})
+
+		test("handles buildApiHandler error in updateApiConfiguration", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock buildApiHandler to throw an error
+			const { buildApiHandler } = require("../../../api")
+			;(buildApiHandler as jest.Mock).mockImplementationOnce(() => {
+				throw new Error("API handler error")
+			})
+
+			// Mock ConfigManager methods
+			provider.configManager = {
+				saveConfig: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			// Setup mock Cline instance
+			const mockCline = {
+				api: undefined,
+				abortTask: jest.fn(),
+			}
+			// @ts-ignore - accessing private property for testing
+			provider.cline = mockCline
+
+			const testApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "test-key",
+			}
+
+			// Trigger upsertApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: testApiConfig,
+			})
+
+			// Verify error handling
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Error create new api configuration"),
+			)
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to create api configuration")
+
+			// Verify state was still updated
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+		})
+	})
 })
