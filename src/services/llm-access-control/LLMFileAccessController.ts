@@ -48,10 +48,14 @@ export class LLMFileAccessController {
 		// Watch for changes and updates
 		this.disposables.push(
 			this.fileWatcher.onDidChange(() => {
-				this.loadCustomPatterns()
+				this.loadCustomPatterns().catch((error) => {
+					console.error("Failed to load updated .clineignore patterns:", error)
+				})
 			}),
 			this.fileWatcher.onDidCreate(() => {
-				this.loadCustomPatterns()
+				this.loadCustomPatterns().catch((error) => {
+					console.error("Failed to load new .clineignore patterns:", error)
+				})
 			}),
 			this.fileWatcher.onDidDelete(() => {
 				this.resetToDefaultPatterns()
