@@ -75,7 +75,7 @@ const openClineInNewTab = async ({ context, outputChannel }: Omit<RegisterComman
 		dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "rocket.png"),
 	}
 
-	tabProvider.resolveWebviewView(panel)
+	await tabProvider.resolveWebviewView(panel)
 
 	// Lock the editor group so clicking on files doesn't open them over the panel
 	await delay(100)
