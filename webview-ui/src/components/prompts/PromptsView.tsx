@@ -193,15 +193,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		setNewModeRoleDefinition("")
 		setNewModeCustomInstructions("")
 		setNewModeGroups(availableGroups)
-	}, [
-		newModeName,
-		newModeSlug,
-		newModeRoleDefinition,
-		newModeCustomInstructions,
-		newModeGroups,
-		updateCustomMode,
-		switchMode,
-	])
+	}, [newModeName, newModeSlug, newModeRoleDefinition, newModeCustomInstructions, newModeGroups, updateCustomMode])
 
 	const isNameOrSlugTaken = useCallback(
 		(name: string, slug: string) => {
