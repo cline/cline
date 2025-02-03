@@ -7,7 +7,8 @@
  * current UI assumes there's no CSS resetting or normalization.
  *
  * We're excluding tailwind's default preflight and importing our own, which
- * are based on the original (https://github.com/tailwindlabs/tailwindcss/blob/main/packages/tailwindcss/preflight.css).
+ * is based on the original:
+ * https://github.com/tailwindlabs/tailwindcss/blob/main/packages/tailwindcss/preflight.css
  *
  * Reference: https://tailwindcss.com/docs/preflight
  */
