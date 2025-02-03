@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import delay from "delay"
 import fs from "fs/promises"
+import { checkFileEditingPrevention } from "./file-editing-prevention"
 import getFolderSize from "get-folder-size"
 import os from "os"
 import pWaitFor from "p-wait-for"
@@ -1568,13 +1569,10 @@ export class Cline {
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
-						// Prevent file editing in plan mode
-						if (this.chatSettings.mode === "plan") {
-							pushToolResult(
-								formatResponse.toolError(
-									"File editing is not allowed in Plan mode. Please switch to Act mode to make file changes.",
-								),
-							)
+						// Check if file editing should be prevented
+						const preventionResult = checkFileEditingPrevention(this.chatSettings)
+						if (preventionResult.isPreventingEdit) {
+							pushToolResult(preventionResult.toolError!)
 							await this.saveCheckpoint()
 							break
 						}
