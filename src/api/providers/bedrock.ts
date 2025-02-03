@@ -21,7 +21,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.client = new AnthropicBedrock({
 			awsAccessKey: "",
 			awsSecretKey: "",
-			awsRegion: this.options.awsRegion || process.env.AWS_REGION || "us-east-1"
+			awsRegion: this.options.awsRegion || process.env.AWS_REGION || "us-east-1",
 		})
 		this.initializationPromise = this.initializeClient()
 	}
@@ -29,12 +29,14 @@ export class AwsBedrockHandler implements ApiHandler {
 	private async initializeClient() {
 		try {
 			const credentials = await this._getCredentials()
-			this.client = new AnthropicBedrock({
+			const config = {
 				awsAccessKey: credentials.accessKeyId,
 				awsSecretKey: credentials.secretAccessKey,
-				...(credentials.sessionToken && { awsSessionToken: credentials.sessionToken }),
-				awsRegion: this.options.awsRegion || process.env.AWS_REGION || "us-east-1"
-			})
+				awsRegion: this.options.awsRegion ?? "us-east-1",
+				awsSessionToken: credentials.sessionToken,
+			}
+
+			this.client = new AnthropicBedrock(config)
 		} catch (error) {
 			console.error("Failed to initialize Bedrock client:", error)
 			throw error
@@ -48,14 +50,14 @@ export class AwsBedrockHandler implements ApiHandler {
 				return {
 					accessKeyId: this.options.awsAccessKey,
 					secretAccessKey: this.options.awsSecretKey,
-					sessionToken: this.options.awsSessionToken
+					sessionToken: this.options.awsSessionToken,
 				}
 			}
 
 			// Then try loading from specified AWS profile
 			return await fromIni({
 				profile: this.profile,
-				ignoreCache: true
+				ignoreCache: true,
 			})()
 		} catch (e) {
 			console.warn(`AWS profile '${this.profile}' not found in ~/.aws/credentials, using default profile`)

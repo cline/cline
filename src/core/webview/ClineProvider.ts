@@ -44,6 +44,7 @@ type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "awsProfile"
 	| "awsUseCrossRegionInference"
 	| "vertexProjectId"
 	| "vertexRegion"
@@ -375,6 +376,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								awsSecretKey,
 								awsSessionToken,
 								awsRegion,
+								awsProfile,
 								awsUseCrossRegionInference,
 								vertexProjectId,
 								vertexRegion,
@@ -401,6 +403,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsSecretKey", awsSecretKey)
 							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
+							await this.updateGlobalState("awsProfile", awsProfile)
 							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
@@ -985,6 +988,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			awsSecretKey,
 			awsSessionToken,
 			awsRegion,
+			awsProfile,
 			awsUseCrossRegionInference,
 			vertexProjectId,
 			vertexRegion,
@@ -1015,6 +1019,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
+			this.getGlobalState("awsProfile") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
@@ -1062,6 +1067,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				awsSecretKey,
 				awsSessionToken,
 				awsRegion,
+				awsProfile,
 				awsUseCrossRegionInference,
 				vertexProjectId,
 				vertexRegion,

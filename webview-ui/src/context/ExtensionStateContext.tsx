@@ -52,6 +52,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.apiKey,
 							config.openRouterApiKey,
 							config.awsRegion,
+							config.awsProfile,
 							config.vertexProjectId,
 							config.openAiApiKey,
 							config.ollamaModelId,
