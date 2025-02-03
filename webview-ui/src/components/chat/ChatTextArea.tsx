@@ -610,6 +610,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					type: "chatSettings",
 					chatSettings: {
 						mode: newMode,
+						diffAnimation: {
+							mode: "all",
+							speed: "normal",
+						},
 					},
 				})
 				// Focus the textarea after mode toggle with slight delay

@@ -7,8 +7,15 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { DiffAnimationSettings } from "../../shared/ChatSettings"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
+
+const ANIMATION_SPEEDS = {
+	normal: 100,
+	"2x": 50,
+	"4x": 25,
+} as const
 
 export class DiffViewProvider {
 	editType?: "create" | "modify"
@@ -23,15 +30,57 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private animationSettings: DiffAnimationSettings
 
-	constructor(private cwd: string) {}
+	constructor(private cwd: string) {
+		// Initialize settings
+		this.animationSettings = this.getAnimationSettings()
+		// Monitor configuration changes
+		vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration("cline.diffAnimation")) {
+				this.animationSettings = this.getAnimationSettings()
+			}
+		})
+	}
+
+	private getAnimationSettings(): DiffAnimationSettings {
+		const config = vscode.workspace.getConfiguration("cline")
+		const diffAnimation = config.get<DiffAnimationSettings>("diffAnimation")
+		return (
+			diffAnimation || {
+				mode: "all",
+				speed: "normal",
+			}
+		)
+	}
+
+	private async applyAnimationDelay(): Promise<void> {
+		const delay = ANIMATION_SPEEDS[this.animationSettings.speed]
+		await new Promise((resolve) => setTimeout(resolve, delay))
+	}
+
+	private shouldAnimateLine(lineNumber: number): boolean {
+		if (this.animationSettings.mode === "none") {
+			return false
+		}
+		if (this.animationSettings.mode === "all") {
+			return true
+		}
+		// In "changes-only" mode, animate only the modified lines
+		if (!this.originalContent) {
+			return true // For new files, animate all lines
+		}
+		const originalLines = this.originalContent.split("\n")
+		const newLines = this.streamedLines
+		return lineNumber >= originalLines.length || originalLines[lineNumber] !== newLines[lineNumber]
+	}
 
 	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
 		const fileExists = this.editType === "modify"
 		const absolutePath = path.resolve(this.cwd, relPath)
 		this.isEditing = true
-		// if the file is already open, ensure it's not dirty before getting its contents
+		// If the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
 			const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, absolutePath))
 			if (existingDocument && existingDocument.isDirty) {
@@ -39,7 +88,8 @@ export class DiffViewProvider {
 			}
 		}
 
-		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
+		// Get diagnostics before editing the file to compare with diagnostics after editing
+		// This determines if any fixes need to be applied
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
@@ -47,15 +97,17 @@ export class DiffViewProvider {
 		} else {
 			this.originalContent = ""
 		}
-		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
+		// For new files, create necessary directories and track them
+		// These will be removed if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
-		// make sure the file exists before we open it
+		// Ensure the file exists before opening it
 		if (!fileExists) {
 			await fs.writeFile(absolutePath, "")
 		}
-		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
+		// If the file was already open, close it
+		// This must happen after showing the diff view, since closing the only open tab would close the column
 		this.documentWasOpen = false
-		// close the tab if it's open (it's already saved above)
+		// Close the tab if it's open (it has already been saved above)
 		const tabs = vscode.window.tabGroups.all
 			.map((tg) => tg.tabs)
 			.flat()
@@ -71,7 +123,7 @@ export class DiffViewProvider {
 		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
 		// Apply faded overlay to all lines initially
 		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
-		this.scrollEditorToLine(0) // will this crash for new files?
+		this.scrollEditorToLine(0) // Will this crash for new files?
 		this.streamedLines = []
 	}
 
@@ -82,7 +134,7 @@ export class DiffViewProvider {
 		this.newContent = accumulatedContent
 		const accumulatedLines = accumulatedContent.split("\n")
 		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
+			accumulatedLines.pop() // Remove the last partial line only if it's not the final update
 		}
 		const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
@@ -96,22 +148,41 @@ export class DiffViewProvider {
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+		// If animation mode is "none", apply all changes immediately
+		if (this.animationSettings.mode === "none") {
 			const edit = new vscode.WorkspaceEdit()
-			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+			const rangeToReplace = new vscode.Range(0, 0, document.lineCount, 0)
+			const contentToReplace = accumulatedLines.join("\n") + "\n"
 			edit.replace(document.uri, rangeToReplace, contentToReplace)
 			await vscode.workspace.applyEdit(edit)
-			// Update decorations
-			this.activeLineController.setActiveLine(currentLine)
-			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
+			this.streamedLines = accumulatedLines
+			return
 		}
-		// Update the streamedLines with the new accumulated content
+
+		for (let i = 0; i < diffLines.length; i++) {
+			const currentLine = this.streamedLines.length + i
+
+			// Check if the line requires animation
+			if (this.shouldAnimateLine(currentLine)) {
+				// Replace all content up to the current line with accumulated lines
+				const edit = new vscode.WorkspaceEdit()
+				const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
+				const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+				edit.replace(document.uri, rangeToReplace, contentToReplace)
+				await vscode.workspace.applyEdit(edit)
+
+				// Update decorations
+				this.activeLineController.setActiveLine(currentLine)
+				this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
+
+				// Scroll to the current line
+				this.scrollEditorToLine(currentLine)
+
+				// Apply delay based on animation speed
+				await this.applyAnimationDelay()
+			}
+		}
+		// Update streamedLines with the new accumulated content
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
@@ -120,7 +191,7 @@ export class DiffViewProvider {
 				edit.delete(document.uri, new vscode.Range(this.streamedLines.length, 0, document.lineCount, 0))
 				await vscode.workspace.applyEdit(edit)
 			}
-			// Add empty last line if original content had one
+			// Add an empty last line if the original content had one
 			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
 			if (hasEmptyLastLine) {
 				const accumulatedLines = accumulatedContent.split("\n")
