@@ -1118,7 +1118,7 @@ export class Cline {
 
 		let result = ""
 		process.on("line", (line) => {
-			result += line + "\n"
+			result += line
 			if (!didContinue) {
 				sendCommandOutput(line)
 			} else {
