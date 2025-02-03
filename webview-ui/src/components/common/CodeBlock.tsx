@@ -78,7 +78,7 @@ const CodeBlockContainer = styled.div`
 	}
 `
 
-const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties }>`
+const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties; wordWrap?: boolean }>`
 	overflow-x: auto;
 	width: 100%;
 
@@ -95,9 +95,9 @@ const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties }>`
 
 	pre,
 	code {
-		white-space: pre-wrap;
-		word-break: normal;
-		overflow-wrap: break-word;
+		white-space: ${({ wordWrap }) => (wordWrap === false ? "pre" : "pre-wrap")};
+		word-break: ${({ wordWrap }) => (wordWrap === false ? "normal" : "normal")};
+		overflow-wrap: ${({ wordWrap }) => (wordWrap === false ? "normal" : "break-word")};
 	}
 
 	pre > code {
@@ -174,7 +174,7 @@ export const StyledPre = styled.pre<{ theme: any }>`
 const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 	const codeBlockRef = useRef<HTMLDivElement>(null)
 	const [copied, setCopied] = useState(false)
-	const { theme } = useExtensionState()
+	const { theme, codeBlockWordWrap = true } = useExtensionState()
 
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
@@ -274,7 +274,9 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 
 	return (
 		<CodeBlockContainer ref={codeBlockRef}>
-			<StyledMarkdown preStyle={preStyle}>{reactContent}</StyledMarkdown>
+			<StyledMarkdown preStyle={preStyle} wordWrap={codeBlockWordWrap}>
+				{reactContent}
+			</StyledMarkdown>
 			<CopyButtonWrapper
 				onMouseEnter={() => updateCopyButtonPosition(true)}
 				onMouseLeave={() => updateCopyButtonPosition()}>

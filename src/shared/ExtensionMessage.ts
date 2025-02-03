@@ -61,6 +61,7 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
+	codeBlockWordWrap: boolean
 	isLoggedIn: boolean
 	userInfo?: {
 		displayName: string | null
