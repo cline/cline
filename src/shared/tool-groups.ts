@@ -1,5 +1,8 @@
-// Define tool group values
-export type ToolGroupValues = readonly string[]
+// Define tool group configuration
+export type ToolGroupConfig = {
+	tools: readonly string[]
+	alwaysAvailable?: boolean // Whether this group is always available and shouldn't show in prompts view
+}
 
 // Map of tool slugs to their display names
 export const TOOL_DISPLAY_NAMES = {
@@ -20,13 +23,26 @@ export const TOOL_DISPLAY_NAMES = {
 } as const
 
 // Define available tool groups
-export const TOOL_GROUPS: Record<string, ToolGroupValues> = {
-	read: ["read_file", "search_files", "list_files", "list_code_definition_names"],
-	edit: ["write_to_file", "apply_diff", "insert_content", "search_and_replace"],
-	browser: ["browser_action"],
-	command: ["execute_command"],
-	mcp: ["use_mcp_tool", "access_mcp_resource"],
-	modes: ["switch_mode", "new_task"],
+export const TOOL_GROUPS: Record<string, ToolGroupConfig> = {
+	read: {
+		tools: ["read_file", "search_files", "list_files", "list_code_definition_names"],
+	},
+	edit: {
+		tools: ["write_to_file", "apply_diff", "insert_content", "search_and_replace"],
+	},
+	browser: {
+		tools: ["browser_action"],
+	},
+	command: {
+		tools: ["execute_command"],
+	},
+	mcp: {
+		tools: ["use_mcp_tool", "access_mcp_resource"],
+	},
+	modes: {
+		tools: ["switch_mode", "new_task"],
+		alwaysAvailable: true,
+	},
 }
 
 export type ToolGroup = keyof typeof TOOL_GROUPS
