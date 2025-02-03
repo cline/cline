@@ -40,6 +40,7 @@ describe("AutoApproveMenu", () => {
 		glamaModels: {},
 		openRouterModels: {},
 		openAiModels: [],
+		unboundModels: {},
 		mcpServers: [],
 		filePaths: [],
 		experiments: experimentDefault,

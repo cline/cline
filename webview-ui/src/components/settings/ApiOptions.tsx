@@ -27,7 +27,7 @@ import {
 	vertexDefaultModelId,
 	vertexModels,
 	unboundDefaultModelId,
-	unboundModels,
+	unboundDefaultModelInfo,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -40,6 +40,7 @@ import OpenRouterModelPicker, {
 } from "./OpenRouterModelPicker"
 import OpenAiModelPicker from "./OpenAiModelPicker"
 import GlamaModelPicker from "./GlamaModelPicker"
+import UnboundModelPicker from "./UnboundModelPicker"
 
 interface ApiOptionsProps {
 	apiErrorMessage?: string
@@ -55,6 +56,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({})
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
@@ -89,6 +91,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 			setLmStudioModels(message.lmStudioModels)
 		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
 			setVsCodeLmModels(message.vsCodeLmModels)
+		} else if (message.type === "unboundModels" && message.unboundModels) {
+			setUnboundModels(message.unboundModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -1312,6 +1316,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 					</p>
+					<UnboundModelPicker />
 				</div>
 			)}
 
@@ -1334,7 +1339,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
-				selectedProvider !== "lmstudio" && (
+				selectedProvider !== "lmstudio" &&
+				selectedProvider !== "unbound" && (
 					<>
 						<div className="dropdown-container">
 							<label htmlFor="model-id">
@@ -1347,7 +1353,6 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
-							{selectedProvider === "unbound" && createDropdown(unboundModels)}
 						</div>
 
 						<ModelInfoView
@@ -1586,7 +1591,11 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				},
 			}
 		case "unbound":
-			return getProviderData(unboundModels, unboundDefaultModelId)
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.unboundModelId || unboundDefaultModelId,
+				selectedModelInfo: apiConfiguration?.unboundModelInfo || unboundDefaultModelInfo,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

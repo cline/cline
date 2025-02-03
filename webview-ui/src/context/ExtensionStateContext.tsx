@@ -8,6 +8,8 @@ import {
 	glamaDefaultModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	unboundDefaultModelId,
+	unboundDefaultModelInfo,
 } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -24,6 +26,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	theme: any
 	glamaModels: Record<string, ModelInfo>
 	openRouterModels: Record<string, ModelInfo>
+	unboundModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
@@ -112,6 +115,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	})
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
+	})
+	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({
+		[unboundDefaultModelId]: unboundDefaultModelInfo,
 	})
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
@@ -208,6 +214,11 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					setOpenAiModels(updatedModels)
 					break
 				}
+				case "unboundModels": {
+					const updatedModels = message.unboundModels ?? {}
+					setUnboundModels(updatedModels)
+					break
+				}
 				case "mcpServers": {
 					setMcpServers(message.mcpServers ?? [])
 					break
@@ -235,6 +246,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		glamaModels,
 		openRouterModels,
 		openAiModels,
+		unboundModels,
 		mcpServers,
 		filePaths,
 		soundVolume: state.soundVolume,
