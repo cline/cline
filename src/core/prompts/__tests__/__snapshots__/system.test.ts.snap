@@ -132,7 +132,7 @@ Example: Requesting to write to frontend-config.json
 </write_to_file>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -291,7 +291,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -455,7 +455,7 @@ Example: Requesting to write to frontend-config.json
 </write_to_file>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -614,7 +614,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -778,7 +778,7 @@ Example: Requesting to write to frontend-config.json
 </write_to_file>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -937,7 +937,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -1147,7 +1147,7 @@ Example: Requesting to click on the element at coordinates 450,300
 </browser_action>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -1309,7 +1309,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -1473,7 +1473,7 @@ Example: Requesting to write to frontend-config.json
 </write_to_file>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -2045,7 +2045,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -2255,7 +2255,7 @@ Example: Requesting to click on the element at coordinates 450,300
 </browser_action>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -2417,7 +2417,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -2641,7 +2641,7 @@ Your search/replace content here
 </apply_diff>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -2802,7 +2802,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -2966,7 +2966,7 @@ Example: Requesting to write to frontend-config.json
 </write_to_file>
 
 ## execute_command
-Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
+Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/path
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 Usage:
@@ -3125,7 +3125,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -3491,7 +3491,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
@@ -3800,7 +3800,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: Linux
-Default Shell: /bin/bash
+Default Shell: /bin/zsh
 Home Directory: /home/user
 Current Working Directory: /test/path
 
