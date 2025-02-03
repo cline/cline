@@ -133,13 +133,21 @@
 					"properties": {
 						"mode": {
 							"type": "string",
-							"enum": ["all", "changes-only", "none"],
+							"enum": [
+								"all",
+								"changes-only",
+								"none"
+							],
 							"default": "all",
 							"description": "Animation display mode (all: all lines, changes-only: only changed lines, none: no animation)"
 						},
 						"speed": {
 							"type": "string",
-							"enum": ["normal", "2x", "4x"],
+							"enum": [
+								"normal",
+								"2x",
+								"4x"
+							],
 							"default": "normal",
 							"description": "Animation speed (normal: normal, 2x: 2x, 4x: 4x)"
 						}
