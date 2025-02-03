@@ -408,10 +408,90 @@ export const deepSeekModels = {
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralDefaultModelId: MistralModelId = "codestral-2501"
 export const mistralModels = {
-	"codestral-latest": {
-		maxTokens: 32_768,
+	"mistral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"pixtral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"ministral-3b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.04,
+		outputPrice: 0.04,
+	},
+	"ministral-8b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"mistral-embed": {
+		maxTokens: 8_000,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"mistral-moderation-2411": {
+		maxTokens: 8_000,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"mistral-small-2501": {
+		maxTokens: 32_000,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"pixtral-12b-2409": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-mistral-nemo-2407": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-codestral-mamba": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"codestral-2501": {
+		maxTokens: 256_000,
 		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
