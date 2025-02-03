@@ -1568,6 +1568,17 @@ export class Cline {
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
+						// Prevent file editing in plan mode
+						if (this.chatSettings.mode === "plan") {
+							pushToolResult(
+								formatResponse.toolError(
+									"File editing is not allowed in Plan mode. Please switch to Act mode to make file changes.",
+								),
+							)
+							await this.saveCheckpoint()
+							break
+						}
+
 						const relPath: string | undefined = block.params.path
 						let content: string | undefined = block.params.content // for write_to_file
 						let diff: string | undefined = block.params.diff // for replace_in_file
