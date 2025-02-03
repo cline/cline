@@ -16,5 +16,6 @@
 		"noEmit": true,
 		"jsx": "react-jsx"
 	},
-	"include": ["src", "../src/shared"]
+	"include": ["src", "../src/shared"],
+	"exclude": ["src/**/*.spec.ts", "setupTests.js", "matchMedia.js"]
 }

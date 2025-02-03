@@ -20,12 +20,21 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
+		| "emailSubscribed"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -35,6 +44,7 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	openAiModels?: string[]
 	mcpServers?: McpServer[]
 }
 
@@ -51,6 +61,12 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
+	isLoggedIn: boolean
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
 }
 
 export interface ClineMessage {
@@ -59,6 +75,7 @@ export interface ClineMessage {
 	ask?: ClineAsk
 	say?: ClineSay
 	text?: string
+	reasoning?: string
 	images?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
@@ -87,6 +104,7 @@ export type ClineSay =
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
+	| "reasoning"
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"

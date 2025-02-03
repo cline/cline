@@ -5,6 +5,7 @@ on:
     pull_request:
         branches:
             - main
+    workflow_call:
 
 # Set default permissions for all jobs
 permissions:

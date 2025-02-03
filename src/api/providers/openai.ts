@@ -12,6 +12,7 @@ import {
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -37,8 +38,9 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 
-		// Convert Anthropic messages to OpenAI format
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
@@ -94,6 +96,10 @@ export class OpenAiHandler implements ApiHandler {
 			maxTokens = 8_192
 		}
 
+		if (isDeepseekReasoner) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
 			max_tokens: maxTokens,
@@ -111,6 +117,14 @@ export class OpenAiHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
+
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
+				}
+			}
+
 			if (chunk.usage) {
 				// Calculate estimated cache metrics for OpenAI provider
 				// This matches the token usage reporting format used by other providers
