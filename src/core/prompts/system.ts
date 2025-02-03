@@ -983,6 +983,6 @@ export function addUserInstructions(settingsCustomInstructions?: string, clineRu
 USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
-
+STRICTLY, Before attempt_completion tool use, verify if a testing environment is configured, If yes, then always use the ask_followup_question tool to prompt the user for test creation before attempt_completion tool use. On confirmation, plan and generate production-ready unit tests tailored to the modifications. Additionally, if an end-to-end testing environment is available in codebase, construct corresponding end-to-end tests where applicable.then run the tests and verify the results. If tests fail, then fix the issues and re-run the tests. If tests pass, then proceed with the attempt_completion tool use. If no testing environment is available, then proceed with the attempt_completion tool use directly.
 ${customInstructions.trim()}`
 }
