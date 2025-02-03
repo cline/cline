@@ -42,6 +42,7 @@
 			}
 		},
 		{
+			"label": "npm: dev",
 			"type": "npm",
 			"script": "dev",
 			"group": "build",
@@ -57,63 +58,46 @@
 				}
 			},
 			"isBackground": true,
-			"label": "npm: dev",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
+			"label": "npm: build:webview",
 			"type": "npm",
 			"script": "build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
-			"label": "npm: build:webview",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
+			"label": "npm: watch:esbuild",
 			"type": "npm",
 			"script": "watch:esbuild",
 			"group": "build",
 			"problemMatcher": "$esbuild-watch",
 			"isBackground": true,
-			"label": "npm: watch:esbuild",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
+			"label": "npm: watch:tsc",
 			"type": "npm",
 			"script": "watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
-		},
-		{
-			"type": "npm",
-			"script": "watch-tests",
-			"problemMatcher": "$tsc-watch",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never",
-				"group": "watchers"
-			},
-			"group": "build"
-		},
-		{
-			"label": "tasks: watch-tests",
-			"dependsOn": ["npm: watch", "npm: watch-tests"],
-			"problemMatcher": []
 		}
 	]
 }
