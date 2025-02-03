@@ -7,7 +7,6 @@
 			"label": "compile",
 			"type": "npm",
 			"script": "compile",
-			"dependsOn": ["npm: build:webview"],
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -27,6 +26,41 @@
 			"group": {
 				"kind": "build",
 				"isDefault": false
+			}
+		},
+		{
+			"label": "debug-mode",
+			"dependsOn": ["compile", "npm: dev"],
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"dependsOrder": "parallel",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "dev",
+			"group": "build",
+			"problemMatcher": {
+				"owner": "vite",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": ".*Local:.*"
+				}
+			},
+			"isBackground": true,
+			"label": "npm: dev",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
 			}
 		},
 		{
