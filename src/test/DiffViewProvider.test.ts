@@ -3,20 +3,20 @@ import * as vscode from "vscode"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { DiffAnimationSettings } from "../shared/ChatSettings"
 
-suite("DiffViewProvider Tests", () => {
+describe("DiffViewProvider Tests", () => {
 	let provider: DiffViewProvider
 
-	setup(() => {
+	beforeEach(() => {
 		provider = new DiffViewProvider("/test/cwd")
 	})
 
-	test("Animation settings are initialized correctly", () => {
+	it("Animation settings are initialized correctly", () => {
 		const settings = (provider as any).animationSettings as DiffAnimationSettings
 		assert.strictEqual(settings.mode, "all")
 		assert.strictEqual(settings.speed, "normal")
 	})
 
-	test("shouldAnimateLine - Always returns false in 'none' mode", () => {
+	it("shouldAnimateLine - Always returns false in 'none' mode", () => {
 		;(provider as any).animationSettings = {
 			mode: "none",
 			speed: "normal",
@@ -24,7 +24,7 @@ suite("DiffViewProvider Tests", () => {
 		assert.strictEqual((provider as any).shouldAnimateLine(0), false)
 	})
 
-	test("shouldAnimateLine - Always returns true in 'all' mode", () => {
+	it("shouldAnimateLine - Always returns true in 'all' mode", () => {
 		;(provider as any).animationSettings = {
 			mode: "all",
 			speed: "normal",
@@ -32,7 +32,7 @@ suite("DiffViewProvider Tests", () => {
 		assert.strictEqual((provider as any).shouldAnimateLine(0), true)
 	})
 
-	test("shouldAnimateLine - Returns true for a new file in 'changes-only' mode", () => {
+	it("shouldAnimateLine - Returns true for a new file in 'changes-only' mode", () => {
 		;(provider as any).animationSettings = {
 			mode: "changes-only",
 			speed: "normal",
@@ -41,7 +41,7 @@ suite("DiffViewProvider Tests", () => {
 		assert.strictEqual((provider as any).shouldAnimateLine(0), true)
 	})
 
-	test("shouldAnimateLine - Returns true for modified lines in 'changes-only' mode", () => {
+	it("shouldAnimateLine - Returns true for modified lines in 'changes-only' mode", () => {
 		;(provider as any).animationSettings = {
 			mode: "changes-only",
 			speed: "normal",
@@ -52,7 +52,7 @@ suite("DiffViewProvider Tests", () => {
 		assert.strictEqual((provider as any).shouldAnimateLine(0), false) // Unchanged line
 	})
 
-	test("Configuration changes are correctly applied", async () => {
+	it("Configuration changes are correctly applied", async () => {
 		// Update settings
 		await vscode.workspace.getConfiguration("cline").update("diffAnimation", {
 			mode: "changes-only",
@@ -73,7 +73,7 @@ suite("DiffViewProvider Tests", () => {
 		})
 	})
 
-	test("Appropriate delay is applied based on animation speed", async () => {
+	it("Appropriate delay is applied based on animation speed", async () => {
 		const startTime = Date.now()
 		;(provider as any).animationSettings = {
 			mode: "all",
