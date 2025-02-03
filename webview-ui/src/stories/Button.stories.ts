@@ -1,15 +1,47 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { fn } from "@storybook/test"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui"
 
 const meta = {
-	title: "Example/Button",
+	title: "@shadcn/Button",
 	component: Button,
 	parameters: { layout: "centered" },
 	tags: ["autodocs"],
-	argTypes: {},
-	args: { onClick: fn(), children: "Button" },
+	argTypes: {
+		variant: {
+			control: "select",
+			options: ["default", "secondary", "outline", "ghost", "link", "destructive"],
+			type: "string",
+			table: {
+				defaultValue: {
+					summary: "default",
+				},
+			},
+		},
+		size: {
+			control: "select",
+			options: ["default", "sm", "lg", "icon"],
+			type: "string",
+			table: {
+				defaultValue: {
+					summary: "default",
+				},
+			},
+		},
+		children: {
+			table: {
+				disable: true,
+			},
+		},
+		asChild: {
+			table: {
+				disable: true,
+			},
+		},
+	},
+	args: {
+		children: "Button",
+	},
 } satisfies Meta<typeof Button>
 
 export default meta
@@ -17,37 +49,5 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-	args: {
-		variant: "default",
-	},
-}
-
-export const Secondary: Story = {
-	args: {
-		variant: "secondary",
-	},
-}
-
-export const Outline: Story = {
-	args: {
-		variant: "outline",
-	},
-}
-
-export const Ghost: Story = {
-	args: {
-		variant: "ghost",
-	},
-}
-
-export const Link: Story = {
-	args: {
-		variant: "link",
-	},
-}
-
-export const Destructive: Story = {
-	args: {
-		variant: "destructive",
-	},
+	name: "Button",
 }
