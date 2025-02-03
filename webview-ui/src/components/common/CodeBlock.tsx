@@ -21,6 +21,37 @@ interface CodeBlockProps {
 	preStyle?: React.CSSProperties
 }
 
+const CopyButton = styled.button`
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	opacity: 0.4;
+	transition: opacity 0.2s;
+	border-radius: 3px;
+
+	&:hover {
+		background: var(--vscode-toolbar-hoverBackground);
+		opacity: 1;
+	}
+`
+
+const CodeBlockContainer = styled.div`
+	position: relative;
+	overflow: hidden;
+	background-color: ${CODE_BLOCK_BG_COLOR};
+
+	&:hover ${CopyButton} {
+		opacity: 1;
+	}
+`
+
 const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties }>`
 	overflow-x: auto;
 	width: 100%;
@@ -116,7 +147,19 @@ export const StyledPre = styled.pre<{ theme: any }>`
 
 const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 	const codeBlockRef = useRef<HTMLDivElement>(null)
+	const [copied, setCopied] = useState(false)
 	const { theme } = useExtensionState()
+
+	const handleCopy = (e: React.MouseEvent) => {
+		e.stopPropagation()
+		if (source) {
+			// Extract code content from markdown code block
+			const codeContent = source.replace(/^```[\s\S]*?\n([\s\S]*?)```$/m, "$1").trim()
+			navigator.clipboard.writeText(codeContent)
+			setCopied(true)
+			setTimeout(() => setCopied(false), 2000)
+		}
+	}
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
 			() => {
@@ -151,15 +194,12 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 	}, [source, language, setMarkdownSource, theme])
 
 	return (
-		<div
-			ref={codeBlockRef}
-			style={{
-				position: "relative",
-				overflow: "hidden",
-				backgroundColor: CODE_BLOCK_BG_COLOR,
-			}}>
+		<CodeBlockContainer ref={codeBlockRef}>
+			<CopyButton onClick={handleCopy} title="Copy code">
+				<span className={`codicon codicon-${copied ? "check" : "copy"}`} />
+			</CopyButton>
 			<StyledMarkdown preStyle={preStyle}>{reactContent}</StyledMarkdown>
-		</div>
+		</CodeBlockContainer>
 	)
 })
 
