@@ -32,7 +32,7 @@ export class LLMFileAccessController {
 
 	/**
 	 * Initialize the controller by loading custom patterns
-	 * Must be called after construction
+	 * Must be called after construction and before using the controller
 	 */
 	async initialize(): Promise<void> {
 		await this.loadCustomPatterns()
