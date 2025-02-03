@@ -65,9 +65,13 @@ jest.mock("os", () => ({
 	homedir: () => "/home/user",
 }))
 
-jest.mock("default-shell", () => "/bin/bash")
+jest.mock("default-shell", () => "/bin/zsh")
 
 jest.mock("os-name", () => () => "Linux")
+
+jest.mock("../../../utils/shell", () => ({
+	getShell: () => "/bin/zsh",
+}))
 
 // Create a mock ExtensionContext
 const mockContext = {
