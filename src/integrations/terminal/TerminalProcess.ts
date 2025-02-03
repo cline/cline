@@ -3,7 +3,7 @@ import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
 import { inspect } from "util"
 import { ExitCodeDetails } from "./TerminalManager"
-import { TerminalRegistry } from "./TerminalRegistry"
+import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -27,7 +27,8 @@ const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
-	private buffer: string = ""
+	private terminalInfo: TerminalInfo | undefined
+	private lastEmitTime_ms: number = 0
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
@@ -67,6 +68,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				})
 			})
 
+			// getUnretrievedOutput needs to know if streamClosed, so store this for later
+			this.terminalInfo = terminalInfo
+
 			// Execute command
 			terminal.shellIntegration.executeCommand(command)
 			this.isHot = true
@@ -74,21 +78,48 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// Wait for stream to be available
 			const stream = await streamAvailable
 
-			let didEmitEmptyLine = false
-			let output = ""
+			let preOutput = ""
+			let commandOutputStarted = false
+
+			/*
+			 * Extract clean output from raw accumulated output. FYI:
+			 * ]633 is a custom sequence number used by VSCode shell integration:
+			 * - OSC 633 ; A ST - Mark prompt start
+			 * - OSC 633 ; B ST - Mark prompt end
+			 * - OSC 633 ; C ST - Mark pre-execution (start of command output)
+			 * - OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
+			 * - OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
+			 */
 
 			// Process stream data
 			for await (let data of stream) {
-				output += data
+				// Check for command output start marker
+				if (!commandOutputStarted) {
+					preOutput += data
+					const match = this.stringIndexMatch(data, "\x1b]633;C\x07", undefined)
+					if (match !== undefined) {
+						commandOutputStarted = true
+						data = match
+						this.fullOutput = "" // Reset fullOutput when command actually starts
+					} else {
+						continue
+					}
+				}
 
-				// console.log("[Terminal Process] raw chunk: " + inspect(data, { colors: false, breakLength: Infinity }))
+				// Command output started, accumulate data without filtering.
+				// notice to future programmers: do not add escape sequence
+				// filtering here: fullOutput cannot change in length (see getUnretrievedOutput),
+				// and chunks may not be complete so you cannot rely on detecting or removing escape sequences mid-stream.
+				this.fullOutput += data
 
-				// remove vscode/ansi escapes for streaming pretty-prints, but
-				// final output extraction happens below this loop:
-				data = data.replace(/\x1b\]633;[^\x07]+\x07/gs, "")
-				data = stripAnsi(data)
-
-				// console.log("[Terminal Process] stripped chunk: " + inspect(data, { colors: false, breakLength: Infinity }))
+				// For non-immediately returning commands we want to show loading spinner
+				// right away but this wouldnt happen until it emits a line break, so
+				// as soon as we get any output we emit to let webview know to show spinner
+				const now = Date.now()
+				if (this.isListening && (now - this.lastEmitTime_ms > 100 || this.lastEmitTime_ms === 0)) {
+					this.emitRemainingBufferIfListening()
+					this.lastEmitTime_ms = now
+				}
 
 				// Set to hot to stall API requests until terminal is cool again
 				this.isHot = true
@@ -120,80 +151,37 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					},
 					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
+			}
 
-				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
-				if (!didEmitEmptyLine && data) {
-					this.emit("line", "") // empty line to indicate start of command output stream
-					didEmitEmptyLine = true
-				}
-
-				this.fullOutput += data
-				if (this.isListening) {
-					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
-				}
+			// Set streamClosed immediately after stream ends
+			if (this.terminalInfo) {
+				this.terminalInfo.streamClosed = true
 			}
 
 			// Wait for shell execution to complete and handle exit details
 			const exitDetails = await shellExecutionComplete
 			this.isHot = false
 
+			if (commandOutputStarted) {
+				// Emit any remaining output before completing
+				this.emitRemainingBufferIfListening()
+			} else {
+				console.error(
+					"[Terminal Process] VSCE output start escape sequence (]633;C) not received! VSCE Bug? preOutput: " +
+						inspect(preOutput, { colors: false, breakLength: Infinity }),
+				)
+			}
+
 			// console.debug("[Terminal Process] raw output: " + inspect(output, { colors: false, breakLength: Infinity }))
 
-			/*
-			 * Extract clean output from raw accumulated output. FYI:
-			 * ]633 is a custom sequence number used by VSCode shell integration:
-			 * - OSC 633 ; A ST - Mark prompt start
-			 * - OSC 633 ; B ST - Mark prompt end
-			 * - OSC 633 ; C ST - Mark pre-execution (start of command output)
-			 * - OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
-			 * - OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
-			 */
-
-			let match: string | undefined
-			let matchSource: "VSCE" | "fallback" | undefined
-
-			/*
-			* Try patterns in sequence, matching terminal handler order
-
-			* Use string index matching instead of regex for performance because
-			* benchmarking shows it is at least 500x faster for large terminal outputs
-			*/
-
-			// Pattern 1: Basic command completion (VSCE)
-			match = this.stringIndexMatch(output, "\x1b]633;C\x07", "\x1b]633;D")
+			// fullOutput begins after "\x1b]633;C" so we only need to trim off "\x1b]633;D"
+			// (if "D" exists, see VSCode bug# 237208):
+			const match = this.stringIndexMatch(preOutput, undefined, "\x1b]633;D")
 			if (match !== undefined) {
-				matchSource = "VSCE"
+				this.fullOutput = match
 			}
 
-			// Pattern 2: Fallback pattern
-			if (match === undefined) {
-				match = this.stringIndexMatch(
-					output,
-					"\x1b]633;C\x07",
-
-					// match until the end, for when VSCode bug#237208 drops '\x1b]633;D'
-					undefined,
-				)
-				if (match !== undefined) {
-					matchSource = "fallback"
-				}
-			}
-
-			if (match !== undefined) {
-				output = match
-			} else {
-				console.warn("Terminal output escape sequence match failed. Using unfiltered result. See VSCode bug#237208")
-			}
-
-			output = stripAnsi(output)
 			// console.debug(`[Terminal Process] processed output via ${matchSource}: ` + inspect(output, { colors: false, breakLength: Infinity }))
-
-			this.emit("line", output)
-
-			// do these matter?
-			this.buffer = ""
-			this.fullOutput = output
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
 			if (this.hotTimer) {
@@ -201,7 +189,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			this.isHot = false
 
-			this.emit("completed", output)
+			this.emit("completed", this.removeEscapeSequences(this.fullOutput))
 			this.emit("continue")
 		} else {
 			terminal.sendText(command, true)
@@ -217,29 +205,12 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		}
 	}
 
-	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
-	private emitIfEol(chunk: string) {
-		this.buffer += chunk
-		let lineEndIndex: number
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
-			// Remove \r if present (for Windows-style line endings)
-			// if (line.endsWith("\r")) {
-			// 	line = line.slice(0, -1)
-			// }
-			this.emit("line", line)
-			this.buffer = this.buffer.slice(lineEndIndex + 1)
-		}
-	}
-
 	private emitRemainingBufferIfListening() {
-		if (this.buffer && this.isListening) {
-			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
-			if (remainingBuffer) {
+		if (this.isListening) {
+			const remainingBuffer = this.getUnretrievedOutput()
+			if (remainingBuffer !== "") {
 				this.emit("line", remainingBuffer)
 			}
-			this.buffer = ""
-			this.lastRetrievedIndex = this.fullOutput.length
 		}
 	}
 
@@ -250,25 +221,44 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.emit("continue")
 	}
 
+	// Returns complete lines with their carriage returns.
+	// The final line may lack a carriage return if the program didn't send one.
 	getUnretrievedOutput(): string {
-		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
-		this.lastRetrievedIndex = this.fullOutput.length
-		return this.removeLastLineArtifacts(unretrieved)
-	}
+		// Get raw unretrieved output
+		let outputToProcess = this.fullOutput.slice(this.lastRetrievedIndex)
 
-	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)
-	// This modification will remove '%', '$', '#', or '>' followed by optional whitespace
-	removeLastLineArtifacts(output: string) {
-		const lines = output.trimEnd().split("\n")
-		if (lines.length > 0) {
-			const lastLine = lines[lines.length - 1]
-			// Remove prompt characters and trailing whitespace from the last line
-			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
+		// Check for VSCE command end marker
+		let endIndex = outputToProcess.indexOf("\x1b]633;D")
+
+		// If no end marker was found yet (possibly due to VSCode bug#237208):
+		//   For active streams: return only complete lines (up to last \n).
+		//   For closed streams: return all remaining content.
+		if (endIndex === -1) {
+			if (!this.terminalInfo?.streamClosed) {
+				// Stream still running - only process complete lines
+				endIndex = outputToProcess.lastIndexOf("\n")
+				if (endIndex === -1) {
+					// No complete lines
+					return ""
+				}
+
+				// Include carriage return
+				endIndex++
+			} else {
+				// Stream closed - process all remaining output
+				endIndex = outputToProcess.length
+			}
 		}
-		return lines.join("\n").trimEnd()
+
+		// Update index and slice output
+		this.lastRetrievedIndex += endIndex
+		outputToProcess = outputToProcess.slice(0, endIndex)
+
+		// Clean and return output
+		return this.removeEscapeSequences(outputToProcess)
 	}
 
-	private stringIndexMatch(data: string, prefix: string, suffix?: string): string | undefined {
+	private stringIndexMatch(data: string, prefix?: string, suffix?: string): string | undefined {
 		let startIndex: number
 		let endIndex: number
 		let prefixLength: number
@@ -295,7 +285,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				return undefined
 			}
 		}
+
 		return data.slice(contentStart, endIndex)
+	}
+
+	// Removes ANSI escape sequences and VSCode-specific terminal control codes from output.
+	// While stripAnsi handles most ANSI codes, VSCode's shell integration adds custom
+	// escape sequences (OSC 633) that need special handling. These sequences control
+	// terminal features like marking command start/end and setting prompts.
+	//
+	// This method could be extended to handle other escape sequences, but any additions
+	// should be carefully considered to ensure they only remove control codes and don't
+	// alter the actual content or behavior of the output stream.
+	private removeEscapeSequences(str: string): string {
+		return stripAnsi(str.replace(/\x1b\]633;[^\x07]+\x07/gs, ""))
 	}
 }
 

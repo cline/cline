@@ -214,6 +214,8 @@ export class TerminalManager {
 					const process = this.processes.get(terminalInfo.id)
 					if (process) {
 						terminalInfo.stream = stream
+						terminalInfo.running = true
+						terminalInfo.streamClosed = false
 						process.emit("stream_available", terminalInfo.id, stream)
 					}
 				} else {
@@ -238,6 +240,7 @@ export class TerminalManager {
 				for (const id of this.terminalIds) {
 					const info = TerminalRegistry.getTerminal(id)
 					if (info && info.terminal === e.terminal) {
+						info.running = false
 						const process = this.processes.get(id)
 						if (process) {
 							process.emit("shell_execution_complete", id, exitDetails)
