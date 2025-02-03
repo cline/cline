@@ -60,7 +60,6 @@ import { SYSTEM_PROMPT } from "./prompts/system"
 import { addUserInstructions } from "./prompts/system"
 import { OpenAiHandler } from "../api/providers/openai"
 import { ApiStream } from "../api/transform/stream"
-import { Logger } from "../services/logging/Logger"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -126,14 +125,10 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
-		Logger.log("initializing LLMAC")
 		this.llmAccessController = new LLMFileAccessController(cwd)
-		this.llmAccessController
-			.initialize()
-			.then(() => Logger.log("initialized"))
-			.catch((error) => {
-				console.error("Failed to initialize LLMFileAccessController:", error)
-			})
+		this.llmAccessController.initialize().catch((error) => {
+			console.error("Failed to initialize LLMFileAccessController:", error)
+		})
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()

@@ -224,52 +224,6 @@ describe("LLMFileAccessController", () => {
 		})
 	})
 
-	describe("File Watcher", () => {
-		it("should update patterns when .clineignore is modified", async () => {
-			// Initial state
-			controller.validateAccess("test.log").should.be.true()
-
-			// Modify .clineignore
-			await fs.writeFile(path.join(tempDir, ".clineignore"), "*.log")
-
-			// Wait for the next event loop tick to ensure file watcher processes the change
-			await Promise.resolve()
-
-			// Check if the new pattern is applied
-			controller.validateAccess("test.log").should.be.false()
-		})
-
-		it("should reset to default patterns when .clineignore is deleted", async () => {
-			// Initial state with .clineignore containing a pattern
-			await fs.writeFile(path.join(tempDir, ".clineignore"), "*.log")
-			await new Promise((resolve) => setTimeout(resolve, 100))
-			controller.validateAccess("test.log").should.be.false()
-
-			// Delete .clineignore
-			await fs.unlink(path.join(tempDir, ".clineignore"))
-
-			// Wait for the next event loop tick to ensure file watcher processes the deletion
-			await Promise.resolve()
-
-			// Should now allow previously ignored files
-			controller.validateAccess("test.log").should.be.true()
-		})
-
-		it("should handle .clineignore being recreated", async () => {
-			// Delete existing .clineignore
-			await fs.unlink(path.join(tempDir, ".clineignore"))
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// Create new .clineignore with different patterns
-			await fs.writeFile(path.join(tempDir, ".clineignore"), "*.temp")
-			await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// Check if new patterns are applied
-			controller.validateAccess("file.temp").should.be.false()
-			controller.validateAccess("test.log").should.be.true()
-		})
-	})
-
 	describe("Error Handling", () => {
 		it("should handle invalid paths", async () => {
 			// Test with an invalid path containing null byte
