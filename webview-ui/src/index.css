@@ -1,10 +1,21 @@
-/* @import "tailwindcss"; */
+/**
+ * Normally we'd import tailwind with the following:
+ *
+ * @import "tailwindcss";
+ *
+ * However, we need to customize the preflight styles since the extension's
+ * current UI assumes there's no CSS resetting or normalization.
+ *
+ * We're excluding tailwind's default preflight and importing our own, which
+ * are based on the original (https://github.com/tailwindlabs/tailwindcss/blob/main/packages/tailwindcss/preflight.css).
+ *
+ * Reference: https://tailwindcss.com/docs/preflight
+ */
 
 @layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
-/* https://tailwindcss.com/docs/preflight */
-/* @import "tailwindcss/preflight.css" layer(base); */
+@import "./preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @plugin "tailwindcss-animate";
