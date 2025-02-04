@@ -12,6 +12,7 @@ import {
 	Mode,
 	PromptComponent,
 	getRoleDefinition,
+	getCustomInstructions,
 	getAllModes,
 	ModeConfig,
 	GroupEntry,
@@ -272,12 +273,16 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		})
 	}
 
-	const handleAgentReset = (modeSlug: string) => {
-		// Only reset role definition for built-in modes
+	const handleAgentReset = (modeSlug: string, type: "roleDefinition" | "customInstructions") => {
+		// Only reset for built-in modes
 		const existingPrompt = customModePrompts?.[modeSlug] as PromptComponent
-		updateAgentPrompt(modeSlug, {
-			...existingPrompt,
-			roleDefinition: undefined,
+		const updatedPrompt = { ...existingPrompt }
+		delete updatedPrompt[type] // Remove the field entirely to ensure it reloads from defaults
+
+		vscode.postMessage({
+			type: "updatePrompt",
+			promptMode: modeSlug,
+			customPrompt: updatedPrompt,
 		})
 	}
 
@@ -554,7 +559,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									onClick={() => {
 										const currentMode = getCurrentMode()
 										if (currentMode?.slug) {
-											handleAgentReset(currentMode.slug)
+											handleAgentReset(currentMode.slug, "roleDefinition")
 										}
 									}}
 									title="Reset to default"
@@ -749,7 +754,29 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 					{/* Role definition for both built-in and custom modes */}
 					<div style={{ marginBottom: "8px" }}>
-						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Mode-specific Custom Instructions</div>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "4px",
+							}}>
+							<div style={{ fontWeight: "bold" }}>Mode-specific Custom Instructions</div>
+							{!findModeBySlug(selectedModeTab, customModes) && (
+								<VSCodeButton
+									appearance="icon"
+									onClick={() => {
+										const currentMode = getCurrentMode()
+										if (currentMode?.slug) {
+											handleAgentReset(currentMode.slug, "customInstructions")
+										}
+									}}
+									title="Reset to default"
+									data-testid="custom-instructions-reset">
+									<span className="codicon codicon-discard"></span>
+								</VSCodeButton>
+							)}
+						</div>
 						<div
 							style={{
 								fontSize: "13px",
@@ -762,7 +789,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							value={(() => {
 								const customMode = findModeBySlug(selectedModeTab, customModes)
 								const prompt = customModePrompts?.[selectedModeTab] as PromptComponent
-								return customMode?.customInstructions ?? prompt?.customInstructions ?? ""
+								return (
+									customMode?.customInstructions ??
+									prompt?.customInstructions ??
+									getCustomInstructions(selectedModeTab, customModes)
+								)
 							})()}
 							onChange={(e) => {
 								const value =

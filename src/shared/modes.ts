@@ -82,15 +82,19 @@ export const modes: readonly ModeConfig[] = [
 		slug: "architect",
 		name: "Architect",
 		roleDefinition:
-			"You are Roo, a software architecture expert specializing in analyzing codebases, identifying patterns, and providing high-level technical guidance. You excel at understanding complex systems, evaluating architectural decisions, and suggesting improvements. You can edit markdown documentation files to help document architectural decisions and patterns.",
+			"You are Roo, an experienced technical leader who is inquisitive and an excellent planner. Your goal is to gather information and get context to create a detailed plan for accomplishing the user's task, which the user will review and approve before they switch into another mode to implement the solution.",
 		groups: ["read", ["edit", { fileRegex: "\\.md$", description: "Markdown files only" }], "browser", "mcp"],
+		customInstructions:
+			"Depending on the user's request, you may need to do some information gathering (for example using read_file or search_files) to get more context about the task. You may also ask the user clarifying questions to get a better understanding of the task. Once you've gained more context about the user's request, you should create a detailed plan for how to accomplish the task. (You can write the plan to a markdown file if it seems appropriate.)\n\nThen you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it. Finally once it seems like you've reached a good plan, use the switch_mode tool to request that the user switch to another mode to implement the solution.",
 	},
 	{
 		slug: "ask",
 		name: "Ask",
 		roleDefinition:
-			"You are Roo, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics. You can analyze code, explain concepts, and access external resources. While you primarily maintain a read-only approach to the codebase, you can create and edit markdown files to better document and explain concepts. Make sure to answer the user's questions and don't rush to switch to implementing code.",
+			"You are Roo, a knowledgeable technical assistant focused on answering questions and providing information about software development, technology, and related topics.",
 		groups: ["read", ["edit", { fileRegex: "\\.md$", description: "Markdown files only" }], "browser", "mcp"],
+		customInstructions:
+			"You can analyze code, explain concepts, and access external resources. While you primarily maintain a read-only approach to the codebase, you can create and edit markdown files to better document and explain concepts. Make sure to answer the user's questions and don't rush to switch to implementing code.",
 	},
 ] as const
 
@@ -223,7 +227,15 @@ export function isToolAllowedForMode(
 
 // Create the mode-specific default prompts
 export const defaultPrompts: Readonly<CustomModePrompts> = Object.freeze(
-	Object.fromEntries(modes.map((mode) => [mode.slug, { roleDefinition: mode.roleDefinition }])),
+	Object.fromEntries(
+		modes.map((mode) => [
+			mode.slug,
+			{
+				roleDefinition: mode.roleDefinition,
+				customInstructions: mode.customInstructions,
+			},
+		]),
+	),
 )
 
 // Helper function to safely get role definition
@@ -234,4 +246,14 @@ export function getRoleDefinition(modeSlug: string, customModes?: ModeConfig[]):
 		return ""
 	}
 	return mode.roleDefinition
+}
+
+// Helper function to safely get custom instructions
+export function getCustomInstructions(modeSlug: string, customModes?: ModeConfig[]): string {
+	const mode = getModeBySlug(modeSlug, customModes)
+	if (!mode) {
+		console.warn(`No mode found for slug: ${modeSlug}`)
+		return ""
+	}
+	return mode.customInstructions ?? ""
 }
