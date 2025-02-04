@@ -257,36 +257,3 @@ export function getCustomInstructions(modeSlug: string, customModes?: ModeConfig
 	}
 	return mode.customInstructions ?? ""
 }
-
-// Slash command parsing types and functions
-export type SlashCommandResult = {
-	modeSlug: string
-	remainingMessage: string
-} | null
-
-export function parseSlashCommand(message: string, customModes?: ModeConfig[]): SlashCommandResult {
-	// Check if message starts with a slash
-	if (!message.startsWith("/")) {
-		return null
-	}
-
-	// Extract command (everything between / and first space)
-	const parts = message.trim().split(/\s+/)
-	if (parts.length < 2) {
-		return null // Need both command and message
-	}
-
-	const command = parts[0].substring(1) // Remove leading slash
-	const remainingMessage = parts.slice(1).join(" ")
-
-	// Validate command is a valid mode slug
-	const mode = getModeBySlug(command, customModes)
-	if (!mode) {
-		return null
-	}
-
-	return {
-		modeSlug: command,
-		remainingMessage,
-	}
-}
