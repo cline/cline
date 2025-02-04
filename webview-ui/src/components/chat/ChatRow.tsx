@@ -24,6 +24,7 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
+import CreditLimitError from "./CreditLimitError"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -259,31 +260,44 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					) : (
 						<ProgressIndicator />
 					),
-					apiReqCancelReason != null ? (
-						apiReqCancelReason === "user_cancelled" ? (
-							<span
-								style={{
-									color: normalColor,
-									fontWeight: "bold",
-								}}>
-								API Request Cancelled
-							</span>
-						) : (
-							<span
-								style={{
-									color: errorColor,
-									fontWeight: "bold",
-								}}>
-								API Streaming Failed
-							</span>
-						)
-					) : cost != null ? (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
-					) : apiRequestFailedMessage ? (
-						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
-					) : (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
-					),
+					(() => {
+						if (apiReqCancelReason != null) {
+							return apiReqCancelReason === "user_cancelled" ? (
+								<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+							) : (
+								<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+							)
+						}
+
+						if (cost != null) {
+							return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+						}
+
+						if (apiRequestFailedMessage) {
+							try {
+								const startIndex = apiRequestFailedMessage.indexOf("{")
+								const endIndex = apiRequestFailedMessage.lastIndexOf("}")
+								if (startIndex !== -1 && endIndex !== -1) {
+									const jsonStr = apiRequestFailedMessage.substring(startIndex, endIndex + 1)
+									const errorData = JSON.parse(jsonStr)
+									if (
+										errorData.code === "insufficient_credits" &&
+										typeof errorData.current_balance === "number" &&
+										typeof errorData.total_spent === "number" &&
+										typeof errorData.total_promotions === "number" &&
+										typeof errorData.message === "string"
+									) {
+										return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
+									}
+								}
+							} catch (e) {
+								// Not JSON or missing required fields, fall back to default error display
+							}
+							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+						}
+
+						return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
+					})(),
 				]
 			case "followup":
 				return [
@@ -763,29 +777,64 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
-									<p
-										style={{
-											...pStyle,
-											color: "var(--vscode-errorForeground)",
-										}}>
-										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
-										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
-											<>
-												<br />
-												<br />
-												It seems like you're having Windows PowerShell issues, please see this{" "}
-												<a
-													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-													style={{
-														color: "inherit",
-														textDecoration: "underline",
-													}}>
-													troubleshooting guide
-												</a>
-												.
-											</>
-										)}
-									</p>
+									{(() => {
+										// Try to parse the error message as JSON for credit limit error
+										if (apiRequestFailedMessage) {
+											const startIndex = apiRequestFailedMessage.indexOf("{")
+											const endIndex = apiRequestFailedMessage.lastIndexOf("}")
+											if (startIndex !== -1 && endIndex !== -1) {
+												try {
+													const jsonStr = apiRequestFailedMessage.substring(startIndex, endIndex + 1)
+													const errorData = JSON.parse(jsonStr)
+													if (
+														errorData.code === "insufficient_credits" &&
+														typeof errorData.current_balance === "number" &&
+														typeof errorData.total_spent === "number" &&
+														typeof errorData.total_promotions === "number" &&
+														typeof errorData.message === "string"
+													) {
+														return (
+															<CreditLimitError
+																currentBalance={errorData.current_balance}
+																totalSpent={errorData.total_spent}
+																totalPromotions={errorData.total_promotions}
+																message={errorData.message}
+															/>
+														)
+													}
+												} catch (e) {
+													// Not valid JSON or missing required fields, fall back to default error display
+												}
+											}
+										}
+
+										// Default error display
+										return (
+											<p
+												style={{
+													...pStyle,
+													color: "var(--vscode-errorForeground)",
+												}}>
+												{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+												{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
+													<>
+														<br />
+														<br />
+														It seems like you're having Windows PowerShell issues, please see this{" "}
+														<a
+															href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+															style={{
+																color: "inherit",
+																textDecoration: "underline",
+															}}>
+															troubleshooting guide
+														</a>
+														.
+													</>
+												)}
+											</p>
+										)
+									})()}
 
 									{/* {apiProvider === "" && (
 											<div
