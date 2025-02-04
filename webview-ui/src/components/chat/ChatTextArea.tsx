@@ -19,6 +19,7 @@ import Thumbnails from "../common/Thumbnails"
 import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
+import { useShortcut } from "../../utils/hooks"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -618,6 +619,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}, 100)
 			}, changeModeDelay)
 		}, [chatSettings.mode, showModelSelector, submitApiConfig])
+
+		useShortcut("Command+Shift+.", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
