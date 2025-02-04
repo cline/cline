@@ -947,25 +947,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return true
 	}
 
-	async handleAuthCallback(token: string, apiKey: string) {
+	async handleAuthCallback(customToken: string, apiKey: string) {
 		try {
-			// First sign in with Firebase to trigger auth state change
-			await this.authManager.signInWithCustomToken(token)
-
-			// Then store the token securely
-			await this.storeSecret("authToken", token)
+			// Store the custom token for future re-authentication
+			await this.storeSecret("authToken", customToken)
 			await this.storeSecret("clineApiKey", apiKey)
+
+			// Sign in with Firebase using the custom token
+			await this.authManager.signInWithCustomToken(customToken)
 
 			const clineProvider: ApiProvider = "cline"
 			await this.updateGlobalState("apiProvider", clineProvider)
 
-			// Update API configuration with the new provider and auth token
+			// Update API configuration with the new provider and API key
 			const { apiConfiguration } = await this.getState()
 			const updatedConfig = {
 				...apiConfiguration,
 				apiProvider: clineProvider,
 				clineApiKey: apiKey,
-				authToken: token,
 			}
 
 			if (this.cline) {
@@ -977,6 +976,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
+			// Clean up stored tokens on failure
+			await this.storeSecret("authToken", undefined)
+			await this.storeSecret("clineApiKey", undefined)
 		}
 	}
 

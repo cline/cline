@@ -1,5 +1,14 @@
 import { initializeApp } from "firebase/app"
-import { Auth, User, getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from "firebase/auth"
+import {
+	Auth,
+	User,
+	browserLocalPersistence,
+	getAuth,
+	onAuthStateChanged,
+	setPersistence,
+	signInWithCustomToken,
+	signOut,
+} from "firebase/auth"
 import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { firebaseConfig } from "./config"
@@ -22,6 +31,15 @@ export class FirebaseAuthManager {
 		this.auth = getAuth(app)
 		console.log("Firebase app initialized", { appConfig: firebaseConfig })
 
+		// Set persistence to LOCAL to maintain auth state across sessions
+		setPersistence(this.auth, browserLocalPersistence)
+			.then(() => {
+				console.log("Firebase persistence set to LOCAL")
+			})
+			.catch((error) => {
+				console.error("Error setting persistence:", error)
+			})
+
 		// Auth state listener
 		onAuthStateChanged(this.auth, this.handleAuthStateChange.bind(this))
 		console.log("Auth state change listener added")
@@ -38,20 +56,44 @@ export class FirebaseAuthManager {
 			return
 		}
 
+		// Check if we already have an active user session from Firebase's persistence
+		const currentUser = this.auth.currentUser
+		if (currentUser) {
+			console.log("Found existing Firebase session")
+			await provider.setUserInfo({
+				displayName: currentUser.displayName,
+				email: currentUser.email,
+				photoURL: currentUser.photoURL,
+			})
+			console.log("Existing session restored")
+			return
+		}
+
+		// If no active session, try to sign in with stored custom token
 		const storedToken = await provider.getSecret("authToken")
 		if (storedToken) {
-			console.log("Found stored auth token, attempting to restore session")
+			console.log("Found stored custom token, attempting to restore session")
 			try {
 				await this.signInWithCustomToken(storedToken)
-				console.log("Session restored successfully")
+				console.log("Session restored successfully with custom token")
 			} catch (error) {
-				console.error("Failed to restore session, clearing token:", error)
+				console.error("Failed to restore session with custom token:", error)
 				await provider.setAuthToken(undefined)
 				await provider.setUserInfo(undefined)
+				// Attempt to sign out to ensure clean state
+				try {
+					await this.signOut()
+				} catch (signOutError) {
+					console.error("Error during cleanup after failed session restore:", signOutError)
+				}
 			}
 		} else {
-			console.log("No stored auth token found")
+			console.log("No stored custom token found")
 		}
+	}
+
+	getCurrentUser(): User | null {
+		return this.auth.currentUser
 	}
 
 	private async handleAuthStateChange(user: User | null) {
@@ -64,8 +106,6 @@ export class FirebaseAuthManager {
 
 		if (user) {
 			console.log("User signed in", { userId: user.uid })
-			const idToken = await user.getIdToken()
-			await provider.setAuthToken(idToken)
 			// Store public user info in state
 			await provider.setUserInfo({
 				displayName: user.displayName,
