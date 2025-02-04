@@ -25,6 +25,7 @@ export interface ExtensionMessage {
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
+		| "emailSubscribed"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -60,7 +61,6 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	localeLanguage: string
 	isLoggedIn: boolean
 	userInfo?: {
 		displayName: string | null
@@ -75,6 +75,7 @@ export interface ClineMessage {
 	ask?: ClineAsk
 	say?: ClineSay
 	text?: string
+	reasoning?: string
 	images?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
@@ -103,6 +104,7 @@ export type ClineSay =
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
+	| "reasoning"
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"

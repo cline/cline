@@ -35,7 +35,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		localeLanguage: "en",
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		isLoggedIn: false,
 	})
