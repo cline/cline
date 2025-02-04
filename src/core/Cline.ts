@@ -1198,7 +1198,8 @@ export class Cline {
 		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
 		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
 
-		return statusCode ? `API Request Error (${statusCode}): ${message}` : `API Request Error: ${message}`
+		// Only prepend the statusCode if it's not already part of the message
+		return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
