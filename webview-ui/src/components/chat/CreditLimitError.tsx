@@ -17,21 +17,22 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 				borderRadius: "4px",
 				marginBottom: "12px",
 			}}>
-			<div style={{ marginBottom: "8px" }}>
+			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
+			<div style={{ marginBottom: "12px" }}>
 				<div style={{ color: "var(--vscode-foreground)" }}>
 					Current Balance: <span style={{ fontWeight: "bold" }}>${currentBalance.toFixed(2)}</span>
 				</div>
 				<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: ${totalSpent.toFixed(2)}</div>
 				<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: ${totalPromotions.toFixed(2)}</div>
 			</div>
-			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "12px" }}>{message}</div>
+
 			<VSCodeButtonLink
 				href="https://app.cline.bot/credits"
 				style={{
 					width: "100%",
 				}}>
 				<span className="codicon codicon-credit-card" style={{ fontSize: "14px", marginRight: "6px" }} />
-				Buy Cline Credits
+				Buy Credits
 			</VSCodeButtonLink>
 		</div>
 	)

@@ -274,25 +274,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						}
 
 						if (apiRequestFailedMessage) {
-							try {
-								const startIndex = apiRequestFailedMessage.indexOf("{")
-								const endIndex = apiRequestFailedMessage.lastIndexOf("}")
-								if (startIndex !== -1 && endIndex !== -1) {
-									const jsonStr = apiRequestFailedMessage.substring(startIndex, endIndex + 1)
-									const errorData = JSON.parse(jsonStr)
-									if (
-										errorData.code === "insufficient_credits" &&
-										typeof errorData.current_balance === "number" &&
-										typeof errorData.total_spent === "number" &&
-										typeof errorData.total_promotions === "number" &&
-										typeof errorData.message === "string"
-									) {
-										return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
-									}
-								}
-							} catch (e) {
-								// Not JSON or missing required fields, fall back to default error display
-							}
+							// const errorData = parseErrorText(apiRequestFailedMessage)
+							// if (errorData) {
+							// 	if (errorData.code === "insufficient_credits") {
+							// 		return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
+							// 	}
+							// }
 							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 						}
 
@@ -779,32 +766,23 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<>
 									{(() => {
 										// Try to parse the error message as JSON for credit limit error
-										if (apiRequestFailedMessage) {
-											const startIndex = apiRequestFailedMessage.indexOf("{")
-											const endIndex = apiRequestFailedMessage.lastIndexOf("}")
-											if (startIndex !== -1 && endIndex !== -1) {
-												try {
-													const jsonStr = apiRequestFailedMessage.substring(startIndex, endIndex + 1)
-													const errorData = JSON.parse(jsonStr)
-													if (
-														errorData.code === "insufficient_credits" &&
-														typeof errorData.current_balance === "number" &&
-														typeof errorData.total_spent === "number" &&
-														typeof errorData.total_promotions === "number" &&
-														typeof errorData.message === "string"
-													) {
-														return (
-															<CreditLimitError
-																currentBalance={errorData.current_balance}
-																totalSpent={errorData.total_spent}
-																totalPromotions={errorData.total_promotions}
-																message={errorData.message}
-															/>
-														)
-													}
-												} catch (e) {
-													// Not valid JSON or missing required fields, fall back to default error display
-												}
+										const errorData = parseErrorText(apiRequestFailedMessage)
+										if (errorData) {
+											if (
+												errorData.code === "insufficient_credits" &&
+												typeof errorData.current_balance === "number" &&
+												typeof errorData.total_spent === "number" &&
+												typeof errorData.total_promotions === "number" &&
+												typeof errorData.message === "string"
+											) {
+												return (
+													<CreditLimitError
+														currentBalance={errorData.current_balance}
+														totalSpent={errorData.total_spent}
+														totalPromotions={errorData.total_promotions}
+														message={errorData.message}
+													/>
+												)
 											}
 										}
 
@@ -1305,3 +1283,20 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 		</div>
 	)
 })
+
+function parseErrorText(text: string | undefined) {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const startIndex = text.indexOf("{")
+		const endIndex = text.lastIndexOf("}")
+		if (startIndex !== -1 && endIndex !== -1) {
+			const jsonStr = text.substring(startIndex, endIndex + 1)
+			const errorObject = JSON.parse(jsonStr)
+			return errorObject
+		}
+	} catch (e) {
+		// Not JSON or missing required fields
+	}
+}
