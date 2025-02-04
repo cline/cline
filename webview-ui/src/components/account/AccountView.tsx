@@ -39,7 +39,7 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 					marginBottom: "17px",
 					paddingRight: 17,
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Account</h3>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Cline Account</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 			<div
