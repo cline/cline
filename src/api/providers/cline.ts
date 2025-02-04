@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import { streamOpenRouterFormatRequest } from "../transform/openrouter-stream"
 import { ApiStream } from "../transform/stream"
-import { convertToOpenAiMessages } from "../transform/openai-format"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -21,52 +21,43 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.getModel()
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		const genId = yield* streamOpenRouterFormatRequest(this.client, systemPrompt, messages, this.getModel())
 
-		const stream = await this.client.chat.completions.create({
-			model: model.id,
-			messages: openAiMessages,
-			temperature: 0,
-			stream: true,
-			stream_options: { include_usage: true },
-		})
+		// FIXME: Add usage tracking
 
-		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
-			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
-				}
-			}
-			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-				}
-			}
-		}
+		// await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+
+		// try {
+		// 	const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+		// 		headers: {
+		// 			Authorization: `Bearer ${this.options.openRouterApiKey}`,
+		// 		},
+		// 		timeout: 5_000, // this request hangs sometimes
+		// 	})
+
+		// 	const generation = response.data?.data
+		// 	console.log("OpenRouter generation details:", response.data)
+		// 	yield {
+		// 		type: "usage",
+		// 		// cacheWriteTokens: 0,
+		// 		// cacheReadTokens: 0,
+		// 		// openrouter generation endpoint fails often
+		// 		inputTokens: generation?.native_tokens_prompt || 0,
+		// 		outputTokens: generation?.native_tokens_completion || 0,
+		// 		totalCost: generation?.total_cost || 0,
+		// 	}
+		// } catch (error) {
+		// 	// ignore if fails
+		// 	console.error("Error fetching OpenRouter generation details:", error)
+		// }
 	}
 
-	getModel() {
-		return {
-			id: "anthropic/claude-3.5-sonnet:beta",
-			info: {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsComputerUse: true,
-				supportsPromptCache: true,
-				inputPrice: 3.0,
-				outputPrice: 15.0,
-				cacheWritesPrice: 3.75,
-				cacheReadsPrice: 0.3,
-			},
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.openRouterModelId
+		const modelInfo = this.options.openRouterModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
 		}
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

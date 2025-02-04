@@ -525,6 +525,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 									break
 								case "openrouter":
+								case "cline":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
 									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 									break
@@ -553,6 +554,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										await this.updateGlobalState("apiModelId", newModelId)
 										break
 									case "openrouter":
+									case "cline":
 										await this.updateGlobalState("openRouterModelId", newModelId)
 										await this.updateGlobalState("openRouterModelInfo", newModelInfo)
 										break
@@ -1446,8 +1448,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to openrouter
-				apiProvider = "openrouter"
+				// New users should default to cline
+				apiProvider = "cline"
 			}
 		}
 
