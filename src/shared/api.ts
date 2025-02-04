@@ -11,10 +11,13 @@ export type ApiProvider =
 	| "deepseek"
 	| "mistral"
 	| "vscode-lm"
+	| "litellm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	liteLlmBaseUrl?: string
+	liteLlmModelId?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -419,3 +422,16 @@ export const mistralModels = {
 		outputPrice: 0.9,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// LiteLLM
+// https://docs.litellm.ai/docs/
+export type LiteLLMModelId = string
+export const liteLlmDefaultModelId = "gpt-3.5-turbo"
+export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: 4096,
+	contextWindow: 8192,
+	supportsImages: false,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+}
