@@ -179,6 +179,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
+				if (type === ContextMenuOptionType.Mode && value) {
+					// Handle mode selection
+					setMode(value)
+					setInputValue("")
+					setShowContextMenu(false)
+					vscode.postMessage({
+						type: "mode",
+						text: value,
+					})
+					return
+				}
+
 				if (
 					type === ContextMenuOptionType.File ||
 					type === ContextMenuOptionType.Folder ||
@@ -242,7 +254,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
+							const options = getContextMenuOptions(
+								searchQuery,
+								selectedType,
+								queryItems,
+								getAllModes(customModes),
+							)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -272,9 +289,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[
-							selectedMenuIndex
-						]
+						const selectedOption = getContextMenuOptions(
+							searchQuery,
+							selectedType,
+							queryItems,
+							getAllModes(customModes),
+						)[selectedMenuIndex]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
@@ -340,6 +360,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
+				customModes,
 			],
 		)
 
@@ -360,13 +381,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				setShowContextMenu(showMenu)
 				if (showMenu) {
-					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
-					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
-					setSearchQuery(query)
-					if (query.length > 0) {
+					if (newValue.startsWith("/")) {
+						// Handle slash command
+						const query = newValue
+						setSearchQuery(query)
 						setSelectedMenuIndex(0)
 					} else {
-						setSelectedMenuIndex(3) // Set to "File" option by default
+						// Existing @ mention handling
+						const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
+						const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
+						setSearchQuery(query)
+						if (query.length > 0) {
+							setSelectedMenuIndex(0)
+						} else {
+							setSelectedMenuIndex(3) // Set to "File" option by default
+						}
 					}
 				} else {
 					setSearchQuery("")
@@ -614,6 +643,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							setSelectedIndex={setSelectedMenuIndex}
 							selectedType={selectedType}
 							queryItems={queryItems}
+							modes={getAllModes(customModes)}
 						/>
 					</div>
 				)}
