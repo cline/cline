@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react"
-import { useShortcut } from "../hooks"
+import { useShortcut, usePlatformDetection } from "../hooks"
 import { vi } from "vitest"
 
 describe("useShortcut", () => {
@@ -37,5 +37,23 @@ describe("useShortcut", () => {
 		expect(callback).not.toHaveBeenCalled()
 
 		document.body.removeChild(input)
+	})
+})
+
+describe("usePlatformDetection", () => {
+	it("should detect platform, browser, and version from userAgent", () => {
+		// mock the detect functions
+		const { result } = renderHook(() =>
+			usePlatformDetection(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+			),
+		)
+
+		expect(result.current[0]).toEqual({
+			os: "windows",
+			browser: "chrome",
+			version: "58.0.3029.110",
+		})
+		expect(result.current[1]).toBe("⊞ Win")
 	})
 })
