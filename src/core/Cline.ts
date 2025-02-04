@@ -52,7 +52,7 @@ import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
-import { modes, defaultModeSlug, getModeBySlug } from "../shared/modes"
+import { modes, defaultModeSlug, getModeBySlug, parseSlashCommand } from "../shared/modes"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
@@ -77,6 +77,29 @@ export class Cline {
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	private browserSession: BrowserSession
+
+	/**
+	 * Processes a message for slash commands and handles mode switching if needed.
+	 * @param message The message to process
+	 * @returns The processed message with slash command removed if one was present
+	 */
+	private async handleSlashCommand(message: string): Promise<string> {
+		if (!message) return message
+
+		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+		const slashCommand = parseSlashCommand(message, customModes)
+
+		if (slashCommand) {
+			// Switch mode before processing the remaining message
+			const provider = this.providerRef.deref()
+			if (provider) {
+				await provider.handleModeSwitch(slashCommand.modeSlug)
+				return slashCommand.remainingMessage
+			}
+		}
+
+		return message
+	}
 	private didEditFile: boolean = false
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
@@ -355,6 +378,11 @@ export class Cline {
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
+		// Process slash command if present
+		if (text) {
+			text = await this.handleSlashCommand(text)
+		}
+
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
@@ -436,6 +464,22 @@ export class Cline {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
+
+		// Check for slash command if task is provided
+		if (task) {
+			const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+			const slashCommand = parseSlashCommand(task, customModes)
+
+			if (slashCommand) {
+				// Switch mode before processing the remaining message
+				const provider = this.providerRef.deref()
+				if (provider) {
+					await provider.handleModeSwitch(slashCommand.modeSlug)
+					// Update task to be just the remaining message
+					task = slashCommand.remainingMessage
+				}
+			}
+		}
 
 		await this.say("text", task, images)
 
