@@ -1194,6 +1194,13 @@ export class Cline {
 		return false
 	}
 
+	private formatErrorWithStatusCode(error: any): string {
+		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
+		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
+
+		return statusCode ? `API Request Error (${statusCode}): ${message}` : `API Request Error: ${message}`
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1302,10 +1309,7 @@ export class Cline {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 				// Extract status code if available in error object
-				const statusCode = error.status || error.statusCode || (error.response && error.response.status)
-				const errorMessage = statusCode
-					? `API Request Error (${statusCode}): ${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
-					: `API Request Error: ${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+				const errorMessage = this.formatErrorWithStatusCode(error)
 
 				const { response } = await this.ask("api_req_failed", errorMessage)
 				if (response !== "yesButtonClicked") {
@@ -3055,11 +3059,7 @@ export class Cline {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					// Extract status code if available in error object
-					const statusCode = error.status || error.statusCode || (error.response && error.response.status)
-					const errorMessage = statusCode
-						? `API Request Error (${statusCode}): ${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
-						: `API Request Error: ${error.message ?? JSON.stringify(serializeError(error), null, 2)}`
+					const errorMessage = this.formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
 					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
