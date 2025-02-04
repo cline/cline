@@ -20,6 +20,8 @@ import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import { useShortcut } from "../../utils/hooks"
+import Tooltip from "../common/Tooltip"
+import { usePlatformDetection } from "../../utils/hooks"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -232,6 +234,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
+
+		const [, metaKeyChar] = usePlatformDetection()
 
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
@@ -1070,12 +1074,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)}
 						</ModelContainer>
 					</ButtonGroup>
-
-					<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
-						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
-					</SwitchContainer>
+					<Tooltip
+						tipText={`When ${chatSettings.mode === "act" ? "Act" : "Plan"} mode is turned on, Cline ${chatSettings.mode === "act" ? "will" : "will not"} be able to make changes to code.`}
+						hintText={`Toggle w/ (${metaKeyChar}+Shift+a)`}>
+						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+							<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
+							<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
+						</SwitchContainer>
+					</Tooltip>
 				</ControlsContainer>
 			</div>
 		)
