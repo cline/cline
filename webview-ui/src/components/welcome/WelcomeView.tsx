@@ -8,6 +8,7 @@ import ApiOptions from "../settings/ApiOptions"
 const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
+	const [showApiOptions, setShowApiOptions] = useState(false)
 
 	const disableLetsGoButton = apiErrorMessage != null
 
@@ -69,11 +70,19 @@ const WelcomeView = () => {
 
 				<VSCodeDivider />
 
-				<div style={{ marginTop: "15px" }}>
-					<ApiOptions showModelOptions={false} />
-					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
-						Let's go!
+				<div style={{ marginTop: "20px" }}>
+					<VSCodeButton appearance="secondary" onClick={() => setShowApiOptions(!showApiOptions)}>
+						{showApiOptions ? "Hide API options" : "Use your own provider API key"}
 					</VSCodeButton>
+
+					{showApiOptions && (
+						<div style={{ marginTop: "10px" }}>
+							<ApiOptions showModelOptions={false} />
+							<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+								Let's go!
+							</VSCodeButton>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>
