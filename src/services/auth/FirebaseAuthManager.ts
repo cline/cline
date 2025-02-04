@@ -23,6 +23,7 @@ export class FirebaseAuthManager {
 	private providerRef: WeakRef<ClineProvider>
 	private auth: Auth
 	private disposables: vscode.Disposable[] = []
+	private isInitialAuthState = true
 
 	constructor(provider: ClineProvider) {
 		console.log("Initializing FirebaseAuthManager", { provider })
@@ -43,9 +44,6 @@ export class FirebaseAuthManager {
 		// Auth state listener
 		onAuthStateChanged(this.auth, this.handleAuthStateChange.bind(this))
 		console.log("Auth state change listener added")
-
-		// Try to restore session
-		this.restoreSession()
 	}
 
 	private async restoreSession() {
@@ -53,19 +51,6 @@ export class FirebaseAuthManager {
 		const provider = this.providerRef.deref()
 		if (!provider) {
 			console.log("Provider reference lost during session restore")
-			return
-		}
-
-		// Check if we already have an active user session from Firebase's persistence
-		const currentUser = this.auth.currentUser
-		if (currentUser) {
-			console.log("Found existing Firebase session")
-			await provider.setUserInfo({
-				displayName: currentUser.displayName,
-				email: currentUser.email,
-				photoURL: currentUser.photoURL,
-			})
-			console.log("Existing session restored")
 			return
 		}
 
@@ -113,11 +98,17 @@ export class FirebaseAuthManager {
 				photoURL: user.photoURL,
 			})
 			console.log("User info set in provider", { user })
-		} else {
-			console.log("User signed out")
+		} else if (!this.isInitialAuthState) {
+			// Only clear auth state if this isn't the initial null state
+			console.log("User signed out (not initial state)")
 			await provider.setAuthToken(undefined)
 			await provider.setUserInfo(undefined)
+		} else {
+			console.log("Initial auth state is null, attempting session restore")
+			this.isInitialAuthState = false
+			await this.restoreSession()
 		}
+
 		await provider.postStateToWebview()
 		console.log("Webview state updated")
 	}
@@ -129,6 +120,7 @@ export class FirebaseAuthManager {
 
 	async signOut() {
 		console.log("Signing out")
+		this.isInitialAuthState = false // Ensure we treat the next null state as a real sign out
 		await signOut(this.auth)
 	}
 
