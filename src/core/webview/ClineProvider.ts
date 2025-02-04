@@ -1448,8 +1448,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to cline
-				apiProvider = "cline"
+				// New users should default to openrouter, since they've opted to use an API key instead of signing in
+				apiProvider = "openrouter"
 			}
 		}
 

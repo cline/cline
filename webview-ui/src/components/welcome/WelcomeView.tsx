@@ -57,13 +57,14 @@ const WelcomeView = () => {
 
 				<div style={{ marginTop: "20px", marginBottom: "20px" }}>
 					<VSCodeButton appearance="primary" onClick={handleLogin}>
-						Log in to Cline
+						Sign Up with Cline
 					</VSCodeButton>
 
 					<div style={{ marginTop: "10px" }}>
 						<ul style={{ paddingLeft: "20px", margin: "10px 0" }}>
-							<li>Get 1 task worth of free tokens</li>
-							<li>No credit card required - just start using Cline immediately!</li>
+							<li>Choose from hundreds of models like Claude 3.5 Sonnet and DeepSeek V3</li>
+							<li>Manage usage and billing in the extension</li>
+							<li>Get started for free with no credit card required</li>
 						</ul>
 					</div>
 				</div>
@@ -71,9 +72,11 @@ const WelcomeView = () => {
 				<VSCodeDivider />
 
 				<div style={{ marginTop: "20px" }}>
-					<VSCodeButton appearance="secondary" onClick={() => setShowApiOptions(!showApiOptions)}>
-						{showApiOptions ? "Hide API options" : "Use your own provider API key"}
-					</VSCodeButton>
+					{!showApiOptions && (
+						<VSCodeButton appearance="secondary" onClick={() => setShowApiOptions(!showApiOptions)}>
+							Use your own API key
+						</VSCodeButton>
+					)}
 
 					{showApiOptions && (
 						<div style={{ marginTop: "10px" }}>
