@@ -22,6 +22,11 @@
 @plugin "tailwindcss-animate";
 
 @theme {
+	--font-display: var(--vscode-font-family);
+	--text-sm: calc(var(--vscode-font-size) * 0.9);
+	--text-base: var(--vscode-font-size);
+	--text-lg: calc(var(--vscode-font-size) * 1.1);
+
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -65,11 +70,11 @@
 		--secondary-foreground: var(--vscode-button-secondaryForeground);
 		--muted: var(--vscode-disabledForeground);
 		--muted-foreground: var(--vscode-descriptionForeground);
-		--accent: var(--vscode-input-border);
+		--accent: var(--vscode-list-hoverBackground);
 		--accent-foreground: var(--vscode-button-foreground);
 		--destructive: var(--vscode-errorForeground);
 		--destructive-foreground: var(--vscode-button-foreground);
-		--border: var(--vscode-widget-border);
+		--border: var(--vscode-input-border);
 		--input: var(--vscode-input-background);
 		--ring: var(--vscode-input-border);
 		--chart-1: var(--vscode-charts-red);
