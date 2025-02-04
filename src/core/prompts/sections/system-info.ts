@@ -2,6 +2,7 @@ import defaultShell from "default-shell"
 import os from "os"
 import osName from "os-name"
 import { Mode, ModeConfig, getModeBySlug, defaultModeSlug, isToolAllowedForMode } from "../../../shared/modes"
+import { getShell } from "../../../utils/shell"
 
 export function getSystemInfoSection(cwd: string, currentMode: Mode, customModes?: ModeConfig[]): string {
 	const findModeBySlug = (slug: string, modes?: ModeConfig[]) => modes?.find((m) => m.slug === slug)
@@ -14,7 +15,7 @@ export function getSystemInfoSection(cwd: string, currentMode: Mode, customModes
 SYSTEM INFORMATION
 
 Operating System: ${osName()}
-Default Shell: ${defaultShell}
+Default Shell: ${getShell()}
 Home Directory: ${os.homedir().toPosix()}
 Current Working Directory: ${cwd.toPosix()}
 
