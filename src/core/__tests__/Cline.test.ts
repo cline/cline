@@ -128,6 +128,7 @@ jest.mock("vscode", () => {
 			visibleTextEditors: [mockTextEditor],
 			tabGroups: {
 				all: [mockTabGroup],
+				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
 		},
 		workspace: {
@@ -750,8 +751,11 @@ describe("Cline", () => {
 					false,
 				)
 
-				// Verify delay was called correctly
-				expect(mockDelay).toHaveBeenCalledTimes(baseDelay)
+				// Calculate expected delay calls based on exponential backoff
+				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, 1)) // retryAttempt = 1
+				const rateLimitDelay = baseDelay // Initial rate limit delay
+				const totalExpectedDelays = exponentialDelay + rateLimitDelay
+				expect(mockDelay).toHaveBeenCalledTimes(totalExpectedDelays)
 				expect(mockDelay).toHaveBeenCalledWith(1000)
 
 				// Verify error message content

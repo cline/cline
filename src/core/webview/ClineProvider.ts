@@ -19,15 +19,7 @@ import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { WebviewMessage } from "../../shared/WebviewMessage"
-import {
-	Mode,
-	modes,
-	CustomModePrompts,
-	PromptComponent,
-	ModeConfig,
-	defaultModeSlug,
-	getModeBySlug,
-} from "../../shared/modes"
+import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug } from "../../shared/modes"
 import { SYSTEM_PROMPT } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
 import { Cline } from "../Cline"
@@ -37,7 +29,7 @@ import { getUri } from "./getUri"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { singleCompletionHandler } from "../../utils/single-completion-handler"
-import { getCommitInfo, searchCommits, getWorkingState } from "../../utils/git"
+import { searchCommits } from "../../utils/git"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
@@ -110,8 +102,10 @@ type GlobalStateKey =
 	| "writeDelayMs"
 	| "terminalOutputLineLimit"
 	| "mcpEnabled"
+	| "enableMcpServerCreation"
 	| "alwaysApproveResubmit"
 	| "requestDelaySeconds"
+	| "rateLimitSeconds"
 	| "currentApiConfigName"
 	| "listApiConfigMeta"
 	| "vsCodeLmModelSelector"
@@ -139,6 +133,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
+	private isViewLaunched = false
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
@@ -651,6 +646,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								),
 							)
 
+						this.isViewLaunched = true
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -846,6 +842,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("mcpEnabled", mcpEnabled)
 						await this.postStateToWebview()
 						break
+					case "enableMcpServerCreation":
+						await this.updateGlobalState("enableMcpServerCreation", message.bool ?? true)
+						await this.postStateToWebview()
+						break
 					case "playSound":
 						if (message.audioType) {
 							const soundPath = path.join(this.context.extensionPath, "audio", `${message.audioType}.wav`)
@@ -884,6 +884,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "requestDelaySeconds":
 						await this.updateGlobalState("requestDelaySeconds", message.value ?? 5)
+						await this.postStateToWebview()
+						break
+					case "rateLimitSeconds":
+						await this.updateGlobalState("rateLimitSeconds", message.value ?? 0)
 						await this.postStateToWebview()
 						break
 					case "preferredLanguage":
@@ -1130,6 +1134,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								mcpEnabled,
 								fuzzyMatchThreshold,
 								experiments,
+								enableMcpServerCreation,
 							} = await this.getState()
 
 							// Create diffStrategy based on current model and settings
@@ -1158,6 +1163,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								preferredLanguage,
 								diffEnabled,
 								experiments,
+								enableMcpServerCreation,
 							)
 
 							await this.postMessageToWebview({
@@ -1215,6 +1221,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.values && message.apiConfiguration) {
 							try {
 								const { oldName, newName } = message.values
+
+								if (oldName === newName) {
+									break
+								}
 
 								await this.configManager.saveConfig(newName, message.apiConfiguration)
 								await this.configManager.deleteConfig(oldName)
@@ -1995,8 +2005,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit,
 			fuzzyMatchThreshold,
 			mcpEnabled,
+			enableMcpServerCreation,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
+			rateLimitSeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
 			mode,
@@ -2036,8 +2048,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
+			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: requestDelaySeconds ?? 10,
+			rateLimitSeconds: rateLimitSeconds ?? 0,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			mode: mode ?? defaultModeSlug,
@@ -2159,8 +2173,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality,
 			terminalOutputLineLimit,
 			mcpEnabled,
+			enableMcpServerCreation,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
+			rateLimitSeconds,
 			currentApiConfigName,
 			listApiConfigMeta,
 			vsCodeLmModelSelector,
@@ -2231,8 +2247,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
 			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
 			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("enableMcpServerCreation") as Promise<boolean | undefined>,
 			this.getGlobalState("alwaysApproveResubmit") as Promise<boolean | undefined>,
 			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
+			this.getGlobalState("rateLimitSeconds") as Promise<number | undefined>,
 			this.getGlobalState("currentApiConfigName") as Promise<string | undefined>,
 			this.getGlobalState("listApiConfigMeta") as Promise<ApiConfigMeta[] | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
@@ -2353,8 +2371,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					return langMap[vscodeLang.split("-")[0]] ?? "English"
 				})(),
 			mcpEnabled: mcpEnabled ?? true,
+			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
 			requestDelaySeconds: Math.max(5, requestDelaySeconds ?? 10),
+			rateLimitSeconds: rateLimitSeconds ?? 0,
 			currentApiConfigName: currentApiConfigName ?? "default",
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			modeApiConfigs: modeApiConfigs ?? ({} as Record<Mode, string>),
@@ -2412,7 +2432,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// secrets
 
-	private async storeSecret(key: SecretKey, value?: string) {
+	public async storeSecret(key: SecretKey, value?: string) {
 		if (value) {
 			await this.context.secrets.store(key, value)
 		} else {
@@ -2465,5 +2485,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+	}
+
+	// integration tests
+
+	get viewLaunched() {
+		return this.isViewLaunched
+	}
+
+	get messages() {
+		return this.cline?.clineMessages || []
 	}
 }

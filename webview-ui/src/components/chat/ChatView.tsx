@@ -275,7 +275,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		} else {
 			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text && lastApiReqStarted.say === "api_req_started") {
+			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
 				const cost = JSON.parse(lastApiReqStarted.text).cost
 				if (cost === undefined) {
 					// api request has not finished yet
@@ -718,9 +718,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				if (message.say === "api_req_started") {
 					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
 					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
-					if (lastApiReqStarted?.text) {
+					if (lastApiReqStarted?.text != null) {
 						const info = JSON.parse(lastApiReqStarted.text)
-						const isCancelled = info.cancelReason !== null
+						const isCancelled = info.cancelReason != null
 						if (isCancelled) {
 							endBrowserSession()
 							result.push(message)

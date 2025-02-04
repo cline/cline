@@ -74,6 +74,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					return <span>Git Commits</span>
 				}
 			case ContextMenuOptionType.File:
+			case ContextMenuOptionType.OpenedFile:
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
 					return (
@@ -100,6 +101,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	const getIconForOption = (option: ContextMenuQueryItem): string => {
 		switch (option.type) {
+			case ContextMenuOptionType.OpenedFile:
+				return "window"
 			case ContextMenuOptionType.File:
 				return "file"
 			case ContextMenuOptionType.Folder:
@@ -194,6 +197,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						{(option.type === ContextMenuOptionType.Problems ||
 							((option.type === ContextMenuOptionType.File ||
 								option.type === ContextMenuOptionType.Folder ||
+								option.type === ContextMenuOptionType.OpenedFile ||
 								option.type === ContextMenuOptionType.Git) &&
 								option.value)) && (
 							<i

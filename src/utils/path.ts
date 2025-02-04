@@ -99,3 +99,8 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 		}
 	}
 }
+
+export const toRelativePath = (filePath: string, cwd: string) => {
+	const relativePath = path.relative(cwd, filePath).toPosix()
+	return filePath.endsWith("/") ? relativePath + "/" : relativePath
+}

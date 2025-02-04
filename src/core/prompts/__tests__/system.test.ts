@@ -178,6 +178,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -198,6 +199,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -220,6 +222,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -240,6 +243,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -260,6 +264,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -280,6 +285,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			true, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toContain("apply_diff")
@@ -301,6 +307,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			false, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).not.toContain("apply_diff")
@@ -322,6 +329,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).not.toContain("apply_diff")
@@ -343,6 +351,7 @@ describe("SYSTEM_PROMPT", () => {
 			"Spanish", // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toContain("Language Preference:")
@@ -375,6 +384,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined, // preferredLanguage
 			undefined, // diffEnabled
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		// Role definition should be at the top
@@ -410,6 +420,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined,
 			undefined,
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		// Role definition from promptComponent should be at the top
@@ -440,6 +451,7 @@ describe("SYSTEM_PROMPT", () => {
 			undefined,
 			undefined,
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		// Should use the default mode's role definition
@@ -462,6 +474,7 @@ describe("SYSTEM_PROMPT", () => {
 				undefined, // preferredLanguage
 				undefined, // diffEnabled
 				experiments, // experiments - undefined should disable all experimental tools
+				true, // enableMcpServerCreation
 			)
 
 			// Verify experimental tools are not included in the prompt
@@ -489,6 +502,7 @@ describe("SYSTEM_PROMPT", () => {
 				undefined, // preferredLanguage
 				undefined, // diffEnabled
 				experiments,
+				true, // enableMcpServerCreation
 			)
 
 			// Verify experimental tools are included in the prompt when enabled
@@ -516,6 +530,7 @@ describe("SYSTEM_PROMPT", () => {
 				undefined, // preferredLanguage
 				undefined, // diffEnabled
 				experiments,
+				true, // enableMcpServerCreation
 			)
 
 			// Verify only enabled experimental tools are included
@@ -543,6 +558,7 @@ describe("SYSTEM_PROMPT", () => {
 				undefined,
 				true, // diffEnabled
 				experiments,
+				true, // enableMcpServerCreation
 			)
 
 			// Verify base instruction lists all available tools
@@ -572,6 +588,7 @@ describe("SYSTEM_PROMPT", () => {
 				undefined,
 				true,
 				experiments,
+				true, // enableMcpServerCreation
 			)
 
 			// Verify detailed instructions for each tool
@@ -627,6 +644,7 @@ describe("addCustomInstructions", () => {
 			undefined,
 			undefined,
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
 		expect(prompt).toMatchSnapshot()
@@ -647,8 +665,57 @@ describe("addCustomInstructions", () => {
 			undefined,
 			undefined,
 			experiments,
+			true, // enableMcpServerCreation
 		)
 
+		expect(prompt).toMatchSnapshot()
+	})
+
+	it("should include MCP server creation info when enabled", async () => {
+		const mockMcpHub = createMockMcpHub()
+
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false, // supportsComputerUse
+			mockMcpHub, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customModePrompts
+			undefined, // customModes,
+			undefined, // globalCustomInstructions
+			undefined, // preferredLanguage
+			undefined, // diffEnabled
+			experiments,
+			true, // enableMcpServerCreation
+		)
+
+		expect(prompt).toContain("Creating an MCP Server")
+		expect(prompt).toMatchSnapshot()
+	})
+
+	it("should exclude MCP server creation info when disabled", async () => {
+		const mockMcpHub = createMockMcpHub()
+
+		const prompt = await SYSTEM_PROMPT(
+			mockContext,
+			"/test/path",
+			false, // supportsComputerUse
+			mockMcpHub, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customModePrompts
+			undefined, // customModes,
+			undefined, // globalCustomInstructions
+			undefined, // preferredLanguage
+			undefined, // diffEnabled
+			experiments,
+			false, // enableMcpServerCreation
+		)
+
+		expect(prompt).not.toContain("Creating an MCP Server")
 		expect(prompt).toMatchSnapshot()
 	})
 

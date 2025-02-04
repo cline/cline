@@ -472,13 +472,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					<div
 						style={{
 							display: "flex",
-							gap: "16px",
+							gap: "8px",
 							alignItems: "center",
 							marginBottom: "12px",
-							overflowX: "auto",
-							flexWrap: "nowrap",
-							paddingBottom: "4px",
-							paddingRight: "20px",
+							flexWrap: "wrap",
+							padding: "4px 0",
 						}}>
 						{modes.map((modeConfig) => {
 							const isActive = mode === modeConfig.slug
@@ -859,13 +857,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					<div
 						style={{
 							display: "flex",
-							gap: "16px",
+							gap: "8px",
 							alignItems: "center",
 							marginBottom: "12px",
-							overflowX: "auto",
-							flexWrap: "nowrap",
-							paddingBottom: "4px",
-							paddingRight: "20px",
+							flexWrap: "wrap",
+							padding: "4px 0",
 						}}>
 						{Object.keys(supportPrompt.default).map((type) => (
 							<button

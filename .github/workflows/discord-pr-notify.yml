@@ -1,0 +1,26 @@
+name: Discord PR Notifier
+
+on:
+  workflow_dispatch:
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.head_ref != 'changeset-release/main'
+    steps:
+      - name: Send Discord Notification
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg title "${{ github.event.pull_request.title }}" \
+            --arg url "${{ github.event.pull_request.html_url }}" \
+            --arg author "${{ github.event.pull_request.user.login }}" \
+            '{
+              content: ("🚀 **New PR:** " + $title + "\n🔗 <" + $url + ">\n👤 **Author:** " + $author),
+              thread_name: ($title + " by " + $author)
+            }')
+
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD"

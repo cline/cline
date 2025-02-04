@@ -153,9 +153,33 @@ describe("OpenAiNativeHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: "o1",
 				messages: [
-					{ role: "developer", content: systemPrompt },
+					{ role: "developer", content: "Formatting re-enabled\n" + systemPrompt },
 					{ role: "user", content: "Hello!" },
 				],
+			})
+		})
+
+		it("should handle o3-mini model family correctly", async () => {
+			handler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "o3-mini",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith({
+				model: "o3-mini",
+				messages: [
+					{ role: "developer", content: "Formatting re-enabled\n" + systemPrompt },
+					{ role: "user", content: "Hello!" },
+				],
+				stream: true,
+				stream_options: { include_usage: true },
+				reasoning_effort: "medium",
 			})
 		})
 	})
@@ -286,6 +310,21 @@ describe("OpenAiNativeHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: "o1-mini",
 				messages: [{ role: "user", content: "Test prompt" }],
+			})
+		})
+
+		it("should complete prompt successfully with o3-mini model", async () => {
+			handler = new OpenAiNativeHandler({
+				apiModelId: "o3-mini",
+				openAiNativeApiKey: "test-api-key",
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("Test response")
+			expect(mockCreate).toHaveBeenCalledWith({
+				model: "o3-mini",
+				messages: [{ role: "user", content: "Test prompt" }],
+				reasoning_effort: "medium",
 			})
 		})
 
