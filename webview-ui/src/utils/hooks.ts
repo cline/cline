@@ -18,7 +18,7 @@ export const useShortcut = (shortcut: string, callback: any, options = { disable
 			const modifierMap: { [key: string]: boolean } = {
 				Control: event.ctrlKey,
 				Alt: event.altKey,
-				Command: event.metaKey,
+				Meta: event.metaKey, // alias for Command
 				Shift: event.shiftKey,
 			}
 
