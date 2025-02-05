@@ -1,4 +1,5 @@
-import { memo, useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState, useCallback } from "react"
+import debounce from "lodash/debounce"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -204,7 +205,9 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 		},
 	})
 
-	const updateCopyButtonPosition = (forceShow = false) => {
+	const debouncedPositionRef = useRef<any>(null)
+
+	const updateCopyButtonPosition = useCallback((forceShow = false) => {
 		const codeBlock = codeBlockRef.current
 		if (!codeBlock) return
 
@@ -213,7 +216,6 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 		if (!scrollContainer) return
 
 		const scrollRect = scrollContainer.getBoundingClientRect()
-		const isVisible = rect.top >= scrollRect.top && rect.bottom <= scrollRect.bottom
 		const isPartiallyVisible = rect.top < scrollRect.bottom && rect.bottom >= scrollRect.top
 
 		// Only show when code block is in view
@@ -227,11 +229,21 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 			codeBlock.style.setProperty("--copy-button-top", `${topPosition}px`)
 			codeBlock.style.setProperty("--copy-button-right", `${rightPosition}px`)
 		}
-	}
+	}, [])
+
+	// Initialize debounced function
+	useEffect(() => {
+		debouncedPositionRef.current = debounce(updateCopyButtonPosition, 10)
+		return () => {
+			if (debouncedPositionRef.current) {
+				debouncedPositionRef.current.cancel()
+			}
+		}
+	}, [updateCopyButtonPosition])
 
 	useEffect(() => {
-		const handleScroll = () => updateCopyButtonPosition()
-		const handleResize = () => updateCopyButtonPosition()
+		const handleScroll = () => debouncedPositionRef.current()
+		const handleResize = () => debouncedPositionRef.current()
 
 		const scrollContainer = document.querySelector('[data-virtuoso-scroller="true"]')
 		if (scrollContainer) {
@@ -246,7 +258,7 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 				window.removeEventListener("resize", handleResize)
 			}
 		}
-	}, [])
+	}, [updateCopyButtonPosition])
 
 	// Update button position when content changes
 	useEffect(() => {
@@ -254,16 +266,25 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 			// Small delay to ensure content is rendered
 			setTimeout(() => updateCopyButtonPosition(), 0)
 		}
-	}, [reactContent])
+	}, [reactContent, updateCopyButtonPosition])
+
+	const [copyError, setCopyError] = useState(false)
 
 	const handleCopy = (e: React.MouseEvent) => {
 		e.stopPropagation()
 		if (source) {
 			// Extract code content from markdown code block
 			const codeContent = source.replace(/^```[\s\S]*?\n([\s\S]*?)```$/m, "$1").trim()
-			navigator.clipboard.writeText(codeContent)
-			setCopied(true)
-			setTimeout(() => setCopied(false), 2000)
+			try {
+				navigator.clipboard.writeText(codeContent)
+				setCopied(true)
+				setCopyError(false)
+				setTimeout(() => setCopied(false), 2000)
+			} catch (error) {
+				console.error("Failed to copy to clipboard:", error)
+				setCopyError(true)
+				setTimeout(() => setCopyError(false), 2000)
+			}
 		}
 	}
 
@@ -281,7 +302,7 @@ const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
 				onMouseEnter={() => updateCopyButtonPosition(true)}
 				onMouseLeave={() => updateCopyButtonPosition()}>
 				<CopyButton onClick={handleCopy} title="Copy code">
-					<span className={`codicon codicon-${copied ? "check" : "copy"}`} />
+					<span className={`codicon codicon-${copied ? "check" : copyError ? "error" : "copy"}`} />
 				</CopyButton>
 			</CopyButtonWrapper>
 		</CodeBlockContainer>
