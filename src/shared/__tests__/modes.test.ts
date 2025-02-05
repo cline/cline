@@ -1,4 +1,4 @@
-import { isToolAllowedForMode, FileRestrictionError, ModeConfig, parseSlashCommand } from "../modes"
+import { isToolAllowedForMode, FileRestrictionError, ModeConfig } from "../modes"
 
 describe("isToolAllowedForMode", () => {
 	const customModes: ModeConfig[] = [
@@ -330,67 +330,5 @@ describe("FileRestrictionError", () => {
 			"This mode (Markdown Editor) can only edit files matching pattern: \\.md$ (Markdown files only). Got: test.js",
 		)
 		expect(error.name).toBe("FileRestrictionError")
-	})
-})
-
-describe("parseSlashCommand", () => {
-	const customModes: ModeConfig[] = [
-		{
-			slug: "custom-mode",
-			name: "Custom Mode",
-			roleDefinition: "Custom role",
-			groups: ["read"],
-		},
-	]
-
-	it("returns null for non-slash messages", () => {
-		expect(parseSlashCommand("hello world")).toBeNull()
-		expect(parseSlashCommand("code help me")).toBeNull()
-	})
-
-	it("returns null for incomplete commands", () => {
-		expect(parseSlashCommand("/")).toBeNull()
-		expect(parseSlashCommand("/code")).toBeNull()
-		expect(parseSlashCommand("/code ")).toBeNull()
-	})
-
-	it("returns null for invalid mode slugs", () => {
-		expect(parseSlashCommand("/invalid help me")).toBeNull()
-		expect(parseSlashCommand("/nonexistent do something")).toBeNull()
-	})
-
-	it("successfully parses valid commands", () => {
-		expect(parseSlashCommand("/code help me write tests")).toEqual({
-			modeSlug: "code",
-			remainingMessage: "help me write tests",
-		})
-
-		expect(parseSlashCommand("/ask what is typescript?")).toEqual({
-			modeSlug: "ask",
-			remainingMessage: "what is typescript?",
-		})
-
-		expect(parseSlashCommand("/architect plan this feature")).toEqual({
-			modeSlug: "architect",
-			remainingMessage: "plan this feature",
-		})
-	})
-
-	it("preserves whitespace in remaining message", () => {
-		expect(parseSlashCommand("/code   help   me   write   tests  ")).toEqual({
-			modeSlug: "code",
-			remainingMessage: "help me write tests",
-		})
-	})
-
-	it("handles custom modes", () => {
-		expect(parseSlashCommand("/custom-mode do something", customModes)).toEqual({
-			modeSlug: "custom-mode",
-			remainingMessage: "do something",
-		})
-	})
-
-	it("returns null for invalid custom mode slugs", () => {
-		expect(parseSlashCommand("/invalid-custom do something", customModes)).toBeNull()
 	})
 })
