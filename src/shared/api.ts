@@ -445,22 +445,6 @@ export const mistralModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.1,
 	},
-	"mistral-embed": {
-		maxTokens: 8_000,
-		contextWindow: 8_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.1,
-	},
-	"mistral-moderation-2411": {
-		maxTokens: 8_000,
-		contextWindow: 8_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.1,
-	},
 	"mistral-small-2501": {
 		maxTokens: 32_000,
 		contextWindow: 32_000,
