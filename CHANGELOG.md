@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.11
+
+### Patch Changes
+
+- v3.3.11
+- Safer shell profile path check
+
 ## [3.3.10]
 
 - Add shortcuts to the currently open tabs in the "Add File" section of @-mentions (thanks @olup!)
