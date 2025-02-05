@@ -53,7 +53,7 @@ import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseN
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
 import { modes, defaultModeSlug, getModeBySlug } from "../shared/modes"
-import { truncateHalfConversation } from "./sliding-window"
+import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
@@ -876,18 +876,25 @@ export class Cline {
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
-			const previousRequest = this.clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
-					previousRequest.text,
-				)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow || 128_000
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
-				if (totalTokens >= maxAllowedSize) {
-					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-					await this.overwriteApiConversationHistory(truncatedMessages)
-				}
+			const previousRequest = this.clineMessages[previousApiReqIndex]?.text
+			if (!previousRequest) return
+
+			const {
+				tokensIn = 0,
+				tokensOut = 0,
+				cacheWrites = 0,
+				cacheReads = 0,
+			}: ClineApiReqInfo = JSON.parse(previousRequest)
+			const totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
+
+			const trimmedMessages = truncateConversationIfNeeded(
+				this.apiConversationHistory,
+				totalTokens,
+				this.api.getModel().info,
+			)
+
+			if (trimmedMessages !== this.apiConversationHistory) {
+				await this.overwriteApiConversationHistory(trimmedMessages)
 			}
 		}
 
