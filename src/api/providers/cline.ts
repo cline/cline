@@ -36,9 +36,6 @@ export class ClineHandler implements ApiHandler {
 			console.log("cline generation details:", response.data)
 			yield {
 				type: "usage",
-				// cacheWriteTokens: 0,
-				// cacheReadTokens: 0,
-				// cline generation endpoint fails often
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
