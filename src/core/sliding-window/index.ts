@@ -89,9 +89,9 @@ function getMaxTokensForNonPromptCachingModels(modelInfo: ModelInfo): number {
 /**
  * Provides the fraction of messages to remove for models that do not support prompt caching.
  *
- * @param {ModelInfo} modelInfo - The model information (unused in current implementation).
+ * @param {ModelInfo} modelInfo - The model information.
  * @returns {number} The truncation fraction for non-prompt caching models (fixed at 0.1).
  */
 function getTruncFractionForNonPromptCachingModels(modelInfo: ModelInfo): number {
-	return 0.1
+	return Math.min(40_000 / modelInfo.contextWindow, 0.2)
 }
