@@ -455,7 +455,7 @@ export const qwenModels = {
 		cacheWritesPrice: 0.0056,
 		cacheReadsPrice: 0.0224,
 	},
-	"qwen-coder-plus-stable": {
+	"qwen-coder-plus": {
 		maxTokens: 129_024,
 		contextWindow: 131_072,
 		supportsImages: false,
@@ -465,7 +465,7 @@ export const qwenModels = {
 		cacheWritesPrice: 0.0035,
 		cacheReadsPrice: 0.007,
 	},
-	"qwen-plus-stable": {
+	"qwen-plus": {
 		maxTokens: 129_024,
 		contextWindow: 131_072,
 		supportsImages: false,
@@ -475,7 +475,7 @@ export const qwenModels = {
 		cacheWritesPrice: 0.0004,
 		cacheReadsPrice: 0.001,
 	},
-	"qwen-turbo-stable": {
+	"qwen-turbo": {
 		maxTokens: 1_000_000,
 		contextWindow: 1_000_000,
 		supportsImages: false,
@@ -485,7 +485,7 @@ export const qwenModels = {
 		cacheWritesPrice: 0.00015,
 		cacheReadsPrice: 0.0003,
 	},
-	"qwen-max-stable": {
+	"qwen-max": {
 		maxTokens: 30_720,
 		contextWindow: 32_768,
 		supportsImages: false,
