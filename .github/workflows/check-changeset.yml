@@ -1,6 +1,10 @@
 name: Check Changeset
 run-name: Check for Changeset in PR
 
+permissions:
+    contents: read
+    pull-requests: write
+
 on:
     pull_request:
         branches:
@@ -51,7 +55,7 @@ jobs:
                   fi
 
             - name: Find Comment
-              uses: peter-evans/find-comment@v3
+              uses: peter-evans/find-comment@45803def666fc704971eff4c7d57d650f81ae24a # v3
               if: failure()
               id: find-comment
               with:
@@ -60,7 +64,7 @@ jobs:
                   body-includes: This PR requires a changeset
 
             - name: Create Comment
-              uses: peter-evans/create-or-update-comment@v4
+              uses: peter-evans/create-or-update-comment@23ff15e22924c50649c1d63cc73f02f16fc0a8e8 # v4
               if: failure() && steps.find-comment.outputs.comment-id == ''
               with:
                   issue-number: ${{ github.event.pull_request.number }}

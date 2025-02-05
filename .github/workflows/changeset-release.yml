@@ -1,6 +1,10 @@
 name: Changeset Release
 run-name: Changeset Release ${{ github.actor != 'cline-bot' && '- Create PR' || '- Update Changelog' }}
 
+permissions:
+    contents: write
+    pull-requests: write
+
 on:
     workflow_dispatch:
     pull_request:
@@ -25,13 +29,13 @@ jobs:
             pull-requests: write
         steps:
             - name: Git Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
               with:
                   fetch-depth: 0
                   ref: ${{ env.GIT_REF }}
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@b39b52d1213e96004bfcb1c61a8a6fa8ab84f3e8 # v4
               with:
                   node-version: 20
                   cache: "npm"
@@ -51,7 +55,7 @@ jobs:
             - name: Changeset Pull Request
               if: steps.check-changesets.outputs.new_changesets != '0'
               id: changesets
-              uses: changesets/action@v1
+              uses: changesets/action@e9cc34b540dd3ad1b030c57fd97269e8f6ad905a # v1
               with:
                   commit: "changeset version bump"
                   title: "Changeset version bump"
@@ -89,7 +93,7 @@ jobs:
                   fi
 
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   fetch-depth: 0
@@ -132,7 +136,7 @@ jobs:
             # Add label to indicate changelog has been formatted
             - name: Add changelog-ready label
               if: ${{ !contains(github.event.pull_request.labels.*.name, 'changelog-ready') }}
-              uses: actions/github-script@v7
+              uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   script: |
@@ -146,7 +150,7 @@ jobs:
             # Auto-approve PR only after it has been labeled
             - name: Auto approve PR
               if: contains(github.event.pull_request.labels.*.name, 'changelog-ready')
-              uses: hmarr/auto-approve-action@v4
+              uses: hmarr/auto-approve-action@de8bf34d0402c38aa2c8346973342b2cb02c4435 # v4
               with:
                   review-message: "I'm approving since it's a bump version PR"
 
