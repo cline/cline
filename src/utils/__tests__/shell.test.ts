@@ -97,6 +97,12 @@ describe("Shell Detection Tests", () => {
 			expect(getShell()).toBe("C:\\Windows\\System32\\cmd.exe")
 		})
 
+		it("handles undefined profile gracefully", () => {
+			// Mock a case where defaultProfileName exists but the profile doesn't
+			mockVsCodeConfig("windows", "NonexistentProfile", {})
+			expect(getShell()).toBe("C:\\Windows\\System32\\cmd.exe")
+		})
+
 		it("respects userInfo() if no VS Code config is available", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
 			;(userInfo as any) = () => ({ shell: "C:\\Custom\\PowerShell.exe" })
