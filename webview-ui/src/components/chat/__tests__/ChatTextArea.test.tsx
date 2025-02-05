@@ -1,5 +1,4 @@
 import { render, fireEvent, screen } from "@testing-library/react"
-import "@testing-library/jest-dom"
 import ChatTextArea from "../ChatTextArea"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
