@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.3.11]
+
+- Safer shell profile path check to avoid an error on Windows
+- Autocomplete for slash commands
+
 ## [3.3.10]
 
 - Add shortcuts to the currently open tabs in the "Add File" section of @-mentions (thanks @olup!)
