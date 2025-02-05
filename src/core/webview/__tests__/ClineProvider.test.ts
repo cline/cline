@@ -1,13 +1,17 @@
-import { ClineProvider } from "../ClineProvider"
+// npx jest src/core/webview/__tests__/ClineProvider.test.ts
+
 import * as vscode from "vscode"
+import axios from "axios"
+
+import { ClineProvider } from "../ClineProvider"
 import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
 import { setSoundEnabled } from "../../../utils/sound"
-import { defaultModeSlug, modes } from "../../../shared/modes"
-import { addCustomInstructions } from "../../prompts/sections/custom-instructions"
-import { experimentDefault, experiments } from "../../../shared/experiments"
+import { defaultModeSlug } from "../../../shared/modes"
+import { experimentDefault } from "../../../shared/experiments"
 
 // Mock custom-instructions module
 const mockAddCustomInstructions = jest.fn()
+
 jest.mock("../../prompts/sections/custom-instructions", () => ({
 	addCustomInstructions: mockAddCustomInstructions,
 }))
@@ -202,7 +206,6 @@ describe("ClineProvider", () => {
 	let mockOutputChannel: vscode.OutputChannel
 	let mockWebviewView: vscode.WebviewView
 	let mockPostMessage: jest.Mock
-	let visibilityChangeCallback: (e?: unknown) => void
 
 	beforeEach(() => {
 		// Reset mocks
@@ -270,13 +273,13 @@ describe("ClineProvider", () => {
 				return { dispose: jest.fn() }
 			}),
 			onDidChangeVisibility: jest.fn().mockImplementation((callback) => {
-				visibilityChangeCallback = callback
 				return { dispose: jest.fn() }
 			}),
 		} as unknown as vscode.WebviewView
 
 		provider = new ClineProvider(mockContext, mockOutputChannel)
-		// @ts-ignore - accessing private property for testing
+
+		// @ts-ignore - Accessing private property for testing.
 		provider.customModesManager = mockCustomModesManager
 	})
 
@@ -288,18 +291,36 @@ describe("ClineProvider", () => {
 		expect(ClineProvider.getVisibleInstance()).toBe(provider)
 	})
 
-	test("resolveWebviewView sets up webview correctly", () => {
-		provider.resolveWebviewView(mockWebviewView)
+	test("resolveWebviewView sets up webview correctly", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
 
 		expect(mockWebviewView.webview.options).toEqual({
 			enableScripts: true,
 			localResourceRoots: [mockContext.extensionUri],
 		})
+
+		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
+	})
+
+	test("resolveWebviewView sets up webview correctly in development mode even if local server is not running", async () => {
+		provider = new ClineProvider(
+			{ ...mockContext, extensionMode: vscode.ExtensionMode.Development },
+			mockOutputChannel,
+		)
+		;(axios.get as jest.Mock).mockRejectedValueOnce(new Error("Network error"))
+
+		await provider.resolveWebviewView(mockWebviewView)
+
+		expect(mockWebviewView.webview.options).toEqual({
+			enableScripts: true,
+			localResourceRoots: [mockContext.extensionUri],
+		})
+
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
 	})
 
 	test("postMessageToWebview sends message to webview", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 
 		const mockState: ExtensionState = {
 			version: "1.0.0",
@@ -341,7 +362,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("handles webviewDidLaunch message", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 
 		// Get the message handler from onDidReceiveMessage
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
@@ -420,7 +441,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("handles writeDelayMs message", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		await messageHandler({ type: "writeDelayMs", value: 2000 })
@@ -430,7 +451,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("updates sound utility when sound setting changes", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 
 		// Get the message handler from onDidReceiveMessage
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
@@ -470,7 +491,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("loads saved API config when switching modes", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Mock ConfigManager methods
@@ -491,7 +512,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("saves current config when switching to mode without config", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Mock ConfigManager methods
@@ -519,7 +540,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("saves config as default for current mode when loading config", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		provider.configManager = {
@@ -540,7 +561,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("handles request delay settings messages", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Test alwaysApproveResubmit
@@ -555,7 +576,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("handles updatePrompt message correctly", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Mock existing prompts
@@ -650,7 +671,7 @@ describe("ClineProvider", () => {
 		)
 	})
 	test("handles mode-specific custom instructions updates", async () => {
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Mock existing prompts
@@ -707,7 +728,7 @@ describe("ClineProvider", () => {
 
 		// Create new provider with updated mock context
 		provider = new ClineProvider(mockContext, mockOutputChannel)
-		provider.resolveWebviewView(mockWebviewView)
+		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		provider.configManager = {
@@ -732,10 +753,10 @@ describe("ClineProvider", () => {
 	})
 
 	describe("deleteMessage", () => {
-		beforeEach(() => {
+		beforeEach(async () => {
 			// Mock window.showInformationMessage
 			;(vscode.window.showInformationMessage as jest.Mock) = jest.fn()
-			provider.resolveWebviewView(mockWebviewView)
+			await provider.resolveWebviewView(mockWebviewView)
 		})
 
 		test('handles "Just this message" deletion correctly', async () => {
@@ -861,9 +882,9 @@ describe("ClineProvider", () => {
 	})
 
 	describe("getSystemPrompt", () => {
-		beforeEach(() => {
+		beforeEach(async () => {
 			mockPostMessage.mockClear()
-			provider.resolveWebviewView(mockWebviewView)
+			await provider.resolveWebviewView(mockWebviewView)
 			// Reset and setup mock
 			mockAddCustomInstructions.mockClear()
 			mockAddCustomInstructions.mockImplementation(
@@ -1111,7 +1132,7 @@ describe("ClineProvider", () => {
 			})
 
 			// Resolve webview and trigger getSystemPrompt
-			provider.resolveWebviewView(mockWebviewView)
+			await provider.resolveWebviewView(mockWebviewView)
 			const architectHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 			await architectHandler({ type: "getSystemPrompt" })
 
@@ -1125,9 +1146,9 @@ describe("ClineProvider", () => {
 	})
 
 	describe("handleModeSwitch", () => {
-		beforeEach(() => {
+		beforeEach(async () => {
 			// Set up webview for each test
-			provider.resolveWebviewView(mockWebviewView)
+			await provider.resolveWebviewView(mockWebviewView)
 		})
 
 		test("loads saved API config when switching modes", async () => {
@@ -1188,7 +1209,7 @@ describe("ClineProvider", () => {
 
 	describe("updateCustomMode", () => {
 		test("updates both file and state when updating custom mode", async () => {
-			provider.resolveWebviewView(mockWebviewView)
+			await provider.resolveWebviewView(mockWebviewView)
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 			// Mock CustomModesManager methods
@@ -1250,6 +1271,131 @@ describe("ClineProvider", () => {
 					}),
 				}),
 			)
+		})
+	})
+
+	describe("upsertApiConfiguration", () => {
+		test("handles error in upsertApiConfiguration gracefully", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock ConfigManager methods to simulate error
+			provider.configManager = {
+				setModeConfig: jest.fn().mockRejectedValue(new Error("Failed to update mode config")),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			// Mock getState to provide necessary data
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				mode: "code",
+				currentApiConfigName: "test-config",
+			} as any)
+
+			// Trigger updateApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiKey: "test-key",
+				},
+			})
+
+			// Verify error was logged and user was notified
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Error create new api configuration"),
+			)
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to create api configuration")
+		})
+
+		test("handles successful upsertApiConfiguration", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock ConfigManager methods
+			provider.configManager = {
+				saveConfig: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			const testApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "test-key",
+			}
+
+			// Trigger upsertApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: testApiConfig,
+			})
+
+			// Verify config was saved
+			expect(provider.configManager.saveConfig).toHaveBeenCalledWith("test-config", testApiConfig)
+
+			// Verify state updates
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
+
+			// Verify state was posted to webview
+			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
+		})
+
+		test("handles buildApiHandler error in updateApiConfiguration", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock buildApiHandler to throw an error
+			const { buildApiHandler } = require("../../../api")
+			;(buildApiHandler as jest.Mock).mockImplementationOnce(() => {
+				throw new Error("API handler error")
+			})
+
+			// Mock ConfigManager methods
+			provider.configManager = {
+				saveConfig: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			// Setup mock Cline instance
+			const mockCline = {
+				api: undefined,
+				abortTask: jest.fn(),
+			}
+			// @ts-ignore - accessing private property for testing
+			provider.cline = mockCline
+
+			const testApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "test-key",
+			}
+
+			// Trigger upsertApiConfiguration
+			await messageHandler({
+				type: "upsertApiConfiguration",
+				text: "test-config",
+				apiConfiguration: testApiConfig,
+			})
+
+			// Verify error handling
+			expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
+				expect.stringContaining("Error create new api configuration"),
+			)
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to create api configuration")
+
+			// Verify state was still updated
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 		})
 	})
 })

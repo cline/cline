@@ -31,7 +31,7 @@ suite("Roo Code Task", () => {
 
 		try {
 			// Initialize provider with panel.
-			provider.resolveWebviewView(panel)
+			await provider.resolveWebviewView(panel)
 
 			// Wait for webview to launch.
 			let startTime = Date.now()

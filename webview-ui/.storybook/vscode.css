@@ -14,7 +14,7 @@
 	--vscode-button-foreground: #ffffff; /* "button.foreground" */
 	--vscode-button-secondaryBackground: #313131; /* "button.secondaryBackground" */
 	--vscode-button-secondaryForeground: #cccccc; /* "button.secondaryForeground" */
-	--vscode-disabledForeground: red; /* "disabledForeground" */
+	--vscode-disabledForeground: #313131; /* "disabledForeground" */
 	--vscode-descriptionForeground: #9d9d9d; /* "descriptionForeground" */
 	--vscode-focusBorder: #0078d4; /* "focusBorder" */
 	--vscode-errorForeground: #f85149; /* "errorForeground" */
