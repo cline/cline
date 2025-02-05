@@ -6,10 +6,7 @@ import { McpResource, McpResourceTemplate } from "../../../src/shared/mcp"
  * @param templates Array of URI templates to match against
  * @returns The matching template or undefined if no match is found
  */
-export function findMatchingTemplate(
-	uri: string,
-	templates: McpResourceTemplate[] = [],
-): McpResourceTemplate | undefined {
+export function findMatchingTemplate(uri: string, templates: McpResourceTemplate[] = []): McpResourceTemplate | undefined {
 	return templates.find((template) => {
 		// Convert template to regex pattern
 		const pattern = String(template.uriTemplate)

@@ -1,3 +1,5 @@
+export type McpMode = "full" | "server-use-only" | "off"
+
 export type McpServer = {
 	name: string
 	config: string
@@ -6,12 +8,14 @@ export type McpServer = {
 	tools?: McpTool[]
 	resources?: McpResource[]
 	resourceTemplates?: McpResourceTemplate[]
+	disabled?: boolean
 }
 
 export type McpTool = {
 	name: string
 	description?: string
 	inputSchema?: object
+	autoApprove?: boolean
 }
 
 export type McpResource = {

@@ -4,6 +4,7 @@ import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
+import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -128,7 +129,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				padding: "0 15px",
 				userSelect: "none",
 				borderTop: isExpanded
-					? `0.5px solid color-mix(in srgb, var(--vscode-titleBar-inactiveForeground) 20%, transparent)`
+					? `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 					: "none",
 				overflowY: "auto",
 				...style,
@@ -157,7 +158,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					}
 				}}>
 				<VSCodeCheckbox
-					style={{ pointerEvents: hasEnabledActions ? "auto" : "none" }}
+					style={{
+						pointerEvents: hasEnabledActions ? "auto" : "none",
+					}}
 					checked={hasEnabledActions && autoApprovalSettings.enabled}
 					disabled={!hasEnabledActions}
 					// onChange={(e) => {
@@ -166,7 +169,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					// }}
 					onClick={(e) => {
 						/*
-						vscode web toolkit bug: when changing the value of a vscodecheckbox programatically, it will call its onChange with stale state. This led to updateEnabled being called with an old vesion of autoApprovalSettings, effectively undoing the state change that was triggered by the last action being unchecked. A simple workaround is to just not use onChange and intead use onClick. We are lucky this is a checkbox and the newvalue is simply opposite of current state.
+						vscode web toolkit bug: when changing the value of a vscodecheckbox programmatically, it will call its onChange with stale state. This led to updateEnabled being called with an old version of autoApprovalSettings, effectively undoing the state change that was triggered by the last action being unchecked. A simple workaround is to just not use onChange and instead use onClick. We are lucky this is a checkbox and the newvalue is simply opposite of current state.
 						*/
 						if (!hasEnabledActions) return
 						e.stopPropagation() // stops click from bubbling up to the parent, in this case stopping the expanding/collapsing
@@ -182,7 +185,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							setIsExpanded((prev) => !prev)
 						}
 					}}>
-					<span style={{ color: "var(--vscode-foreground)", whiteSpace: "nowrap" }}>Auto-approve:</span>
+					<span
+						style={{
+							color: getAsVar(VSC_FOREGROUND),
+							whiteSpace: "nowrap",
+						}}>
+						Auto-approve:
+					</span>
 					<span
 						style={{
 							whiteSpace: "nowrap",
@@ -205,11 +214,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<div
 						style={{
 							marginBottom: "10px",
-							color: "var(--vscode-descriptionForeground)",
+							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
-						Auto-approve allows Cline to perform the following actions without asking for permission. Please
-						use with caution and only enable if you understand the risks.
+						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
+						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
@@ -224,7 +233,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<div
 								style={{
 									marginLeft: "28px",
-									color: "var(--vscode-descriptionForeground)",
+									color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 									fontSize: "12px",
 								}}>
 								{action.description}
@@ -234,7 +243,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<div
 						style={{
 							height: "0.5px",
-							background: "var(--vscode-titleBar-inactiveForeground)",
+							background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
 							margin: "15px 0",
 							opacity: 0.2,
 						}}
@@ -246,7 +255,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							gap: "8px",
 							marginTop: "10px",
 							marginBottom: "8px",
-							color: "var(--vscode-foreground)",
+							color: getAsVar(VSC_FOREGROUND),
 						}}>
 						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
 						<VSCodeTextField
@@ -263,10 +272,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}
 							onKeyDown={(e) => {
 								// Prevent non-numeric keys (except for backspace, delete, arrows)
-								if (
-									!/^\d$/.test(e.key) &&
-									!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-								) {
+								if (!/^\d$/.test(e.key) && !["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)) {
 									e.preventDefault()
 								}
 							}}
@@ -275,12 +281,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					</div>
 					<div
 						style={{
-							color: "var(--vscode-descriptionForeground)",
+							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 							marginBottom: "10px",
 						}}>
-						Cline will automatically make this many API requests before asking for approval to proceed with
-						the task.
+						Cline will automatically make this many API requests before asking for approval to proceed with the task.
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
@@ -294,11 +299,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						<div
 							style={{
 								marginLeft: "28px",
-								color: "var(--vscode-descriptionForeground)",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 								fontSize: "12px",
 							}}>
-							Receive system notifications when Cline requires approval to proceed or when a task is
-							completed.
+							Receive system notifications when Cline requires approval to proceed or when a task is completed.
 						</div>
 					</div>
 				</div>
@@ -311,12 +315,12 @@ const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	color: ${(props) => (props.isHovered ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	color: ${(props) => (props.isHovered ? getAsVar(VSC_FOREGROUND) : getAsVar(VSC_DESCRIPTION_FOREGROUND))};
 	flex: 1;
 	min-width: 0;
 
 	&:hover {
-		color: var(--vscode-foreground);
+		color: ${getAsVar(VSC_FOREGROUND)};
 	}
 `
 

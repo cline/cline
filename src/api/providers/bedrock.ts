@@ -107,6 +107,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			const id = modelId as BedrockModelId
 			return { id, info: bedrockModels[id] }
 		}
-		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
+		return {
+			id: bedrockDefaultModelId,
+			info: bedrockModels[bedrockDefaultModelId],
+		}
 	}
 }

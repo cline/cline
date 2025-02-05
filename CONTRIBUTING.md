@@ -14,7 +14,22 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 
 Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
 
-If you're planning to work on a bigger feature, please create an issue first so we can discuss whether it aligns with Cline's vision.
+We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+
+If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
+
+## Development Setup
+
+1. **VS Code Extensions**
+
+    - When opening the project, VS Code will prompt you to install recommended extensions
+    - These extensions are required for development - please accept all installation prompts
+    - If you dismissed the prompts, you can install them manually from the Extensions panel
+
+2. **Local Development**
+    - Run `npm run install:all` to install dependencies
+    - Run `npm run test` to run tests locally
+    - Before submitting PR, run `npm run format:fix` to format your code
 
 ## Writing and Submitting Code
 
@@ -28,8 +43,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to ensure code follows our style guidelines
-    - Run `npm run format` to format your code with Prettier
+    - Run `npm run lint` to check code style
+    - Run `npm run format` to automatically format code
+    - All PRs must pass CI checks which include both linting and formatting
     - Address any ESLint warnings or errors before submitting
     - Follow TypeScript best practices and maintain type safety
 
@@ -40,20 +56,30 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
-4. **Commit Guidelines**
+4. **Version Management with Changesets**
+
+    - Create a changeset for any user-facing changes using `npm run changeset`
+    - Choose the appropriate version bump:
+        - `major` for breaking changes (1.0.0 → 2.0.0)
+        - `minor` for new features (1.0.0 → 1.1.0)
+        - `patch` for bug fixes (1.0.0 → 1.0.1)
+    - Write clear, descriptive changeset messages that explain the impact
+    - Documentation-only changes don't require changesets
+
+5. **Commit Guidelines**
 
     - Write clear, descriptive commit messages
     - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
     - Reference relevant issues in commits using #issue-number
 
-5. **Before Submitting**
+6. **Before Submitting**
 
     - Rebase your branch on the latest main
     - Ensure your branch builds successfully
     - Double-check all tests are passing
     - Review your changes for any debugging code or console logs
 
-6. **Pull Request Description**
+7. **Pull Request Description**
     - Clearly describe what your changes do
     - Include steps to test the changes
     - List any breaking changes
