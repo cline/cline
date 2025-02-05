@@ -20,7 +20,7 @@ const TooltipBody = styled.div`
 	color: ${getAsVar(VSC_DESCRIPTION_FOREGROUND)};
 	padding: 5px;
 	border-radius: 5px;
-	bottom: 90%;
+	bottom: 88%;
 	left: -150%;
 	z-index: 10;
 	white-space: wrap;
