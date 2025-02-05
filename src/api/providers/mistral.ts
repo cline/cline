@@ -21,7 +21,7 @@ export class MistralHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new Mistral({
-			serverURL: "https://api.mistral.ai/v1",
+			serverURL: "https://api.mistral.ai",
 			apiKey: this.options.mistralApiKey,
 		})
 	}
