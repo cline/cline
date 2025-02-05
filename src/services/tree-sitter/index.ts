@@ -50,7 +50,10 @@ export async function parseSourceCodeForDefinitionsTopLevel(dirPath: string): Pr
 	return result ? result : "No source code definitions found."
 }
 
-function separateFiles(allFiles: string[]): { filesToParse: string[]; remainingFiles: string[] } {
+function separateFiles(allFiles: string[]): {
+	filesToParse: string[]
+	remainingFiles: string[]
+} {
 	const extensions = [
 		"js",
 		"jsx",
