@@ -1,12 +1,19 @@
 # Roo Code Changelog
 
-## 3.3.10
-
-### Patch Changes
+## [3.3.10]
 
 - Add shortcuts to the currently open tabs in the "Add File" section of @-mentions (thanks @olup!)
+- Fix pricing for o1-mini (thanks @hesara!)
+- Fix context window size calculation (thanks @MuriloFP!)
+- Improvements to experimental unified diff strategy and selection logic in code actions (thanks @nissa-seru!)
+- Enable markdown formatting in o3 and o1 (thanks @nissa-seru!)
+- Improved terminal shell detection logic (thanks @canvrno for the original and @nissa-seru for the port!)
+- Fix occasional errors when switching between API profiles (thanks @samhvw8!)
+- Visual improvements to the list of modes on the prompts tab
+- Fix double-scrollbar in provider dropdown
 - Visual cleanup to the list of modes on the prompts tab
-- v3.3.10
+- Improvements to the default prompts for Architect and Ask mode
+- Allow switching between modes with slash messages like `/ask why is the sky blue?`
 
 ## [3.3.9]
 
