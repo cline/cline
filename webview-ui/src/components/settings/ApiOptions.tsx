@@ -489,14 +489,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						}}>
 						{apiConfiguration?.awsUseProfile ? (
 							<>
-								Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default profile.
-								These credentials are only used locally to make API requests from this extension.
+								Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default
+								profile. These credentials are only used locally to make API requests from this extension.
 							</>
 						) : (
 							<>
 								Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
-								~/.aws/credentials or environment variables. These credentials are only used locally to make API requests
-								from this extension.
+								~/.aws/credentials or environment variables. These credentials are only used locally to make API
+								requests from this extension.
 							</>
 						)}
 					</p>
