@@ -66,8 +66,8 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 								/>
 							)}
 							<div style={{ fontSize: "14px", marginBottom: 10 }}>
-								{userInfo?.displayName && <div>Name: {userInfo.displayName}</div>}
-								{userInfo?.email && <div>Email: {userInfo.email}</div>}
+								{userInfo?.displayName && <div>{userInfo.displayName}</div>}
+								{userInfo?.email && <div>{userInfo.email}</div>}
 							</div>
 							<VSCodeButton onClick={handleLogout}>Log out</VSCodeButton>
 						</>
