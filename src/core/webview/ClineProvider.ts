@@ -76,6 +76,8 @@ type GlobalStateKey =
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeModelInfo"
+	| "liteLlmBaseUrl"
+	| "liteLlmModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -443,6 +445,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
+								liteLlmBaseUrl,
+								liteLlmModelId,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -471,6 +475,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
+							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -535,6 +541,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								case "lmstudio":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
 									break
+								case "litellm":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
+									break
 							}
 
 							// Restore the model used in previous mode
@@ -562,6 +571,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										break
 									case "lmstudio":
 										await this.updateGlobalState("lmStudioModelId", newModelId)
+										break
+									case "litellm":
+										await this.updateGlobalState("liteLlmModelId", newModelId)
 										break
 								}
 
@@ -1364,6 +1376,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			liteLlmBaseUrl,
+			liteLlmModelId,
 			userInfo,
 			authToken,
 			previousModeApiProvider,
@@ -1403,6 +1417,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
@@ -1453,6 +1469,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				liteLlmBaseUrl,
+				liteLlmModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
