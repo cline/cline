@@ -204,7 +204,7 @@ describe("GeminiHandler", () => {
 				geminiApiKey: "test-key",
 			})
 			const modelInfo = invalidHandler.getModel()
-			expect(modelInfo.id).toBe("gemini-2.0-flash-thinking-exp-01-21") // Default model
+			expect(modelInfo.id).toBe("gemini-2.0-flash-001") // Default model
 		})
 	})
 })
