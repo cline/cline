@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.12
-
-### Patch Changes
+## [3.3.12]
 
 - Bug fix to changing a mode's API configuration on the prompts tab
 - Add new Gemini models
