@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.12
+
+### Patch Changes
+
+- Bug fix to changing a mode's API configuration on the prompts tab
+- Add new Gemini models
+
 ## [3.3.11]
 
 - Safer shell profile path check to avoid an error on Windows
