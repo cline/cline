@@ -1,26 +1,26 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, QWenModelId, ModelInfo, qwenDefaultModelId, qwenModels } from "../../shared/api"
+import { ApiHandlerOptions, QwenModelId, ModelInfo, qwenDefaultModelId, qwenModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-export class QwenkHandler implements ApiHandler {
+export class QwenHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+			baseURL: this.options.qwenApiLine || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 			apiKey: this.options.qwenApiKey,
 		})
 	}
 
-	getModel(): { id: QWenModelId; info: ModelInfo } {
+	getModel(): { id: QwenModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in qwenModels) {
-			const id = modelId as QWenModelId
+			const id = modelId as QwenModelId
 			return { id, info: qwenModels[id] }
 		}
 		return {
@@ -31,7 +31,6 @@ export class QwenkHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),

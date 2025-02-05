@@ -44,6 +44,7 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	qwenApiLine?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -410,10 +411,10 @@ export const deepSeekModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// QWen
+// Qwen
 // https://bailian.console.aliyun.com/
-export type QWenModelId = keyof typeof qwenModels
-export const qwenDefaultModelId: QWenModelId = "qwen-coder-plus-latest"
+export type QwenModelId = keyof typeof qwenModels
+export const qwenDefaultModelId: QwenModelId = "qwen-coder-plus-latest"
 export const qwenModels = {
 	"qwen-coder-plus-latest": {
 		maxTokens: 129_024,

@@ -315,6 +315,33 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "qwen" && (
 				<div>
+					<DropdownContainer className="dropdown-container">
+						<label htmlFor="qwen-line-provider">
+							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba Api Line Choice</span>
+						</label>
+						<VSCodeDropdown
+							id="qwen-line-provider"
+							value={apiConfiguration?.qwenApiLine || ""}
+							onChange={handleInputChange("qwenApiLine")}
+							style={{
+								minWidth: 130,
+								position: "relative",
+							}}>
+							<VSCodeOption value="https://dashscope.aliyuncs.com/compatible-mode/v1">China API</VSCodeOption>
+							<VSCodeOption value="https://dashscope-intl.aliyuncs.com/compatible-mode/v1">
+								International API
+							</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Please select the appropriate API interface based on your location. If you are in China, choose the China
+						API interface. Otherwise , choose the International API interface.
+					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.qwenApiKey || ""}
 						style={{ width: "100%" }}
