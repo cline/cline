@@ -4,41 +4,14 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "compile",
-			"type": "npm",
-			"script": "compile",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
-			"presentation": {
-				"reveal": "silent",
-				"panel": "shared"
-			},
-			"problemMatcher": ["$tsc", "$eslint-stylish"]
-		},
-		{
 			"label": "watch",
-			"dependsOn": ["npm: build:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": ["npm: dev", "npm: watch:tsc", "npm: watch:esbuild"],
 			"presentation": {
 				"reveal": "never"
 			},
 			"group": {
 				"kind": "build",
-				"isDefault": false
-			}
-		},
-		{
-			"label": "debug-mode",
-			"dependsOn": ["compile", "npm: dev"],
-			"group": {
-				"kind": "build",
-				"isDefault": false
-			},
-			"dependsOrder": "parallel",
-			"presentation": {
-				"reveal": "always",
-				"panel": "new"
+				"isDefault": true
 			}
 		},
 		{
@@ -59,20 +32,8 @@
 			},
 			"isBackground": true,
 			"presentation": {
-				"group": "watch",
-				"reveal": "never"
-			}
-		},
-		{
-			"label": "npm: build:webview",
-			"type": "npm",
-			"script": "build:webview",
-			"group": "build",
-			"problemMatcher": [],
-			"isBackground": true,
-			"presentation": {
-				"group": "watch",
-				"reveal": "never"
+				"group": "webview-ui",
+				"reveal": "always"
 			}
 		},
 		{
@@ -84,7 +45,7 @@
 			"isBackground": true,
 			"presentation": {
 				"group": "watch",
-				"reveal": "never"
+				"reveal": "always"
 			}
 		},
 		{
@@ -96,7 +57,7 @@
 			"isBackground": true,
 			"presentation": {
 				"group": "watch",
-				"reveal": "never"
+				"reveal": "always"
 			}
 		}
 	]

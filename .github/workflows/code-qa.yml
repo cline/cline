@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 jobs:
-  compile:
+  qa:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,12 +21,8 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm run install:all
-      - name: Compile
-        run: npm run compile
-      - name: Check types
-        run: npm run check-types
-      - name: Lint
-        run: npm run lint
+      - name: Run lint, check types, and esbuild
+        run: npm run qa
 
   unit-test:
     runs-on: ubuntu-latest
@@ -70,9 +66,9 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-      - name: Create env.integration file
-        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
+      - name: Create env.e2e file
+        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.e2e
       - name: Install dependencies
         run: npm run install:all
-      - name: Run integration tests
-        run: xvfb-run -a npm run test:integration
+      - name: Run end-to-end tests
+        run: xvfb-run -a npm run e2e
