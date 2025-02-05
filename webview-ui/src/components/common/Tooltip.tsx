@@ -25,13 +25,14 @@ const TooltipBody = styled.div`
 	z-index: 10;
 	white-space: wrap;
 	max-width: 200px;
-	box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.1);
+	box-shadow: 0px 0px 10px rgba(50, 50, 50, 0.1);
 	pointer-events: none;
 `
 
 const Hint = styled.div`
-	font-size: 0.9em;
+	font-size: 0.8em;
 	color: ${getAsVar(VSC_INPUT_PLACEHOLDER_FOREGROUND)};
+	opacity: 0.8;
 `
 
 const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children }) => {

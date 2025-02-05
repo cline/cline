@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
-import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
@@ -37,6 +37,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		isLoggedIn: false,
+		platform: DEFAULT_PLATFORM,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
