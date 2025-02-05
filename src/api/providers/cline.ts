@@ -27,25 +27,25 @@ export class ClineHandler implements ApiHandler {
 		try {
 			const response = await axios.get(`https://api.cline.bot/v1/generation?id=${genId}`, {
 				headers: {
-					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+					Authorization: `Bearer ${this.options.clineApiKey}`,
 				},
 				timeout: 5_000, // this request hangs sometimes
 			})
 
 			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
+			console.log("cline generation details:", response.data)
 			yield {
 				type: "usage",
 				// cacheWriteTokens: 0,
 				// cacheReadTokens: 0,
-				// openrouter generation endpoint fails often
+				// cline generation endpoint fails often
 				inputTokens: generation?.native_tokens_prompt || 0,
 				outputTokens: generation?.native_tokens_completion || 0,
 				totalCost: generation?.total_cost || 0,
 			}
 		} catch (error) {
 			// ignore if fails
-			console.error("Error fetching OpenRouter generation details:", error)
+			console.error("Error fetching cline generation details:", error)
 		}
 	}
 
