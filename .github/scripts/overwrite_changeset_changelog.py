@@ -100,4 +100,4 @@ except FileNotFoundError:
 except Exception as e:
     print(f"Error updating changelog: {str(e)}")
     print(f"Current working directory: {os.getcwd()}")
-    exit(1)
+    sys.exit(1)
