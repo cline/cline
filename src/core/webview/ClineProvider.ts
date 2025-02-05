@@ -53,6 +53,8 @@ type GlobalStateKey =
 	| "apiModelId"
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
+	| "awsProfile"
+	| "awsUseProfile"
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
@@ -1352,6 +1354,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsProfile,
+			awsUseProfile,
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -1393,6 +1397,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
+			this.getGlobalState("awsProfile") as Promise<string | undefined>,
+			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
@@ -1451,6 +1457,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				awsSessionToken,
 				awsRegion,
 				awsUseCrossRegionInference,
+				awsProfile,
+				awsUseProfile,
 				vertexProjectId,
 				vertexRegion,
 				openAiBaseUrl,
