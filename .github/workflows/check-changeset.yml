@@ -41,9 +41,11 @@ jobs:
                   echo "$CHANGED_FILES"
 
                   # Check if any of the changed files are in docs/ or .github/
+                  echo "Checking if changes are docs-only..."
                   DOCS_ONLY=true
                   while IFS= read -r file; do
                     if [[ ! "$file" =~ ^(docs/|.github/) ]]; then
+                      echo "Found non-docs change: $file"
                       DOCS_ONLY=false
                       break
                     fi
@@ -51,8 +53,10 @@ jobs:
 
                   # If changes are docs-only, skip changeset check
                   if [ "$DOCS_ONLY" = true ]; then
-                    echo "Only documentation files were changed, skipping changeset check"
+                    echo "All changes are in docs/ or .github/, skipping changeset check"
                     exit 0
+                  else
+                    echo "Changes include non-docs files, checking for changeset..."
                   fi
 
                   # Check if any changeset files are in the changed files
