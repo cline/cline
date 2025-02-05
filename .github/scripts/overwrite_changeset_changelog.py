@@ -22,6 +22,7 @@ Environment Variables:
 #!/usr/bin/env python3
 
 import os
+import sys
 
 CHANGELOG_PATH = os.environ.get("CHANGELOG_PATH", "CHANGELOG.md")
 VERSION = os.environ['VERSION']
@@ -95,7 +96,7 @@ try:
 
 except FileNotFoundError:
     print(f"Error: Changelog file not found at {CHANGELOG_PATH}")
-    exit(1)
+    sys.exit(1)
 except Exception as e:
     print(f"Error updating changelog: {str(e)}")
     print(f"Current working directory: {os.getcwd()}")
