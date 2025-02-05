@@ -238,6 +238,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
+			// eslint-disable-next-line react-hooks/exhaustive-deps
 			[setInputValue, cursorPosition],
 		)
 

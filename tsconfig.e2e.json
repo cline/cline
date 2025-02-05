@@ -10,8 +10,8 @@
 		"skipLibCheck": true,
 		"useUnknownInCatchVariables": false,
 		"rootDir": "src",
-		"outDir": "out-integration"
+		"outDir": "out-e2e"
 	},
 	"include": ["**/*.ts"],
-	"exclude": [".vscode-test", "benchmark", "dist", "**/node_modules/**", "out", "out-integration", "webview-ui"]
+	"exclude": [".vscode-test", "benchmark", "dist", "**/node_modules/**", "out", "out-e2e", "webview-ui"]
 }
