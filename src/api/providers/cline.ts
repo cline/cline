@@ -32,8 +32,8 @@ export class ClineHandler implements ApiHandler {
 				timeout: 5_000, // this request hangs sometimes
 			})
 
-			const generation = response.data?.data
-			console.log("cline generation details:", response.data)
+			const generation = response.data
+			console.log("cline generation details:", generation)
 			yield {
 				type: "usage",
 				inputTokens: generation?.native_tokens_prompt || 0,
