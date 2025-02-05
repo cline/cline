@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.3.10
+
+### Patch Changes
+
+- Add shortcuts to the currently open tabs in the "Add File" section of @-mentions (thanks @olup!)
+- Visual cleanup to the list of modes on the prompts tab
+- v3.3.10
+
 ## [3.3.9]
 
 - Add o3-mini-high and o3-mini-low
