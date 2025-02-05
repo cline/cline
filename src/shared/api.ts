@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "deepseek"
+	| "qwen"
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
@@ -39,6 +40,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
@@ -405,6 +407,93 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// QWen
+// https://bailian.console.aliyun.com/
+export type QWenModelId = keyof typeof qwenModels
+export const qwenDefaultModelId: QWenModelId = "qwen-coder-plus-latest"
+export const qwenModels = {
+	"qwen-coder-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0035,
+		outputPrice: 0.007,
+		cacheWritesPrice: 0.0035,
+		cacheReadsPrice: 0.007,
+	},
+	"qwen-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0008,
+		outputPrice: 0.002,
+		cacheWritesPrice: 0.0004,
+		cacheReadsPrice: 0.001,
+	},
+	"qwen-turbo-latest": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0003,
+		outputPrice: 0.0006,
+		cacheWritesPrice: 0.00015,
+		cacheReadsPrice: 0.0003,
+	},
+	"qwen-max-latest": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0112,
+		outputPrice: 0.0448,
+		cacheWritesPrice: 0.0056,
+		cacheReadsPrice: 0.0224,
+	},
+	"qwen-coder-plus-stable": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0035,
+		outputPrice: 0.007,
+		cacheWritesPrice: 0.0035,
+		cacheReadsPrice: 0.007,
+	},
+	"qwen-plus-stable": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0008,
+		outputPrice: 0.002,
+		cacheWritesPrice: 0.0004,
+		cacheReadsPrice: 0.001,
+	},
+	"qwen-turbo-stable": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0003,
+		outputPrice: 0.0006,
+		cacheWritesPrice: 0.00015,
+		cacheReadsPrice: 0.0003,
+	},
+	"qwen-max-stable": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0112,
+		outputPrice: 0.0448,
+		cacheWritesPrice: 0.0056,
+		cacheReadsPrice: 0.0224,
 	},
 } as const satisfies Record<string, ModelInfo>
 
