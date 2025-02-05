@@ -4,6 +4,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { streamOpenRouterFormatRequest } from "../transform/openrouter-stream"
 import { ApiStream } from "../transform/stream"
+import axios from "axios"
 
 export class ClineHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -23,33 +24,29 @@ export class ClineHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const genId = yield* streamOpenRouterFormatRequest(this.client, systemPrompt, messages, this.getModel())
 
-		// FIXME: Add usage tracking
+		try {
+			const response = await axios.get(`https://api.cline.bot/v1/generation?id=${genId}`, {
+				headers: {
+					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+				},
+				timeout: 5_000, // this request hangs sometimes
+			})
 
-		// await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
-
-		// try {
-		// 	const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
-		// 		headers: {
-		// 			Authorization: `Bearer ${this.options.openRouterApiKey}`,
-		// 		},
-		// 		timeout: 5_000, // this request hangs sometimes
-		// 	})
-
-		// 	const generation = response.data?.data
-		// 	console.log("OpenRouter generation details:", response.data)
-		// 	yield {
-		// 		type: "usage",
-		// 		// cacheWriteTokens: 0,
-		// 		// cacheReadTokens: 0,
-		// 		// openrouter generation endpoint fails often
-		// 		inputTokens: generation?.native_tokens_prompt || 0,
-		// 		outputTokens: generation?.native_tokens_completion || 0,
-		// 		totalCost: generation?.total_cost || 0,
-		// 	}
-		// } catch (error) {
-		// 	// ignore if fails
-		// 	console.error("Error fetching OpenRouter generation details:", error)
-		// }
+			const generation = response.data?.data
+			console.log("OpenRouter generation details:", response.data)
+			yield {
+				type: "usage",
+				// cacheWriteTokens: 0,
+				// cacheReadTokens: 0,
+				// openrouter generation endpoint fails often
+				inputTokens: generation?.native_tokens_prompt || 0,
+				outputTokens: generation?.native_tokens_completion || 0,
+				totalCost: generation?.total_cost || 0,
+			}
+		} catch (error) {
+			// ignore if fails
+			console.error("Error fetching OpenRouter generation details:", error)
+		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
