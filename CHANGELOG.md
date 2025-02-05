@@ -1,11 +1,9 @@
 # Roo Code Changelog
 
-## 3.3.11
+## [3.3.11]
 
-### Patch Changes
-
-- v3.3.11
-- Safer shell profile path check
+- Safer shell profile path check to avoid an error on Windows
+- Autocomplete for slash commands
 
 ## [3.3.10]
 
