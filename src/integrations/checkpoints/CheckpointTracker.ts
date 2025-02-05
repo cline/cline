@@ -43,14 +43,18 @@ class CheckpointTracker {
 	private taskId: string
 	private disposables: vscode.Disposable[] = []
 	private cwd: string
+	private cwdHash: string
 	private lastRetrievedShadowGitConfigWorkTree?: string
 	lastCheckpointHash?: string
 
-	private constructor(provider: ClineProvider, taskId: string, cwd: string) {
+
+	private constructor(provider: ClineProvider, taskId: string, cwd: string, cwdHash: string) {
 		this.providerRef = new WeakRef(provider)
 		this.taskId = taskId
 		this.cwd = cwd
+		this.cwdHash = cwdHash
 	}
+
 
 	public static async create(taskId: string, provider?: ClineProvider): Promise<CheckpointTracker | undefined> {
 		try {
@@ -71,14 +75,33 @@ class CheckpointTracker {
 				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
 			}
 
-			const cwd = await CheckpointTracker.getWorkingDirectory()
-			const newTracker = new CheckpointTracker(provider, taskId, cwd)
-			await newTracker.initShadowGit()
+			const workingDir = await CheckpointTracker.getWorkingDirectory()
+			const cwdHash = CheckpointTracker.hashWorkingDir(workingDir)
+			console.log("cwd: ", workingDir)
+			console.log("working dir hash: ", cwdHash)
+
+
+			const newTracker = new CheckpointTracker(provider, taskId, workingDir, cwdHash)
+			await newTracker.initShadowGit(cwdHash)
+			await newTracker.switchToTaskBranch()
 			return newTracker
 		} catch (error) {
 			console.error("Failed to create CheckpointTracker:", error)
 			throw error
 		}
+	}
+
+	// Create a unique hash for the working directory
+	// This is used to identify the working directory in the shadow git repository
+	// TODO - Replace with method that accomates repo renames and movement
+	private static hashWorkingDir(workingDir: string): string {
+		let hash = 0;
+		for (let i = 0; i < workingDir.length; i++) {
+			hash = (hash * 31 + workingDir.charCodeAt(i)) >>> 0;
+		}
+		const bigHash = BigInt(hash);
+		const numericHash = bigHash.toString().slice(0, 13);
+		return numericHash;
 	}
 
 	private static async getWorkingDirectory(): Promise<string> {
@@ -111,57 +134,71 @@ class CheckpointTracker {
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
-		const checkpointsDir = path.join(globalStoragePath, "tasks", this.taskId, "checkpoints")
+		const checkpointsDir = path.join(globalStoragePath, "checkpoints", this.cwdHash)
 		await fs.mkdir(checkpointsDir, { recursive: true })
 		const gitPath = path.join(checkpointsDir, ".git")
 		return gitPath
 	}
 
-	// Check to see if shadow Git already exists
+	// New method to create/switch to task branch
+	private async switchToTaskBranch(): Promise<void> {
+		const git = simpleGit(path.dirname(await this.getShadowGitPath()))
+		const branchName = `task-${this.taskId}`
+
+		// Check if branch exists
+		const branches = await git.branchLocal()
+		if (!branches.all.includes(branchName)) {
+		await git.checkoutLocalBranch(branchName)
+		} else {
+		await git.checkout(branchName)
+		}
+	}
+
+	// Check to see if shadow Git already exists for the workspace
 	public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
 		const globalStoragePath = provider?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			return false
 		}
-		const gitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
+		// Get working directory hash
+		const workingDir = await CheckpointTracker.getWorkingDirectory()
+		const cwdHash = CheckpointTracker.hashWorkingDir(workingDir)
+		const gitPath = path.join(globalStoragePath, "checkpoints", cwdHash, ".git")
 		return await fileExistsAtPath(gitPath)
 	}
 
 	// Initialize new shadow Git
-	public async initShadowGit(): Promise<string> {
+	public async initShadowGit(cwdHash: string): Promise<string> {
 		const gitPath = await this.getShadowGitPath()
+
+		// If repo exists, just verify worktree
 		if (await fileExistsAtPath(gitPath)) {
-			// Make sure it's the same cwd as the configured worktree
 			const worktree = await this.getShadowGitConfigWorkTree()
 			if (worktree !== this.cwd) {
 				throw new Error("Checkpoints can only be used in the original workspace: " + worktree)
 			}
-
-			return gitPath
-		} else {
-			const checkpointsDir = path.dirname(gitPath)
-			const git = simpleGit(checkpointsDir)
-			await git.init()
-
-			await git.addConfig("core.worktree", this.cwd) // sets the working tree to the current workspace
-
-			// Disable commit signing for shadow repo
-			await git.addConfig("commit.gpgSign", "false")
-
-			// Get LFS patterns and write excludes file
-			const lfsPatterns = await getLfsPatterns(this.cwd)
-			await writeExcludesFile(gitPath, lfsPatterns)
-
-			// Set up git identity (git throws an error if user.name or user.email is not set)
-			await git.addConfig("user.name", "Cline Checkpoint")
-			await git.addConfig("user.email", "noreply@example.com")
-
-			await this.addCheckpointFiles(git)
-			// Initial commit (--allow-empty ensures it works even with no files)
-			await git.commit("initial commit", { "--allow-empty": null })
-
 			return gitPath
 		}
+
+		// Initialize new repo
+		const checkpointsDir = path.dirname(gitPath)
+		const git = simpleGit(checkpointsDir)
+		await git.init()
+
+		// Configure repo
+		await git.addConfig("core.worktree", this.cwd)
+		await git.addConfig("commit.gpgSign", "false")
+		await git.addConfig("user.name", "Cline Checkpoint")
+		await git.addConfig("user.email", "noreply@example.com")
+
+		// Set up LFS patterns
+		const lfsPatterns = await getLfsPatterns(this.cwd)
+		await writeExcludesFile(gitPath, lfsPatterns)
+
+		// Initial commit only on first repo creation
+		await git.commit("initial commit", { "--allow-empty": null })
+
+		return gitPath
 	}
 
 	public async getShadowGitConfigWorkTree(): Promise<string | undefined> {
@@ -184,6 +221,7 @@ class CheckpointTracker {
 		try {
 			const gitPath = await this.getShadowGitPath()
 			const git = simpleGit(path.dirname(gitPath))
+			await this.switchToTaskBranch()
 			await this.addCheckpointFiles(git)
 			const result = await git.commit("checkpoint", {
 				"--allow-empty": null,
@@ -200,6 +238,7 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		const gitPath = await this.getShadowGitPath()
 		const git = simpleGit(path.dirname(gitPath))
+		await this.switchToTaskBranch()
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 	}
 
@@ -229,6 +268,7 @@ class CheckpointTracker {
 	> {
 		const gitPath = await this.getShadowGitPath()
 		const git = simpleGit(path.dirname(gitPath))
+		await this.switchToTaskBranch()
 
 		// If lhsHash is missing, use the initial commit of the repo
 		let baseHash = lhsHash
@@ -396,3 +436,4 @@ class CheckpointTracker {
 export const GIT_DISABLED_SUFFIX = "_disabled"
 
 export default CheckpointTracker
+
