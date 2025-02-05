@@ -46,6 +46,7 @@ import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
+import { LLMFileAccessController } from "../services/llm-access-control/LLMFileAccessController"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
@@ -81,6 +82,7 @@ export class Cline {
 	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
+	private llmAccessController: LLMFileAccessController
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -124,6 +126,10 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
+		this.llmAccessController = new LLMFileAccessController(cwd)
+		this.llmAccessController.initialize().catch((error) => {
+			console.error("Failed to initialize LLMFileAccessController:", error)
+		})
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
@@ -749,6 +755,7 @@ export class Cline {
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
 		this.apiConversationHistory = []
+
 		await this.providerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
@@ -1051,6 +1058,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
+		this.llmAccessController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 
@@ -1195,6 +1203,14 @@ export class Cline {
 		return false
 	}
 
+	private formatErrorWithStatusCode(error: any): string {
+		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
+		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
+
+		// Only prepend the statusCode if it's not already part of the message
+		return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1302,10 +1318,9 @@ export class Cline {
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-				const { response } = await this.ask(
-					"api_req_failed",
-					error.message ?? JSON.stringify(serializeError(error), null, 2),
-				)
+				const errorMessage = this.formatErrorWithStatusCode(error)
+
+				const { response } = await this.ask("api_req_failed", errorMessage)
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
@@ -3053,7 +3068,9 @@ export class Cline {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
-					await abortStream("streaming_failed", error.message ?? JSON.stringify(serializeError(error), null, 2))
+					const errorMessage = this.formatErrorWithStatusCode(error)
+
+					await abortStream("streaming_failed", errorMessage)
 					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
 					if (history) {
 						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
