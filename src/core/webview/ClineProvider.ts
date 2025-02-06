@@ -1943,7 +1943,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		const models: Record<string, ModelInfo> = {}
 		try {
-			const response = await axios.get("http://localhost:8787/models")
+			const response = await axios.get("https://api.getunbound.ai/models")
 
 			if (response.data) {
 				const rawModels: Record<string, any> = response.data
