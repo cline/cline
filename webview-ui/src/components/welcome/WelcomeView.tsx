@@ -56,7 +56,7 @@ const WelcomeView = () => {
 					padding: "0 20px",
 					overflow: "auto",
 				}}>
-				<h2>Hi, I'm Cline</h2>
+				<h2>Hi, I'm Eliza</h2>
 				<p>
 					I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
 					<VSCodeLink

@@ -7,6 +7,7 @@ import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { ElizaService } from './services/elizaService'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -182,6 +183,29 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	const elizaService = new ElizaService()
+
+	let disposable = vscode.commands.registerCommand('cline.chat', async () => {
+		// Get user input
+		const userInput = await vscode.window.showInputBox({
+			placeHolder: 'Type your message to ELIZA...'
+		})
+
+		if (userInput) {
+			try {
+				// Send message to ELIZA
+				const response = await elizaService.sendMessage(userInput)
+				
+				// Show response in VSCode
+				vscode.window.showInformationMessage(response)
+			} catch (error) {
+				vscode.window.showErrorMessage('Failed to communicate with ELIZA')
+			}
+		}
+	})
+
+	context.subscriptions.push(disposable)
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

@@ -1,6 +1,6 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "eliza-dev",
+	"displayName": "ClineEliza",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.2.12",
 	"icon": "assets/icons/icon.png",
@@ -49,18 +49,18 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"id": "clineEliza-ActivityBar",
+					"title": "ClineEliza",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"clineEliza-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
-					"name": ""
+					"id": "clineEliza.SidebarProvider",
+					"name": "ClineEliza"
 				}
 			]
 		},
@@ -94,6 +94,11 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.chat",
+				"title": "Chat with ELIZA",
+				"category": "Cline"
 			}
 		],
 		"menus": {
@@ -101,27 +106,27 @@
 				{
 					"command": "cline.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == clineEliza.SidebarProvider"
 				},
 				{
 					"command": "cline.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == clineEliza.SidebarProvider"
 				},
 				{
 					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == clineEliza.SidebarProvider"
 				},
 				{
 					"command": "cline.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == clineEliza.SidebarProvider"
 				},
 				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == clineEliza.SidebarProvider"
 				}
 			]
 		},
@@ -163,7 +168,14 @@
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
 				}
 			}
-		}
+		},
+		"keybindings": [
+			{
+				"command": "cline.chat",
+				"key": "ctrl+shift+e",
+				"mac": "cmd+shift+e"
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
