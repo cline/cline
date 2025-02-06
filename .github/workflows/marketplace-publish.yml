@@ -39,6 +39,13 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           current_package_version=$(node -p "require('./package.json').version")
+
+          npm run vsix
+          package=$(unzip -l bin/roo-cline-${current_package_version}.vsix)
+          echo "$package"
+          echo "$package" | grep -q "dist/extension.js" || exit 1
+          echo "$package" | grep -q "extension/webview-ui/build/assets/index.js" || exit 1
+          echo "$package" | grep -q "extension/node_modules/@vscode/codicons/dist/codicon.ttf" || exit 1
+
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
-
