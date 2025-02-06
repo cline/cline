@@ -2,7 +2,8 @@
 
 ## [3.3.13]
 
-- v3.3.13
+- Ensure the DeepSeek r1 model works with Ollama (thanks @sammcj!)
+- First step of a more fundamental fix to bugs switching API profiles. If you've been having issues with this please try again and let us know if works any better!
 
 ## [3.3.12]
 
