@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.14
-
-### Patch Changes
+## [3.3.14]
 
 - Oops
 
