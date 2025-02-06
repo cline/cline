@@ -1,7 +1,9 @@
-import * as assert from "assert"
-import axios from "axios"
-import { CustomGatewayHandler } from "../api/providers/custom-gateway"
-import { ApiHandlerOptions, CustomGatewayConfig } from "../shared/api"
+/// <reference types="mocha" />
+
+const assert = require("assert")
+const axios = require("axios")
+import type { CustomGatewayHandler } from "../api/providers/custom-gateway"
+import type { ApiHandlerOptions, CustomGatewayConfig } from "../shared/api"
 
 // Mock axios
 const mockAxios = {
@@ -12,38 +14,40 @@ const mockAxios = {
 }
 ;(axios as any).create = mockAxios.create
 
-suite("CustomGatewayHandler", () => {
+describe("CustomGatewayHandler", () => {
 	// Default test configuration
-	const defaultConfig: CustomGatewayConfig = {
+	const defaultConfig = {
 		baseUrl: "https://api.example.com",
 		compatibilityMode: "openai",
 		headers: [{ key: "Authorization", value: "Bearer test-token" }],
-	}
+	} as const
 
-	const defaultOptions: ApiHandlerOptions = {
+	const defaultOptions = {
 		customGatewayConfig: defaultConfig,
 		webview: {
 			postMessage: () => {},
 		},
 	}
 
-	setup(() => {
+	before(() => {
 		// Reset axios mock before each test
 		;(axios as any).create = mockAxios.create
 	})
 
-	teardown(() => {
+	after(() => {
 		// Clean up after each test
 		;(axios as any).create = mockAxios.create
 	})
 
-	suite("Constructor", () => {
-		test("should throw error if customGatewayConfig is missing", () => {
-			assert.throws(() => new CustomGatewayHandler({} as ApiHandlerOptions), /Custom gateway configuration is required/)
+	describe("Constructor", () => {
+		it("should throw error if customGatewayConfig is missing", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			assert.throws(() => new CustomGatewayHandler({}), /Custom gateway configuration is required/)
 		})
 
-		test("should throw error if baseUrl is missing", () => {
-			const options: ApiHandlerOptions = {
+		it("should throw error if baseUrl is missing", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const options = {
 				customGatewayConfig: {
 					compatibilityMode: "openai",
 					headers: [],
@@ -54,8 +58,9 @@ suite("CustomGatewayHandler", () => {
 			assert.throws(() => new CustomGatewayHandler(options), /Base URL is required/)
 		})
 
-		test("should throw error if compatibilityMode is missing", () => {
-			const options: ApiHandlerOptions = {
+		it("should throw error if compatibilityMode is missing", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const options = {
 				customGatewayConfig: {
 					baseUrl: "https://api.example.com",
 					headers: [],
@@ -66,13 +71,15 @@ suite("CustomGatewayHandler", () => {
 			assert.throws(() => new CustomGatewayHandler(options), /Compatibility mode is required/)
 		})
 
-		test("should initialize with valid configuration", () => {
+		it("should initialize with valid configuration", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
 			const handler = new CustomGatewayHandler(defaultOptions)
 			assert.ok(handler instanceof CustomGatewayHandler)
 		})
 
-		test("should handle path prefix in baseUrl construction", () => {
-			const configWithPrefix: CustomGatewayConfig = {
+		it("should handle path prefix in baseUrl construction", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithPrefix = {
 				...defaultConfig,
 				pathPrefix: "/v1",
 			}
@@ -97,8 +104,9 @@ suite("CustomGatewayHandler", () => {
 			assert.strictEqual(createSpy.args.baseURL, "https://api.example.com/v1")
 		})
 
-		test("should properly build headers", () => {
-			const configWithHeaders: CustomGatewayConfig = {
+		it("should properly build headers", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithHeaders = {
 				...defaultConfig,
 				headers: [
 					{ key: "Authorization", value: "Bearer test-token" },
@@ -131,9 +139,10 @@ suite("CustomGatewayHandler", () => {
 		})
 	})
 
-	suite("Health Check", () => {
-		test("should start health check when enabled", () => {
-			const configWithHealthCheck: CustomGatewayConfig = {
+	describe("Health Check", () => {
+		it("should start health check when enabled", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithHealthCheck = {
 				...defaultConfig,
 				healthCheck: {
 					enabled: true,
@@ -169,8 +178,9 @@ suite("CustomGatewayHandler", () => {
 			assert.ok(healthCheckCalled)
 		})
 
-		test("should handle health check errors", async () => {
-			const configWithHealthCheck: CustomGatewayConfig = {
+		it("should handle health check errors", async () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithHealthCheck = {
 				...defaultConfig,
 				healthCheck: {
 					enabled: true,
@@ -209,9 +219,10 @@ suite("CustomGatewayHandler", () => {
 		})
 	})
 
-	suite("Model Management", () => {
-		test("should use default model when no modelListSource", () => {
-			const configWithDefaultModel: CustomGatewayConfig = {
+	describe("Model Management", () => {
+		it("should use default model when no modelListSource", () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithDefaultModel = {
 				...defaultConfig,
 				defaultModel: {
 					id: "test-model",
@@ -231,8 +242,9 @@ suite("CustomGatewayHandler", () => {
 			assert.deepStrictEqual(model, configWithDefaultModel.defaultModel)
 		})
 
-		test("should fetch and cache model list", async () => {
-			const configWithModelList: CustomGatewayConfig = {
+		it("should fetch and cache model list", async () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
+			const configWithModelList = {
 				...defaultConfig,
 				modelListSource: "/models",
 			}
@@ -278,8 +290,9 @@ suite("CustomGatewayHandler", () => {
 		})
 	})
 
-	suite("Message Creation", () => {
-		test("should create message with proper format", async () => {
+	describe("Message Creation", () => {
+		it("should create message with proper format", async () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
 			const mockAxiosInstance = {
 				get: async () => ({}),
 				post: async () => ({
@@ -338,7 +351,8 @@ suite("CustomGatewayHandler", () => {
 			])
 		})
 
-		test("should handle streaming errors", async () => {
+		it("should handle streaming errors", async () => {
+			const { CustomGatewayHandler } = require("../api/providers/custom-gateway")
 			const mockAxiosInstance = {
 				get: async () => ({}),
 				post: async () => ({
