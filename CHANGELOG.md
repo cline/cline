@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.14
+
+### Patch Changes
+
+- Oops
+
 ## [3.3.13]
 
 - Ensure the DeepSeek r1 model works with Ollama (thanks @sammcj!)
