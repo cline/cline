@@ -52,13 +52,18 @@ export interface ExtensionMessage {
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
 		| "didBecomeVisible"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
+	openedTabs?: Array<{
+		label: string
+		isActive: boolean
+		path?: string
+	}>
 	partialMessage?: ClineMessage
 	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
@@ -97,6 +102,7 @@ export interface ExtensionState {
 	alwaysApproveResubmit?: boolean
 	alwaysAllowModeSwitch?: boolean
 	requestDelaySeconds: number
+	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
 	uriScheme?: string
 	allowedCommands?: string[]
 	soundEnabled?: boolean
@@ -109,6 +115,7 @@ export interface ExtensionState {
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean
+	enableMcpServerCreation: boolean
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string

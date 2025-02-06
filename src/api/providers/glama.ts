@@ -72,28 +72,30 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			maxTokens = 8_192
 		}
 
+		const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
+			model: this.getModel().id,
+			max_tokens: maxTokens,
+			messages: openAiMessages,
+			stream: true,
+		}
+
+		if (this.supportsTemperature()) {
+			requestOptions.temperature = 0
+		}
+
 		const { data: completion, response } = await this.client.chat.completions
-			.create(
-				{
-					model: this.getModel().id,
-					max_tokens: maxTokens,
-					temperature: 0,
-					messages: openAiMessages,
-					stream: true,
+			.create(requestOptions, {
+				headers: {
+					"X-Glama-Metadata": JSON.stringify({
+						labels: [
+							{
+								key: "app",
+								value: "vscode.rooveterinaryinc.roo-cline",
+							},
+						],
+					}),
 				},
-				{
-					headers: {
-						"X-Glama-Metadata": JSON.stringify({
-							labels: [
-								{
-									key: "app",
-									value: "vscode.rooveterinaryinc.roo-cline",
-								},
-							],
-						}),
-					},
-				},
-			)
+			})
 			.withResponse()
 
 		const completionRequestId = response.headers.get("x-completion-request-id")
@@ -148,6 +150,10 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
+	private supportsTemperature(): boolean {
+		return !this.getModel().id.startsWith("openai/o3-mini")
+	}
+
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.glamaModelId
 		const modelInfo = this.options.glamaModelInfo
@@ -164,7 +170,10 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
-				temperature: 0,
+			}
+
+			if (this.supportsTemperature()) {
+				requestOptions.temperature = 0
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {

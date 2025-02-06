@@ -48,6 +48,7 @@ export function removeMention(text: string, position: number): { newText: string
 }
 
 export enum ContextMenuOptionType {
+	OpenedFile = "openedFile",
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
@@ -80,8 +81,14 @@ export function getContextMenuOptions(
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.File)
-				.map((item) => ({ type: ContextMenuOptionType.File, value: item.value }))
+				.filter(
+					(item) =>
+						item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.OpenedFile,
+				)
+				.map((item) => ({
+					type: item.type,
+					value: item.value,
+				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
@@ -162,12 +169,16 @@ export function getContextMenuOptions(
 
 	// Separate matches by type
 	const fileMatches = matchingItems.filter(
-		(item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.Folder,
+		(item) =>
+			item.type === ContextMenuOptionType.File ||
+			item.type === ContextMenuOptionType.OpenedFile ||
+			item.type === ContextMenuOptionType.Folder,
 	)
 	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
 	const otherMatches = matchingItems.filter(
 		(item) =>
 			item.type !== ContextMenuOptionType.File &&
+			item.type !== ContextMenuOptionType.OpenedFile &&
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)

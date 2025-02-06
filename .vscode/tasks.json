@@ -7,7 +7,6 @@
 			"label": "compile",
 			"type": "npm",
 			"script": "compile",
-			"dependsOn": ["npm: build:webview"],
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -30,56 +29,75 @@
 			}
 		},
 		{
+			"label": "debug-mode",
+			"dependsOn": ["compile", "npm: dev"],
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"dependsOrder": "parallel",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			}
+		},
+		{
+			"label": "npm: dev",
+			"type": "npm",
+			"script": "dev",
+			"group": "build",
+			"problemMatcher": {
+				"owner": "vite",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": ".*Local:.*"
+				}
+			},
+			"isBackground": true,
+			"presentation": {
+				"group": "watch",
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "npm: build:webview",
 			"type": "npm",
 			"script": "build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
-			"label": "npm: build:webview",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
+			"label": "npm: watch:esbuild",
 			"type": "npm",
 			"script": "watch:esbuild",
 			"group": "build",
 			"problemMatcher": "$esbuild-watch",
 			"isBackground": true,
-			"label": "npm: watch:esbuild",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
 		},
 		{
+			"label": "npm: watch:tsc",
 			"type": "npm",
 			"script": "watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc",
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
 			}
-		},
-		{
-			"type": "npm",
-			"script": "watch-tests",
-			"problemMatcher": "$tsc-watch",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never",
-				"group": "watchers"
-			},
-			"group": "build"
-		},
-		{
-			"label": "tasks: watch-tests",
-			"dependsOn": ["npm: watch", "npm: watch-tests"],
-			"problemMatcher": []
 		}
 	]
 }

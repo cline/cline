@@ -81,6 +81,7 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+	reasoningEffort?: "low" | "medium" | "high"
 }
 
 // Anthropic
@@ -511,6 +512,33 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
 	// don't support tool use yet
+	"o3-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		reasoningEffort: "medium",
+	},
+	"o3-mini-high": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		reasoningEffort: "high",
+	},
+	"o3-mini-low": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		reasoningEffort: "low",
+	},
 	o1: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -532,8 +560,8 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
@@ -565,7 +593,8 @@ export const deepSeekModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.014, // $0.014 per million tokens
 		outputPrice: 0.28, // $0.28 per million tokens
-		description: "DeepSeek-V3 achieves a significant breakthrough in inference speed over previous models. It tops the leaderboard among open-source models and rivals the most advanced closed-source models globally.",
+		description:
+			"DeepSeek-V3 achieves a significant breakthrough in inference speed over previous models. It tops the leaderboard among open-source models and rivals the most advanced closed-source models globally.",
 	},
 	"deepseek-reasoner": {
 		maxTokens: 8192,

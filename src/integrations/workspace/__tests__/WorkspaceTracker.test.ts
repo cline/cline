@@ -16,6 +16,12 @@ const mockWatcher = {
 }
 
 jest.mock("vscode", () => ({
+	window: {
+		tabGroups: {
+			onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
+			all: [],
+		},
+	},
 	workspace: {
 		workspaceFolders: [
 			{
@@ -61,6 +67,7 @@ describe("WorkspaceTracker", () => {
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "workspaceUpdated",
 			filePaths: expect.arrayContaining(["file1.ts", "file2.ts"]),
+			openedTabs: [],
 		})
 		expect((mockProvider.postMessageToWebview as jest.Mock).mock.calls[0][0].filePaths).toHaveLength(2)
 	})
@@ -74,6 +81,7 @@ describe("WorkspaceTracker", () => {
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "workspaceUpdated",
 			filePaths: ["newfile.ts"],
+			openedTabs: [],
 		})
 	})
 
@@ -92,6 +100,7 @@ describe("WorkspaceTracker", () => {
 		expect(mockProvider.postMessageToWebview).toHaveBeenLastCalledWith({
 			type: "workspaceUpdated",
 			filePaths: [],
+			openedTabs: [],
 		})
 	})
 
@@ -106,6 +115,7 @@ describe("WorkspaceTracker", () => {
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "workspaceUpdated",
 			filePaths: expect.arrayContaining(["newdir"]),
+			openedTabs: [],
 		})
 		const lastCall = (mockProvider.postMessageToWebview as jest.Mock).mock.calls.slice(-1)[0]
 		expect(lastCall[0].filePaths).toHaveLength(1)
@@ -126,6 +136,7 @@ describe("WorkspaceTracker", () => {
 		expect(mockProvider.postMessageToWebview).toHaveBeenCalledWith({
 			type: "workspaceUpdated",
 			filePaths: expect.arrayContaining(expectedFiles),
+			openedTabs: [],
 		})
 		expect(calls[0][0].filePaths).toHaveLength(1000)
 
