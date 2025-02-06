@@ -4,11 +4,12 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"lint": "eslint src --ext ts,tsx",
+		"check-types": "tsc --noEmit",
+		"test": "jest",
 		"dev": "vite",
 		"build": "tsc -b && vite build",
 		"preview": "vite preview",
-		"lint": "eslint src --ext ts,tsx",
-		"test": "jest",
 		"storybook": "storybook dev -p 6006",
 		"build-storybook": "storybook build"
 	},
@@ -58,6 +59,7 @@
 		"@typescript-eslint/parser": "^6.21.0",
 		"@vitejs/plugin-react": "^4.3.4",
 		"eslint": "^8.57.0",
+		"eslint-config-react-app": "^7.0.1",
 		"eslint-plugin-react": "^7.33.2",
 		"eslint-plugin-react-hooks": "^4.6.0",
 		"eslint-plugin-storybook": "^0.11.2",
