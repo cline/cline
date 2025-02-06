@@ -132,6 +132,42 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly tabPanelId = "roo-cline.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
+
+	public static async handleTerminalAction(
+		command: string,
+		promptType: "TERMINAL_ADD_TO_CONTEXT" | "TERMINAL_FIX" | "TERMINAL_EXPLAIN",
+		terminalContent: string,
+	): Promise<void> {
+		const visibleProvider = await ClineProvider.getInstance()
+		if (!visibleProvider) {
+			return
+		}
+
+		const { customSupportPrompts } = await visibleProvider.getState()
+
+		const prompt = supportPrompt.create(promptType, { terminalContent }, customSupportPrompts)
+
+		if (command.endsWith("AddToContext")) {
+			await visibleProvider.postMessageToWebview({
+				type: "invoke",
+				invoke: "setChatBoxMessage",
+				text: prompt,
+			})
+			return
+		}
+
+		if (visibleProvider.cline && command.endsWith("InCurrentTask")) {
+			await visibleProvider.postMessageToWebview({
+				type: "invoke",
+				invoke: "sendMessage",
+				text: prompt,
+			})
+			return
+		}
+
+		await visibleProvider.initClineWithTask(prompt)
+	}
+
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private isViewLaunched = false
 	private cline?: Cline

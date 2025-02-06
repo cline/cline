@@ -123,6 +123,31 @@
 				"command": "roo-cline.addToContext",
 				"title": "Roo Code: Add To Context",
 				"category": "Roo Code"
+			},
+			{
+				"command": "roo-cline.terminalAddToContext",
+				"title": "Roo Code: Add Terminal Content to Context",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalFixCommand",
+				"title": "Roo Code: Fix This Command",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalExplainCommand",
+				"title": "Roo Code: Explain This Command",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalFixCommandInCurrentTask",
+				"title": "Roo Code: Fix This Command (Current Task)",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalExplainCommandInCurrentTask",
+				"title": "Roo Code: Explain This Command (Current Task)",
+				"category": "Terminal"
 			}
 		],
 		"menus": {
@@ -146,6 +171,28 @@
 					"command": "roo-cline.addToContext",
 					"when": "editorHasSelection",
 					"group": "Roo Code@4"
+				}
+			],
+			"terminal/context": [
+				{
+					"command": "roo-cline.terminalAddToContext",
+					"group": "Roo Code@1"
+				},
+				{
+					"command": "roo-cline.terminalFixCommand",
+					"group": "Roo Code@2"
+				},
+				{
+					"command": "roo-cline.terminalExplainCommand",
+					"group": "Roo Code@3"
+				},
+				{
+					"command": "roo-cline.terminalFixCommandInCurrentTask",
+					"group": "Roo Code@5"
+				},
+				{
+					"command": "roo-cline.terminalExplainCommandInCurrentTask",
+					"group": "Roo Code@6"
 				}
 			],
 			"view/title": [
