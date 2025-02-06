@@ -1,23 +1,39 @@
+<div align="center">
+  <h2><strong>Join the Roo Code Community</strong></h2>
+  <p>Connect with developers, contribute ideas, and stay ahead with the latest AI-powered coding tools.</p>
+  
+  <a href="https://discord.gg/roocode" target="_blank">
+    <img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord">
+  </a>
+  <a href="https://www.reddit.com/r/RooCode/" target="_blank">
+    <img src="https://img.shields.io/badge/Join%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Join Reddit">
+  </a>
+  
+  <br><br>
+  <img src="https://img.shields.io/github/stars/RooVetGit/Roo-Code?style=social" alt="GitHub Stars">
+  <img src="https://img.shields.io/visual-studio-marketplace/i/RooVeterinaryInc.roo-cline?label=VS%20Marketplace%20Installs&style=social" alt="VS Marketplace Installs">
+  
+  <br><br>
+</div>
+
+---
+
 # Roo Code (prev. Roo Cline)
 
-<table>
-<tbody>
-<td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><strong>Download on VS Marketplace</strong></a>
-</td>
-<td align="center">
-<a href="https://discord.gg/roocode" target="_blank"><strong>Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://www.reddit.com/r/RooCode/" target="_blank"><strong>r/RooCode</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-<td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><strong>Rate & Review</strong></a>
-</td>
-</tbody>
+<table align="center">
+  <tbody>
+    <tr align="center">
+      <td><a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank">
+        <img src="https://img.shields.io/badge/Download%20on%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download on VS Marketplace">
+      </a></td>
+      <td><a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank">
+        <img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests">
+      </a></td>
+      <td><a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank">
+        <img src="https://img.shields.io/badge/Rate%20%26%20Review-green?style=for-the-badge" alt="Rate & Review">
+      </a></td>
+    </tr>
+  </tbody>
 </table>
 
 **Roo Code** is an AI-powered **autonomous coding agent** that lives in your editor. It can:
