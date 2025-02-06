@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.3.13]
+
+- Ensure the DeepSeek r1 model works with Ollama (thanks @sammcj!)
+- First step of a more fundamental fix to the bugs around switching API profiles. If you've been having issues with this please try again and let us know if works any better! More to come soon, including fixing the laggy text entry in provider settings.
+
 ## [3.3.12]
 
 - Bug fix to changing a mode's API configuration on the prompts tab
