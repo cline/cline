@@ -1,6 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
 import * as diff from "diff"
+import { LLMFileAccessController } from "../../services/llm-access-control/LLMFileAccessController"
+import { Logger } from "../../services/logging/Logger"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -46,7 +48,12 @@ Otherwise, if you have not completed the task and do not need additional informa
 		return formatImagesIntoBlocks(images)
 	},
 
-	formatFilesList: (absolutePath: string, files: string[], didHitLimit: boolean): string => {
+	formatFilesList: (
+		absolutePath: string,
+		files: string[],
+		didHitLimit: boolean,
+		llmFileAccessController: LLMFileAccessController,
+	): string => {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
@@ -77,14 +84,33 @@ Otherwise, if you have not completed the task and do not need additional informa
 				// the shorter one comes first
 				return aParts.length - bParts.length
 			})
+
+		const accessControlledSortedFiles = llmFileAccessController
+			? sorted.map((filePath) => {
+					// path is relative to absolute path, not cwd
+					// validateAccess expects either path relative to cwd or absolute path
+					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
+					const absoluteFilePath = path.resolve(absolutePath, filePath)
+					const isIgnored = !llmFileAccessController.validateAccess(absoluteFilePath)
+					if (isIgnored) {
+						return "\u{1F512} " + filePath
+					}
+
+					return filePath
+				})
+			: sorted
+
 		if (didHitLimit) {
-			return `${sorted.join(
+			return `${accessControlledSortedFiles.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
+		} else if (
+			accessControlledSortedFiles.length === 0 ||
+			(accessControlledSortedFiles.length === 1 && accessControlledSortedFiles[0] === "")
+		) {
 			return "No files found."
 		} else {
-			return sorted.join("\n")
+			return accessControlledSortedFiles.join("\n")
 		}
 	},
 

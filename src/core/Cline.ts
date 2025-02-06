@@ -60,6 +60,7 @@ import { SYSTEM_PROMPT } from "./prompts/system"
 import { addUserInstructions } from "./prompts/system"
 import { OpenAiHandler } from "../api/providers/openai"
 import { ApiStream } from "../api/transform/stream"
+import { Logger } from "../services/logging/Logger"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -81,7 +82,7 @@ export class Cline {
 	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
-	private llmAccessController: LLMFileAccessController
+	private llmFileAccessController: LLMFileAccessController
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -125,8 +126,8 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
-		this.llmAccessController = new LLMFileAccessController(cwd)
-		this.llmAccessController.initialize().catch((error) => {
+		this.llmFileAccessController = new LLMFileAccessController(cwd)
+		this.llmFileAccessController.initialize().catch((error) => {
 			console.error("Failed to initialize LLMFileAccessController:", error)
 		})
 		this.providerRef = new WeakRef(provider)
@@ -1057,7 +1058,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
-		this.llmAccessController.dispose()
+		this.llmFileAccessController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 
@@ -1584,6 +1585,13 @@ export class Cline {
 							// wait so we can determine if it's a new file or editing an existing file
 							break
 						}
+
+						const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
+						if (!accessAllowed) {
+							await handleError("writing file", new Error(`Access denied: ${relPath} (blocked by .clineignore)`))
+							break
+						}
+
 						// Check if file exists using cached map or fs.access
 						let fileExists: boolean
 						if (this.diffViewProvider.editType !== undefined) {
@@ -1701,6 +1709,7 @@ export class Cline {
 									await this.saveCheckpoint()
 									break
 								}
+
 								this.consecutiveMistakeCount = 0
 
 								// if isEditingFile false, that means we have the full contents of the file already.
@@ -1852,6 +1861,16 @@ export class Cline {
 									await this.saveCheckpoint()
 									break
 								}
+
+								const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
+								if (!accessAllowed) {
+									await handleError(
+										"reading file",
+										new Error(`Access denied: ${relPath} (blocked by .clineignore)`),
+									)
+									break
+								}
+
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
 								const completeMessage = JSON.stringify({
@@ -1915,9 +1934,17 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
 								const absolutePath = path.resolve(cwd, relDirPath)
+
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-								const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit)
+
+								const result = formatResponse.formatFilesList(
+									absolutePath,
+									files,
+									didHitLimit,
+									this.llmFileAccessController,
+								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
@@ -1974,9 +2001,15 @@ export class Cline {
 									await this.saveCheckpoint()
 									break
 								}
+
 								this.consecutiveMistakeCount = 0
+
 								const absolutePath = path.resolve(cwd, relDirPath)
-								const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
+								const result = await parseSourceCodeForDefinitionsTopLevel(
+									absolutePath,
+									this.llmFileAccessController,
+								)
+
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
@@ -2044,8 +2077,18 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
 								const absolutePath = path.resolve(cwd, relDirPath)
-								const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
+								const clineignorePath = path.join(cwd, ".clineignore")
+								const results = await regexSearchFiles(
+									cwd,
+									absolutePath,
+									regex,
+									filePattern,
+									this.llmFileAccessController,
+								)
+								// Logger.log(results)
+
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: results,
@@ -3183,26 +3226,38 @@ export class Cline {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFiles = vscode.window.visibleTextEditors
+		const visibleFilePaths = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+			.map((absolutePath) => path.relative(cwd, absolutePath))
+
+		// Filter paths through LLMFileAccessController
+		const allowedVisibleFiles = this.llmFileAccessController
+			.filterPaths(visibleFilePaths)
+			.map((p) => p.toPosix())
 			.join("\n")
-		if (visibleFiles) {
-			details += `\n${visibleFiles}`
+
+		if (allowedVisibleFiles) {
+			details += `\n${allowedVisibleFiles}`
 		} else {
 			details += "\n(No visible files)"
 		}
 
 		details += "\n\n# VSCode Open Tabs"
-		const openTabs = vscode.window.tabGroups.all
+		const openTabPaths = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
 			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+			.map((absolutePath) => path.relative(cwd, absolutePath))
+
+		// Filter paths through LLMFileAccessController
+		const allowedOpenTabs = this.llmFileAccessController
+			.filterPaths(openTabPaths)
+			.map((p) => p.toPosix())
 			.join("\n")
-		if (openTabs) {
-			details += `\n${openTabs}`
+
+		if (allowedOpenTabs) {
+			details += `\n${allowedOpenTabs}`
 		} else {
 			details += "\n(No open tabs)"
 		}
@@ -3316,7 +3371,7 @@ export class Cline {
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
+				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.llmFileAccessController)
 				details += result
 			}
 		}

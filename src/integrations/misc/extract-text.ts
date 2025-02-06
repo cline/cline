@@ -4,8 +4,11 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
+import { LLMFileAccessController } from "../../services/llm-access-control/LLMFileAccessController"
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
+	// First check if we have permission to access this file
+
 	try {
 		await fs.access(filePath)
 	} catch (error) {

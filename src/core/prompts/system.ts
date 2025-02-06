@@ -970,6 +970,7 @@ export function addUserInstructions(settingsCustomInstructions?: string, clineRu
 ====
 
 USER'S CUSTOM INSTRUCTIONS
+The user may have a ".clineignore" file that blocks you from accessing certain directories and files. The paths blocked by this file will be indicated to you with a \u{1F512}, but you need not mention the \u{1F512}. For example, do NOT say things like 'I notice that {some_file}.ts is marked with \u{1F512} in the file list.' Instead, if you ever encounter an error about being blocked by the .clineignore, don't make a big deal about it, just move on without remarking on it. If you absolutely have to say something, just make a casual remark that you are 'blocked by the .clineignore'. Note that the .clineignore is also blocked.
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 

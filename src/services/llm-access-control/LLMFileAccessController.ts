@@ -18,7 +18,7 @@ export class LLMFileAccessController {
 	/**
 	 * Default patterns that are always ignored for security
 	 */
-	private static readonly DEFAULT_PATTERNS = [] // empty for now
+	private static readonly DEFAULT_PATTERNS = [".clineignore"] // empty for now
 
 	constructor(cwd: string) {
 		this.cwd = cwd

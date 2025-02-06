@@ -1,5 +1,6 @@
 import * as path from "path"
 import os from "os"
+import * as fs from "fs"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -98,4 +99,12 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 			return absolutePath.toPosix()
 		}
 	}
+}
+
+export async function pathExists(path: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		fs.access(path, (err) => {
+			resolve(err === null)
+		})
+	})
 }
