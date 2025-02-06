@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "requesty"
 	| "deepseek"
 	| "qwen"
 	| "mistral"
@@ -40,6 +41,8 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	requestyApiKey?: string
+	requestyModelId?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
