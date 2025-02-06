@@ -73,6 +73,15 @@ describe("UnboundHandler", () => {
 		mockOptions = {
 			apiModelId: "anthropic/claude-3-5-sonnet-20241022",
 			unboundApiKey: "test-api-key",
+			unboundModelId: "anthropic/claude-3-5-sonnet-20241022",
+			unboundModelInfo: {
+				description: "Anthropic's Claude 3 Sonnet model",
+				maxTokens: 8192,
+				contextWindow: 200000,
+				supportsPromptCache: true,
+				inputPrice: 0.01,
+				outputPrice: 0.02,
+			},
 		}
 		handler = new UnboundHandler(mockOptions)
 		mockCreate.mockClear()
@@ -230,7 +239,8 @@ describe("UnboundHandler", () => {
 		it("should return default model when invalid model provided", () => {
 			const handlerWithInvalidModel = new UnboundHandler({
 				...mockOptions,
-				apiModelId: "invalid/model",
+				unboundModelId: "invalid/model",
+				unboundModelInfo: undefined,
 			})
 			const modelInfo = handlerWithInvalidModel.getModel()
 			expect(modelInfo.id).toBe("openai/gpt-4o") // Default model
