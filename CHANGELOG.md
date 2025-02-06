@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.3.14]
+
+- Should have skipped floor 13 like an elevator. Hopefully this fixes the broken 3.3.13 release by reverting some internal changes to the code structure 🙏
+
 ## [3.3.13]
 
 - Ensure the DeepSeek r1 model works with Ollama (thanks @sammcj!)
