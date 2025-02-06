@@ -105,7 +105,8 @@ Provide the improved code along with explanations for each enhancement.`,
 		label: "Add Terminal Content to Context",
 		description:
 			"Add terminal output to your current task or conversation. Useful for providing command outputs or logs. Available in the terminal context menu (right-click on selected terminal content).",
-		template: `Terminal output:
+		template: `\${userInput}
+Terminal output:
 \`\`\`
 \${terminalContent}
 \`\`\``,
@@ -114,7 +115,8 @@ Provide the improved code along with explanations for each enhancement.`,
 		label: "Fix Terminal Command",
 		description:
 			"Get help fixing terminal commands that failed or need improvement. Available in the terminal context menu (right-click on selected terminal content).",
-		template: `Fix this terminal command:
+		template: `\${userInput}
+Fix this terminal command:
 \`\`\`
 \${terminalContent}
 \`\`\`
@@ -128,7 +130,8 @@ Please:
 		label: "Explain Terminal Command",
 		description:
 			"Get detailed explanations of terminal commands and their outputs. Available in the terminal context menu (right-click on selected terminal content).",
-		template: `Explain this terminal command:
+		template: `\${userInput}
+Explain this terminal command:
 \`\`\`
 \${terminalContent}
 \`\`\`
