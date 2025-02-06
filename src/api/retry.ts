@@ -6,8 +6,8 @@ interface RetryOptions {
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	maxRetries: 3,
-	baseDelay: 1000,
-	maxDelay: 10000,
+	baseDelay: 1_000,
+	maxDelay: 10_000,
 }
 
 export function withRetry(options: RetryOptions = {}) {
