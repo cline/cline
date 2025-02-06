@@ -4,9 +4,6 @@
   
   <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord" height="60"></a>
   <a href="https://www.reddit.com/r/RooCode/" target="_blank"><img src="https://img.shields.io/badge/Join%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Join Reddit" height="60"></a>
-
-  <a href="https://github.com/RooVetGit/Roo-Code"><img src="https://img.shields.io/github/stars/RooVetGit/Roo-Code?style=social&cacheSeconds=86400" alt="GitHub Stars"></a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/visual-studio-marketplace/i/RooVeterinaryInc.roo-cline?label=VS%20Marketplace%20Installs&style=social&cacheSeconds=86400" alt="VS Marketplace Installs"></a>
   
 </div>
 <br>
