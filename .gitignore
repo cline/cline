@@ -1,6 +1,6 @@
 dist
 out
-out-*
+out-integration
 node_modules
 coverage/
 
@@ -21,4 +21,4 @@ roo-cline-*.vsix
 docs/_site/
 
 # Dotenv
-.env.e2e
+.env.integration
