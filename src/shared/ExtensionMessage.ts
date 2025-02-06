@@ -26,6 +26,9 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "fetchCustomGatewayModels"
+		| "customGatewayModels"
+		| "customGatewayModelsError"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -46,6 +49,18 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	modelListSource?: string
+	models?: Array<{
+		id: string
+		name?: string
+		description?: string
+		maxTokens?: number
+		contextWindow?: number
+		supportsImages?: boolean
+		inputPrice?: number
+		outputPrice?: number
+	}>
+	error?: string
 }
 
 export interface ExtensionState {

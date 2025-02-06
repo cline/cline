@@ -8,6 +8,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
+import { CustomGatewayHandler } from "../../api/providers/custom-gateway"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
@@ -15,7 +16,7 @@ import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
-import { ApiProvider, ModelInfo } from "../../shared/api"
+import { ApiProvider, CompatibilityMode, CustomGatewayConfig, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
@@ -78,6 +79,7 @@ type GlobalStateKey =
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
+	| "customGatewayConfig"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -447,8 +449,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								vsCodeLmModelSelector,
 								liteLlmBaseUrl,
 								liteLlmModelId,
+								customGatewayConfig,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
+							if (customGatewayConfig) {
+								// Ensure customGatewayConfig has all required properties
+								if (!customGatewayConfig.baseUrl || !customGatewayConfig.compatibilityMode) {
+									throw new Error("Custom gateway configuration is missing required properties")
+								}
+								// Ensure headers array exists
+								customGatewayConfig.headers = customGatewayConfig.headers || []
+								// Store the config
+								await this.updateGlobalState("customGatewayConfig", customGatewayConfig)
+							}
 							await this.updateGlobalState("apiModelId", apiModelId)
 							await this.storeSecret("apiKey", apiKey)
 							await this.storeSecret("openRouterApiKey", openRouterApiKey)
@@ -478,7 +491,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
 							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
+								this.cline.api = buildApiHandler({
+									...message.apiConfiguration,
+									outputChannel: this.outputChannel,
+									webview: this.view?.webview
+								})
 							}
 						}
 						await this.postStateToWebview()
@@ -672,6 +689,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							apiConfiguration.openAiApiKey,
 						)
 						this.postMessageToWebview({ type: "openAiModels", openAiModels })
+						break
+					case "customGatewayHealthCheck":
+						if (this.cline?.api instanceof CustomGatewayHandler) {
+							await (this.cline.api as CustomGatewayHandler).performHealthCheck()
+						}
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -1016,9 +1038,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({
-				apiProvider: openrouter,
+			this.cline.api = buildApiHandler({ 
+				apiProvider: openrouter, 
 				openRouterApiKey: apiKey,
+				outputChannel: this.outputChannel,
+				webview: this.view?.webview
 			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
@@ -1383,6 +1407,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			customGatewayConfig,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1424,6 +1449,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("customGatewayConfig") as Promise<CustomGatewayConfig | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1441,36 +1467,49 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		return {
-			apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				openRouterApiKey,
-				awsAccessKey,
-				awsSecretKey,
-				awsSessionToken,
-				awsRegion,
+				apiConfiguration: {
+					apiProvider,
+					apiModelId,
+					apiKey,
+					openRouterApiKey,
+					awsAccessKey,
+					awsSecretKey,
+					awsSessionToken,
+					awsRegion,
 				awsUseCrossRegionInference,
-				vertexProjectId,
-				vertexRegion,
-				openAiBaseUrl,
-				openAiApiKey,
-				openAiModelId,
-				ollamaModelId,
-				ollamaBaseUrl,
+					vertexProjectId,
+					vertexRegion,
+					openAiBaseUrl,
+					openAiApiKey,
+					openAiModelId,
+					ollamaModelId,
+					ollamaBaseUrl,
 				lmStudioModelId,
 				lmStudioBaseUrl,
-				anthropicBaseUrl,
-				geminiApiKey,
-				openAiNativeApiKey,
+					anthropicBaseUrl,
+					geminiApiKey,
+					openAiNativeApiKey,
 				deepSeekApiKey,
 				mistralApiKey,
-				azureApiVersion,
-				openRouterModelId,
-				openRouterModelInfo,
+					azureApiVersion,
+					openRouterModelId,
+					openRouterModelInfo,
 				vsCodeLmModelSelector,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+					outputChannel: this.outputChannel,
+					webview: this.view?.webview,
+					customGatewayConfig: apiProvider === 'custom-gateway' ? 
+						customGatewayConfig || {
+							baseUrl: '',
+							compatibilityMode: 'openai' as CompatibilityMode,
+							headers: [],
+							pathPrefix: undefined,
+							modelListSource: undefined,
+							defaultModel: undefined,
+							healthCheck: undefined
+						}
+						: undefined,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

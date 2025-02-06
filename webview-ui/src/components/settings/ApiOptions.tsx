@@ -3,15 +3,17 @@ import {
 	VSCodeDropdown,
 	VSCodeLink,
 	VSCodeOption,
-	VSCodeRadio,
-	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
+import HeaderManager from "./HeaderManager"
+import HealthCheckConfig from "./HealthCheckConfig"
+import ModelSourceConfig from "./ModelSourceConfig"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
 	ApiProvider,
+	CompatibilityMode,
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
@@ -45,6 +47,184 @@ interface ApiOptionsProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	isPopup?: boolean
+}
+
+export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
+	const provider = apiConfiguration?.apiProvider || "anthropic"
+	const modelId = apiConfiguration?.apiModelId
+
+	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
+		let selectedModelId: string
+		let selectedModelInfo: ModelInfo
+		if (modelId && modelId in models) {
+			selectedModelId = modelId
+			selectedModelInfo = models[modelId]
+		} else {
+			selectedModelId = defaultId
+			selectedModelInfo = models[defaultId]
+		}
+		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
+	}
+	switch (provider) {
+		case "anthropic":
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "bedrock":
+			return getProviderData(bedrockModels, bedrockDefaultModelId)
+		case "vertex":
+			return getProviderData(vertexModels, vertexDefaultModelId)
+		case "gemini":
+			return getProviderData(geminiModels, geminiDefaultModelId)
+		case "openai-native":
+			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "openrouter":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+			}
+		case "openai":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openAiModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "ollama":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.ollamaModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		default:
+			return getProviderData(anthropicModels, anthropicDefaultModelId)
+	}
+}
+
+const ModelInfoSupportsItem = ({
+	isSupported,
+	supportsLabel,
+	doesNotSupportLabel,
+}: {
+	isSupported: boolean
+	supportsLabel: string
+	doesNotSupportLabel: string
+}) => (
+	<span
+		style={{
+			fontWeight: 500,
+			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
+		}}>
+		<i
+			className={`codicon codicon-${isSupported ? "check" : "x"}`}
+			style={{
+				marginRight: 4,
+				marginBottom: isSupported ? 1 : -1,
+				fontSize: isSupported ? 11 : 13,
+				fontWeight: 700,
+				display: "inline-block",
+				verticalAlign: "bottom",
+			}}></i>
+		{isSupported ? supportsLabel : doesNotSupportLabel}
+	</span>
+)
+
+export const ModelInfoView = ({
+	selectedModelId,
+	modelInfo,
+	isDescriptionExpanded,
+	setIsDescriptionExpanded,
+}: {
+	selectedModelId: string
+	modelInfo: ModelInfo
+	isDescriptionExpanded: boolean
+	setIsDescriptionExpanded: (isExpanded: boolean) => void
+}) => {
+	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+
+	const infoItems = [
+		modelInfo.description && (
+			<ModelDescriptionMarkdown
+				key="description"
+				markdown={modelInfo.description}
+				isExpanded={isDescriptionExpanded}
+				setIsExpanded={setIsDescriptionExpanded}
+			/>
+		),
+		<ModelInfoSupportsItem
+			key="supportsImages"
+			isSupported={modelInfo.supportsImages ?? false}
+			supportsLabel="Supports images"
+			doesNotSupportLabel="Does not support images"
+		/>,
+		!isGemini && (
+			<ModelInfoSupportsItem
+				key="supportsPromptCache"
+				isSupported={modelInfo.supportsPromptCache}
+				supportsLabel="Supports prompt caching"
+				doesNotSupportLabel="Does not support prompt caching"
+			/>
+		),
+		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
+			<span key="maxTokens">
+				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
+			</span>
+		),
+		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
+			<span key="inputPrice">
+				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
+			<span key="cacheWritesPrice">
+				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
+				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
+			<span key="cacheReadsPrice">
+				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
+				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
+			</span>
+		),
+		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
+			<span key="outputPrice">
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
+				tokens
+			</span>
+		),
+		isGemini && (
+			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
+				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
+				After that, billing depends on prompt size.{" "}
+				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
+					For more info, see pricing details.
+				</VSCodeLink>
+			</span>
+		),
+	].filter(Boolean)
+
+	return (
+		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
+			{infoItems.map((item, index) => (
+				<Fragment key={index}>
+					{item}
+					{index < infoItems.length - 1 && <br />}
+				</Fragment>
+			))}
+		</p>
+	)
+}
+
+export function getOpenRouterAuthUrl(uriScheme?: string) {
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.claude-dev/openrouter`
+}
+
+export const formatPrice = (price: number) => {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(price)
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -129,6 +309,30 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [])
 	useEvent("message", handleMessage)
 
+	// Initialize or preserve custom gateway config
+	useEffect(() => {
+		if (selectedProvider === "custom-gateway") {
+			const existingConfig = apiConfiguration?.customGatewayConfig
+			setApiConfiguration({
+				...apiConfiguration,
+				customGatewayConfig: {
+					baseUrl: existingConfig?.baseUrl || "",
+					compatibilityMode: existingConfig?.compatibilityMode || "openai",
+					headers: existingConfig?.headers || [],
+					pathPrefix: existingConfig?.pathPrefix,
+					modelListSource: existingConfig?.modelListSource,
+					defaultModel: existingConfig?.defaultModel,
+					healthCheck: {
+						enabled: true,
+						timeout: existingConfig?.healthCheck?.timeout ?? 10000,
+						...existingConfig?.healthCheck,
+					},
+					debug: existingConfig?.debug ?? false,
+				},
+			})
+		}
+	}, [selectedProvider, apiConfiguration, setApiConfiguration])
+
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
 	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
@@ -188,8 +392,176 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="custom-gateway">Custom Gateway</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "custom-gateway" && (
+				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+					<VSCodeTextField
+						value={apiConfiguration?.customGatewayConfig?.baseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={(e) => {
+							const target = e.target as HTMLInputElement
+							const existingConfig = apiConfiguration?.customGatewayConfig || {
+								compatibilityMode: "openai",
+								headers: [],
+							}
+							setApiConfiguration({
+								...apiConfiguration,
+								customGatewayConfig: {
+									...existingConfig,
+									baseUrl: target.value,
+								},
+							})
+						}}
+						placeholder="Enter base URL...">
+						<span style={{ fontWeight: 500 }}>Base URL</span>
+					</VSCodeTextField>
+
+					<VSCodeTextField
+						value={apiConfiguration?.customGatewayConfig?.pathPrefix || ""}
+						style={{ width: "100%" }}
+						onInput={(e) => {
+							const target = e.target as HTMLInputElement
+							const existingConfig = apiConfiguration?.customGatewayConfig || {
+								baseUrl: "",
+								compatibilityMode: "openai",
+								headers: [],
+							}
+							setApiConfiguration({
+								...apiConfiguration,
+								customGatewayConfig: {
+									...existingConfig,
+									pathPrefix: target.value,
+								},
+							})
+						}}
+						placeholder="Optional path prefix (e.g. /api/v1)">
+						<span style={{ fontWeight: 500 }}>Path Prefix</span>
+					</VSCodeTextField>
+
+					<div className="dropdown-container">
+						<label htmlFor="compatibility-mode">
+							<span style={{ fontWeight: 500 }}>Compatibility Mode</span>
+						</label>
+						<VSCodeDropdown
+							id="compatibility-mode"
+							value={apiConfiguration?.customGatewayConfig?.compatibilityMode || "openai"}
+							style={{ width: "100%" }}
+							onChange={(e) => {
+								const target = e.target as HTMLSelectElement
+								const existingConfig = apiConfiguration?.customGatewayConfig || {
+									baseUrl: "",
+									compatibilityMode: "openai",
+									headers: [],
+								}
+								setApiConfiguration({
+									...apiConfiguration,
+									customGatewayConfig: {
+										...existingConfig,
+										compatibilityMode: target.value as CompatibilityMode,
+									},
+								})
+							}}>
+							<VSCodeOption value="openai">OpenAI</VSCodeOption>
+							<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+							<VSCodeOption value="bedrock">Bedrock</VSCodeOption>
+						</VSCodeDropdown>
+					</div>
+
+					<ModelSourceConfig
+						config={apiConfiguration?.customGatewayConfig || {
+							baseUrl: "",
+							compatibilityMode: "openai",
+							headers: [],
+						}}
+						onChange={(config) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								customGatewayConfig: config,
+							})
+						}}
+					/>
+
+					<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.customGatewayConfig?.debug ?? false}
+							onChange={(e) => {
+								const existingConfig = apiConfiguration?.customGatewayConfig || {
+									baseUrl: "",
+									compatibilityMode: "openai",
+									headers: [],
+								}
+								setApiConfiguration({
+									...apiConfiguration,
+									customGatewayConfig: {
+										...existingConfig,
+										debug: (e.target as HTMLInputElement).checked,
+									},
+								})
+							}}>
+							Enable Debug Mode
+						</VSCodeCheckbox>
+						<span style={{ fontSize: 12, color: "var(--vscode-descriptionForeground)" }}>
+							Output detailed debug information to the Output panel
+						</span>
+					</div>
+
+					<div
+						style={{
+							borderTop: "1px solid var(--vscode-textSeparator-foreground)",
+							margin: "15px 0",
+						}}
+					/>
+
+					<span style={{ fontWeight: 500 }}>Headers</span>
+					<HeaderManager
+						headers={apiConfiguration?.customGatewayConfig?.headers || []}
+						onChange={(headers) => {
+							const existingConfig = apiConfiguration?.customGatewayConfig || {
+								baseUrl: "",
+								compatibilityMode: "openai",
+								headers: [],
+							}
+							setApiConfiguration({
+								...apiConfiguration,
+								customGatewayConfig: {
+									...existingConfig,
+									headers,
+								},
+							})
+						}}
+					/>
+
+					<div
+						style={{
+							borderTop: "1px solid var(--vscode-textSeparator-foreground)",
+							margin: "15px 0",
+						}}
+					/>
+
+					<span style={{ fontWeight: 500 }}>Health Check</span>
+					<HealthCheckConfig
+						config={apiConfiguration?.customGatewayConfig || {
+							baseUrl: "",
+							compatibilityMode: "openai",
+							headers: [],
+						}}
+						onChange={(config) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								customGatewayConfig: config,
+							})
+						}}
+					/>
+
+					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+						Configure your custom gateway to connect to enterprise or in-house AI infrastructure.
+					</p>
+				</div>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -588,11 +960,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								})
 							}
 						}}>
-						Set Azure API version
+						Use Azure API Version
 					</VSCodeCheckbox>
+
 					{azureApiVersionSelected && (
 						<VSCodeTextField
-							value={apiConfiguration?.azureApiVersion || ""}
+							value={apiConfiguration?.azureApiVersion || azureOpenAiDefaultApiVersion}
 							style={{ width: "100%", marginTop: 3 }}
 							onInput={handleInputChange("azureApiVersion")}
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
@@ -779,8 +1152,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						type="url"
 						onInput={handleInputChange("ollamaBaseUrl")}
-						placeholder={"Default: http://localhost:11434"}>
-						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+						placeholder="Default: http://localhost:11434">
+						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
@@ -863,7 +1236,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</DropdownContainer>
+					)}
 
+					{selectedModelId && selectedModelInfo && selectedProvider !== "openrouter" && (
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -871,20 +1246,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							setIsDescriptionExpanded={setIsDescriptionExpanded}
 							isPopup={isPopup}
 						/>
-					</>
-				)}
+					)}
+				</div>
+			)}
+
+			{apiErrorMessage && (
+				<p style={{ color: "var(--vscode-errorForeground)", margin: 0 }}>{apiErrorMessage}</p>
+			)}
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					{modelIdErrorMessage}
-				</p>
+				<p style={{ color: "var(--vscode-errorForeground)", margin: 0 }}>{modelIdErrorMessage}</p>
 			)}
 		</div>
 	)

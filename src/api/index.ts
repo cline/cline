@@ -9,6 +9,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
+import { CustomGatewayHandler } from "./providers/custom-gateway"
 import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { MistralHandler } from "./providers/mistral"
@@ -53,6 +54,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new VsCodeLmHandler(options)
 		case "litellm":
 			return new LiteLlmHandler(options)
+		case "custom-gateway":
+			return new CustomGatewayHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

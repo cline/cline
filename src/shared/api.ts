@@ -12,9 +12,16 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "custom-gateway"
+
+import * as vscode from "vscode"
 
 export interface ApiHandlerOptions {
+	outputChannel?: vscode.OutputChannel
 	apiModelId?: string
+	webview?: {
+		postMessage: (message: any) => void
+	}
 	apiKey?: string // anthropic
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
@@ -42,10 +49,45 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	customGatewayConfig?: CustomGatewayConfig
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	customGatewayConfig?: CustomGatewayConfig
+}
+
+// Custom Gateway Types
+export type CompatibilityMode = 'openai' | 'anthropic' | 'bedrock'
+
+export interface CustomHeader {
+	key: string
+	value: string
+	description?: string
+	isSecret?: boolean
+}
+
+export interface CustomGatewayModel {
+	id: string
+	info: ModelInfo
+}
+
+export interface HealthCheckConfig {
+	enabled: boolean
+	endpoint?: string
+	interval?: number
+	timeout?: number // in milliseconds, defaults to 10000
+}
+
+export interface CustomGatewayConfig {
+	baseUrl: string
+	pathPrefix?: string
+	compatibilityMode: CompatibilityMode
+	modelListSource?: string
+	headers: CustomHeader[]
+	defaultModel?: CustomGatewayModel
+	healthCheck?: HealthCheckConfig
+	debug?: boolean // Enable debug logging for API connections
 }
 
 // Models
