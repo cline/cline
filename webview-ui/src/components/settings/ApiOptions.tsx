@@ -317,7 +317,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<DropdownContainer className="dropdown-container">
 						<label htmlFor="qwen-line-provider">
-							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba Api Line Choice</span>
+							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
 						</label>
 						<VSCodeDropdown
 							id="qwen-line-provider"
@@ -340,7 +340,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						Please select the appropriate API interface based on your location. If you are in China, choose the China
-						API interface. Otherwise , choose the International API interface.
+						API interface. Otherwise, choose the International API interface.
 					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.qwenApiKey || ""}
