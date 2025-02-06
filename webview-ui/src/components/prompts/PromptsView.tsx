@@ -192,7 +192,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		setNewModeRoleDefinition("")
 		setNewModeCustomInstructions("")
 		setNewModeGroups(availableGroups)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [newModeName, newModeSlug, newModeRoleDefinition, newModeCustomInstructions, newModeGroups, updateCustomMode])
 
 	const isNameOrSlugTaken = useCallback(
