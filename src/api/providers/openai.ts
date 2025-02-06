@@ -18,10 +18,20 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		// Azure API shape slightly differs from the core API shape:
-		// https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		const urlHost = new URL(this.options.openAiBaseUrl ?? "").host
+
+		let urlHost: string
+
+		try {
+			urlHost = new URL(this.options.openAiBaseUrl ?? "").host
+		} catch (error) {
+			// Likely an invalid `openAiBaseUrl`; we're still working on
+			// proper settings validation.
+			urlHost = ""
+		}
+
 		if (urlHost === "azure.com" || urlHost.endsWith(".azure.com") || options.openAiUseAzure) {
+			// Azure API shape slightly differs from the core API shape:
+			// https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
