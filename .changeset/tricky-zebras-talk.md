@@ -8,4 +8,4 @@ Added Cline as a new provider with native authentication, account management, an
 - Credit limit error handling and UI
 - Updated welcome experience with Cline login option
 - Integration using OpenRouter request format
-- Firebase customer state persistence" | npx @changesets/cli add
+- Firebase customer state persistence"
