@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.13
+
+### Patch Changes
+
+- v3.3.13
+
 ## [3.3.12]
 
 - Bug fix to changing a mode's API configuration on the prompts tab
