@@ -73,7 +73,7 @@ export function getNextTruncationRange(
 	let rangeEndIndex = startOfRest + messagesToRemove - 1
 
 	// Make sure the last message being removed is a user message, so that the next message after the initial task message is an assistant message. This preservers the user-assistant-user-assistant structure.
-	// NOTE: anthropic format messages are always user-assitant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
+	// NOTE: anthropic format messages are always user-assistant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
 	if (messages[rangeEndIndex].role !== "user") {
 		rangeEndIndex -= 1
 	}

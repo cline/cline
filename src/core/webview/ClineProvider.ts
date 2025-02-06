@@ -79,6 +79,8 @@ type GlobalStateKey =
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeModelInfo"
+	| "liteLlmBaseUrl"
+	| "liteLlmModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -177,7 +179,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
-		// and executes code based on the message that is recieved
+		// and executes code based on the message that is received
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
@@ -248,7 +250,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
-		await this.clearTask() // ensures that an exising task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -362,7 +364,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	/**
 	 * Sets up an event listener to listen for messages passed from the webview context and
-	 * executes code based on the message that is recieved.
+	 * executes code based on the message that is received.
 	 *
 	 * @param webview A reference to the extension webview
 	 */
@@ -446,6 +448,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
+                liteLlmBaseUrl,
+								liteLlmModelId,
 								difyApiKey,
 								difyBaseUrl,
 							} = message.apiConfiguration
@@ -476,6 +480,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
+							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 							await this.storeSecret("difyApiKey", difyApiKey)
 							await this.updateGlobalState("difyBaseUrl", difyBaseUrl)
 							if (this.cline) {
@@ -542,6 +548,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								case "lmstudio":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
 									break
+								case "litellm":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
+									break
 							}
 
 							// Restore the model used in previous mode
@@ -569,6 +578,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										break
 									case "lmstudio":
 										await this.updateGlobalState("lmStudioModelId", newModelId)
+										break
+									case "litellm":
+										await this.updateGlobalState("liteLlmModelId", newModelId)
 										break
 								}
 
@@ -1296,7 +1308,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
 
 	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
-	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notfy the other instances that the API key has changed.
+	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notify the other instances that the API key has changed.
 
 	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 
@@ -1371,6 +1383,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			liteLlmBaseUrl,
+			liteLlmModelId,
 			userInfo,
 			difyApiKey,
 			difyBaseUrl,
@@ -1412,6 +1426,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 			this.getSecret("difyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("difyBaseUrl") as Promise<string | undefined>,
@@ -1464,6 +1480,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				liteLlmBaseUrl,
+				liteLlmModelId,
 				difyApiKey,
 				difyBaseUrl,
 			},

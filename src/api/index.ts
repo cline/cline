@@ -13,6 +13,7 @@ import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { LiteLlmHandler } from "./providers/litellm"
 import { DifyHandler } from "./providers/dify"
 
 export interface ApiHandler {
@@ -51,6 +52,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new MistralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
+		case "litellm":
+			return new LiteLlmHandler(options)
 		case "dify":
 			return new DifyHandler(options)
 		default:

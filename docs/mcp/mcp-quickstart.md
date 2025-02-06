@@ -38,7 +38,7 @@ STOP! Before proceeding, you MUST verify these requirements:
  <img src="https://github.com/user-attachments/assets/abf908b1-be98-4894-8dc7-ef3d27943a47" alt="MCP Server Panel" width="400" />
 
 1. The MCP settings files should be display in a tab in VS Code.
-1. Replce the file's contents with this code:
+1. Replace the file's contents with this code:
 
 For Windows:
 
@@ -96,7 +96,7 @@ You should witness Cline:
 1. Update the mcp setting json file
 1. Start the server and start the server
 
-The mcp seetings file should now look like this:
+The mcp settings file should now look like this:
 
 _For a Windows machine:_
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.2.13]
+
+- Add new gemini models gemini-2.0-flash-lite-preview-02-05 and gemini-2.0-flash-001
+- Add all available Mistral API models (thanks @ViezeVingertjes!)
+- Add LiteLLM API provider support (thanks @him0!)
+
+## [3.2.12]
+
+- Fix command chaining for Windows users
+- Fix reasoning_content error for OpenAI providers
+
+## [3.2.11]
+
+- Add OpenAI o3-mini model
+
 ## [3.2.10]
 
 - Improve support for DeepSeek-R1 (deepseek-reasoner) model for OpenRouter, OpenAI-compatible, and DeepSeek direct
