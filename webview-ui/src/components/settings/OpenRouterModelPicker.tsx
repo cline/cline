@@ -4,7 +4,7 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { ModelInfo, openRouterDefaultModelId } from "../../../../src/shared/api"
+import { openRouterDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
@@ -37,8 +37,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		setSearchTerm(newModelId)
 	}
 
-	const selectedModelId = initialSelectedModelId
-	const selectedModelInfo = initialSelectedModelInfo
+	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration)
+	}, [apiConfiguration])
 
 	useMount(() => {
 		vscode.postMessage({ type: "refreshOpenRouterModels" })

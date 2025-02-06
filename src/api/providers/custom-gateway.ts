@@ -1,13 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios, { AxiosInstance } from "axios"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	CustomGatewayConfig,
-	CustomGatewayModel,
-	HealthCheckConfig,
-	ModelInfo,
-} from "../../shared/api"
+import { ApiHandlerOptions, CustomGatewayConfig, CustomGatewayModel, HealthCheckConfig, ModelInfo } from "../../shared/api"
 import { convertMessages, validateMessageFormat } from "../transform/custom-gateway-format"
 import { ApiStream, ApiStreamChunk } from "../transform/stream"
 
@@ -42,13 +36,13 @@ export class CustomGatewayHandler implements ApiHandler {
 
 	private debugLog(message: string, data?: any) {
 		if (this.config.debug) {
-			const timestamp = new Date().toISOString();
-			const logMessage = `[Custom Gateway Debug] ${timestamp} - ${message}`;
-			this.options.outputChannel?.appendLine(logMessage);
+			const timestamp = new Date().toISOString()
+			const logMessage = `[Custom Gateway Debug] ${timestamp} - ${message}`
+			this.options.outputChannel?.appendLine(logMessage)
 			if (data) {
-				this.options.outputChannel?.appendLine(JSON.stringify(data, null, 2));
+				this.options.outputChannel?.appendLine(JSON.stringify(data, null, 2))
 			}
-			console.log(logMessage, data);
+			console.log(logMessage, data)
 		}
 	}
 
@@ -76,9 +70,7 @@ export class CustomGatewayHandler implements ApiHandler {
 	}
 
 	private getFullBaseUrl(): string {
-		const baseUrl = this.config.baseUrl.endsWith("/")
-			? this.config.baseUrl.slice(0, -1)
-			: this.config.baseUrl
+		const baseUrl = this.config.baseUrl.endsWith("/") ? this.config.baseUrl.slice(0, -1) : this.config.baseUrl
 		const pathPrefix = this.config.pathPrefix
 			? this.config.pathPrefix.startsWith("/")
 				? this.config.pathPrefix
@@ -122,30 +114,26 @@ export class CustomGatewayHandler implements ApiHandler {
 					},
 				],
 			}
-			
+
 			let isValidResponse = false
-			
+
 			try {
-				const timeout = this.config.healthCheck?.timeout ?? 10000;
+				const timeout = this.config.healthCheck?.timeout ?? 10000
 				this.debugLog("Sending health check request", {
 					endpoint,
 					timeout,
 					model: model.id,
-					requestData
-				});
-				const response = await this.client.post(
-					endpoint,
 					requestData,
-					{
-						timeout: timeout,
-					}
-				)
+				})
+				const response = await this.client.post(endpoint, requestData, {
+					timeout: timeout,
+				})
 				this.debugLog("Received health check response", {
 					status: response.status,
 					headers: response.headers,
-					data: response.data
-				});
-				
+					data: response.data,
+				})
+
 				// Validate response based on compatibility mode
 				switch (this.config.compatibilityMode) {
 					case "openai":
@@ -161,8 +149,7 @@ export class CustomGatewayHandler implements ApiHandler {
 						// Check for Anthropic response format
 						if (
 							response.data.content?.[0]?.text ||
-							(response.data.choices?.[0]?.message?.content &&
-								!response.data.choices[0].message.role)
+							(response.data.choices?.[0]?.message?.content && !response.data.choices[0].message.role)
 						) {
 							isValidResponse = true
 						}
@@ -172,8 +159,7 @@ export class CustomGatewayHandler implements ApiHandler {
 						if (
 							response.data.completion ||
 							response.data.results?.[0]?.outputText ||
-							(response.data.choices?.[0]?.message?.content &&
-								response.data.requestId)
+							(response.data.choices?.[0]?.message?.content && response.data.requestId)
 						) {
 							isValidResponse = true
 						}
@@ -231,11 +217,7 @@ export class CustomGatewayHandler implements ApiHandler {
 
 		// Check cache
 		const cacheExpiry = 5 * 60 * 1000 // 5 minutes
-		if (
-			this.modelListCache &&
-			this.modelListLastFetched &&
-			Date.now() - this.modelListLastFetched < cacheExpiry
-		) {
+		if (this.modelListCache && this.modelListLastFetched && Date.now() - this.modelListLastFetched < cacheExpiry) {
 			return this.modelListCache
 		}
 
@@ -246,7 +228,9 @@ export class CustomGatewayHandler implements ApiHandler {
 			this.modelListLastFetched = Date.now()
 			return models
 		} catch (error) {
-			this.options.outputChannel?.appendLine(`Failed to fetch model list: ${error instanceof Error ? error.message : String(error)}`)
+			this.options.outputChannel?.appendLine(
+				`Failed to fetch model list: ${error instanceof Error ? error.message : String(error)}`,
+			)
 			if (this.config.defaultModel) {
 				return [this.config.defaultModel]
 			}
@@ -260,7 +244,7 @@ export class CustomGatewayHandler implements ApiHandler {
 		const endpoint = "/chat/completions"
 		const requestMessages = convertMessages(this.config.compatibilityMode, systemPrompt, messages)
 		validateMessageFormat(this.config.compatibilityMode, requestMessages)
-		
+
 		const requestData = {
 			model: model.id,
 			messages: requestMessages,
@@ -271,68 +255,64 @@ export class CustomGatewayHandler implements ApiHandler {
 			endpoint,
 			baseUrl: this.getFullBaseUrl(),
 			headers: this.buildHeaders(),
-			requestData
+			requestData,
 		})
-		
+
 		try {
 			this.debugLog("Sending streaming request")
-			const response = await this.client.post(
-				endpoint,
-				requestData,
-				{
-					responseType: "stream",
-				}
-			)
-			
+			const response = await this.client.post(endpoint, requestData, {
+				responseType: "stream",
+			})
+
 			this.debugLog("Received streaming response", {
 				status: response.status,
 				statusText: response.statusText,
-				headers: response.headers
+				headers: response.headers,
 			})
 
 			for await (const chunk of response.data) {
-				const lines = chunk.toString().split('\n')
+				const lines = chunk.toString().split("\n")
 				for (const line of lines) {
-					if (line.startsWith('data: ')) {
+					if (line.startsWith("data: ")) {
 						// Skip empty lines or "[DONE]" message
-						if (line === 'data: ' || line === 'data: [DONE]') {
+						if (line === "data: " || line === "data: [DONE]") {
 							continue
 						}
-						
+
 						this.debugLog("Received SSE data", { line })
-						
+
 						let content: string | undefined
-						
+
 						try {
 							// Parse the JSON data after the "data: " prefix
 							const jsonStr = line.substring(6) // length of "data: "
-							
+
 							// Skip incomplete JSON
 							if (!jsonStr.trim() || jsonStr.trim().length < 2) {
 								this.debugLog("Skipping empty or incomplete JSON", { jsonStr })
 								continue
 							}
-							
-							try {
-                            const data = JSON.parse(jsonStr)
-                            
-                            if (data.error) {
-                                throw new Error(`Gateway API Error: ${data.error.message}`)
-                            }
 
-                            const delta = data.choices?.[0]?.delta
-                            // Skip if this is just the initial message structure with empty content
-                            if (delta?.role === "assistant" && !delta.content) {
-                                continue
-                            }
-                            
-                            // Only yield when we have actual content
-                            if (delta?.content) {
-                                yield {
-                                    type: "text",
-                                    text: delta.content,
-                                } as ApiStreamChunk
-                            }
+							try {
+								const data = JSON.parse(jsonStr)
+
+								if (data.error) {
+									throw new Error(`Gateway API Error: ${data.error.message}`)
+								}
+
+								const delta = data.choices?.[0]?.delta
+								// Skip if this is just the initial message structure with empty content
+								if (delta?.role === "assistant" && !delta.content) {
+									continue
+								}
+
+								// Only yield when we have actual content
+								if (delta?.content) {
+									yield {
+										type: "text",
+										text: delta.content,
+									} as ApiStreamChunk
+								}
 							} catch (parseError) {
 								// Log the error but don't throw it - allow the stream to continue
 								this.debugLog("JSON parse warning", { error: parseError, jsonStr })
@@ -375,15 +355,17 @@ export class CustomGatewayHandler implements ApiHandler {
 			} else {
 				throw new Error("No model available. Configure defaultModel or fetch from modelListSource.")
 			}
-			
+
 			// Fetch model list in background to update cache
-			this.fetchModelList().then(models => {
-				if (models.length > 0) {
-					this.cachedModel = models[0]
-				}
-			}).catch(error => {
-				this.debugLog("Failed to update model cache", error)
-			})
+			this.fetchModelList()
+				.then((models) => {
+					if (models.length > 0) {
+						this.cachedModel = models[0]
+					}
+				})
+				.catch((error) => {
+					this.debugLog("Failed to update model cache", error)
+				})
 		}
 		return this.cachedModel
 	}

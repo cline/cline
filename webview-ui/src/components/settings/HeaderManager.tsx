@@ -1,8 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { CustomHeader } from "../../../../src/shared/api"
 
@@ -33,9 +29,7 @@ export const HeaderManager = ({ headers, onChange }: HeaderManagerProps) => {
 		}
 
 		// Check for duplicates (case-insensitive)
-		const isDuplicate = headers.some(
-			(h) => h.key.toLowerCase() === header.key.toLowerCase()
-		)
+		const isDuplicate = headers.some((h) => h.key.toLowerCase() === header.key.toLowerCase())
 		if (isDuplicate) {
 			return "Header key already exists"
 		}
@@ -129,15 +123,10 @@ export const HeaderManager = ({ headers, onChange }: HeaderManagerProps) => {
 				</VSCodeCheckbox>
 
 				{validationError && (
-					<p style={{ color: "var(--vscode-errorForeground)", margin: 0, fontSize: 12 }}>
-						{validationError}
-					</p>
+					<p style={{ color: "var(--vscode-errorForeground)", margin: 0, fontSize: 12 }}>{validationError}</p>
 				)}
 
-				<VSCodeButton
-					appearance="secondary"
-					onClick={handleAddHeader}
-					style={{ alignSelf: "flex-start", marginTop: 5 }}>
+				<VSCodeButton appearance="secondary" onClick={handleAddHeader} style={{ alignSelf: "flex-start", marginTop: 5 }}>
 					Add Header
 				</VSCodeButton>
 			</div>
@@ -151,9 +140,7 @@ export const HeaderManager = ({ headers, onChange }: HeaderManagerProps) => {
 				/>
 				<span style={{ fontWeight: 500 }}>Current Headers</span>
 				{headers.length === 0 ? (
-					<div style={{ color: "var(--vscode-descriptionForeground)", fontSize: "12px" }}>
-						No headers added yet
-					</div>
+					<div style={{ color: "var(--vscode-descriptionForeground)", fontSize: "12px" }}>No headers added yet</div>
 				) : (
 					headers.map((header, index) => (
 						<div

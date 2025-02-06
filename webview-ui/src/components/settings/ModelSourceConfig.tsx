@@ -1,9 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeDropdown,
-	VSCodeOption,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { CustomGatewayConfig, ModelInfo } from "../../../../src/shared/api"
 import { vscode } from "../../utils/vscode"
@@ -112,17 +107,12 @@ export const ModelSourceConfig = ({ config, onChange }: ModelSourceConfigProps) 
 					placeholder="Enter URL or file path for model list">
 					<span style={{ fontWeight: 500 }}>Model List Source</span>
 				</VSCodeTextField>
-				<VSCodeButton
-					appearance="secondary"
-					disabled={!config.modelListSource || isLoading}
-					onClick={fetchModels}>
+				<VSCodeButton appearance="secondary" disabled={!config.modelListSource || isLoading} onClick={fetchModels}>
 					{isLoading ? "Loading..." : "Refresh"}
 				</VSCodeButton>
 			</div>
 
-			{error && (
-				<p style={{ color: "var(--vscode-errorForeground)", fontSize: 12, margin: 0 }}>{error}</p>
-			)}
+			{error && <p style={{ color: "var(--vscode-errorForeground)", fontSize: 12, margin: 0 }}>{error}</p>}
 
 			<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 				{models.length > 0 && (
@@ -153,18 +143,20 @@ export const ModelSourceConfig = ({ config, onChange }: ModelSourceConfigProps) 
 							const target = e.target as HTMLInputElement
 							onChange({
 								...config,
-								defaultModel: target.value ? {
-									id: target.value,
-									info: {
-										maxTokens: undefined,
-										contextWindow: undefined,
-										supportsImages: false,
-										supportsPromptCache: false,
-										inputPrice: undefined,
-										outputPrice: undefined,
-										description: undefined,
-									}
-								} : undefined
+								defaultModel: target.value
+									? {
+											id: target.value,
+											info: {
+												maxTokens: undefined,
+												contextWindow: undefined,
+												supportsImages: false,
+												supportsPromptCache: false,
+												inputPrice: undefined,
+												outputPrice: undefined,
+												description: undefined,
+											},
+										}
+									: undefined,
 							})
 						}}
 						placeholder="Enter custom model identifier">
@@ -199,14 +191,14 @@ export const ModelSourceConfig = ({ config, onChange }: ModelSourceConfigProps) 
 					</div>
 					{config.defaultModel.info.inputPrice && (
 						<div>
-							<span style={{ fontWeight: 500 }}>Input Price:</span> $
-							{config.defaultModel.info.inputPrice}/million tokens
+							<span style={{ fontWeight: 500 }}>Input Price:</span> ${config.defaultModel.info.inputPrice}/million
+							tokens
 						</div>
 					)}
 					{config.defaultModel.info.outputPrice && (
 						<div>
-							<span style={{ fontWeight: 500 }}>Output Price:</span> $
-							{config.defaultModel.info.outputPrice}/million tokens
+							<span style={{ fontWeight: 500 }}>Output Price:</span> ${config.defaultModel.info.outputPrice}/million
+							tokens
 						</div>
 					)}
 				</div>

@@ -58,7 +58,7 @@ export type ApiConfiguration = ApiHandlerOptions & {
 }
 
 // Custom Gateway Types
-export type CompatibilityMode = 'openai' | 'anthropic' | 'bedrock'
+export type CompatibilityMode = "openai" | "anthropic" | "bedrock"
 
 export interface CustomHeader {
 	key: string

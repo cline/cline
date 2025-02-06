@@ -74,15 +74,11 @@ export const HealthCheckConfig = ({ config, onChange }: HealthCheckConfigProps) 
 					}}>
 					Health Check Timeout (ms)
 				</VSCodeTextField>
-				<span style={{ fontSize: 12, color: "var(--vscode-descriptionForeground)" }}>
-					Default: 10000ms (10 seconds)
-				</span>
+				<span style={{ fontSize: 12, color: "var(--vscode-descriptionForeground)" }}>Default: 10000ms (10 seconds)</span>
 			</div>
 			<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-					<VSCodeButton onClick={testConnection}>
-						Test Connection
-					</VSCodeButton>
+					<VSCodeButton onClick={testConnection}>Test Connection</VSCodeButton>
 					<span style={{ fontSize: 12, color: "var(--vscode-descriptionForeground)" }}>
 						View detailed logs in Output panel (Cmd+Shift+U) &gt; "Cline"
 					</span>
@@ -98,15 +94,13 @@ export const HealthCheckConfig = ({ config, onChange }: HealthCheckConfigProps) 
 								healthStatus.status === "healthy"
 									? "var(--vscode-testing-iconPassed)"
 									: healthStatus.status === "degraded"
-									? "var(--vscode-testing-iconSkipped)"
-									: "var(--vscode-testing-iconFailed)",
+										? "var(--vscode-testing-iconSkipped)"
+										: "var(--vscode-testing-iconFailed)",
 						}}>
 						<span style={{ fontWeight: 500 }}>Status:</span>
 						<span>{healthStatus.status}</span>
 						{healthStatus.message && (
-							<span style={{ color: "var(--vscode-descriptionForeground)" }}>
-								({healthStatus.message})
-							</span>
+							<span style={{ color: "var(--vscode-descriptionForeground)" }}>({healthStatus.message})</span>
 						)}
 					</div>
 				)}

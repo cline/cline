@@ -42,7 +42,7 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
-	// | "relaunchChromeDebugMode"
+		// | "relaunchChromeDebugMode"
 		| "fetchCustomGatewayModels"
 		| "customGatewayHealthCheck"
 		| "customGatewayHealthStatus"

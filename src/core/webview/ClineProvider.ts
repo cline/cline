@@ -494,7 +494,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.cline.api = buildApiHandler({
 									...message.apiConfiguration,
 									outputChannel: this.outputChannel,
-									webview: this.view?.webview
+									webview: this.view?.webview,
 								})
 							}
 						}
@@ -1038,11 +1038,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({ 
-				apiProvider: openrouter, 
+			this.cline.api = buildApiHandler({
+				apiProvider: openrouter,
 				openRouterApiKey: apiKey,
 				outputChannel: this.outputChannel,
-				webview: this.view?.webview
+				webview: this.view?.webview,
 			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
@@ -1467,48 +1467,49 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		return {
-				apiConfiguration: {
-					apiProvider,
-					apiModelId,
-					apiKey,
-					openRouterApiKey,
-					awsAccessKey,
-					awsSecretKey,
-					awsSessionToken,
-					awsRegion,
+			apiConfiguration: {
+				apiProvider,
+				apiModelId,
+				apiKey,
+				openRouterApiKey,
+				awsAccessKey,
+				awsSecretKey,
+				awsSessionToken,
+				awsRegion,
 				awsUseCrossRegionInference,
-					vertexProjectId,
-					vertexRegion,
-					openAiBaseUrl,
-					openAiApiKey,
-					openAiModelId,
-					ollamaModelId,
-					ollamaBaseUrl,
+				vertexProjectId,
+				vertexRegion,
+				openAiBaseUrl,
+				openAiApiKey,
+				openAiModelId,
+				ollamaModelId,
+				ollamaBaseUrl,
 				lmStudioModelId,
 				lmStudioBaseUrl,
-					anthropicBaseUrl,
-					geminiApiKey,
-					openAiNativeApiKey,
+				anthropicBaseUrl,
+				geminiApiKey,
+				openAiNativeApiKey,
 				deepSeekApiKey,
 				mistralApiKey,
-					azureApiVersion,
-					openRouterModelId,
-					openRouterModelInfo,
+				azureApiVersion,
+				openRouterModelId,
+				openRouterModelInfo,
 				vsCodeLmModelSelector,
 				liteLlmBaseUrl,
 				liteLlmModelId,
-					outputChannel: this.outputChannel,
-					webview: this.view?.webview,
-					customGatewayConfig: apiProvider === 'custom-gateway' ? 
-						customGatewayConfig || {
-							baseUrl: '',
-							compatibilityMode: 'openai' as CompatibilityMode,
-							headers: [],
-							pathPrefix: undefined,
-							modelListSource: undefined,
-							defaultModel: undefined,
-							healthCheck: undefined
-						}
+				outputChannel: this.outputChannel,
+				webview: this.view?.webview,
+				customGatewayConfig:
+					apiProvider === "custom-gateway"
+						? customGatewayConfig || {
+								baseUrl: "",
+								compatibilityMode: "openai" as CompatibilityMode,
+								headers: [],
+								pathPrefix: undefined,
+								modelListSource: undefined,
+								defaultModel: undefined,
+								healthCheck: undefined,
+							}
 						: undefined,
 			},
 			lastShownAnnouncementId,
