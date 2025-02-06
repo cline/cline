@@ -448,7 +448,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
-                liteLlmBaseUrl,
+								liteLlmBaseUrl,
 								liteLlmModelId,
 								difyApiKey,
 								difyBaseUrl,
