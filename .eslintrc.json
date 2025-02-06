@@ -17,8 +17,7 @@
 		"@typescript-eslint/semi": "off",
 		"eqeqeq": "warn",
 		"no-throw-literal": "warn",
-		"semi": "off",
-		"react-hooks/exhaustive-deps": "off"
+		"semi": "off"
 	},
 	"ignorePatterns": ["out", "dist", "**/*.d.ts"]
 }

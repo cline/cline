@@ -7,9 +7,10 @@ fi
 
 npm run compile
 
-# Check for new changesets
+# Check for new changesets.
 NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
 echo "Changeset files: $NEW_CHANGESETS"
+
 if [ "$NEW_CHANGESETS" == "0" ]; then
   echo "-------------------------------------------------------------------------------------"
   echo "Changes detected. Please run 'npm run changeset' to create a changeset if applicable."

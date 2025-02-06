@@ -1,6 +1,6 @@
 dist
 out
-out-integration
+out-*
 node_modules
 coverage/
 

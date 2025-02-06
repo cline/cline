@@ -1,4 +1,6 @@
 # Default
+.github/**
+.husky/**
 .vscode/**
 .vscode-test/**
 out/**
