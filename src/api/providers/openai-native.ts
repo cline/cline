@@ -41,7 +41,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 	private async *handleO1FamilyMessage(
 		modelId: string,
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[]
+		messages: Anthropic.Messages.MessageParam[],
 	): ApiStream {
 		// o1 supports developer prompt with formatting
 		// o1-preview and o1-mini only support user messages
@@ -63,7 +63,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 	private async *handleO3FamilyMessage(
 		modelId: string,
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[]
+		messages: Anthropic.Messages.MessageParam[],
 	): ApiStream {
 		const stream = await this.client.chat.completions.create({
 			model: "o3-mini",
@@ -85,7 +85,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 	private async *handleDefaultModelMessage(
 		modelId: string,
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[]
+		messages: Anthropic.Messages.MessageParam[],
 	): ApiStream {
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
@@ -98,9 +98,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 		yield* this.handleStreamResponse(stream)
 	}
 
-	private async *yieldResponseData(
-			response: OpenAI.Chat.Completions.ChatCompletion
-	): ApiStream {
+	private async *yieldResponseData(response: OpenAI.Chat.Completions.ChatCompletion): ApiStream {
 		yield {
 			type: "text",
 			text: response.choices[0]?.message.content || "",
@@ -112,9 +110,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 		}
 	}
 
-	private async *handleStreamResponse(
-			stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
-	): ApiStream {
+	private async *handleStreamResponse(stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>): ApiStream {
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -168,7 +164,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 
 	private getO1CompletionOptions(
 		modelId: string,
-		prompt: string
+		prompt: string,
 	): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
 		return {
 			model: modelId,
@@ -178,7 +174,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 
 	private getO3CompletionOptions(
 		modelId: string,
-		prompt: string
+		prompt: string,
 	): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
 		return {
 			model: "o3-mini",
@@ -189,7 +185,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 
 	private getDefaultCompletionOptions(
 		modelId: string,
-		prompt: string
+		prompt: string,
 	): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
 		return {
 			model: modelId,
