@@ -1601,6 +1601,7 @@ export class Cline {
 						if (!accessAllowed) {
 							await this.say("clineignore_error", relPath)
 							pushToolResult(formatResponse.clineIgnoreError(relPath))
+							await this.saveCheckpoint()
 							break
 						}
 
@@ -1878,6 +1879,7 @@ export class Cline {
 								if (!accessAllowed) {
 									await this.say("clineignore_error", relPath)
 									pushToolResult(formatResponse.clineIgnoreError(relPath))
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -2332,6 +2334,14 @@ export class Cline {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
+								const ignoredFileAttemptedToAccess = this.clineIgnoreController.validateCommand(command)
+								if (ignoredFileAttemptedToAccess) {
+									await this.say("clineignore_error", ignoredFileAttemptedToAccess)
+									pushToolResult(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
+									await this.saveCheckpoint()
+									break
+								}
 
 								let didAutoApprove = false
 

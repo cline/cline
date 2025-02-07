@@ -103,6 +103,62 @@ export class ClineIgnoreController {
 	}
 
 	/**
+	 * Check if a terminal command should be allowed to execute based on file access patterns
+	 * @param command - Terminal command to validate
+	 * @returns path of file that is being accessed if it is being accessed, undefined if command is allowed
+	 */
+	validateCommand(command: string): string | undefined {
+		// Always allow if no .clineignore exists
+		if (!this.clineIgnoreContent) {
+			return undefined
+		}
+
+		// Split command into parts and get the base command
+		const parts = command.trim().split(/\s+/)
+		const baseCommand = parts[0].toLowerCase()
+
+		// Commands that read file contents
+		const fileReadingCommands = [
+			// Unix commands
+			"cat",
+			"less",
+			"more",
+			"head",
+			"tail",
+			"grep",
+			"awk",
+			"sed",
+			// PowerShell commands and aliases
+			"get-content",
+			"gc",
+			"type",
+			"select-string",
+			"sls",
+		]
+
+		if (fileReadingCommands.includes(baseCommand)) {
+			// Check each argument that could be a file path
+			for (let i = 1; i < parts.length; i++) {
+				const arg = parts[i]
+				// Skip command flags/options (both Unix and PowerShell style)
+				if (arg.startsWith("-") || arg.startsWith("/")) {
+					continue
+				}
+				// Ignore PowerShell parameter names
+				if (arg.includes(":")) {
+					continue
+				}
+				// Validate file access
+				if (!this.validateAccess(arg)) {
+					return arg
+				}
+			}
+		}
+
+		return undefined
+	}
+
+	/**
 	 * Filter an array of paths, removing those that should be ignored
 	 * @param paths - Array of paths to filter (relative to cwd)
 	 * @returns Array of allowed paths
