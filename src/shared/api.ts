@@ -651,12 +651,14 @@ export const mistralModels = {
 } as const satisfies Record<string, ModelInfo>
 
 // Unbound Security
-export const unboundDefaultModelId = "openai/gpt-4o"
+export const unboundDefaultModelId = "anthropic/claude-3-5-sonnet-20241022"
 export const unboundDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
-	contextWindow: 64_000,
-	supportsImages: false,
-	supportsPromptCache: false,
-	inputPrice: 0,
-	outputPrice: 0,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
 }
