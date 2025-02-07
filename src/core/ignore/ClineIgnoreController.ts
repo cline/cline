@@ -100,18 +100,14 @@ export class ClineIgnoreController {
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).replace(/\\/g, "/")
+			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
 
-			// Block access to paths outside cwd (those starting with '..')
-			if (relativePath.startsWith("..")) {
-				return false
-			}
-
-			// Use ignore library to check if path should be ignored
+			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
 		} catch (error) {
-			console.error(`Error validating access for ${filePath}:`, error)
-			return false // Fail closed for security
+			// console.error(`Error validating access for ${filePath}:`, error)
+			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
+			return true
 		}
 	}
 
