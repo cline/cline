@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react"
-import { useShortcut, usePlatformDetection } from "../hooks"
+import { useShortcut, useMetaKeyDetection } from "../hooks"
 import { vi } from "vitest"
 
 describe("useShortcut", () => {
@@ -40,20 +40,25 @@ describe("useShortcut", () => {
 	})
 })
 
-describe("usePlatformDetection", () => {
-	it("should detect platform, browser, and version from userAgent", () => {
+describe("useMetaKeyDetection", () => {
+	it("should detect Windows OS and metaKey from platform", () => {
 		// mock the detect functions
-		const { result } = renderHook(() =>
-			usePlatformDetection(
-				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-			),
-		)
-
-		expect(result.current[0]).toEqual({
-			os: "windows",
-			browser: "chrome",
-			version: "58.0.3029.110",
-		})
+		const { result } = renderHook(() => useMetaKeyDetection("win32"))
+		expect(result.current[0]).toBe("windows")
 		expect(result.current[1]).toBe("⊞ Win")
+	})
+
+	it("should detect Mac OS and metaKey from platform", () => {
+		// mock the detect functions
+		const { result } = renderHook(() => useMetaKeyDetection("darwin"))
+		expect(result.current[0]).toBe("mac")
+		expect(result.current[1]).toBe("⌘ Command")
+	})
+
+	it("should detect Linux OS and metaKey from platform", () => {
+		// mock the detect functions
+		const { result } = renderHook(() => useMetaKeyDetection("linux"))
+		expect(result.current[0]).toBe("linux")
+		expect(result.current[1]).toBe("Alt")
 	})
 })

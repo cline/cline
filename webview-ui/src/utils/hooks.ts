@@ -1,26 +1,19 @@
 import { useCallback, useRef, useLayoutEffect, useState, useEffect } from "react"
-import { detectPlatform, detectMetaKeyChar, unknown, NavigatorUAData } from "./platformDetection"
+import { detectMetaKeyChar, detectOS, unknown } from "./platformUtils"
 
-const usePlatformDetection = (customUserAgent?: string, customUserAgentData?: NavigatorUAData) => {
-	const [platform, setPlatform] = useState<{ os: string; browser: string; version: string }>({
-		os: unknown,
-		browser: unknown,
-		version: unknown,
-	})
-
+export const useMetaKeyDetection = (platform: string) => {
 	const [metaKeyChar, setMetaKeyChar] = useState(unknown)
+	const [os, setOs] = useState(unknown)
 
 	useEffect(() => {
-		const detectedPlatform = detectPlatform(customUserAgent, customUserAgentData)
-		setPlatform(detectedPlatform)
-		const detectedMetaKeyChar = detectMetaKeyChar(detectedPlatform.os)
+		const detectedMetaKeyChar = detectMetaKeyChar(platform)
+		const detectedOs = detectOS(platform)
 		setMetaKeyChar(detectedMetaKeyChar)
-	}, [customUserAgent, customUserAgentData])
+		setOs(detectedOs)
+	}, [platform])
 
-	return [platform, metaKeyChar]
+	return [os, metaKeyChar]
 }
-
-export { usePlatformDetection }
 
 export const useShortcut = (shortcut: string, callback: any, options = { disableTextInputs: true }) => {
 	const callbackRef = useRef(callback)
