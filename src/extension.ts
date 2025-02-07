@@ -234,21 +234,11 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 
 	let disposable = vscode.commands.registerCommand('cline.chat', async () => {
-		// Get user input
-		const userInput = await vscode.window.showInputBox({
-			placeHolder: 'Type your message to ELIZA...'
-		})
-
-		if (userInput) {
-			try {
-				// Send message to ELIZA
-				const response = await elizaService.sendMessage(userInput)
-				
-				// Show response in VSCode
-				vscode.window.showInformationMessage(response)
-			} catch (error) {
-				vscode.window.showErrorMessage('Failed to communicate with ELIZA')
-			}
+		try {
+			// Au lieu de demander une entrée, on ouvre simplement l'onglet de chat
+			elizaService.ensureChatPanel();
+		} catch (error) {
+			vscode.window.showErrorMessage('Failed to open chat panel');
 		}
 	})
 
