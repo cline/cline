@@ -11,6 +11,7 @@ export type ApiProvider =
 	| "deepseek"
 	| "qwen"
 	| "mistral"
+	| "codestral"
 	| "vscode-lm"
 	| "litellm"
 
@@ -42,6 +43,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
+	codestralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
 	qwenApiLine?: string
@@ -519,6 +521,23 @@ export const qwenModels = {
 		outputPrice: 0.0448,
 		cacheWritesPrice: 0.0056,
 		cacheReadsPrice: 0.0224,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Codestral
+// https://docs.mistral.ai/capabilities/code_generation/#codestral
+export type CodestralModelId = keyof typeof codestralModels
+export const codestralDefaultModelId: CodestralModelId = "codestral-latest"
+export const codestralModels = {
+	"codestral-latest": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free for personal use
+		outputPrice: 0, // Free for personal use
+		description:
+			"Our cutting-edge language model for coding with the second version released January 2025, Codestral specializes in low-latency, high-frequency tasks such as fill-in-the-middle (FIM), code correction and test generation. Learn more on our blog post",
 	},
 } as const satisfies Record<string, ModelInfo>
 

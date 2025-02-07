@@ -9,6 +9,8 @@ import {
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
+import styled from "styled-components"
+import * as vscodemodels from "vscode"
 import {
 	ApiConfiguration,
 	ApiProvider,
@@ -18,10 +20,10 @@ import {
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
+	codestralDefaultModelId,
+	codestralModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
-	qwenDefaultModelId,
-	qwenModels,
 	geminiDefaultModelId,
 	geminiModels,
 	mistralDefaultModelId,
@@ -31,6 +33,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	qwenDefaultModelId,
+	qwenModels,
 	vertexDefaultModelId,
 	vertexModels,
 } from "../../../../src/shared/api"
@@ -39,8 +43,6 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
-import styled from "styled-components"
-import * as vscodemodels from "vscode"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -183,6 +185,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="qwen">Qwen</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
+					<VSCodeOption value="codestral">Codestral</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
@@ -371,6 +374,46 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "codestral" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.codestralApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("codestralApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Codestral API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.codestralApiKey && (
+							<VSCodeLink
+								href="https://console.mistral.ai/codestral"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Codestral API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-charts-green)",
+						}}>
+						<span style={{ fontWeight: 500 }}>Note:</span> Codestral is free for personal use and requires a separate
+						API key from Mistral.
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "mistral" && (
 				<div>
 					<VSCodeTextField
@@ -390,7 +433,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.mistralApiKey && (
 							<VSCodeLink
-								href="https://console.mistral.ai/codestral"
+								href="https://console.mistral.ai"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
@@ -924,6 +967,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
+							{selectedProvider === "codestral" && createDropdown(codestralModels)}
 						</DropdownContainer>
 
 						<ModelInfoView
@@ -1120,6 +1164,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "codestral":
+			return getProviderData(codestralModels, codestralDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
