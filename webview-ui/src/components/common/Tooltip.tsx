@@ -35,6 +35,7 @@ const Hint = styled.div`
 	font-size: 0.8em;
 	color: ${getAsVar(VSC_INPUT_PLACEHOLDER_FOREGROUND)};
 	opacity: 0.8;
+	margin-top: 2px;
 `
 
 const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children }) => {

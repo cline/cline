@@ -25,9 +25,9 @@ export const detectOS = (platform: string) => {
 
 export const detectMetaKeyChar = (platform: string) => {
 	if (platform.match(platforms.mac)) {
-		return "⌘ Command"
+		return "CMD"
 	} else if (platform.match(platforms.windows)) {
-		return "⊞ Win"
+		return "Win"
 	} else if (platform.match(platforms.linux)) {
 		return "Alt"
 	} else {
