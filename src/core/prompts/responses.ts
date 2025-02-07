@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
 import * as diff from "diff"
 import { LLMFileAccessController } from "../../services/llm-access-control/LLMFileAccessController"
-import { Logger } from "../../services/logging/Logger"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,

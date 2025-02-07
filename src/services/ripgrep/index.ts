@@ -4,7 +4,6 @@ import * as path from "path"
 import * as readline from "readline"
 import { pathExists } from "../../utils/path"
 import { LLMFileAccessController } from "../llm-access-control/LLMFileAccessController"
-import { Logger } from "../logging/Logger"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
