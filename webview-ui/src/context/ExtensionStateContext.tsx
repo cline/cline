@@ -1,14 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
+import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
+import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
 import { ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
-import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
-import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -69,6 +69,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.deepSeekApiKey,
 							config.qwenApiKey,
 							config.mistralApiKey,
+							config.codestralApiKey,
 							config.vsCodeLmModelSelector,
 						].some((key) => key !== undefined)
 					: false

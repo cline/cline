@@ -2,19 +2,20 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
-import { OpenRouterHandler } from "./providers/openrouter"
-import { VertexHandler } from "./providers/vertex"
-import { OpenAiHandler } from "./providers/openai"
-import { OllamaHandler } from "./providers/ollama"
-import { LmStudioHandler } from "./providers/lmstudio"
-import { GeminiHandler } from "./providers/gemini"
-import { OpenAiNativeHandler } from "./providers/openai-native"
-import { ApiStream } from "./transform/stream"
+import { CodestralHandler } from "./providers/codestral"
 import { DeepSeekHandler } from "./providers/deepseek"
-import { QwenHandler } from "./providers/qwen"
-import { MistralHandler } from "./providers/mistral"
-import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { GeminiHandler } from "./providers/gemini"
 import { LiteLlmHandler } from "./providers/litellm"
+import { LmStudioHandler } from "./providers/lmstudio"
+import { MistralHandler } from "./providers/mistral"
+import { OllamaHandler } from "./providers/ollama"
+import { OpenAiHandler } from "./providers/openai"
+import { OpenAiNativeHandler } from "./providers/openai-native"
+import { OpenRouterHandler } from "./providers/openrouter"
+import { QwenHandler } from "./providers/qwen"
+import { VertexHandler } from "./providers/vertex"
+import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { ApiStream } from "./transform/stream"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -52,6 +53,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new QwenHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
+		case "codestral":
+			return new CodestralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
 		case "litellm":
