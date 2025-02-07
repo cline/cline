@@ -76,12 +76,7 @@ export class ClineIgnoreController {
 				// Reset ignore instance to prevent duplicate patterns
 				this.resetToDefaultPatterns()
 				const content = await fs.readFile(ignorePath, "utf8")
-				const customPatterns = content
-					.split("\n")
-					.map((line) => line.trim())
-					.filter((line) => line && !line.startsWith("#"))
-
-				this.ignoreInstance.add(customPatterns)
+				this.ignoreInstance.add(content)
 			}
 		} catch (error) {
 			// Continue with default patterns
