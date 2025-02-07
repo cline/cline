@@ -161,6 +161,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
+				},
+				"cline.codeBlock.wordWrap": {
+					"type": "boolean",
+					"default": true,
+					"description": "Controls whether code blocks should wrap their content. When disabled, horizontal scrollbars will be shown for long lines."
 				}
 			}
 		}

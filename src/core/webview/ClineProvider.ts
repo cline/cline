@@ -233,7 +233,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.disposables,
 		)
 
-		// Listen for when color changes
+		// Listen for when settings change
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
@@ -242,6 +242,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						type: "theme",
 						text: JSON.stringify(await getTheme()),
 					})
+				}
+				if (e && e.affectsConfiguration("cline.codeBlock.wordWrap")) {
+					await this.postStateToWebview()
 				}
 			},
 			null,
@@ -1296,6 +1299,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			authToken,
 		} = await this.getState()
 
+		// Get word wrap setting from VSCode configuration
+		const config = vscode.workspace.getConfiguration("cline")
+		const wordWrap = config.get<boolean>("codeBlock.wordWrap", true)
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1309,6 +1316,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			codeBlockWordWrap: wordWrap,
 			isLoggedIn: !!authToken,
 			userInfo,
 		}

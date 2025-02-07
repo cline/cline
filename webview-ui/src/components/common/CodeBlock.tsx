@@ -1,4 +1,5 @@
-import { memo, useEffect } from "react"
+import { memo, useEffect, useRef, useState, useCallback } from "react"
+import debounce from "lodash/debounce"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -17,26 +18,87 @@ minWidth: "max-content",
 
 interface CodeBlockProps {
 	source?: string
-	forceWrap?: boolean
+	language?: string
+	preStyle?: React.CSSProperties
 }
 
-const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
-	${({ forceWrap }) =>
-		forceWrap &&
-		`
-    pre, code {
-      white-space: pre-wrap;
-      word-break: break-all;
-      overflow-wrap: anywhere;
-    }
-  `}
+const CopyButton = styled.button`
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	opacity: 0.4;
+	transition: opacity 0.2s;
+	border-radius: 3px;
+	pointer-events: all;
+
+	&:hover {
+		background: var(--vscode-toolbar-hoverBackground);
+		opacity: 1;
+	}
+`
+
+const CopyButtonWrapper = styled.div`
+	position: fixed;
+	top: var(--copy-button-top);
+	right: var(--copy-button-right, 8px);
+	height: 0;
+	z-index: 100;
+	background: ${CODE_BLOCK_BG_COLOR};
+	overflow: visible;
+	pointer-events: none;
+	opacity: var(--copy-button-opacity, 0);
+	transition:
+		opacity 0.2s,
+		background 0.2s;
+	padding: 4px;
+	border-radius: 3px;
+
+	&:hover {
+		background: var(--vscode-editor-background);
+	}
+
+	${CopyButton} {
+		position: relative;
+		top: 0;
+		right: 0;
+		pointer-events: all;
+	}
+`
+
+const CodeBlockContainer = styled.div`
+	position: relative;
+	overflow: hidden;
+	background-color: ${CODE_BLOCK_BG_COLOR};
+
+	&:hover ${CopyButtonWrapper} {
+		opacity: 1 !important;
+	}
+`
+
+const StyledMarkdown = styled.div<{ preStyle?: React.CSSProperties; wordWrap?: boolean }>`
+	overflow-x: auto;
+	width: 100%;
 
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 5px;
 		margin: 0;
-		min-width: ${({ forceWrap }) => (forceWrap ? "auto" : "max-content")};
 		padding: 10px 10px;
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+		${({ preStyle }) => preStyle && { ...preStyle }}
+	}
+
+	pre,
+	code {
+		white-space: ${({ wordWrap }) => (wordWrap === false ? "pre" : "pre-wrap")};
+		word-break: ${({ wordWrap }) => (wordWrap === false ? "normal" : "normal")};
+		overflow-wrap: ${({ wordWrap }) => (wordWrap === false ? "normal" : "break-word")};
 	}
 
 	pre > code {
@@ -93,7 +155,7 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 	}
 `
 
-const StyledPre = styled.pre<{ theme: any }>`
+export const StyledPre = styled.pre<{ theme: any }>`
 	& .hljs {
 		color: var(--vscode-editor-foreground, #fff);
 	}
@@ -110,8 +172,11 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
-const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
-	const { theme } = useExtensionState()
+const CodeBlock = memo(({ source, language, preStyle }: CodeBlockProps) => {
+	const codeBlockRef = useRef<HTMLDivElement>(null)
+	const [copied, setCopied] = useState(false)
+	const { theme, codeBlockWordWrap = true } = useExtensionState()
+
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
 			() => {
@@ -140,19 +205,107 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 		},
 	})
 
+	const debouncedPositionRef = useRef<any>(null)
+
+	const updateCopyButtonPosition = useCallback((forceShow = false) => {
+		const codeBlock = codeBlockRef.current
+		if (!codeBlock) return
+
+		const rect = codeBlock.getBoundingClientRect()
+		const scrollContainer = document.querySelector('[data-virtuoso-scroller="true"]')
+		if (!scrollContainer) return
+
+		const scrollRect = scrollContainer.getBoundingClientRect()
+		const isPartiallyVisible = rect.top < scrollRect.bottom && rect.bottom >= scrollRect.top
+
+		// Only show when code block is in view
+		codeBlock.style.setProperty("--copy-button-opacity", isPartiallyVisible || forceShow ? "1" : "0")
+
+		if (isPartiallyVisible) {
+			// Keep button within code block bounds
+			const topPosition = Math.max(scrollRect.top + 8, Math.min(rect.bottom - 40, rect.top + 8))
+			const rightPosition = Math.max(8, scrollRect.right - rect.right + 8)
+
+			codeBlock.style.setProperty("--copy-button-top", `${topPosition}px`)
+			codeBlock.style.setProperty("--copy-button-right", `${rightPosition}px`)
+		}
+	}, [])
+
+	// Initialize debounced function
 	useEffect(() => {
-		setMarkdownSource(source || "")
-	}, [source, setMarkdownSource, theme])
+		debouncedPositionRef.current = debounce(updateCopyButtonPosition, 10)
+		return () => {
+			if (debouncedPositionRef.current) {
+				debouncedPositionRef.current.cancel()
+			}
+		}
+	}, [updateCopyButtonPosition])
+
+	useEffect(() => {
+		const handleScroll = () => debouncedPositionRef.current()
+		const handleResize = () => debouncedPositionRef.current()
+
+		const scrollContainer = document.querySelector('[data-virtuoso-scroller="true"]')
+		if (scrollContainer) {
+			scrollContainer.addEventListener("scroll", handleScroll)
+			window.addEventListener("resize", handleResize)
+			updateCopyButtonPosition()
+		}
+
+		return () => {
+			if (scrollContainer) {
+				scrollContainer.removeEventListener("scroll", handleScroll)
+				window.removeEventListener("resize", handleResize)
+			}
+		}
+	}, [updateCopyButtonPosition])
+
+	// Update button position when content changes
+	useEffect(() => {
+		if (reactContent) {
+			// Small delay to ensure content is rendered
+			setTimeout(() => updateCopyButtonPosition(), 0)
+		}
+	}, [reactContent, updateCopyButtonPosition])
+
+	const [copyError, setCopyError] = useState(false)
+
+	const handleCopy = (e: React.MouseEvent) => {
+		e.stopPropagation()
+		if (source) {
+			// Extract code content from markdown code block
+			const codeContent = source.replace(/^```[\s\S]*?\n([\s\S]*?)```$/m, "$1").trim()
+			try {
+				navigator.clipboard.writeText(codeContent)
+				setCopied(true)
+				setCopyError(false)
+				setTimeout(() => setCopied(false), 2000)
+			} catch (error) {
+				console.error("Failed to copy to clipboard:", error)
+				setCopyError(true)
+				setTimeout(() => setCopyError(false), 2000)
+			}
+		}
+	}
+
+	useEffect(() => {
+		const markdown = language ? `\`\`\`${language}\n${source || ""}\`\`\`` : source || ""
+		setMarkdownSource(markdown)
+	}, [source, language, setMarkdownSource, theme])
 
 	return (
-		<div
-			style={{
-				overflowY: forceWrap ? "visible" : "auto",
-				maxHeight: forceWrap ? "none" : "100%",
-				backgroundColor: CODE_BLOCK_BG_COLOR,
-			}}>
-			<StyledMarkdown forceWrap={forceWrap}>{reactContent}</StyledMarkdown>
-		</div>
+		<CodeBlockContainer ref={codeBlockRef}>
+			<StyledMarkdown preStyle={preStyle} wordWrap={codeBlockWordWrap}>
+				{reactContent}
+			</StyledMarkdown>
+			<CopyButtonWrapper
+				onMouseEnter={() => updateCopyButtonPosition(true)}
+				onMouseLeave={() => updateCopyButtonPosition()}>
+				<CopyButton onClick={handleCopy} title="Copy code">
+					<span className={`codicon codicon-${copied ? "check" : copyError ? "error" : "copy"}`} />
+				</CopyButton>
+			</CopyButtonWrapper>
+		</CodeBlockContainer>
 	)
 })
 
