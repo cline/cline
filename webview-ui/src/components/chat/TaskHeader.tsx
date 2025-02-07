@@ -113,11 +113,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const ContextWindowComponent = (
 		<>
-			{isTaskExpanded && contextWindow && lastApiReqTotalTokens && (
+			{isTaskExpanded && contextWindow && (
 				<div
 					style={{
 						display: "flex",
-						flexDirection: windowWidth < 320 ? "column" : "row",
+						flexDirection: windowWidth < 270 ? "column" : "row",
 						gap: "4px",
 					}}>
 					<div
@@ -136,19 +136,16 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "8px",
+							gap: "3px",
 							flex: 1,
 							whiteSpace: "nowrap",
 						}}>
-						<span>
-							{formatLargeNumber(lastApiReqTotalTokens)} (
-							{Math.round((lastApiReqTotalTokens / contextWindow) * 100)}%)
-						</span>
+						<span>{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
 						<div
 							style={{
 								display: "flex",
 								alignItems: "center",
-								gap: "8px",
+								gap: "3px",
 								flex: 1,
 							}}>
 							<div
@@ -161,7 +158,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								}}>
 								<div
 									style={{
-										width: `${(lastApiReqTotalTokens / contextWindow) * 100}%`,
+										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
 										height: "100%",
 										backgroundColor: "var(--vscode-badge-foreground)",
 										borderRadius: "2px",
