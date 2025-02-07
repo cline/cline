@@ -319,7 +319,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "qwen" && (
 				<div>
-					<DropdownContainer className="dropdown-container" style={{position: "inherit"}}>
+					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
 						<label htmlFor="qwen-line-provider">
 							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
 						</label>
