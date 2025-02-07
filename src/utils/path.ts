@@ -100,11 +100,3 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 		}
 	}
 }
-
-export async function pathExists(path: string): Promise<boolean> {
-	return new Promise((resolve) => {
-		fs.access(path, (err) => {
-			resolve(err === null)
-		})
-	})
-}

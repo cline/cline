@@ -2,8 +2,8 @@ import * as vscode from "vscode"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
-import { pathExists } from "../../utils/path"
 import { LLMFileAccessController } from "../llm-access-control/LLMFileAccessController"
+import { fileExistsAtPath } from "../../utils/fs"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -64,7 +64,7 @@ const MAX_RESULTS = 300
 async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
 	const checkPath = async (pkgFolder: string) => {
 		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
-		return (await pathExists(fullPath)) ? fullPath : undefined
+		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
 	}
 
 	return (
