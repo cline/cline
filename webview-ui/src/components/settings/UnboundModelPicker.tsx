@@ -62,7 +62,7 @@ const UnboundModelPicker: React.FC = () => {
 		if (apiConfiguration?.unboundApiKey) {
 			debouncedRefreshModels()
 		}
-	}, [apiConfiguration?.unboundApiKey])
+	}, [apiConfiguration?.unboundApiKey, debouncedRefreshModels])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
