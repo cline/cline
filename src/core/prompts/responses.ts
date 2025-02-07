@@ -54,7 +54,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		clineIgnoreController: ClineIgnoreController,
+		clineIgnoreController?: ClineIgnoreController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -87,7 +87,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const accessControlledSortedFiles = clineIgnoreController
+		const clineIgnoreParsed = clineIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
@@ -103,16 +103,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 			: sorted
 
 		if (didHitLimit) {
-			return `${accessControlledSortedFiles.join(
+			return `${clineIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (
-			accessControlledSortedFiles.length === 0 ||
-			(accessControlledSortedFiles.length === 1 && accessControlledSortedFiles[0] === "")
-		) {
+		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
 			return "No files found."
 		} else {
-			return accessControlledSortedFiles.join("\n")
+			return clineIgnoreParsed.join("\n")
 		}
 	},
 

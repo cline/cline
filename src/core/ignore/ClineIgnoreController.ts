@@ -12,20 +12,13 @@ import * as vscode from "vscode"
 export class ClineIgnoreController {
 	private cwd: string
 	private ignoreInstance: Ignore
-	private fileWatcher: vscode.FileSystemWatcher | null
 	private disposables: vscode.Disposable[] = []
-
-	/**
-	 * Default patterns that are always ignored
-	 */
-	private static readonly DEFAULT_PATTERNS = [".clineignore"]
+	clineIgnoreExists: boolean
 
 	constructor(cwd: string) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(ClineIgnoreController.DEFAULT_PATTERNS)
-		this.fileWatcher = null
-
+		this.clineIgnoreExists = false
 		// Set up file watcher for .clineignore
 		this.setupFileWatcher()
 	}
@@ -35,7 +28,7 @@ export class ClineIgnoreController {
 	 * Must be called after construction and before using the controller
 	 */
 	async initialize(): Promise<void> {
-		await this.loadCustomPatterns()
+		await this.loadClineIgnore()
 	}
 
 	/**
@@ -43,52 +36,44 @@ export class ClineIgnoreController {
 	 */
 	private setupFileWatcher(): void {
 		const clineignorePattern = new vscode.RelativePattern(this.cwd, ".clineignore")
-		this.fileWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
+		const fileWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
 
 		// Watch for changes and updates
 		this.disposables.push(
-			this.fileWatcher.onDidChange(() => {
-				this.loadCustomPatterns().catch((error) => {
-					console.error("Failed to load updated .clineignore patterns:", error)
-				})
+			fileWatcher.onDidChange(() => {
+				this.loadClineIgnore()
 			}),
-			this.fileWatcher.onDidCreate(() => {
-				this.loadCustomPatterns().catch((error) => {
-					console.error("Failed to load new .clineignore patterns:", error)
-				})
+			fileWatcher.onDidCreate(() => {
+				this.loadClineIgnore()
 			}),
-			this.fileWatcher.onDidDelete(() => {
-				this.resetToDefaultPatterns()
+			fileWatcher.onDidDelete(() => {
+				this.loadClineIgnore()
 			}),
 		)
 
 		// Add fileWatcher itself to disposables
-		this.disposables.push(this.fileWatcher)
+		this.disposables.push(fileWatcher)
 	}
 
 	/**
 	 * Load custom patterns from .clineignore if it exists
 	 */
-	private async loadCustomPatterns(): Promise<void> {
+	private async loadClineIgnore(): Promise<void> {
 		try {
+			// Reset ignore instance to prevent duplicate patterns
+			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
-				// Reset ignore instance to prevent duplicate patterns
-				this.resetToDefaultPatterns()
+				this.clineIgnoreExists = true
 				const content = await fs.readFile(ignorePath, "utf8")
 				this.ignoreInstance.add(content)
+			} else {
+				this.clineIgnoreExists = false
 			}
 		} catch (error) {
-			// Continue with default patterns
+			// Should never happen: reading file failed even though it exists
+			console.error("Unexpected error loading .clineignore:", error)
 		}
-	}
-
-	/**
-	 * Reset ignore patterns to defaults
-	 */
-	private resetToDefaultPatterns(): void {
-		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(ClineIgnoreController.DEFAULT_PATTERNS)
 	}
 
 	/**
@@ -97,6 +82,10 @@ export class ClineIgnoreController {
 	 * @returns true if file is accessible, false if ignored
 	 */
 	validateAccess(filePath: string): boolean {
+		// Always allow access if .clineignore does not exist
+		if (!this.clineIgnoreExists) {
+			return true
+		}
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
@@ -137,6 +126,5 @@ export class ClineIgnoreController {
 	dispose(): void {
 		this.disposables.forEach((d) => d.dispose())
 		this.disposables = []
-		this.fileWatcher = null
 	}
 }
