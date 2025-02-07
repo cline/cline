@@ -5,7 +5,7 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
 import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
-import { handleUri, registerCommands, registerCodeActions } from "./activate"
+import { handleUri, registerCommands, registerCodeActions, registerTerminalActions } from "./activate"
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -78,6 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	registerCodeActions(context)
+	registerTerminalActions(context)
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

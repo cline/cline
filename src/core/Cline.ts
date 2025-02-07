@@ -52,8 +52,8 @@ import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
-import { modes, defaultModeSlug, getModeBySlug, parseSlashCommand } from "../shared/modes"
-import { truncateHalfConversation } from "./sliding-window"
+import { modes, defaultModeSlug, getModeBySlug } from "../shared/modes"
+import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
@@ -77,29 +77,6 @@ export class Cline {
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	private browserSession: BrowserSession
-
-	/**
-	 * Processes a message for slash commands and handles mode switching if needed.
-	 * @param message The message to process
-	 * @returns The processed message with slash command removed if one was present
-	 */
-	private async handleSlashCommand(message: string): Promise<string> {
-		if (!message) return message
-
-		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
-		const slashCommand = parseSlashCommand(message, customModes)
-
-		if (slashCommand) {
-			// Switch mode before processing the remaining message
-			const provider = this.providerRef.deref()
-			if (provider) {
-				await provider.handleModeSwitch(slashCommand.modeSlug)
-				return slashCommand.remainingMessage
-			}
-		}
-
-		return message
-	}
 	private didEditFile: boolean = false
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
@@ -378,11 +355,6 @@ export class Cline {
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
-		// Process slash command if present
-		if (text) {
-			text = await this.handleSlashCommand(text)
-		}
-
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
@@ -464,22 +436,6 @@ export class Cline {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 		await this.providerRef.deref()?.postStateToWebview()
-
-		// Check for slash command if task is provided
-		if (task) {
-			const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
-			const slashCommand = parseSlashCommand(task, customModes)
-
-			if (slashCommand) {
-				// Switch mode before processing the remaining message
-				const provider = this.providerRef.deref()
-				if (provider) {
-					await provider.handleModeSwitch(slashCommand.modeSlug)
-					// Update task to be just the remaining message
-					task = slashCommand.remainingMessage
-				}
-			}
-		}
 
 		await this.say("text", task, images)
 
@@ -920,18 +876,25 @@ export class Cline {
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
-			const previousRequest = this.clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
-					previousRequest.text,
-				)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow || 128_000
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
-				if (totalTokens >= maxAllowedSize) {
-					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-					await this.overwriteApiConversationHistory(truncatedMessages)
-				}
+			const previousRequest = this.clineMessages[previousApiReqIndex]?.text
+			if (!previousRequest) return
+
+			const {
+				tokensIn = 0,
+				tokensOut = 0,
+				cacheWrites = 0,
+				cacheReads = 0,
+			}: ClineApiReqInfo = JSON.parse(previousRequest)
+			const totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
+
+			const trimmedMessages = truncateConversationIfNeeded(
+				this.apiConversationHistory,
+				totalTokens,
+				this.api.getModel().info,
+			)
+
+			if (trimmedMessages !== this.apiConversationHistory) {
+				await this.overwriteApiConversationHistory(trimmedMessages)
 			}
 		}
 
