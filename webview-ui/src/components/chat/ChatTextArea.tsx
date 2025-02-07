@@ -1076,7 +1076,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</ButtonGroup>
 					<Tooltip
 						tipText={`In ${chatSettings.mode === "act" ? "Act" : "Plan"}  mode, Cline will ${chatSettings.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						hintText={`Toggle w/ ${metaKeyChar}+Shift+a`}>
+						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
