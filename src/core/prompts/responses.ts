@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as path from "path"
 import * as diff from "diff"
-import { LLMFileAccessController } from "../../services/llm-access-control/LLMFileAccessController"
+import * as path from "path"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -10,6 +10,9 @@ export const formatResponse = {
 		`The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
+
+	clineIgnoreError: (path: string) =>
+		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
 
 	noToolsUsed: () =>
 		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
@@ -51,7 +54,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		llmFileAccessController: LLMFileAccessController,
+		clineIgnoreController?: ClineIgnoreController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -84,15 +87,15 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const accessControlledSortedFiles = llmFileAccessController
+		const clineIgnoreParsed = clineIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
 					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !llmFileAccessController.validateAccess(absoluteFilePath)
+					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
-						return "\u{1F512} " + filePath
+						return LOCK_TEXT_SYMBOL + " " + filePath
 					}
 
 					return filePath
@@ -100,16 +103,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 			: sorted
 
 		if (didHitLimit) {
-			return `${accessControlledSortedFiles.join(
+			return `${clineIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (
-			accessControlledSortedFiles.length === 0 ||
-			(accessControlledSortedFiles.length === 1 && accessControlledSortedFiles[0] === "")
-		) {
+		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
 			return "No files found."
 		} else {
-			return accessControlledSortedFiles.join("\n")
+			return clineIgnoreParsed.join("\n")
 		}
 	},
 

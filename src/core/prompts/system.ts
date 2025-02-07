@@ -957,20 +957,26 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-export function addUserInstructions(settingsCustomInstructions?: string, clineRulesFileInstructions?: string) {
+export function addUserInstructions(
+	settingsCustomInstructions?: string,
+	clineRulesFileInstructions?: string,
+	clineIgnoreInstructions?: string,
+) {
 	let customInstructions = ""
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
 	if (clineRulesFileInstructions) {
-		customInstructions += clineRulesFileInstructions
+		customInstructions += clineRulesFileInstructions + "\n\n"
+	}
+	if (clineIgnoreInstructions) {
+		customInstructions += clineIgnoreInstructions
 	}
 
 	return `
 ====
 
 USER'S CUSTOM INSTRUCTIONS
-The user may have a ".clineignore" file that blocks you from accessing certain directories and files. The paths blocked by this file will be indicated to you with a \u{1F512}, but you need not mention the \u{1F512}. For example, do NOT say things like 'I notice that {some_file}.ts is marked with \u{1F512} in the file list.' Instead, if you ever encounter an error about being blocked by the .clineignore, don't make a big deal about it, just move on without remarking on it. If you absolutely have to say something, just make a casual remark that you are 'blocked by the .clineignore'. Note that the .clineignore is also blocked.
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
 

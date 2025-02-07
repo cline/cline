@@ -1,13 +1,13 @@
-import { LLMFileAccessController } from "./LLMFileAccessController"
+import { ClineIgnoreController } from "./ClineIgnoreController"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
 import { after, beforeEach, describe, it } from "mocha"
 import "should"
 
-describe("LLMFileAccessController", () => {
+describe("ClineIgnoreController", () => {
 	let tempDir: string
-	let controller: LLMFileAccessController
+	let controller: ClineIgnoreController
 
 	beforeEach(async () => {
 		// Create a temp directory for testing
@@ -22,7 +22,7 @@ describe("LLMFileAccessController", () => {
 			),
 		)
 
-		controller = new LLMFileAccessController(tempDir)
+		controller = new ClineIgnoreController(tempDir)
 		await controller.initialize()
 	})
 
@@ -80,7 +80,7 @@ describe("LLMFileAccessController", () => {
 				["*.secret", "private/", "*.tmp", "data-*.json", "temp/*"].join("\n"),
 			)
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const results = [
@@ -150,7 +150,7 @@ describe("LLMFileAccessController", () => {
 				["# Comment line", "*.secret", "private/", "temp.*"].join("\n"),
 			)
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("test.secret")
@@ -237,7 +237,7 @@ describe("LLMFileAccessController", () => {
 			await fs.mkdir(emptyDir)
 
 			try {
-				const controller = new LLMFileAccessController(emptyDir)
+				const controller = new ClineIgnoreController(emptyDir)
 				await controller.initialize()
 				const result = controller.validateAccess("file.txt")
 				result.should.be.true()
@@ -249,7 +249,7 @@ describe("LLMFileAccessController", () => {
 		it("should handle empty .clineignore", async () => {
 			await fs.writeFile(path.join(tempDir, ".clineignore"), "")
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("regular-file.txt")

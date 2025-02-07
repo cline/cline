@@ -121,6 +121,7 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
+	| "clineignore_error"
 
 export interface ClineSayTool {
 	tool:
