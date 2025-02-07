@@ -4,12 +4,9 @@ import { deepSeekModels, deepSeekDefaultModelId } from "../../shared/api"
 
 export class DeepSeekHandler extends OpenAiHandler {
 	constructor(options: ApiHandlerOptions) {
-		if (!options.deepSeekApiKey) {
-			throw new Error("DeepSeek API key is required. Please provide it in the settings.")
-		}
 		super({
 			...options,
-			openAiApiKey: options.deepSeekApiKey,
+			openAiApiKey: options.deepSeekApiKey ?? "not-provided",
 			openAiModelId: options.apiModelId ?? deepSeekDefaultModelId,
 			openAiBaseUrl: options.deepSeekBaseUrl ?? "https://api.deepseek.com/v1",
 			openAiStreamingEnabled: true,
