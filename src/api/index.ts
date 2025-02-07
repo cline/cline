@@ -11,6 +11,8 @@ import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { RequestyHandler } from "./providers/requesty"
+import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -48,6 +50,10 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
+		case "requesty":
+			return new RequestyHandler(options)
+		case "qwen":
+			return new QwenHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
 		case "vscode-lm":

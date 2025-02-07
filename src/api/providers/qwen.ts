@@ -1,38 +1,40 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
+import { ApiHandlerOptions, QwenModelId, ModelInfo, qwenDefaultModelId, qwenModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { convertToR1Format } from "../transform/r1-format"
 
-export class DeepSeekHandler implements ApiHandler {
+export class QwenHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "https://api.deepseek.com/v1",
-			apiKey: this.options.deepSeekApiKey,
+			baseURL: this.options.qwenApiLine || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+			apiKey: this.options.qwenApiKey,
 		})
 	}
 
-	@withRetry()
+	getModel(): { id: QwenModelId; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in qwenModels) {
+			const id = modelId as QwenModelId
+			return { id, info: qwenModels[id] }
+		}
+		return {
+			id: qwenDefaultModelId,
+			info: qwenModels[qwenDefaultModelId],
+		}
+	}
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-
-		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
-
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-
-		if (isDeepseekReasoner) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-		}
 
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
@@ -40,8 +42,6 @@ export class DeepSeekHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
@@ -63,7 +63,7 @@ export class DeepSeekHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0, // (deepseek reports total input AND cache reads/writes, see context caching: https://api-docs.deepseek.com/guides/kv_cache) where the input tokens is the sum of the cache hits/misses, while anthropic reports them as separate tokens. This is important to know for 1) context management truncation algorithm, and 2) cost calculation (NOTE: we report both input and cache stats but for now set input price to 0 since all the cost calculation will be done using cache hits/misses)
+					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
 					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
@@ -71,18 +71,6 @@ export class DeepSeekHandler implements ApiHandler {
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}
-		}
-	}
-
-	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in deepSeekModels) {
-			const id = modelId as DeepSeekModelId
-			return { id, info: deepSeekModels[id] }
-		}
-		return {
-			id: deepSeekDefaultModelId,
-			info: deepSeekModels[deepSeekDefaultModelId],
 		}
 	}
 }
