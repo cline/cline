@@ -63,7 +63,6 @@ const WelcomeView = () => {
 					<div style={{ marginTop: "10px" }}>
 						<ul style={{ paddingLeft: "20px", margin: "10px 0" }}>
 							<li>Choose from hundreds of models like Claude 3.5 Sonnet and DeepSeek V3</li>
-							<li>Manage usage and billing in the extension</li>
 							<li>Get started for free with no credit card required</li>
 						</ul>
 					</div>
