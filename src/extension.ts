@@ -10,6 +10,8 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { ElizaService } from './services/elizaService'
 import { WebSocket } from 'ws'
 import { config } from './config'
+import { ServiceManager } from './services/serviceManager'
+import { DiscordService } from './services/discordService'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -21,6 +23,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 */
 
 let outputChannel: vscode.OutputChannel
+let serviceManager: ServiceManager
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -222,11 +225,16 @@ export function activate(context: vscode.ExtensionContext) {
 				}, heartbeat_interval)
 			}
 			
-			// Utiliser le channelId de config.ts
 			if (payload.t === 'MESSAGE_CREATE' && 
 				payload.d.author.username === 'Charlotte AI' &&
 				payload.d.channel_id === config.discordChannelId) {
+				
 				elizaService.addBotResponse(payload.d.content)
+				
+				// Envoyer le message au panel actif
+				if (serviceManager.getService() instanceof DiscordService) {
+					serviceManager.getService().addBotResponse(payload.d.content)
+				}
 			}
 		} catch (error) {
 			console.error('Error processing Discord message:', error)
@@ -235,14 +243,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let disposable = vscode.commands.registerCommand('cline.chat', async () => {
 		try {
-			// Au lieu de demander une entrée, on ouvre simplement l'onglet de chat
-			elizaService.ensureChatPanel();
+			serviceManager.getService().ensureChatPanel();
 		} catch (error) {
 			vscode.window.showErrorMessage('Failed to open chat panel');
 		}
 	})
 
 	context.subscriptions.push(disposable)
+
+	serviceManager = new ServiceManager()
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('cline.toggleService', () => {
+			const currentService = serviceManager.getService();
+			serviceManager.switchService(currentService instanceof DiscordService ? 'api' : 'discord');
+			serviceManager.getService().ensureChatPanel();
+		})
+	)
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

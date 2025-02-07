@@ -5,9 +5,16 @@ import * as path from 'path';
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 export const config = {
-    elizaUrl: 'http://localhost:3000',
+    // Config Discord existante
     discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
     discordChannelId: process.env.DISCORD_CHANNEL_ID,
     discordApiToken: process.env.DISCORD_API_TOKEN,
-    botName: 'Charlotte AI'
+    botName: 'Charlotte AI',
+    
+    // Nouvelle config API
+    apiUrl: process.env.ELIZA_API_URL || 'http://localhost:3000/api',
+    apiKey: process.env.ELIZA_API_KEY,
+    
+    // Service par défaut
+    defaultService: process.env.DEFAULT_SERVICE || 'discord'
 }; 
