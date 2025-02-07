@@ -6,6 +6,7 @@ import "./utils/path" // Necessary to have access to String.prototype.toPosix.
 import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { handleUri, registerCommands, registerCodeActions, registerTerminalActions } from "./activate"
+import { McpServerManager } from "./services/mcp/McpServerManager"
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -16,10 +17,12 @@ import { handleUri, registerCommands, registerCodeActions, registerTerminalActio
  */
 
 let outputChannel: vscode.OutputChannel
+let extensionContext: vscode.ExtensionContext
 
 // This method is called when your extension is activated.
 // Your extension is activated the very first time the command is executed.
 export function activate(context: vscode.ExtensionContext) {
+	extensionContext = context
 	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 	outputChannel.appendLine("Roo-Code extension activated")
@@ -83,7 +86,9 @@ export function activate(context: vscode.ExtensionContext) {
 	return createClineAPI(outputChannel, sidebarProvider)
 }
 
-// This method is called when your extension is deactivated.
-export function deactivate() {
+// This method is called when your extension is deactivated
+export async function deactivate() {
 	outputChannel.appendLine("Roo-Code extension deactivated")
+	// Clean up MCP server manager
+	await McpServerManager.cleanup(extensionContext)
 }

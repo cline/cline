@@ -36,6 +36,7 @@ import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, Experime
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 
 import { ACTION_NAMES } from "../CodeActionProvider"
+import { McpServerManager } from "../../services/mcp/McpServerManager"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -136,7 +137,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private isViewLaunched = false
 	private cline?: Cline
 	private workspaceTracker?: WorkspaceTracker
-	mcpHub?: McpHub
+	protected mcpHub?: McpHub // Change from private to protected
 	private latestAnnouncementId = "jan-21-2025-custom-modes" // update to some unique identifier when we add a new announcement
 	configManager: ConfigManager
 	customModesManager: CustomModesManager
@@ -148,11 +149,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
-		this.mcpHub = new McpHub(this)
 		this.configManager = new ConfigManager(this.context)
 		this.customModesManager = new CustomModesManager(this.context, async () => {
 			await this.postStateToWebview()
 		})
+
+		// Initialize MCP Hub through the singleton manager
+		McpServerManager.getInstance(this.context, this)
+			.then((hub) => {
+				this.mcpHub = hub
+			})
+			.catch((error) => {
+				this.outputChannel.appendLine(`Failed to initialize MCP Hub: ${error}`)
+			})
 	}
 
 	/*
@@ -181,6 +190,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
+
+		// Unregister from McpServerManager
+		McpServerManager.unregisterProvider(this)
 	}
 
 	public static getVisibleInstance(): ClineProvider | undefined {
@@ -2537,5 +2549,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	get messages() {
 		return this.cline?.clineMessages || []
+	}
+
+	// Add public getter
+	public getMcpHub(): McpHub | undefined {
+		return this.mcpHub
 	}
 }
