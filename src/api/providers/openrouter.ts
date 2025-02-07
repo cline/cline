@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import delay from "delay"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -24,6 +25,7 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 

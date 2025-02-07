@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import {
 	ApiHandlerOptions,
@@ -22,6 +23,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.getModel().id) {
 			case "o1":

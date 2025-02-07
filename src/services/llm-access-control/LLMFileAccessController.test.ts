@@ -33,44 +33,44 @@ describe("LLMFileAccessController", () => {
 
 	describe("Default Patterns", () => {
 		// it("should block access to common ignored files", async () => {
-		// 	const results = await Promise.all([
+		// 	const results = [
 		// 		controller.validateAccess(".env"),
 		// 		controller.validateAccess(".git/config"),
 		// 		controller.validateAccess("node_modules/package.json"),
-		// 	])
+		// 	]
 		// 	results.forEach((result) => result.should.be.false())
 		// })
 
 		it("should allow access to regular files", async () => {
-			const results = await Promise.all([
+			const results = [
 				controller.validateAccess("src/index.ts"),
 				controller.validateAccess("README.md"),
 				controller.validateAccess("package.json"),
-			])
+			]
 			results.forEach((result) => result.should.be.true())
 		})
 	})
 
 	describe("Custom Patterns", () => {
 		it("should block access to custom ignored patterns", async () => {
-			const results = await Promise.all([
+			const results = [
 				controller.validateAccess("config.secret"),
 				controller.validateAccess("private/data.txt"),
 				controller.validateAccess("temp.json"),
 				controller.validateAccess("nested/deep/file.secret"),
 				controller.validateAccess("private/nested/deep/file.txt"),
-			])
+			]
 			results.forEach((result) => result.should.be.false())
 		})
 
 		it("should allow access to non-ignored files", async () => {
-			const results = await Promise.all([
+			const results = [
 				controller.validateAccess("public/data.txt"),
 				controller.validateAccess("config.json"),
 				controller.validateAccess("src/temp/file.ts"),
 				controller.validateAccess("nested/deep/file.txt"),
 				controller.validateAccess("not-private/data.txt"),
-			])
+			]
 			results.forEach((result) => result.should.be.true())
 		})
 
@@ -83,11 +83,11 @@ describe("LLMFileAccessController", () => {
 			controller = new LLMFileAccessController(tempDir)
 			await controller.initialize()
 
-			const results = await Promise.all([
+			const results = [
 				controller.validateAccess("data-123.json"), // Should be false (wildcard)
 				controller.validateAccess("data.json"), // Should be true (doesn't match pattern)
 				controller.validateAccess("script.tmp"), // Should be false (extension match)
-			])
+			]
 
 			results[0].should.be.false() // data-123.json
 			results[1].should.be.true() // data.json
@@ -112,9 +112,8 @@ describe("LLMFileAccessController", () => {
 		// 	)
 
 		// 	controller = new LLMFileAccessController(tempDir)
-		// 	await controller.initialize()
 
-		// 	const results = await Promise.all([
+		// 	const results = [
 		// 		// Basic negation
 		// 		controller.validateAccess("temp/file.txt"), // Should be false (in temp/)
 		// 		controller.validateAccess("temp/allowed/file.txt"), // Should be true (negated)
@@ -130,7 +129,7 @@ describe("LLMFileAccessController", () => {
 		// 		controller.validateAccess("assets/logo.png"), // Should be false (in assets/)
 		// 		controller.validateAccess("assets/public/logo.png"), // Should be true (negated and matches *.png)
 		// 		controller.validateAccess("assets/public/data.json"), // Should be true (in negated public/)
-		// 	])
+		// 	]
 
 		// 	results[0].should.be.false() // temp/file.txt
 		// 	results[1].should.be.true() // temp/allowed/file.txt
@@ -154,7 +153,7 @@ describe("LLMFileAccessController", () => {
 			controller = new LLMFileAccessController(tempDir)
 			await controller.initialize()
 
-			const result = await controller.validateAccess("test.secret")
+			const result = controller.validateAccess("test.secret")
 			result.should.be.false()
 		})
 	})
@@ -163,55 +162,55 @@ describe("LLMFileAccessController", () => {
 		it("should handle absolute paths and match ignore patterns", async () => {
 			// Test absolute path that should be allowed
 			const allowedPath = path.join(tempDir, "src/file.ts")
-			const allowedResult = await controller.validateAccess(allowedPath)
+			const allowedResult = controller.validateAccess(allowedPath)
 			allowedResult.should.be.true()
 
 			// Test absolute path that matches an ignore pattern (*.secret)
 			const ignoredPath = path.join(tempDir, "config.secret")
-			const ignoredResult = await controller.validateAccess(ignoredPath)
+			const ignoredResult = controller.validateAccess(ignoredPath)
 			ignoredResult.should.be.false()
 
 			// Test absolute path in ignored directory (private/)
 			const ignoredDirPath = path.join(tempDir, "private/data.txt")
-			const ignoredDirResult = await controller.validateAccess(ignoredDirPath)
+			const ignoredDirResult = controller.validateAccess(ignoredDirPath)
 			ignoredDirResult.should.be.false()
 		})
 
 		it("should handle relative paths and match ignore patterns", async () => {
 			// Test relative path that should be allowed
-			const allowedResult = await controller.validateAccess("./src/file.ts")
+			const allowedResult = controller.validateAccess("./src/file.ts")
 			allowedResult.should.be.true()
 
 			// Test relative path that matches an ignore pattern (*.secret)
-			const ignoredResult = await controller.validateAccess("./config.secret")
+			const ignoredResult = controller.validateAccess("./config.secret")
 			ignoredResult.should.be.false()
 
 			// Test relative path in ignored directory (private/)
-			const ignoredDirResult = await controller.validateAccess("./private/data.txt")
+			const ignoredDirResult = controller.validateAccess("./private/data.txt")
 			ignoredDirResult.should.be.false()
 		})
 
 		it("should normalize paths with backslashes", async () => {
-			const result = await controller.validateAccess("src\\file.ts")
+			const result = controller.validateAccess("src\\file.ts")
 			result.should.be.true()
 		})
 
 		it("should handle paths outside cwd", async () => {
 			// Create a path that points to parent directory of cwd
 			const outsidePath = path.join(path.dirname(tempDir), "outside.txt")
-			const result = await controller.validateAccess(outsidePath)
+			const result = controller.validateAccess(outsidePath)
 
 			// Should return false for security since path is outside cwd
 			result.should.be.false()
 
 			// Test with a deeply nested path outside cwd
 			const deepOutsidePath = path.join(path.dirname(tempDir), "deep", "nested", "outside.secret")
-			const deepResult = await controller.validateAccess(deepOutsidePath)
+			const deepResult = controller.validateAccess(deepOutsidePath)
 			deepResult.should.be.false()
 
 			// Test with a path that tries to escape using ../
 			const escapeAttemptPath = path.join(tempDir, "..", "escape-attempt.txt")
-			const escapeResult = await controller.validateAccess(escapeAttemptPath)
+			const escapeResult = controller.validateAccess(escapeAttemptPath)
 			escapeResult.should.be.false()
 		})
 	})
@@ -228,7 +227,7 @@ describe("LLMFileAccessController", () => {
 	describe("Error Handling", () => {
 		it("should handle invalid paths", async () => {
 			// Test with an invalid path containing null byte
-			const result = await controller.validateAccess("\0invalid")
+			const result = controller.validateAccess("\0invalid")
 			result.should.be.true()
 		})
 
@@ -240,7 +239,7 @@ describe("LLMFileAccessController", () => {
 			try {
 				const controller = new LLMFileAccessController(emptyDir)
 				await controller.initialize()
-				const result = await controller.validateAccess("file.txt")
+				const result = controller.validateAccess("file.txt")
 				result.should.be.true()
 			} finally {
 				await fs.rm(emptyDir, { recursive: true, force: true })
@@ -253,7 +252,7 @@ describe("LLMFileAccessController", () => {
 			controller = new LLMFileAccessController(tempDir)
 			await controller.initialize()
 
-			const result = await controller.validateAccess("regular-file.txt")
+			const result = controller.validateAccess("regular-file.txt")
 			result.should.be.true()
 		})
 	})
