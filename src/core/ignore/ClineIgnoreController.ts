@@ -4,6 +4,8 @@ import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import * as vscode from "vscode"
 
+export const LOCK_TEXT_SYMBOL = "\u{1F512}"
+
 /**
  * Controls LLM access to files by enforcing ignore patterns.
  * Designed to be instantiated once in Cline.ts and passed to file manipulation services.

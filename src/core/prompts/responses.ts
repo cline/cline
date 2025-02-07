@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
-import { ClineIgnoreController } from "../ignore/ClineIgnoreController"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -95,7 +95,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
 					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
-						return "\u{1F512} " + filePath
+						return LOCK_TEXT_SYMBOL + " " + filePath
 					}
 
 					return filePath

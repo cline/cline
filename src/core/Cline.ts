@@ -9,6 +9,9 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
+import { OpenAiHandler } from "../api/providers/openai"
+import { OpenRouterHandler } from "../api/providers/openrouter"
+import { ApiStream } from "../api/transform/stream"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
@@ -46,20 +49,16 @@ import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
-import { ClineIgnoreController } from "./ignore/ClineIgnoreController"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
-import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { OpenRouterHandler } from "../api/providers/openrouter"
+import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
-import { SYSTEM_PROMPT } from "./prompts/system"
-import { addUserInstructions } from "./prompts/system"
-import { OpenAiHandler } from "../api/providers/openai"
-import { ApiStream } from "../api/transform/stream"
+import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1245,7 +1244,7 @@ export class Cline {
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
 		if (clineIgnoreContent) {
-			clineIgnoreInstructions = `# .clineignore\n\nThe following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a \u{1F512} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.\n\n${clineIgnoreContent}`
+			clineIgnoreInstructions = `# .clineignore\n\nThe following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.\n\n${clineIgnoreContent}`
 		}
 
 		if (settingsCustomInstructions || clineRulesFileInstructions) {
