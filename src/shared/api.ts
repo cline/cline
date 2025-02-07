@@ -29,6 +29,8 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseProfile?: boolean
+	awsProfile?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string

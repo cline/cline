@@ -445,30 +445,56 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						flexDirection: "column",
 						gap: 5,
 					}}>
-					<VSCodeTextField
-						value={apiConfiguration?.awsAccessKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsAccessKey")}
-						placeholder="Enter Access Key...">
-						<span style={{ fontWeight: 500 }}>AWS Access Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSecretKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSecretKey")}
-						placeholder="Enter Secret Key...">
-						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSessionToken || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSessionToken")}
-						placeholder="Enter Session Token...">
-						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
-					</VSCodeTextField>
+					<VSCodeRadioGroup
+						value={apiConfiguration?.awsUseProfile ? "profile" : "credentials"}
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement)?.value
+							const useProfile = value === "profile"
+							setApiConfiguration({
+								...apiConfiguration,
+								awsUseProfile: useProfile,
+							})
+						}}>
+						<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
+						<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
+					</VSCodeRadioGroup>
+
+					{apiConfiguration?.awsUseProfile ? (
+						<VSCodeTextField
+							value={apiConfiguration?.awsProfile || ""}
+							style={{ width: "100%" }}
+							onInput={handleInputChange("awsProfile")}
+							placeholder="Enter profile name (default if empty)">
+							<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
+						</VSCodeTextField>
+					) : (
+						<>
+							<VSCodeTextField
+								value={apiConfiguration?.awsAccessKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsAccessKey")}
+								placeholder="Enter Access Key...">
+								<span style={{ fontWeight: 500 }}>AWS Access Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSecretKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSecretKey")}
+								placeholder="Enter Secret Key...">
+								<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSessionToken || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSessionToken")}
+								placeholder="Enter Session Token...">
+								<span style={{ fontWeight: 500 }}>AWS Session Token</span>
+							</VSCodeTextField>
+						</>
+					)}
 					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
@@ -523,9 +549,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
-						~/.aws/credentials or environment variables. These credentials are only used locally to make API requests
-						from this extension.
+						{apiConfiguration?.awsUseProfile ? (
+							<>
+								Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default
+								profile. These credentials are only used locally to make API requests from this extension.
+							</>
+						) : (
+							<>
+								Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
+								~/.aws/credentials or environment variables. These credentials are only used locally to make API
+								requests from this extension.
+							</>
+						)}
 					</p>
 				</div>
 			)}
