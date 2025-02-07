@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as path from "path"
 import * as diff from "diff"
-import { LLMFileAccessController } from "../../services/llm-access-control/LLMFileAccessController"
+import * as path from "path"
+import { ClineIgnoreController } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -54,7 +54,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		llmFileAccessController: LLMFileAccessController,
+		clineIgnoreController: ClineIgnoreController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -87,13 +87,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const accessControlledSortedFiles = llmFileAccessController
+		const accessControlledSortedFiles = clineIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
 					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !llmFileAccessController.validateAccess(absoluteFilePath)
+					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
 						return "\u{1F512} " + filePath
 					}

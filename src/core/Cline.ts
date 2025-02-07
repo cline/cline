@@ -46,7 +46,7 @@ import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
-import { LLMFileAccessController } from "../services/llm-access-control/LLMFileAccessController"
+import { ClineIgnoreController } from "./ignore/ClineIgnoreController"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
@@ -81,7 +81,7 @@ export class Cline {
 	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
-	private llmFileAccessController: LLMFileAccessController
+	private clineIgnoreController: ClineIgnoreController
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -125,9 +125,9 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
-		this.llmFileAccessController = new LLMFileAccessController(cwd)
-		this.llmFileAccessController.initialize().catch((error) => {
-			console.error("Failed to initialize LLMFileAccessController:", error)
+		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.clineIgnoreController.initialize().catch((error) => {
+			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration)
@@ -1057,7 +1057,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
-		this.llmFileAccessController.dispose()
+		this.clineIgnoreController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 
@@ -1592,7 +1592,7 @@ export class Cline {
 							break
 						}
 
-						const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
+						const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
 						if (!accessAllowed) {
 							await this.say("clineignore_error", relPath)
 							pushToolResult(formatResponse.clineIgnoreError(relPath))
@@ -1869,7 +1869,7 @@ export class Cline {
 									break
 								}
 
-								const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
+								const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
 								if (!accessAllowed) {
 									await this.say("clineignore_error", relPath)
 									pushToolResult(formatResponse.clineIgnoreError(relPath))
@@ -1948,7 +1948,7 @@ export class Cline {
 									absolutePath,
 									files,
 									didHitLimit,
-									this.llmFileAccessController,
+									this.clineIgnoreController,
 								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -2012,7 +2012,7 @@ export class Cline {
 								const absolutePath = path.resolve(cwd, relDirPath)
 								const result = await parseSourceCodeForDefinitionsTopLevel(
 									absolutePath,
-									this.llmFileAccessController,
+									this.clineIgnoreController,
 								)
 
 								const completeMessage = JSON.stringify({
@@ -2089,7 +2089,7 @@ export class Cline {
 									absolutePath,
 									regex,
 									filePattern,
-									this.llmFileAccessController,
+									this.clineIgnoreController,
 								)
 
 								const completeMessage = JSON.stringify({
@@ -3236,8 +3236,8 @@ export class Cline {
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 
-		// Filter paths through LLMFileAccessController
-		const allowedVisibleFiles = this.llmFileAccessController
+		// Filter paths through clineIgnoreController
+		const allowedVisibleFiles = this.clineIgnoreController
 			.filterPaths(visibleFilePaths)
 			.map((p) => p.toPosix())
 			.join("\n")
@@ -3255,8 +3255,8 @@ export class Cline {
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath))
 
-		// Filter paths through LLMFileAccessController
-		const allowedOpenTabs = this.llmFileAccessController
+		// Filter paths through clineIgnoreController
+		const allowedOpenTabs = this.clineIgnoreController
 			.filterPaths(openTabPaths)
 			.map((p) => p.toPosix())
 			.join("\n")
@@ -3376,7 +3376,7 @@ export class Cline {
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.llmFileAccessController)
+				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.clineIgnoreController)
 				details += result
 			}
 		}

@@ -9,7 +9,7 @@ import * as vscode from "vscode"
  * Designed to be instantiated once in Cline.ts and passed to file manipulation services.
  * Uses the 'ignore' library to support standard .gitignore syntax in .clineignore files.
  */
-export class LLMFileAccessController {
+export class ClineIgnoreController {
 	private cwd: string
 	private ignoreInstance: Ignore
 	private fileWatcher: vscode.FileSystemWatcher | null
@@ -23,7 +23,7 @@ export class LLMFileAccessController {
 	constructor(cwd: string) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
+		this.ignoreInstance.add(ClineIgnoreController.DEFAULT_PATTERNS)
 		this.fileWatcher = null
 
 		// Set up file watcher for .clineignore
@@ -93,7 +93,7 @@ export class LLMFileAccessController {
 	 */
 	private resetToDefaultPatterns(): void {
 		this.ignoreInstance = ignore()
-		this.ignoreInstance.add(LLMFileAccessController.DEFAULT_PATTERNS)
+		this.ignoreInstance.add(ClineIgnoreController.DEFAULT_PATTERNS)
 	}
 
 	/**
