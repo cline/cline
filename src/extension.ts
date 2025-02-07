@@ -8,6 +8,8 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { ElizaService } from './services/elizaService'
+import { WebSocket } from 'ws'
+import { config } from './config'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -185,6 +187,51 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	const elizaService = new ElizaService()
+
+	// Connexion WebSocket à Discord
+	const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json')
+	
+	ws.on('open', () => {
+		// Utiliser le token de config.ts
+		ws.send(JSON.stringify({
+			op: 2,
+			d: {
+				token: config.discordApiToken,
+				intents: 513,
+				properties: {
+					os: 'linux',
+					browser: 'vscode',
+					device: 'vscode'
+				}
+			}
+		}))
+	})
+
+	ws.on('error', (error) => {
+		console.error('WebSocket error:', error)
+	})
+
+	ws.on('message', async (data: string) => {
+		try {
+			const payload = JSON.parse(data)
+			
+			if (payload.op === 10) {
+				const heartbeat_interval = payload.d.heartbeat_interval
+				setInterval(() => {
+					ws.send(JSON.stringify({ op: 1, d: null }))
+				}, heartbeat_interval)
+			}
+			
+			// Utiliser le channelId de config.ts
+			if (payload.t === 'MESSAGE_CREATE' && 
+				payload.d.author.username === 'Charlotte AI' &&
+				payload.d.channel_id === config.discordChannelId) {
+				elizaService.addBotResponse(payload.d.content)
+			}
+		} catch (error) {
+			console.error('Error processing Discord message:', error)
+		}
+	})
 
 	let disposable = vscode.commands.registerCommand('cline.chat', async () => {
 		// Get user input

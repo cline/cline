@@ -1,6 +1,13 @@
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Charger le .env depuis le dossier racine de l'extension
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
 export const config = {
     elizaUrl: 'http://localhost:3000',
-    discordWebhookUrl: 'https://discordapp.com/api/webhooks/1337163138633695282/Tj4n66ZOWbqJIrBUwSWX0xShx2gP6xso3f6SligznmpqiiKmlBcNMm9QoMzzj8907QrT',
-    discordChannelId: '1270477037949288490',
+    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+    discordChannelId: process.env.DISCORD_CHANNEL_ID,
+    discordApiToken: process.env.DISCORD_API_TOKEN,
     botName: 'Charlotte AI'
 }; 
