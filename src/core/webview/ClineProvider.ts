@@ -613,6 +613,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.postMessageToWebview({ type: "openRouterModels", openRouterModels })
 							}
 						})
+
+						// If MCP Hub is already initialized, update the webview with current server list
+						if (this.mcpHub) {
+							this.postMessageToWebview({
+								type: "mcpServers",
+								mcpServers: this.mcpHub.getServers(),
+							})
+						}
+
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
@@ -2115,6 +2124,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes: await this.customModesManager.getCustomModes(),
 			experiments: experiments ?? experimentDefault,
+			mcpServers: this.mcpHub?.getServers() ?? [],
 		}
 	}
 
