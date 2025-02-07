@@ -16,9 +16,9 @@ export class LLMFileAccessController {
 	private disposables: vscode.Disposable[] = []
 
 	/**
-	 * Default patterns that are always ignored for security
+	 * Default patterns that are always ignored
 	 */
-	private static readonly DEFAULT_PATTERNS = [".clineignore"] // empty for now
+	private static readonly DEFAULT_PATTERNS = [".clineignore"]
 
 	constructor(cwd: string) {
 		this.cwd = cwd

@@ -2085,7 +2085,6 @@ export class Cline {
 								this.consecutiveMistakeCount = 0
 
 								const absolutePath = path.resolve(cwd, relDirPath)
-								const clineignorePath = path.join(cwd, ".clineignore")
 								const results = await regexSearchFiles(
 									cwd,
 									absolutePath,
