@@ -8,6 +8,8 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "requesty"
+	| "together"
 	| "deepseek"
 	| "qwen"
 	| "mistral"
@@ -28,6 +30,8 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseProfile?: boolean
+	awsProfile?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -40,10 +44,15 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	requestyApiKey?: string
+	requestyModelId?: string
+	togetherApiKey?: string
+	togetherModelId?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 }
 
@@ -172,7 +181,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet:beta" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -184,7 +193,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/anthropic/claude-3.5-sonnet) variant._",
+		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
 }
 
 // Vertex AI

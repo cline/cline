@@ -53,6 +53,16 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
+			case "requesty":
+				if (!apiConfiguration.requestyApiKey || !apiConfiguration.requestyModelId) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "together":
+				if (!apiConfiguration.togetherApiKey || !apiConfiguration.togetherModelId) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "ollama":
 				if (!apiConfiguration.ollamaModelId) {
 					return "You must provide a valid model ID."
