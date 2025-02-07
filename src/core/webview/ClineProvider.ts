@@ -1480,6 +1480,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
+		const o3MiniReasoningEffort = vscode.workspace
+			.getConfiguration("cline.modelSettings.o3Mini")
+			.get("reasoningEffort", "medium")
+
 		return {
 			apiConfiguration: {
 				apiProvider,
@@ -1517,6 +1521,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 			},

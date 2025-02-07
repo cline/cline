@@ -52,6 +52,7 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 }
 
