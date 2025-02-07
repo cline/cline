@@ -46,6 +46,8 @@ type SecretKey =
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
+	| "requestyApiKey"
+	| "qwenApiKey"
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
@@ -54,6 +56,8 @@ type GlobalStateKey =
 	| "apiModelId"
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
+	| "awsProfile"
+	| "awsUseProfile"
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"
@@ -78,6 +82,10 @@ type GlobalStateKey =
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeModelInfo"
+	| "liteLlmBaseUrl"
+	| "liteLlmModelId"
+	| "qwenApiLine"
+	| "requestyModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -429,6 +437,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								awsSessionToken,
 								awsRegion,
 								awsUseCrossRegionInference,
+								awsProfile,
+								awsUseProfile,
 								vertexProjectId,
 								vertexRegion,
 								openAiBaseUrl,
@@ -442,11 +452,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								deepSeekApiKey,
+								requestyApiKey,
+								requestyModelId,
+								qwenApiKey,
 								mistralApiKey,
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
+								liteLlmBaseUrl,
+								liteLlmModelId,
+								qwenApiLine,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -457,6 +473,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
 							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
+							await this.updateGlobalState("awsProfile", awsProfile)
+							await this.updateGlobalState("awsUseProfile", awsUseProfile)
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
 							await this.updateGlobalState("vertexRegion", vertexRegion)
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
@@ -470,11 +488,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
+							await this.storeSecret("requestyApiKey", requestyApiKey)
+							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
+							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
+							await this.updateGlobalState("qwenApiLine", qwenApiLine)
+							await this.updateGlobalState("requestyModelId", requestyModelId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -542,6 +566,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								case "lmstudio":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
 									break
+								case "litellm":
+									await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
+									break
 							}
 
 							// Restore the model used in previous mode
@@ -569,6 +596,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										break
 									case "lmstudio":
 										await this.updateGlobalState("lmStudioModelId", newModelId)
+										break
+									case "litellm":
+										await this.updateGlobalState("liteLlmModelId", newModelId)
 										break
 								}
 
@@ -1358,6 +1388,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsProfile,
+			awsUseProfile,
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -1371,6 +1403,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
+			requestyApiKey,
+			requestyModelId,
+			qwenApiKey,
 			mistralApiKey,
 			azureApiVersion,
 			openRouterModelId,
@@ -1383,11 +1418,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
+			liteLlmBaseUrl,
+			liteLlmModelId,
 			userInfo,
 			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			qwenApiLine,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1398,6 +1436,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
+			this.getGlobalState("awsProfile") as Promise<string | undefined>,
+			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
 			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
@@ -1411,6 +1451,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
+			this.getSecret("requestyApiKey") as Promise<string | undefined>,
+			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
+			this.getSecret("qwenApiKey") as Promise<string | undefined>,
 			this.getSecret("mistralApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
@@ -1423,11 +1466,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
+			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1455,6 +1501,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				awsSessionToken,
 				awsRegion,
 				awsUseCrossRegionInference,
+				awsProfile,
+				awsUseProfile,
 				vertexProjectId,
 				vertexRegion,
 				openAiBaseUrl,
@@ -1468,11 +1516,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				geminiApiKey,
 				openAiNativeApiKey,
 				deepSeekApiKey,
+				requestyApiKey,
+				requestyModelId,
+				qwenApiKey,
+				qwenApiLine,
 				mistralApiKey,
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				liteLlmBaseUrl,
+				liteLlmModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1562,6 +1616,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"geminiApiKey",
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
+			"requestyApiKey",
+			"qwenApiKey",
 			"mistralApiKey",
 			"authToken",
 		]
