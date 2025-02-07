@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-Introducing .clineignore
+Add .clineignore file to block Cline from accessing specified file patterns
