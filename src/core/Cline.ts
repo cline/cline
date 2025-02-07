@@ -1594,7 +1594,8 @@ export class Cline {
 
 						const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
 						if (!accessAllowed) {
-							await handleError("writing file", new Error(`Access denied: ${relPath} (blocked by .clineignore)`))
+							await this.say("clineignore_error", relPath)
+							pushToolResult(formatResponse.clineIgnoreError(relPath))
 							break
 						}
 
@@ -1870,10 +1871,8 @@ export class Cline {
 
 								const accessAllowed = this.llmFileAccessController.validateAccess(relPath)
 								if (!accessAllowed) {
-									await handleError(
-										"reading file",
-										new Error(`Access denied: ${relPath} (blocked by .clineignore)`),
-									)
+									await this.say("clineignore_error", relPath)
+									pushToolResult(formatResponse.clineIgnoreError(relPath))
 									break
 								}
 
