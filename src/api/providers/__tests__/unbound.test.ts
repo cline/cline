@@ -214,6 +214,15 @@ describe("UnboundHandler", () => {
 			const nonAnthropicOptions = {
 				apiModelId: "openai/gpt-4o",
 				unboundApiKey: "test-key",
+				unboundModelId: "openai/gpt-4o",
+				unboundModelInfo: {
+					description: "OpenAI's GPT-4",
+					maxTokens: undefined,
+					contextWindow: 128000,
+					supportsPromptCache: true,
+					inputPrice: 0.01,
+					outputPrice: 0.03,
+				},
 			}
 			const nonAnthropicHandler = new UnboundHandler(nonAnthropicOptions)
 
@@ -243,7 +252,7 @@ describe("UnboundHandler", () => {
 				unboundModelInfo: undefined,
 			})
 			const modelInfo = handlerWithInvalidModel.getModel()
-			expect(modelInfo.id).toBe("openai/gpt-4o") // Default model
+			expect(modelInfo.id).toBe("anthropic/claude-3-5-sonnet-20241022") // Default model
 			expect(modelInfo.info).toBeDefined()
 		})
 	})
