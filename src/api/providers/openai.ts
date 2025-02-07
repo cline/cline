@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiNativeModelId, openAiNativeModels } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -28,6 +28,10 @@ export class OpenAiHandler implements ApiHandler {
 		}
 	}
 
+	private modelSupportsTemperature(modelId: string): boolean {
+		return !(modelId in openAiNativeModels) || openAiNativeModels[modelId as OpenAiNativeModelId].supportsTemperature !== false;
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
@@ -42,13 +46,18 @@ export class OpenAiHandler implements ApiHandler {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
-		const stream = await this.client.chat.completions.create({
+		const params: OpenAI.Chat.ChatCompletionCreateParams = {
 			model: modelId,
 			messages: openAiMessages,
-			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
-		})
+		}
+
+		if (this.modelSupportsTemperature(modelId)) {
+			params.temperature = 0
+		}
+
+		const stream = await this.client.chat.completions.create(params)
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
