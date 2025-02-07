@@ -1218,7 +1218,7 @@ export class Cline {
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguageInstructions = this.preferredLanguage
-			? `# Preferred Language\n\nThe user prefers responses in ${this.preferredLanguage}. Please respond in this language in addition to English (language code en).`
+			? `# Preferred Language\n\nThe user prefers responses in ${this.preferredLanguage}. Please respond in this language only.`
 			: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
