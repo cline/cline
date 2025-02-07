@@ -13,12 +13,12 @@ export class ClineIgnoreController {
 	private cwd: string
 	private ignoreInstance: Ignore
 	private disposables: vscode.Disposable[] = []
-	clineIgnoreExists: boolean
+	clineIgnoreContent: string | undefined
 
 	constructor(cwd: string) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
-		this.clineIgnoreExists = false
+		this.clineIgnoreContent = undefined
 		// Set up file watcher for .clineignore
 		this.setupFileWatcher()
 	}
@@ -64,11 +64,11 @@ export class ClineIgnoreController {
 			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
-				this.clineIgnoreExists = true
 				const content = await fs.readFile(ignorePath, "utf8")
+				this.clineIgnoreContent = content
 				this.ignoreInstance.add(content)
 			} else {
-				this.clineIgnoreExists = false
+				this.clineIgnoreContent = undefined
 			}
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
@@ -83,7 +83,7 @@ export class ClineIgnoreController {
 	 */
 	validateAccess(filePath: string): boolean {
 		// Always allow access if .clineignore does not exist
-		if (!this.clineIgnoreExists) {
+		if (!this.clineIgnoreContent) {
 			return true
 		}
 		try {
