@@ -13,7 +13,7 @@ import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
 const UnboundModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, unboundModels, onUpdateApiConfig } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.apiModelId || unboundDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.unboundModelId || unboundDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
