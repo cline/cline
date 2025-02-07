@@ -289,3 +289,11 @@ vscode-dropdown::part(listbox) {
 .vscrui-checkbox__listbox > ul {
 	max-height: unset !important;
 }
+
+/**
+ * @shadcn/ui Overrides / Hacks
+ */
+
+input[cmdk-input]:focus {
+	outline: none;
+}
