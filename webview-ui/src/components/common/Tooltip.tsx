@@ -5,6 +5,7 @@ import {
 	VSC_DESCRIPTION_FOREGROUND,
 	VSC_SIDEBAR_BACKGROUND,
 	VSC_INPUT_PLACEHOLDER_FOREGROUND,
+	VSC_INPUT_BORDER,
 } from "../../utils/vscStyles"
 
 interface TooltipProps {
@@ -20,13 +21,14 @@ const TooltipBody = styled.div`
 	color: ${getAsVar(VSC_DESCRIPTION_FOREGROUND)};
 	padding: 5px;
 	border-radius: 5px;
-	bottom: 88%;
-	left: -150%;
+	bottom: 100%;
+	left: -180%;
 	z-index: 10;
 	white-space: wrap;
 	max-width: 200px;
-	box-shadow: 0px 0px 10px rgba(50, 50, 50, 0.1);
+	border: 1px solid ${getAsVar(VSC_INPUT_BORDER)};
 	pointer-events: none;
+	font-size: 0.9em;
 `
 
 const Hint = styled.div`
