@@ -12,6 +12,9 @@ import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { OpenRouterHandler } from "./providers/openrouter"
+import { ApiStream } from "./transform/stream"
+import { DeepSeekHandler } from "./providers/deepseek"
+import { RequestyHandler } from "./providers/requesty"
 import { QwenHandler } from "./providers/qwen"
 import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
@@ -49,6 +52,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
+		case "requesty":
+			return new RequestyHandler(options)
 		case "qwen":
 			return new QwenHandler(options)
 		case "mistral":
