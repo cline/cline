@@ -1600,7 +1600,7 @@ export class Cline {
 						const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
 						if (!accessAllowed) {
 							await this.say("clineignore_error", relPath)
-							pushToolResult(formatResponse.clineIgnoreError(relPath))
+							pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
 							await this.saveCheckpoint()
 							break
 						}
@@ -1878,7 +1878,7 @@ export class Cline {
 								const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
 								if (!accessAllowed) {
 									await this.say("clineignore_error", relPath)
-									pushToolResult(formatResponse.clineIgnoreError(relPath))
+									pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
 									await this.saveCheckpoint()
 									break
 								}
@@ -2338,7 +2338,9 @@ export class Cline {
 								const ignoredFileAttemptedToAccess = this.clineIgnoreController.validateCommand(command)
 								if (ignoredFileAttemptedToAccess) {
 									await this.say("clineignore_error", ignoredFileAttemptedToAccess)
-									pushToolResult(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
+									pushToolResult(
+										formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess)),
+									)
 									await this.saveCheckpoint()
 									break
 								}
