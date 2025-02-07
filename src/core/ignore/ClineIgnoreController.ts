@@ -69,6 +69,7 @@ export class ClineIgnoreController {
 				const content = await fs.readFile(ignorePath, "utf8")
 				this.clineIgnoreContent = content
 				this.ignoreInstance.add(content)
+				this.ignoreInstance.add(".clineignore")
 			} else {
 				this.clineIgnoreContent = undefined
 			}

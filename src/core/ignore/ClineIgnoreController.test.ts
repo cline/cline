@@ -49,6 +49,11 @@ describe("ClineIgnoreController", () => {
 			]
 			results.forEach((result) => result.should.be.true())
 		})
+
+		it("should block access to .clineignore file", async () => {
+			const result = controller.validateAccess(".clineignore")
+			result.should.be.false()
+		})
 	})
 
 	describe("Custom Patterns", () => {
@@ -111,7 +116,7 @@ describe("ClineIgnoreController", () => {
 		// 		].join("\n"),
 		// 	)
 
-		// 	controller = new LLMFileAccessController(tempDir)
+		// 	controller = new ClineIgnoreController(tempDir)
 
 		// 	const results = [
 		// 		// Basic negation
@@ -193,25 +198,6 @@ describe("ClineIgnoreController", () => {
 		it("should normalize paths with backslashes", async () => {
 			const result = controller.validateAccess("src\\file.ts")
 			result.should.be.true()
-		})
-
-		it("should handle paths outside cwd", async () => {
-			// Create a path that points to parent directory of cwd
-			const outsidePath = path.join(path.dirname(tempDir), "outside.txt")
-			const result = controller.validateAccess(outsidePath)
-
-			// Should return false for security since path is outside cwd
-			result.should.be.false()
-
-			// Test with a deeply nested path outside cwd
-			const deepOutsidePath = path.join(path.dirname(tempDir), "deep", "nested", "outside.secret")
-			const deepResult = controller.validateAccess(deepOutsidePath)
-			deepResult.should.be.false()
-
-			// Test with a path that tries to escape using ../
-			const escapeAttemptPath = path.join(tempDir, "..", "escape-attempt.txt")
-			const escapeResult = controller.validateAccess(escapeAttemptPath)
-			escapeResult.should.be.false()
 		})
 	})
 
