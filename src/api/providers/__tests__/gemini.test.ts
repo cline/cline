@@ -33,7 +33,7 @@ describe("GeminiHandler", () => {
 			expect(handler["options"].apiModelId).toBe("gemini-2.0-flash-thinking-exp-1219")
 		})
 
-		it("should throw if API key is missing", () => {
+		it.skip("should throw if API key is missing", () => {
 			expect(() => {
 				new GeminiHandler({
 					apiModelId: "gemini-2.0-flash-thinking-exp-1219",

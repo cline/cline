@@ -16,10 +16,9 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://api.getunbound.ai/v1",
-			apiKey: this.options.unboundApiKey,
-		})
+		const baseURL = "https://api.getunbound.ai/v1"
+		const apiKey = this.options.unboundApiKey ?? "not-provided"
+		this.client = new OpenAI({ baseURL, apiKey })
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
