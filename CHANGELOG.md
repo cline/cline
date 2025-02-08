@@ -1,13 +1,13 @@
 # Roo Code Changelog
 
-## 3.3.15
+## [3.3.15]
 
-### Patch Changes
+- Improvements to MCP initialization and server restarts (thanks @MuriloFP and @hannesrudolph!)
+- Add a copy button to the recent tasks (thanks @hannesrudolph!)
+- Improve the user experience for adding a new API profile
+- Another significant fix to API profile switching on the settings screen
 
-- Add a copy button to the recent tasks
-- Improve the user experience for adding a new configuration profile
-- Style and copy updates to advanced settings
-- v3.3.15
+- And one more thing... if you want to try out a first version of checkpoints, there's a surprise for you in the Advanced Settings! Please share your feedback in the Discord.
 
 ## [3.3.14]
 
