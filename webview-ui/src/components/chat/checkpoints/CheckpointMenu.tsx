@@ -3,7 +3,16 @@ import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons"
 
 import { vscode } from "../../../utils/vscode"
 
-import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+import {
+	Button,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui"
 
 type CheckpointMenuProps = {
 	ts: number
@@ -43,9 +52,16 @@ export const CheckpointMenu = ({ ts, commitHash, currentCheckpointHash }: Checkp
 
 	return (
 		<div className="flex flex-row gap-1">
-			<Button variant="ghost" size="icon" onClick={onCheckpointDiff}>
-				<span className="codicon codicon-diff-single" />
-			</Button>
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button variant="ghost" size="icon" onClick={onCheckpointDiff}>
+							<span className="codicon codicon-diff-single" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent align="end">View Diff</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 			<Popover
 				open={isOpen}
 				onOpenChange={(open) => {
@@ -53,9 +69,16 @@ export const CheckpointMenu = ({ ts, commitHash, currentCheckpointHash }: Checkp
 					setIsConfirming(false)
 				}}>
 				<PopoverTrigger asChild>
-					<Button variant="ghost" size="icon">
-						<span className="codicon codicon-history" />
-					</Button>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<span className="codicon codicon-history" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent align="end">Restore Checkpoint</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</PopoverTrigger>
 				<PopoverContent align="end" container={portalContainer}>
 					<div className="flex flex-col gap-2">

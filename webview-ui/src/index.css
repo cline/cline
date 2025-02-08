@@ -76,6 +76,13 @@
 
 	--color-vscode-input-background: var(--vscode-input-background);
 	--color-vscode-input-border: var(--vscode-input-border);
+
+	--color-vscode-badge-foreground: var(--vscode-badge-foreground);
+	--color-vscode-badge-background: var(--vscode-badge-background);
+
+	--color-vscode-notifications-foreground: var(--vscode-notifications-foreground);
+	--color-vscode-notifications-background: var(--vscode-notifications-background);
+	--color-vscode-notifications-border: var(--vscode-notifications-border);
 }
 
 @layer base {
