@@ -644,14 +644,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 						{diffEnabled && (
 							<div style={{ marginTop: 10 }}>
-								<ExperimentalFeature
-									key={EXPERIMENT_IDS.DIFF_STRATEGY}
-									{...experimentConfigsMap.DIFF_STRATEGY}
-									enabled={experiments[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false}
-									onChange={(enabled) => setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, enabled)}
-								/>
 								<div
-									style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "15px" }}>
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: "5px",
+										marginTop: "10px",
+										marginBottom: "10px",
+										paddingLeft: "10px",
+										borderLeft: "2px solid var(--vscode-button-background)",
+									}}>
 									<span style={{ fontWeight: "500" }}>Match precision</span>
 									<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
 										<input
@@ -671,19 +673,50 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 											{Math.round((fuzzyMatchThreshold || 1) * 100)}%
 										</span>
 									</div>
+									<p
+										style={{
+											fontSize: "12px",
+											marginTop: "5px",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										This slider controls how precisely code sections must match when applying diffs.
+										Lower values allow more flexible matching but increase the risk of incorrect
+										replacements. Use values below 100% with extreme caution.
+									</p>
+									<ExperimentalFeature
+										key={EXPERIMENT_IDS.DIFF_STRATEGY}
+										{...experimentConfigsMap.DIFF_STRATEGY}
+										enabled={experiments[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false}
+										onChange={(enabled) =>
+											setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, enabled)
+										}
+									/>
 								</div>
-								<p
-									style={{
-										fontSize: "12px",
-										marginTop: "5px",
-										color: "var(--vscode-descriptionForeground)",
-									}}>
-									This slider controls how precisely code sections must match when applying diffs.
-									Lower values allow more flexible matching but increase the risk of incorrect
-									replacements. Use values below 100% with extreme caution.
-								</p>
 							</div>
 						)}
+
+						<div style={{ marginBottom: 15 }}>
+							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+								<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
+								<VSCodeCheckbox
+									checked={checkpointsEnabled}
+									onChange={(e: any) => {
+										setCheckpointsEnabled(e.target.checked)
+									}}>
+									<span style={{ fontWeight: "500" }}>Enable experimental checkpoints</span>
+								</VSCodeCheckbox>
+							</div>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								When enabled, Roo will save a checkpoint whenever a file in the workspace is modified,
+								added or deleted, letting you easily revert to a previous state.
+							</p>
+						</div>
+
 						{Object.entries(experimentConfigsMap)
 							.filter((config) => config[0] !== "DIFF_STRATEGY")
 							.map((config) => (
@@ -701,25 +734,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									}
 								/>
 							))}
-					</div>
-
-					<div style={{ marginBottom: 15 }}>
-						<VSCodeCheckbox
-							checked={checkpointsEnabled}
-							onChange={(e: any) => {
-								setCheckpointsEnabled(e.target.checked)
-							}}>
-							<span style={{ fontWeight: "500" }}>Enable checkpoints</span>
-						</VSCodeCheckbox>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							When enabled, Roo will be save a workspace checkpoint after each tool execution if a file in
-							the workspace is modified, added or deleted.
-						</p>
 					</div>
 				</div>
 
