@@ -1,10 +1,10 @@
 # Contribuir para o Cline
 
-Estamos felizes por você estar interessado em contribuir com o Cline. Seja corrigindo um erro, adicionando uma funcionalidade ou melhorando nossa documentação, cada contribuição torna o Cline mais inteligente! Para manter nossa comunidade viva e acolhedora, todos os membros devem cumprir nosso Código de Conduta [Código de Conducta](CODE_OF_CONDUCT.md).
+Estamos felizes por você estar interessado em contribuir com o Cline. Seja corrigindo um erro, adicionando uma funcionalidade ou melhorando nossa documentação, cada contribuição torna o Cline mais inteligente! Para manter nossa comunidade viva e acolhedora, todos os membros devem cumprir nosso Código de Conduta [Código de Conduta](CODE_OF_CONDUCT.md).
 
 ## Relatar erros ou problemas
 
-Relatar erros ajuda a melhorar o Cline para todos! Antes de criar um novo problema, revise os [problemas existentes](https://github.com/cline/cline/issues) para evitar duplicações. Quando estiver pronto para relatar um erro, vá até nossa [página de Issues](https://github.com/cline/cline/issues/new/choose), onde você encontrará um modelo que ajudará a preencher as informações relevantes.
+Relatar erros ajuda a melhorar o Cline para todos! Antes de criar um novo issue, revise as [issues existentes](https://github.com/cline/cline/issues) para evitar duplicações. Quando estiver pronto para relatar um erro, vá até nossa [página de Issues](https://github.com/cline/cline/issues/new/choose), onde você encontrará um modelo que ajudará a preencher as informações relevantes.
 
 <blockquote class='warning-note'>
     🔐 <b>Importante:</b> Se você descobrir uma vulnerabilidade de segurança, utilize a <a href="https://github.com/cline/cline/security/advisories/new">ferramenta de segurança do GitHub</a> para relatá-la de forma privada.
@@ -12,9 +12,9 @@ Relatar erros ajuda a melhorar o Cline para todos! Antes de criar um novo proble
 
 ## Escolher no que trabalhar
 
-Procurando uma boa primeira contribuição? Consulte os problemas marcados com ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) ou ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). Estes foram especialmente selecionados para novos colaboradores e são áreas onde adoraríamos receber ajuda!
+Procurando uma boa primeira contribuição? Consulte os problemas marcados com ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) ou ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). Estes foram especialmente selecionados para novos colaboradores e são áreas em que adoraríamos receber ajuda!
 
-Também damos boas-vindas a contribuições para nossa [documentação](https://github.com/cline/cline/tree/main/docs). Seja corrigindo erros tipográficos, melhorando guias existentes ou criando novos conteúdos educativos, queremos construir um repositório de recursos gerido pela comunidade que ajude todos a tirar o máximo proveito do Cline. Você pode começar explorando `/docs` e procurando áreas que precisam de melhorias.
+Também damos boas-vindas a contribuições para nossa [documentação](https://github.com/cline/cline/tree/main/docs). Seja corrigindo erros de digitação, melhorando guias existentes ou criando novos conteúdos educativos, queremos construir um repositório de recursos gerido pela comunidade que ajude todos a tirar o máximo proveito do Cline. Você pode começar explorando `/docs` e procurando áreas que precisam de melhorias.
 
 Se planeja trabalhar em uma funcionalidade maior, crie primeiro uma [solicitação de funcionalidade](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) para que possamos discutir se ela se alinha à visão do Cline.
 
@@ -64,7 +64,7 @@ Qualquer pessoa pode contribuir com código para o Cline, mas pedimos que siga e
 
 5. **Antes de enviar**
 
-    - Rebase sua branch com a última versão da branch principal (main).
+    - Faça rebase com sua branch com a última versão da branch principal (main).
     - Certifique-se de que sua branch seja construída corretamente.
     - Verifique se todos os testes passam.
     - Revise suas alterações para remover qualquer código de depuração ou logs desnecessários.
@@ -80,3 +80,4 @@ Qualquer pessoa pode contribuir com código para o Cline, mas pedimos que siga e
 Ao enviar um Pull Request, você concorda que suas contribuições serão licenciadas sob a mesma licença do projeto ([Apache 2.0](LICENSE)).
 
 Lembre-se: Contribuir com o Cline não é apenas escrever código – é fazer parte de uma comunidade que está moldando o futuro do desenvolvimento assistido por IA. Vamos criar algo incrível juntos! 🚀
+

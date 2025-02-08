@@ -15,19 +15,18 @@ Exemplos de comportamentos que contribuem para criar um ambiente positivo inclue
 -   Foco no que é melhor para a comunidade
 -   Ser empático com outros membros da comunidade
 
-Ejemplos de comportamientos inaceptables por parte de los participantes incluyen:
-Exemplos de comportamentos inaceitáveis incluem:
+
+Exemplos de comportamentos inaceitáveis por parte dos participantes incluem:
 
 -   Uso de linguagem ou imagens sexualizadas e atenção ou avanços sexuais indesejados
--   Trollear, comentarios insultantes/despectivos y ataques personales o políticos
--   Insultos ou comentários depreciativos, ataques pessoais ou políticos
+-   Trollar, insultar, fazer comentários depreciativos, ataques pessoais ou políticos
 -   Assédio público ou privado
--   Divulgar informações privadas sem autorizacao como endereços físicos ou eletrônicos sem permissão explícita
+-   Divulgar informações privadas sem autorização, como endereços físicos ou eletrônicos, sem permissão explícita
 -   Outras condutas que poderiam ser consideradas inadequadas em um ambiente profissional
 
 ## Nossas Responsabilidades
 
-Os mantenedores do projeto são responsáveis por esclarecer os padrões de comportamento aceitável e devem tomar ações corretivas apropriadas e justas em resposta a qualquer instância de comportamento inaceitável.
+Os mantenedores do projeto são responsáveis por esclarecer os padrões de comportamento aceitáveis e devem tomar ações corretivas apropriadas e justas em resposta a qualquer instância de comportamento inaceitável.
 
 Os mantenedores têm o direito e a responsabilidade de remover, editar ou rejeitar comentários, commits, códigos, edições no wiki, issues e outras contribuições que não estejam alinhadas com este Código de Conduta. Também podem banir temporária ou permanentemente qualquer colaborador cujo comportamento seja considerado inapropriado, ameaçador, ofensivo ou prejudicial.
 
@@ -35,7 +34,7 @@ Os mantenedores têm o direito e a responsabilidade de remover, editar ou rejeit
 
 Este Código de Conduta se aplica tanto aos espaços do projeto quanto aos espaços públicos
 quando uma pessoa representa o projeto ou sua comunidade. Exemplos de
-representação de um projeto ou comunidade inclui o uso de um endereço de e-mail oficial do projeto,
+representação de um projeto ou comunidade incluem o uso de um endereço de e-mail oficial do projeto,
 publicar em uma conta oficial de mídia social ou atuar como representante designado
 em um evento online ou offline. A representação de um projeto pode
 ser mais especificamente definido e esclarecido pelos mantenedores do projeto.
@@ -49,3 +48,4 @@ Os mantenedores que não seguirem ou aplicarem este Código de Conduta de boa f�
 ## Atribuição
 
 Este Código de Conduta é adaptado do [Contributor Covenant](https://www.contributor-covenant.org), versão 1.4, disponível em https://www.contributor-covenant.org/version/1/4/code-of-conduct.html.
+

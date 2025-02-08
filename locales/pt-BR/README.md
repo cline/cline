@@ -17,7 +17,7 @@
 <a href="https://www.reddit.com/r/cline/" target="_blank"><strong>r/cline</strong></a>
 </td>
 <td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Solicitar de Funcionalidades</strong></a>
+<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Solicitação de Funcionalidades</strong></a>
 </td>
 <td align="center">
 <a href="https://cline.bot/join-us" target="_blank"><strong>Estamos Contratando!</strong></a>
@@ -28,18 +28,18 @@
 
 Conheça o Cline: um assistente de IA que pode usar seu **CLI** e **Editor**.
 
-Graças às [habilidades avançadas do Claude 3.5 Sonnet](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline pode lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que permitem criar e editar arquivos, explorar projetos grandes, usar o navegador e executar comandos de terminal (com sua aprovação), ele pode ajudar você de maneiras que vão além da conclusão de código ou suporte técnico. O Cline pode até usar o Model Context Protocol (MCP) para criar novas ferramentas e expandir seus próprios recursos. Embora os scripts de IA autônomos tradicionalmente sejam executados em ambientes isolados, esta extensão oferece uma GUI com um humano no circuito para aprovar cada alteração de arquivo e comando de terminal, fornecendo uma maneira segura e acessível de explorar o potencial da IA.
+Graças às [habilidades avançadas do Claude 3.5 Sonnet](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), o Cline pode lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que permitem criar e editar arquivos, explorar grandes projetos, usar o navegador e executar comandos no terminal (com sua aprovação), ele pode ajudar você de maneiras que vão além da inclusão de código ou suporte técnico. O Cline pode é capaz inclusive de usar o Model Context Protocol (MCP) para criar novas ferramentas e expandir seus próprios recursos. Embora os scripts de IA autônomas tradicionalmente sejam executados em ambientes isolados, esta extensão oferece uma GUI com um humano no circuito para aprovar cada alteração de arquivo e comando de terminal, fornecendo uma maneira segura e acessível de explorar todo o potencial da IA.
 
-1. Insira sua tarefa e adicione imagens para transformar ideias em aplicativos funcionais ou corrigir erros com capturas de tela.
+1. Insira sua tarefa e adicione imagens para transformar mockups em aplicativos funcionais ou corrigir erros atráves de capturas de tela.
 
-2. O Cline começará analisando a estrutura do seu arquivo e os ASTs do código-fonte, pesquisando com Regex e lendo arquivos relevantes para se orientar em projetos existentes. Ao gerenciar cuidadosamente as informações agregadas, o Cline pode fornecer assistência valiosa mesmo em projetos grandes e complexos, sem sobrecarregar a janela de contexto.
+2. O Cline começará analisando a estrutura do seu arquivo e os ASTs do código-fonte, fazendo pesquisas com Regex e lendo arquivos relevantes para se orientar em projetos existentes. Ao gerenciar cuidadosamente as informações agregadas, o Cline pode fornecer assistência valiosa mesmo em projetos grandes e complexos, sem sobrecarregar a janela de contexto.
 3. Assim que ele tiver as informações necessárias, o Cline poderá:
                 - Criar e editar arquivos + monitorar erros de Linter/Compilador, para que você possa corrigir proativamente problemas como importações ausentes e erros de sintaxe.
-                - Executar comandos diretamente no terminal e monitorar sua saída, para que você possa responder a problemas do servidor de desenvolvimento após editar um arquivo.
-                - Para tarefas de desenvolvimento web, o Cline pode iniciar o site em um navegador sem cabeça, clicar, digitar, rolar e capturar capturas de tela + registros de console, para que você possa corrigir erros de tempo de execução e erros visuais.
+                - Executar comandos diretamente no terminal e monitorar o resultado, para que você possa responder a problemas do servidor de desenvolvimento após editar um arquivo.
+                - Para tarefas de desenvolvimento web, o Cline pode iniciar o site em um navegador headless, clicar, digitar, fazer scroll e capturar capturas de tela + registros de console, para que você possa corrigir erros em tempo de execução e erros visuais.
 
 > [!TIP]
-> Use o atalho de teclado `CMD/CTRL + Shift + P` para abrir os comandos possiveis e digite "Cline: Abrir em nova aba" para abrir a extensão como uma aba no seu editor. Dessa forma, você pode usar o Cline junto com seu explorador de arquivos e ver mais claramente como seu espaço de trabalho muda.
+> Use o atalho de teclado `CMD/CTRL + Shift + P` para abrir a lista de comandos possiveis e digite "Cline: Abrir em nova aba" para abrir a extensão como uma aba no seu editor. Dessa forma, você pode usar o Cline junto com seu explorador de arquivos e ver mais claramente como seu espaço de trabalho muda.
 
 ---
 
@@ -59,7 +59,7 @@ A extensão também rastreia o uso total de tokens e os custos da API para todo 
 
 ### Executar comandos no terminal
 
-Graças às novas [atualizações de integração do Shell no VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), o Cline pode executar comandos diretamente no seu terminal e receber a saída. Isso permite que você execute uma variedade de tarefas, desde instalar pacotes e executar scripts de compilação até implantar aplicativos, gerenciar bancos de dados e executar testes, adaptando-se ao seu ambiente de desenvolvimento e cadeia de ferramentas para fazer o trabalho corretamente.
+Graças às novas [atualizações de integração do Shell no VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), o Cline pode executar comandos diretamente no seu terminal e receber o resultado. Isso permite que você execute uma variedade de tarefas, desde instalar pacotes e executar build scripts para fazer deploy de aplicações, gerenciar bancos de dados e executar testes, adaptando-se ao seu ambiente de desenvolvimento e ferramentas para fazer o trabalho corretamente.
 
 Para processos de longa duração, como servidores de desenvolvimento, use o botão "Continuar durante a execução" para permitir que o Cline continue a tarefa enquanto o comando é executado em segundo plano. Enquanto Cline trabalha, voce será notificado sobre novas saídas do terminal, para que possa responder a problemas que possam surgir, como erros de compilação ao editar arquivos.
 
@@ -71,9 +71,9 @@ Para processos de longa duração, como servidores de desenvolvimento, use o bot
 
 ### Criar e editar arquivos
 
-Cline pode criar e editar arquivos diretamente no seu editor, apresentando a você uma visão diff das alterações. Você pode editar ou reverter as alterações do Cline diretamente no editor de visão diff ou fornecer feedback no chat até ficar satisfeito com o resultado. Cline também monitora erros de linter/compilador (importações ausentes, erros de sintaxe, etc.) para que ele possa corrigir problemas que surgem ao longo do caminho por conta própria.
+Cline pode criar e editar arquivos diretamente no seu editor, apresentando um diff com as alterações. Você pode editar ou reverter as alterações do Cline diretamente no editor de diff ou fornecer feedback no chat até ficar satisfeito com o resultado. Cline também monitora erros de linter/compilador (importações ausentes, erros de sintaxe, etc.) para que possa corrigir problemas que surgem ao longo do caminho por conta própria.
 
-Todas as alterações feitas pelo Cline são registradas na Linha do tempo do seu arquivo, fornecendo uma maneira fácil de rastrear e reverter modificações, se necessário.
+Todas as alterações feitas pelo Cline são registradas na Linha do tempo do arquivo, fornecendo uma maneira fácil de rastrear e reverter modificações, caso seja necessário.
 
 <!-- Pixel transparente para criar uma quebra de linha após a imagem flutuante -->
 
@@ -83,9 +83,9 @@ Todas as alterações feitas pelo Cline são registradas na Linha do tempo do se
 
 ### Uso do navegador
 
-Com a nova habilidade 3.5 de [uso de computador](https://www.anthropic.com/news/3-5-models-and-computer-use) de Claude Sonnet, Cline pode abrir um navegador, clicar em elementos, digitar texto e rolar, capturando capturas de tela e logs de console. Isso permite depuração interativa, testes de ponta a ponta e até mesmo uso geral da web. Isso lhe dá autonomia para solucionar erros visuais e problemas de tempo de execução sem precisar copiar e colar logs de erros.
+Com a nova habilidade de [uso de computador](https://www.anthropic.com/news/3-5-models-and-computer-use) do Claude Sonnet 3.5, Cline pode abrir um navegador, clicar em elementos, digitar texto e rolar, capturando a tela e logs de console. Isso permite depurar de maneira interativa, testes end-to-end e até mesmo uso geral da web. Isso lhe dá autonomia para solucionar erros visuais e problemas em tempo de execução sem precisar copiar e colar logs dos erros.
 
-Tente pedir a Cline para "testar o aplicativo" e observe enquanto ele executa um comando como `npm run dev`, inicia seu servidor de desenvolvimento local em um navegador e executa uma série de testes para confirmar se tudo funciona. [Veja uma demonstração aqui.](https://x.com/sdrzn/status/1850880547825823989)
+Tente pedir a Cline para "testar o aplicativo" e observe enquanto o Cline executa um comando como `npm run dev`, inicia seu servidor de desenvolvimento local em um navegador e executa uma série de testes para confirmar se tudo funciona. [Veja uma demonstração aqui.](https://x.com/sdrzn/status/1850880547825823989)
 
 <!-- Pixel transparente para crear un salto de línea después de la imagen flotante -->
 
@@ -95,7 +95,7 @@ Tente pedir a Cline para "testar o aplicativo" e observe enquanto ele executa um
 
 ### "adicione uma ferramente que..."
 
-Graças ao [Model Context Protocol](https://github.com/modelcontextprotocol), o Cline pode expandir seus recursos por meio de ferramentas personalizadas. Embora você possa usar [servidores criados pela comunidade](https://github.com/modelcontextprotocol/servers), Cline pode criar e instalar ferramentas adaptadas ao seu fluxo de trabalho específico. Basta pedir ao Cline para "adicionar uma ferramenta" e ele cuidará de tudo, desde a criação de um novo servidor MCP até a instalação na extensão. Essas ferramentas personalizadas se tornam parte do conjunto de ferramentas da Cline e estão prontas para serem usadas em tarefas futuras.
+Graças ao [Model Context Protocol](https://github.com/modelcontextprotocol), o Cline pode expandir seus recursos por meio de ferramentas personalizadas. Embora você possa usar [servidores criados pela comunidade](https://github.com/modelcontextprotocol/servers), Cline pode criar e instalar ferramentas especificamente para seu fluxo de trabalho. Basta pedir ao Cline para "adicionar uma ferramenta" e ele cuidará de tudo, desde a criação de um novo servidor MCP até a instalação na extensão. Essas ferramentas personalizadas se tornam parte do conjunto de ferramentas da Cline e estão prontas para serem usadas em tarefas futuras.
 
 - "adicione uma ferramenta que recupere tickets do Jira": Recupere ACs de tickets e coloque Cline para trabalhar
 - "adicione uma ferramenta que gerencie AWS EC2s": verifique as métricas do servidor e aumente ou diminua as instâncias
@@ -109,7 +109,7 @@ Graças ao [Model Context Protocol](https://github.com/modelcontextprotocol), o 
 
 ### Adicione contexto
 
-**`@url`:** Insira uma URL para a extensão recuperar e converter para Markdown, útil quando você deseja fornecer ao Cline os documentos mais recentes
+**`@url`:** Insira uma URL para a extensão recuperar e converter para Markdown, que é útil quando você deseja fornecer ao Cline documentos mais recentes
 
 **`@problems`:** Adicionar erros e avisos do espaço de trabalho (painel 'Problemas') que o Cline deve corrigir
 
@@ -135,7 +135,7 @@ Por exemplo, se estiver trabalhando com um servidor web local, você pode usar '
 
 ## Contribuições
 
-Para contribuir com o projeto, comece com nosso [guia de contribuição](CONTRIBUTING.md) para aprender o básico. Você também pode entrar no nosso [Discord](https://discord.gg/cline) para bater papo com outros colaboradores no canal `#contributors`. Se você está procurando um emprego de período integral, confira nossas vagas em aberto na nossa [página de carreiras](https://cline.bot/join-us).
+Para contribuir com o projeto, comece com nosso [Guia de Contribuição](CONTRIBUTING.md) para aprender o básico. Você também pode entrar no nosso [Discord](https://discord.gg/cline) para bater papo com outros colaboradores no canal `#contributors`. Se você está procurando um emprego de período integral, confira nossas vagas em aberto na nossa [página de carreiras](https://cline.bot/join-us).
 
 <details>
 <summary>Instrucoes para desenvolvimento local</summary>
