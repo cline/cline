@@ -1,5 +1,8 @@
+import { z } from "zod"
 import { ApiConfiguration, ApiProvider } from "./api"
 import { Mode, PromptComponent, ModeConfig } from "./modes"
+
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type PromptMode = Mode | "enhance"
 
@@ -46,6 +49,7 @@ export interface WebviewMessage {
 		| "soundEnabled"
 		| "soundVolume"
 		| "diffEnabled"
+		| "checkpointsEnabled"
 		| "browserViewportSize"
 		| "screenshotQuality"
 		| "openMcpSettings"
@@ -83,6 +87,8 @@ export interface WebviewMessage {
 		| "deleteCustomMode"
 		| "setopenAiCustomModelInfo"
 		| "openCustomModesSettings"
+		| "checkpointDiff"
+		| "checkpointRestore"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -104,6 +110,23 @@ export interface WebviewMessage {
 	slug?: string
 	modeConfig?: ModeConfig
 	timeout?: number
+	payload?: WebViewMessagePayload
 }
 
-export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
+export const checkoutDiffPayloadSchema = z.object({
+	ts: z.number(),
+	commitHash: z.string(),
+	mode: z.enum(["full", "checkpoint"]),
+})
+
+export type CheckpointDiffPayload = z.infer<typeof checkoutDiffPayloadSchema>
+
+export const checkoutRestorePayloadSchema = z.object({
+	ts: z.number(),
+	commitHash: z.string(),
+	mode: z.enum(["preview", "restore"]),
+})
+
+export type CheckpointRestorePayload = z.infer<typeof checkoutRestorePayloadSchema>
+
+export type WebViewMessagePayload = CheckpointDiffPayload | CheckpointRestorePayload

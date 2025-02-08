@@ -21,6 +21,7 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
+import { CheckpointSaved } from "./checkpoints/CheckpointSaved"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -755,6 +756,8 @@ export const ChatRowContent = ({
 							</div>
 						</>
 					)
+				case "checkpoint_saved":
+					return <CheckpointSaved ts={message.ts!} commitHash={message.text!} />
 				default:
 					return (
 						<>

@@ -306,6 +306,7 @@ describe("Cline", () => {
 				mockApiConfig,
 				"custom instructions",
 				false,
+				false,
 				0.95, // 95% threshold
 				"test task",
 			)
@@ -315,7 +316,15 @@ describe("Cline", () => {
 		})
 
 		it("should use default fuzzy match threshold when not provided", () => {
-			const cline = new Cline(mockProvider, mockApiConfig, "custom instructions", true, undefined, "test task")
+			const cline = new Cline(
+				mockProvider,
+				mockApiConfig,
+				"custom instructions",
+				true,
+				false,
+				undefined,
+				"test task",
+			)
 
 			expect(cline.diffEnabled).toBe(true)
 			// The diff strategy should be created with default threshold (1.0)
@@ -330,6 +339,7 @@ describe("Cline", () => {
 				mockApiConfig,
 				"custom instructions",
 				true,
+				false,
 				0.9, // 90% threshold
 				"test task",
 			)
@@ -344,7 +354,15 @@ describe("Cline", () => {
 		it("should pass default threshold to diff strategy when not provided", () => {
 			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
 
-			const cline = new Cline(mockProvider, mockApiConfig, "custom instructions", true, undefined, "test task")
+			const cline = new Cline(
+				mockProvider,
+				mockApiConfig,
+				"custom instructions",
+				true,
+				false,
+				undefined,
+				"test task",
+			)
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
@@ -360,6 +378,7 @@ describe("Cline", () => {
 					mockApiConfig,
 					undefined, // customInstructions
 					false, // diffEnabled
+					false, // checkpointsEnabled
 					undefined, // fuzzyMatchThreshold
 					undefined, // task
 				)
@@ -412,7 +431,7 @@ describe("Cline", () => {
 		})
 
 		it("should include timezone information in environment details", async () => {
-			const cline = new Cline(mockProvider, mockApiConfig, undefined, false, undefined, "test task")
+			const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
 
 			const details = await cline["getEnvironmentDetails"](false)
 
@@ -425,7 +444,7 @@ describe("Cline", () => {
 
 		describe("API conversation handling", () => {
 			it("should clean conversation history before sending to API", async () => {
-				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, undefined, "test task")
+				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
 
 				// Mock the API's createMessage method to capture the conversation history
 				const createMessageSpy = jest.fn()
@@ -537,6 +556,7 @@ describe("Cline", () => {
 					configWithImages,
 					undefined,
 					false,
+					false,
 					undefined,
 					"test task",
 				)
@@ -560,6 +580,7 @@ describe("Cline", () => {
 					mockProvider,
 					configWithoutImages,
 					undefined,
+					false,
 					false,
 					undefined,
 					"test task",
@@ -647,7 +668,7 @@ describe("Cline", () => {
 			})
 
 			it("should handle API retry with countdown", async () => {
-				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, undefined, "test task")
+				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
 
 				// Mock delay to track countdown timing
 				const mockDelay = jest.fn().mockResolvedValue(undefined)
@@ -767,7 +788,15 @@ describe("Cline", () => {
 
 			describe("loadContext", () => {
 				it("should process mentions in task and feedback tags", async () => {
-					const cline = new Cline(mockProvider, mockApiConfig, undefined, false, undefined, "test task")
+					const cline = new Cline(
+						mockProvider,
+						mockApiConfig,
+						undefined,
+						false,
+						false,
+						undefined,
+						"test task",
+					)
 
 					// Mock parseMentions to track calls
 					const mockParseMentions = jest.fn().mockImplementation((text) => `processed: ${text}`)
