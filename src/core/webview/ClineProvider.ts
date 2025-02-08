@@ -17,7 +17,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
-import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -1306,6 +1306,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
