@@ -95,14 +95,13 @@ export class CompactLogger implements ILogger {
 	private handleErrorLog(level: "error" | "fatal", message: string | Error, meta?: LogMeta): void {
 		if (message instanceof Error) {
 			const errorMeta: LogMeta = {
+				...meta,
 				ctx: meta?.ctx ?? level,
-				id: meta?.id,
 				error: {
 					name: message.name,
 					message: message.message,
 					stack: message.stack,
 				},
-				...meta,
 			}
 			this.log(level, message.message, this.combineMeta(errorMeta))
 		} else {
