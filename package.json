@@ -190,7 +190,6 @@
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
-		"test:dev": "xvfb-run -a npm run test",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"start:webview": "cd webview-ui && npm run start",
 		"build:webview": "cd webview-ui && npm run build",
