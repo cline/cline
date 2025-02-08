@@ -10,6 +10,6 @@ export const UnboundModelPicker = () => (
 		refreshMessageType="refreshUnboundModels"
 		serviceName="Unbound"
 		serviceUrl="https://api.getunbound.ai/models"
-		recommendedModel="anthropic/claude-3.5-sonnet:beta"
+		recommendedModel={unboundDefaultModelId}
 	/>
 )
