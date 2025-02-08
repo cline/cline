@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"lint": "eslint src --ext ts,tsx",
+		"lint-fix": "eslint src --ext ts,tsx --fix",
 		"check-types": "tsc --noEmit",
 		"test": "jest",
 		"dev": "vite",

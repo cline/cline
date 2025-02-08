@@ -22,3 +22,4 @@ docs/_site/
 
 # Dotenv
 .env.integration
+.eslintrc.local.json
