@@ -42,6 +42,7 @@ export interface ExtensionMessage {
 		| "autoApprovalEnabled"
 		| "updateCustomMode"
 		| "deleteCustomMode"
+		| "currentCheckpointUpdated"
 	text?: string
 	action?:
 		| "chatButtonClicked"

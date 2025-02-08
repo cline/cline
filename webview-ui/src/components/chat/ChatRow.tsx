@@ -81,7 +81,7 @@ export const ChatRowContent = ({
 	isLast,
 	isStreaming,
 }: ChatRowContentProps) => {
-	const { mcpServers, alwaysAllowMcp } = useExtensionState()
+	const { mcpServers, alwaysAllowMcp, currentCheckpoint } = useExtensionState()
 	const [reasoningCollapsed, setReasoningCollapsed] = useState(false)
 
 	// Auto-collapse reasoning when new messages arrive
@@ -757,7 +757,13 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "checkpoint_saved":
-					return <CheckpointSaved ts={message.ts!} commitHash={message.text!} />
+					return (
+						<CheckpointSaved
+							ts={message.ts!}
+							commitHash={message.text!}
+							currentCheckpointHash={currentCheckpoint}
+						/>
+					)
 				default:
 					return (
 						<>

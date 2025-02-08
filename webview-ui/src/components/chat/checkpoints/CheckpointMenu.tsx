@@ -8,12 +8,15 @@ import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui
 type CheckpointMenuProps = {
 	ts: number
 	commitHash: string
+	currentCheckpointHash?: string
 }
 
-export const CheckpointMenu = ({ ts, commitHash }: CheckpointMenuProps) => {
+export const CheckpointMenu = ({ ts, commitHash, currentCheckpointHash }: CheckpointMenuProps) => {
 	const [portalContainer, setPortalContainer] = useState<HTMLElement>()
 	const [isOpen, setIsOpen] = useState(false)
 	const [isConfirming, setIsConfirming] = useState(false)
+
+	const isCurrent = currentCheckpointHash === commitHash
 
 	const onCheckpointDiff = useCallback(() => {
 		vscode.postMessage({ type: "checkpointDiff", payload: { ts, commitHash, mode: "checkpoint" } })
@@ -56,14 +59,16 @@ export const CheckpointMenu = ({ ts, commitHash }: CheckpointMenuProps) => {
 				</PopoverTrigger>
 				<PopoverContent align="end" container={portalContainer}>
 					<div className="flex flex-col gap-2">
-						<div className="flex flex-col gap-1 group hover:text-foreground">
-							<Button variant="secondary" onClick={onPreview}>
-								Restore Files
-							</Button>
-							<div className="text-muted transition-colors group-hover:text-foreground">
-								Restores your project's files back to a snapshot taken at this point.
+						{!isCurrent && (
+							<div className="flex flex-col gap-1 group hover:text-foreground">
+								<Button variant="secondary" onClick={onPreview}>
+									Restore Files
+								</Button>
+								<div className="text-muted transition-colors group-hover:text-foreground">
+									Restores your project's files back to a snapshot taken at this point.
+								</div>
 							</div>
-						</div>
+						)}
 						<div className="flex flex-col gap-1 group hover:text-foreground">
 							<div className="flex flex-col gap-1 group hover:text-foreground">
 								{!isConfirming ? (
