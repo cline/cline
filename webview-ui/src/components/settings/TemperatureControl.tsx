@@ -46,7 +46,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 			{isCustomTemperature && (
 				<div>
 					<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-						<input
+						<input aria-label="Temperature control range input"
 							type="range"
 							min="0"
 							max={maxValue}
