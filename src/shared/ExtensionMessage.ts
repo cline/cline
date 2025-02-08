@@ -42,6 +42,8 @@ export interface ExtensionMessage {
 		| "autoApprovalEnabled"
 		| "updateCustomMode"
 		| "deleteCustomMode"
+		| "unboundModels"
+		| "refreshUnboundModels"
 		| "currentCheckpointUpdated"
 	text?: string
 	action?:
@@ -67,6 +69,7 @@ export interface ExtensionMessage {
 	glamaModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
+	unboundModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]

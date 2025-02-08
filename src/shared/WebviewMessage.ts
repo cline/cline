@@ -42,6 +42,7 @@ export interface WebviewMessage {
 		| "refreshGlamaModels"
 		| "refreshOpenRouterModels"
 		| "refreshOpenAiModels"
+		| "refreshUnboundModels"
 		| "alwaysAllowBrowser"
 		| "alwaysAllowMcp"
 		| "alwaysAllowModeSwitch"

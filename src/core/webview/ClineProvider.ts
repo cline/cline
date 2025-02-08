@@ -122,6 +122,7 @@ type GlobalStateKey =
 	| "autoApprovalEnabled"
 	| "customModes" // Array of custom modes
 	| "unboundModelId"
+	| "unboundModelInfo"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -129,6 +130,7 @@ export const GlobalFileNames = {
 	glamaModels: "glama_models.json",
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
+	unboundModels: "unbound_models.json",
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
@@ -665,6 +667,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 						})
 
+						this.readUnboundModels().then((unboundModels) => {
+							if (unboundModels) {
+								this.postMessageToWebview({ type: "unboundModels", unboundModels })
+							}
+						})
+						this.refreshUnboundModels().then(async (unboundModels) => {
+							if (unboundModels) {
+								const { apiConfiguration } = await this.getState()
+								if (apiConfiguration?.unboundModelId) {
+									await this.updateGlobalState(
+										"unboundModelInfo",
+										unboundModels[apiConfiguration.unboundModelId],
+									)
+									await this.postStateToWebview()
+								}
+							}
+						})
+
 						this.configManager
 							.listConfig()
 							.then(async (listApiConfig) => {
@@ -823,6 +843,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							)
 							this.postMessageToWebview({ type: "openAiModels", openAiModels })
 						}
+						break
+					case "refreshUnboundModels":
+						await this.refreshUnboundModels()
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -1563,6 +1586,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mistralApiKey,
 			unboundApiKey,
 			unboundModelId,
+			unboundModelInfo,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1603,6 +1627,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("mistralApiKey", mistralApiKey)
 		await this.storeSecret("unboundApiKey", unboundApiKey)
 		await this.updateGlobalState("unboundModelId", unboundModelId)
+		await this.updateGlobalState("unboundModelInfo", unboundModelInfo)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -1808,14 +1833,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
 
-	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const glamaModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.glamaModels)
-		const fileExists = await fileExistsAtPath(glamaModelsFilePath)
+	private async readModelsFromCache(filename: string): Promise<Record<string, ModelInfo> | undefined> {
+		const filePath = path.join(await this.ensureCacheDirectoryExists(), filename)
+		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
-			const fileContents = await fs.readFile(glamaModelsFilePath, "utf8")
+			const fileContents = await fs.readFile(filePath, "utf8")
 			return JSON.parse(fileContents)
 		}
 		return undefined
+	}
+
+	async readGlamaModels(): Promise<Record<string, ModelInfo> | undefined> {
+		return this.readModelsFromCache(GlobalFileNames.glamaModels)
 	}
 
 	async refreshGlamaModels() {
@@ -1893,16 +1922,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const openRouterModelsFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.openRouterModels,
-		)
-		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		}
-		return undefined
+		return this.readModelsFromCache(GlobalFileNames.openRouterModels)
 	}
 
 	async refreshOpenRouterModels() {
@@ -2014,6 +2034,46 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		await this.postMessageToWebview({ type: "openRouterModels", openRouterModels: models })
+		return models
+	}
+
+	async readUnboundModels(): Promise<Record<string, ModelInfo> | undefined> {
+		return this.readModelsFromCache(GlobalFileNames.unboundModels)
+	}
+
+	async refreshUnboundModels() {
+		const unboundModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.unboundModels)
+
+		const models: Record<string, ModelInfo> = {}
+		try {
+			const response = await axios.get("https://api.getunbound.ai/models")
+
+			if (response.data) {
+				const rawModels: Record<string, any> = response.data
+
+				for (const [modelId, model] of Object.entries(rawModels)) {
+					models[modelId] = {
+						maxTokens: model.maxTokens ? parseInt(model.maxTokens) : undefined,
+						contextWindow: model.contextWindow ? parseInt(model.contextWindow) : 0,
+						supportsImages: model.supportsImages ?? false,
+						supportsPromptCache: model.supportsPromptCaching ?? false,
+						supportsComputerUse: model.supportsComputerUse ?? false,
+						inputPrice: model.inputTokenPrice ? parseFloat(model.inputTokenPrice) : undefined,
+						outputPrice: model.outputTokenPrice ? parseFloat(model.outputTokenPrice) : undefined,
+						cacheWritesPrice: model.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
+						cacheReadsPrice: model.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
+					}
+				}
+			}
+			await fs.writeFile(unboundModelsFilePath, JSON.stringify(models))
+			this.outputChannel.appendLine(`Unbound models fetched and saved: ${JSON.stringify(models, null, 2)}`)
+		} catch (error) {
+			this.outputChannel.appendLine(
+				`Error fetching Unbound models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
+		}
+
+		await this.postMessageToWebview({ type: "unboundModels", unboundModels: models })
 		return models
 	}
 
@@ -2330,6 +2390,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experiments,
 			unboundApiKey,
 			unboundModelId,
+			unboundModelInfo,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2405,6 +2466,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("experiments") as Promise<Record<ExperimentId, boolean> | undefined>,
 			this.getSecret("unboundApiKey") as Promise<string | undefined>,
 			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
+			this.getGlobalState("unboundModelInfo") as Promise<ModelInfo | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2462,6 +2524,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				vsCodeLmModelSelector,
 				unboundApiKey,
 				unboundModelId,
+				unboundModelInfo,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

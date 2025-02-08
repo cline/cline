@@ -28,7 +28,7 @@ import {
 	vertexDefaultModelId,
 	vertexModels,
 	unboundDefaultModelId,
-	unboundModels,
+	unboundDefaultModelInfo,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -37,8 +37,10 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { OpenRouterModelPicker } from "./OpenRouterModelPicker"
 import OpenAiModelPicker from "./OpenAiModelPicker"
 import { GlamaModelPicker } from "./GlamaModelPicker"
+import { UnboundModelPicker } from "./UnboundModelPicker"
 import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
+
 
 interface ApiOptionsProps {
 	apiErrorMessage?: string
@@ -1314,6 +1316,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 					</p>
+					<UnboundModelPicker />
 				</div>
 			)}
 
@@ -1336,7 +1339,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				selectedProvider !== "openrouter" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
-				selectedProvider !== "lmstudio" && (
+				selectedProvider !== "lmstudio" &&
+				selectedProvider !== "unbound" && (
 					<>
 						<div className="dropdown-container">
 							<label htmlFor="model-id">
@@ -1349,7 +1353,6 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
-							{selectedProvider === "unbound" && createDropdown(unboundModels)}
 						</div>
 
 						<ModelInfoView
@@ -1458,7 +1461,11 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				},
 			}
 		case "unbound":
-			return getProviderData(unboundModels, unboundDefaultModelId)
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.unboundModelId || unboundDefaultModelId,
+				selectedModelInfo: apiConfiguration?.unboundModelInfo || unboundDefaultModelInfo,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
