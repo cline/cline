@@ -12,9 +12,9 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new AnthropicVertex({
-			projectId: this.options.vertexProjectId,
+			projectId: this.options.vertexProjectId ?? "not-provided",
 			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-			region: this.options.vertexRegion,
+			region: this.options.vertexRegion ?? "us-east5",
 		})
 	}
 

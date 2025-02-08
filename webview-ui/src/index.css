@@ -54,6 +54,28 @@
 	--radius-lg: var(--radius);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-sm: calc(var(--radius) - 4px);
+
+	/**
+	 * Allow VSCode colors to be used with Tailwind.
+	 */
+
+	--color-vscode-foreground: var(--vscode-foreground);
+	--color-vscode-background: var(--vscode-background);
+
+	--color-vscode-editor-foreground: var(--vscode-editor-foreground);
+	--color-vscode-editor-background: var(--vscode-editor-background);
+
+	--color-vscode-button-foreground: var(--vscode-button-foreground);
+	--color-vscode-button-background: var(--vscode-button-background);
+	--color-vscode-button-secondaryForeground: var(--vscode-button-secondaryForeground);
+	--color-vscode-button-secondaryBackground: var(--vscode-button-secondaryBackground);
+
+	--color-vscode-dropdown-foreground: var(--vscode-dropdown-foreground);
+	--color-vscode-dropdown-background: var(--vscode-dropdown-background);
+	--color-vscode-dropdown-border: var(--vscode-dropdown-border);
+
+	--color-vscode-input-background: var(--vscode-input-background);
+	--color-vscode-input-border: var(--vscode-input-border);
 }
 
 @layer base {

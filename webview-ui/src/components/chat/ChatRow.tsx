@@ -2,6 +2,7 @@ import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-u
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { useCopyToClipboard } from "../../utils/clipboard"
 import {
 	ClineApiReqInfo,
 	ClineAskUseMcpServer,
@@ -985,6 +986,7 @@ export const ProgressIndicator = () => (
 
 const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boolean }) => {
 	const [isHovering, setIsHovering] = useState(false)
+	const { copyWithFeedback } = useCopyToClipboard(200) // shorter feedback duration for copy button flash
 
 	return (
 		<div
@@ -1021,15 +1023,16 @@ const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boo
 							background: "var(--vscode-editor-background)",
 							transition: "background 0.2s ease-in-out",
 						}}
-						onClick={() => {
-							navigator.clipboard.writeText(markdown)
-							// Flash the button background briefly to indicate success
-							const button = document.activeElement as HTMLElement
-							if (button) {
-								button.style.background = "var(--vscode-button-background)"
-								setTimeout(() => {
-									button.style.background = ""
-								}, 200)
+						onClick={async () => {
+							const success = await copyWithFeedback(markdown)
+							if (success) {
+								const button = document.activeElement as HTMLElement
+								if (button) {
+									button.style.background = "var(--vscode-button-background)"
+									setTimeout(() => {
+										button.style.background = ""
+									}, 200)
+								}
 							}
 						}}
 						title="Copy as markdown">

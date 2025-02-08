@@ -1,8 +1,9 @@
-import { Checkbox, Dropdown, Pane } from "vscrui"
-import type { DropdownOption } from "vscrui"
-import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
+import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
+import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import * as vscodemodels from "vscode"
+
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -32,15 +33,14 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import * as vscodemodels from "vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, {
-	ModelDescriptionMarkdown,
-	OPENROUTER_MODEL_PICKER_Z_INDEX,
-} from "./OpenRouterModelPicker"
+import { OpenRouterModelPicker } from "./OpenRouterModelPicker"
 import OpenAiModelPicker from "./OpenAiModelPicker"
-import GlamaModelPicker from "./GlamaModelPicker"
-import UnboundModelPicker from "./UnboundModelPicker"
+import { GlamaModelPicker } from "./GlamaModelPicker"
+import { UnboundModelPicker } from "./UnboundModelPicker"
+import { ModelInfoView } from "./ModelInfoView"
+import { DROPDOWN_Z_INDEX } from "./styles"
+
 
 interface ApiOptionsProps {
 	apiErrorMessage?: string
@@ -138,7 +138,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							},
 						})
 					}}
-					style={{ minWidth: 130, position: "relative", zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1 }}
+					style={{ minWidth: 130, position: "relative", zIndex: DROPDOWN_Z_INDEX + 1 }}
 					options={[
 						{ value: "openrouter", label: "OpenRouter" },
 						{ value: "anthropic", label: "Anthropic" },
@@ -1387,136 +1387,6 @@ export function getGlamaAuthUrl(uriScheme?: string) {
 export function getOpenRouterAuthUrl(uriScheme?: string) {
 	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://rooveterinaryinc.roo-cline/openrouter`
 }
-
-export const formatPrice = (price: number) => {
-	return new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency: "USD",
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
-	}).format(price)
-}
-
-export const ModelInfoView = ({
-	selectedModelId,
-	modelInfo,
-	isDescriptionExpanded,
-	setIsDescriptionExpanded,
-}: {
-	selectedModelId: string
-	modelInfo: ModelInfo
-	isDescriptionExpanded: boolean
-	setIsDescriptionExpanded: (isExpanded: boolean) => void
-}) => {
-	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-
-	const infoItems = [
-		modelInfo.description && (
-			<ModelDescriptionMarkdown
-				key="description"
-				markdown={modelInfo.description}
-				isExpanded={isDescriptionExpanded}
-				setIsExpanded={setIsDescriptionExpanded}
-			/>
-		),
-		<ModelInfoSupportsItem
-			key="supportsImages"
-			isSupported={modelInfo.supportsImages ?? false}
-			supportsLabel="Supports images"
-			doesNotSupportLabel="Does not support images"
-		/>,
-		<ModelInfoSupportsItem
-			key="supportsComputerUse"
-			isSupported={modelInfo.supportsComputerUse ?? false}
-			supportsLabel="Supports computer use"
-			doesNotSupportLabel="Does not support computer use"
-		/>,
-		!isGemini && (
-			<ModelInfoSupportsItem
-				key="supportsPromptCache"
-				isSupported={modelInfo.supportsPromptCache}
-				supportsLabel="Supports prompt caching"
-				doesNotSupportLabel="Does not support prompt caching"
-			/>
-		),
-		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
-			<span key="maxTokens">
-				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
-			</span>
-		),
-		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
-			<span key="inputPrice">
-				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-			</span>
-		),
-		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
-			<span key="cacheWritesPrice">
-				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
-				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
-			</span>
-		),
-		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
-			<span key="cacheReadsPrice">
-				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
-				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
-			</span>
-		),
-		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
-			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
-				tokens
-			</span>
-		),
-		isGemini && (
-			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
-				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
-				After that, billing depends on prompt size.{" "}
-				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
-					For more info, see pricing details.
-				</VSCodeLink>
-			</span>
-		),
-	].filter(Boolean)
-
-	return (
-		<p style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			{infoItems.map((item, index) => (
-				<Fragment key={index}>
-					{item}
-					{index < infoItems.length - 1 && <br />}
-				</Fragment>
-			))}
-		</p>
-	)
-}
-
-const ModelInfoSupportsItem = ({
-	isSupported,
-	supportsLabel,
-	doesNotSupportLabel,
-}: {
-	isSupported: boolean
-	supportsLabel: string
-	doesNotSupportLabel: string
-}) => (
-	<span
-		style={{
-			fontWeight: 500,
-			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
-		}}>
-		<i
-			className={`codicon codicon-${isSupported ? "check" : "x"}`}
-			style={{
-				marginRight: 4,
-				marginBottom: isSupported ? 1 : -1,
-				fontSize: isSupported ? 11 : 13,
-				fontWeight: 700,
-				display: "inline-block",
-				verticalAlign: "bottom",
-			}}></i>
-		{isSupported ? supportsLabel : doesNotSupportLabel}
-	</span>
-)
 
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"

@@ -10,11 +10,8 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 	private client: GoogleGenerativeAI
 
 	constructor(options: ApiHandlerOptions) {
-		if (!options.geminiApiKey) {
-			throw new Error("API key is required for Google Gemini")
-		}
 		this.options = options
-		this.client = new GoogleGenerativeAI(options.geminiApiKey)
+		this.client = new GoogleGenerativeAI(options.geminiApiKey ?? "not-provided")
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

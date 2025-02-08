@@ -13,10 +13,9 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: "https://glama.ai/api/gateway/openai/v1",
-			apiKey: this.options.glamaApiKey,
-		})
+		const baseURL = "https://glama.ai/api/gateway/openai/v1"
+		const apiKey = this.options.glamaApiKey ?? "not-provided"
+		this.client = new OpenAI({ baseURL, apiKey })
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

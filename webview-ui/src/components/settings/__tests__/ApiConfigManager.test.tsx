@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, within } from "@testing-library/react"
 import ApiConfigManager from "../ApiConfigManager"
 
 // Mock VSCode components
@@ -8,11 +8,12 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 			{children}
 		</button>
 	),
-	VSCodeTextField: ({ value, onInput, placeholder }: any) => (
+	VSCodeTextField: ({ value, onInput, placeholder, onKeyDown }: any) => (
 		<input
 			value={value}
 			onChange={(e) => onInput(e)}
 			placeholder={placeholder}
+			onKeyDown={onKeyDown}
 			ref={undefined} // Explicitly set ref to undefined to avoid warning
 		/>
 	),
@@ -30,6 +31,16 @@ jest.mock("vscrui", () => ({
 			</select>
 		</div>
 	),
+}))
+
+// Mock Dialog component
+jest.mock("@/components/ui/dialog", () => ({
+	Dialog: ({ children, open, onOpenChange }: any) => (
+		<div role="dialog" aria-modal="true" style={{ display: open ? "block" : "none" }} data-testid="dialog">
+			{children}
+		</div>
+	),
+	DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
 }))
 
 describe("ApiConfigManager", () => {
@@ -54,34 +65,74 @@ describe("ApiConfigManager", () => {
 		jest.clearAllMocks()
 	})
 
-	it("immediately creates a copy when clicking add button", () => {
+	const getRenameForm = () => screen.getByTestId("rename-form")
+	const getDialogContent = () => screen.getByTestId("dialog-content")
+
+	it("opens new profile dialog when clicking add button", () => {
 		render(<ApiConfigManager {...defaultProps} />)
 
-		// Find and click the add button
 		const addButton = screen.getByTitle("Add profile")
 		fireEvent.click(addButton)
 
-		// Verify that onUpsertConfig was called with the correct name
-		expect(mockOnUpsertConfig).toHaveBeenCalledTimes(1)
-		expect(mockOnUpsertConfig).toHaveBeenCalledWith("Default Config (copy)")
+		expect(screen.getByTestId("dialog")).toBeVisible()
+		expect(screen.getByText("New Configuration Profile")).toBeInTheDocument()
 	})
 
-	it("creates copy with correct name when current config has spaces", () => {
-		render(<ApiConfigManager {...defaultProps} currentApiConfigName="My Test Config" />)
+	it("creates new profile with entered name", () => {
+		render(<ApiConfigManager {...defaultProps} />)
 
+		// Open dialog
 		const addButton = screen.getByTitle("Add profile")
 		fireEvent.click(addButton)
 
-		expect(mockOnUpsertConfig).toHaveBeenCalledWith("My Test Config (copy)")
+		// Enter new profile name
+		const input = screen.getByPlaceholderText("Enter profile name")
+		fireEvent.input(input, { target: { value: "New Profile" } })
+
+		// Click create button
+		const createButton = screen.getByText("Create Profile")
+		fireEvent.click(createButton)
+
+		expect(mockOnUpsertConfig).toHaveBeenCalledWith("New Profile")
 	})
 
-	it("handles empty current config name gracefully", () => {
-		render(<ApiConfigManager {...defaultProps} currentApiConfigName="" />)
+	it("shows error when creating profile with existing name", () => {
+		render(<ApiConfigManager {...defaultProps} />)
 
+		// Open dialog
 		const addButton = screen.getByTitle("Add profile")
 		fireEvent.click(addButton)
 
-		expect(mockOnUpsertConfig).toHaveBeenCalledWith(" (copy)")
+		// Enter existing profile name
+		const input = screen.getByPlaceholderText("Enter profile name")
+		fireEvent.input(input, { target: { value: "Default Config" } })
+
+		// Click create button to trigger validation
+		const createButton = screen.getByText("Create Profile")
+		fireEvent.click(createButton)
+
+		// Verify error message
+		const dialogContent = getDialogContent()
+		const errorMessage = within(dialogContent).getByTestId("error-message")
+		expect(errorMessage).toHaveTextContent("A profile with this name already exists")
+		expect(mockOnUpsertConfig).not.toHaveBeenCalled()
+	})
+
+	it("prevents creating profile with empty name", () => {
+		render(<ApiConfigManager {...defaultProps} />)
+
+		// Open dialog
+		const addButton = screen.getByTitle("Add profile")
+		fireEvent.click(addButton)
+
+		// Enter empty name
+		const input = screen.getByPlaceholderText("Enter profile name")
+		fireEvent.input(input, { target: { value: "   " } })
+
+		// Verify create button is disabled
+		const createButton = screen.getByText("Create Profile")
+		expect(createButton).toBeDisabled()
+		expect(mockOnUpsertConfig).not.toHaveBeenCalled()
 	})
 
 	it("allows renaming the current config", () => {
@@ -100,6 +151,45 @@ describe("ApiConfigManager", () => {
 		fireEvent.click(saveButton)
 
 		expect(mockOnRenameConfig).toHaveBeenCalledWith("Default Config", "New Name")
+	})
+
+	it("shows error when renaming to existing config name", () => {
+		render(<ApiConfigManager {...defaultProps} />)
+
+		// Start rename
+		const renameButton = screen.getByTitle("Rename profile")
+		fireEvent.click(renameButton)
+
+		// Find input and enter existing name
+		const input = screen.getByDisplayValue("Default Config")
+		fireEvent.input(input, { target: { value: "Another Config" } })
+
+		// Save to trigger validation
+		const saveButton = screen.getByTitle("Save")
+		fireEvent.click(saveButton)
+
+		// Verify error message
+		const renameForm = getRenameForm()
+		const errorMessage = within(renameForm).getByTestId("error-message")
+		expect(errorMessage).toHaveTextContent("A profile with this name already exists")
+		expect(mockOnRenameConfig).not.toHaveBeenCalled()
+	})
+
+	it("prevents renaming to empty name", () => {
+		render(<ApiConfigManager {...defaultProps} />)
+
+		// Start rename
+		const renameButton = screen.getByTitle("Rename profile")
+		fireEvent.click(renameButton)
+
+		// Find input and enter empty name
+		const input = screen.getByDisplayValue("Default Config")
+		fireEvent.input(input, { target: { value: "   " } })
+
+		// Verify save button is disabled
+		const saveButton = screen.getByTitle("Save")
+		expect(saveButton).toBeDisabled()
+		expect(mockOnRenameConfig).not.toHaveBeenCalled()
 	})
 
 	it("allows selecting a different config", () => {
@@ -147,6 +237,44 @@ describe("ApiConfigManager", () => {
 		expect(mockOnRenameConfig).not.toHaveBeenCalled()
 
 		// Verify we're back to normal view
+		expect(screen.queryByDisplayValue("New Name")).not.toBeInTheDocument()
+	})
+
+	it("handles keyboard events in new profile dialog", () => {
+		render(<ApiConfigManager {...defaultProps} />)
+
+		// Open dialog
+		const addButton = screen.getByTitle("Add profile")
+		fireEvent.click(addButton)
+
+		const input = screen.getByPlaceholderText("Enter profile name")
+
+		// Test Enter key
+		fireEvent.input(input, { target: { value: "New Profile" } })
+		fireEvent.keyDown(input, { key: "Enter" })
+		expect(mockOnUpsertConfig).toHaveBeenCalledWith("New Profile")
+
+		// Test Escape key
+		fireEvent.keyDown(input, { key: "Escape" })
+		expect(screen.getByTestId("dialog")).not.toBeVisible()
+	})
+
+	it("handles keyboard events in rename mode", () => {
+		render(<ApiConfigManager {...defaultProps} />)
+
+		// Start rename
+		const renameButton = screen.getByTitle("Rename profile")
+		fireEvent.click(renameButton)
+
+		const input = screen.getByDisplayValue("Default Config")
+
+		// Test Enter key
+		fireEvent.input(input, { target: { value: "New Name" } })
+		fireEvent.keyDown(input, { key: "Enter" })
+		expect(mockOnRenameConfig).toHaveBeenCalledWith("Default Config", "New Name")
+
+		// Test Escape key
+		fireEvent.keyDown(input, { key: "Escape" })
 		expect(screen.queryByDisplayValue("New Name")).not.toBeInTheDocument()
 	})
 })
