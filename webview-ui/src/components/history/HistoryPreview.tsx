@@ -1,8 +1,9 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { memo, useState } from "react"
+import { memo } from "react"
 import { formatLargeNumber } from "../../utils/format"
+import { useCopyToClipboard } from "../../utils/clipboard"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -10,18 +11,7 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
-	const [showCopyModal, setShowCopyModal] = useState(false)
-
-	const handleCopyTask = async (e: React.MouseEvent, task: string) => {
-		e.stopPropagation()
-		try {
-			await navigator.clipboard.writeText(task)
-			setShowCopyModal(true)
-			setTimeout(() => setShowCopyModal(false), 2000)
-		} catch (error) {
-			console.error("Failed to copy to clipboard:", error)
-		}
-	}
+	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
@@ -43,7 +33,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 
 	return (
 		<div style={{ flexShrink: 0 }}>
-			{showCopyModal && <div className="copy-modal">Prompt Copied to Clipboard</div>}
+			{showCopyFeedback && <div className="copy-modal">Prompt Copied to Clipboard</div>}
 			<style>
 				{`
 					.copy-modal {
@@ -114,7 +104,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							className="history-preview-item"
 							onClick={() => handleHistorySelect(item.id)}>
 							<div style={{ padding: "12px", position: "relative" }}>
-								<div style={{ marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+								<div
+									style={{
+										marginBottom: "8px",
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+									}}>
 									<span
 										style={{
 											color: "var(--vscode-descriptionForeground)",
@@ -128,7 +124,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										title="Copy Prompt"
 										className="copy-button"
 										data-appearance="icon"
-										onClick={(e) => handleCopyTask(e, item.task)}>
+										onClick={(e) => copyWithFeedback(item.task, e)}>
 										<span className="codicon codicon-copy"></span>
 									</button>
 								</div>

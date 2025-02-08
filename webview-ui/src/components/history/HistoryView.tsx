@@ -6,6 +6,7 @@ import React, { memo, useMemo, useState, useEffect } from "react"
 import { Fzf } from "fzf"
 import { formatLargeNumber } from "../../utils/format"
 import { highlightFzfMatch } from "../../utils/highlight"
+import { useCopyToClipboard } from "../../utils/clipboard"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -18,7 +19,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
-	const [showCopyModal, setShowCopyModal] = useState(false)
+	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -36,17 +37,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const handleDeleteHistoryItem = (id: string) => {
 		vscode.postMessage({ type: "deleteTaskWithId", text: id })
-	}
-
-	const handleCopyTask = async (e: React.MouseEvent, task: string) => {
-		e.stopPropagation()
-		try {
-			await navigator.clipboard.writeText(task)
-			setShowCopyModal(true)
-			setTimeout(() => setShowCopyModal(false), 2000)
-		} catch (error) {
-			console.error("Failed to copy to clipboard:", error)
-		}
 	}
 
 	const formatDate = (timestamp: number) => {
@@ -144,7 +134,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}
 				`}
 			</style>
-			{showCopyModal && <div className="copy-modal">Prompt Copied to Clipboard</div>}
+			{showCopyFeedback && <div className="copy-modal">Prompt Copied to Clipboard</div>}
 			<div
 				style={{
 					position: "fixed",
@@ -271,7 +261,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												title="Copy Prompt"
 												className="copy-button"
 												data-appearance="icon"
-												onClick={(e) => handleCopyTask(e, item.task)}>
+												onClick={(e) => copyWithFeedback(item.task, e)}>
 												<span className="codicon codicon-copy"></span>
 											</button>
 											<button
