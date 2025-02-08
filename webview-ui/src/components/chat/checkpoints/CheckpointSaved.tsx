@@ -11,7 +11,7 @@ export const CheckpointSaved = (props: CheckpointSavedProps) => {
 
 	return (
 		<div className="flex items-center justify-between">
-			<div className="flex items-center gap-2">
+			<div className="flex gap-2">
 				<span className="codicon codicon-git-commit text-blue-400" />
 				<span className="font-bold">Checkpoint</span>
 				{isCurrent && <span className="text-muted text-sm">Current</span>}
