@@ -26,6 +26,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
+	currentCheckpoint?: string
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -126,6 +127,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
 
 	const setListApiConfigMeta = useCallback(
 		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
@@ -241,6 +243,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					setMcpServers(message.mcpServers ?? [])
 					break
 				}
+				case "currentCheckpointUpdated": {
+					setCurrentCheckpoint(message.text)
+					break
+				}
 				case "listApiConfig": {
 					setListApiConfigMeta(message.listApiConfig ?? [])
 					break
@@ -265,6 +271,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		openRouterModels,
 		openAiModels,
 		mcpServers,
+		currentCheckpoint,
 		filePaths,
 		openedTabs,
 		soundVolume: state.soundVolume,
