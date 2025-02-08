@@ -102,7 +102,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
-	private workspaceTracker?: WorkspaceTracker
+	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private authManager: FirebaseAuthManager
 	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
@@ -379,7 +379,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				switch (message.type) {
 					case "webviewDidLaunch":
 						this.postStateToWebview()
-						this.workspaceTracker?.initializeFilePaths() // don't await
+						this.workspaceTracker?.populateFilePaths() // don't await
 						getTheme().then((theme) =>
 							this.postMessageToWebview({
 								type: "theme",

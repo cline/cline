@@ -1835,6 +1835,11 @@ export class Cline {
 											`${newProblemsMessage}`,
 									)
 								}
+
+								if (!fileExists) {
+									this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+								}
+
 								await this.diffViewProvider.reset()
 								await this.saveCheckpoint()
 								break
@@ -2387,6 +2392,10 @@ export class Cline {
 								if (userRejected) {
 									this.didRejectTool = true
 								}
+
+								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
+								this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+
 								pushToolResult(result)
 								await this.saveCheckpoint()
 								break
