@@ -31,14 +31,15 @@ export class OpenAiHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
+		const baseUrl = this.options.openAiBaseUrl ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
-
+		const isVolcEngine = baseUrl.includes("ark")
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
-		if (isDeepseekReasoner) {
+		if (isDeepseekReasoner || isVolcEngine) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
