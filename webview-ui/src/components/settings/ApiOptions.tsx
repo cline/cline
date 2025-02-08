@@ -1030,6 +1030,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							setIsDescriptionExpanded={setIsDescriptionExpanded}
 							isPopup={isPopup}
 						/>
+						{selectedProvider === "openai-native" && selectedModelId === "o3-mini" && (
+							<div style={{ marginTop: 5 }}>
+								<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
+									<label htmlFor="o3-mini-reasoning-effort">
+										<span style={{ fontWeight: 500 }}>O3 Mini Reasoning Effort</span>
+									</label>
+									<VSCodeDropdown
+										id="o3-mini-reasoning-effort"
+										value={apiConfiguration?.o3MiniReasoningEffort || "medium"}
+										onChange={handleInputChange("o3MiniReasoningEffort")}
+										style={{ width: "100%" }}>
+										<VSCodeOption value="low">Low</VSCodeOption>
+										<VSCodeOption value="medium">Medium</VSCodeOption>
+										<VSCodeOption value="high">High</VSCodeOption>
+									</VSCodeDropdown>
+								</DropdownContainer>
+							</div>
+						)}
 					</>
 				)}
 
