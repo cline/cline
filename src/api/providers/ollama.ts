@@ -59,7 +59,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 				messages: useR1Format
 					? convertToR1Format([{ role: "user", content: prompt }])
 					: [{ role: "user", content: prompt }],
-				temperature: this.options.modelTemperature ?? 0,
+				temperature: this.options.modelTemperature ?? (useR1Format ? 0.6 : 0),
 				stream: false,
 			})
 			return response.choices[0]?.message.content || ""
