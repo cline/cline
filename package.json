@@ -271,7 +271,7 @@
 		"compile": "tsc -p . --outDir out && node esbuild.js",
 		"compile:integration": "tsc -p tsconfig.integration.json",
 		"install:all": "npm install && cd webview-ui && npm install",
-		"lint-fix": "eslint src --ext ts && npm run lint --prefix webview-ui",
+		"lint": "eslint src --ext ts && npm run lint --prefix webview-ui",
 		"lint-fix": "eslint src --ext ts --fix && npm run lint-fix --prefix webview-ui",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
 		"pretest": "npm run compile && npm run compile:integration",
