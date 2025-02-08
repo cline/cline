@@ -6,6 +6,7 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -45,9 +46,12 @@ export class OpenAiHandler implements ApiHandler {
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
-			temperature: 0,
+			temperature: this.options.isReasoningModel ? undefined : 0,
 			stream: true,
 			stream_options: { include_usage: true },
+			reasoning_effort: this.options.isReasoningModel
+				? (this.options.o3MiniReasoningEffort as ChatCompletionReasoningEffort) || "medium"
+				: undefined,
 		})
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
