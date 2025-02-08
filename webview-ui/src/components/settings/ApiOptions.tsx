@@ -323,16 +323,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						</label>
 						<VSCodeDropdown
 							id="qwen-line-provider"
-							value={apiConfiguration?.qwenApiLine || ""}
+							value={apiConfiguration?.qwenApiLine || "china"}
 							onChange={handleInputChange("qwenApiLine")}
 							style={{
 								minWidth: 130,
 								position: "relative",
 							}}>
-							<VSCodeOption value="https://dashscope.aliyuncs.com/compatible-mode/v1">China API</VSCodeOption>
-							<VSCodeOption value="https://dashscope-intl.aliyuncs.com/compatible-mode/v1">
-								International API
-							</VSCodeOption>
+							<VSCodeOption value="china">China API</VSCodeOption>
+							<VSCodeOption value="international">International API</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
 					<p

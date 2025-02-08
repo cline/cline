@@ -12,7 +12,10 @@ export class QwenHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: this.options.qwenApiLine || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+			baseURL:
+				this.options.qwenApiLine === "china"
+					? "https://dashscope.aliyuncs.com/compatible-mode/v1"
+					: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 			apiKey: this.options.qwenApiKey,
 		})
 	}
