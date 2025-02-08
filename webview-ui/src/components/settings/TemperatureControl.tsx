@@ -51,7 +51,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 							min="0"
 							max={maxValue}
 							step="0.05"
-							value={value}
+							value={value ?? 0}
 							onChange={(e) => {
 								const newValue = parseFloat(e.target.value)
 								onChange(isNaN(newValue) ? undefined : newValue)
