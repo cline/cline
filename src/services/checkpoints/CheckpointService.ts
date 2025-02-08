@@ -5,10 +5,6 @@ import path from "path"
 import debug from "debug"
 import simpleGit, { SimpleGit, CleanOptions } from "simple-git"
 
-if (process.env.NODE_ENV !== "test") {
-	debug.enable("simple-git")
-}
-
 export type CheckpointServiceOptions = {
 	taskId: string
 	git?: SimpleGit
