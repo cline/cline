@@ -22,3 +22,7 @@ docs/_site/
 
 # Dotenv
 .env.integration
+
+
+#Logging
+logs
